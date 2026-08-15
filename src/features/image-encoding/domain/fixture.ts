@@ -1,0 +1,18 @@
+export const SOURCE_COLORS = [
+  "#2E6F95",
+  "#6EA5C4",
+  "#D9A441",
+  "#A9C7D6",
+  "#4C9FBE",
+  "#8AC1D1",
+  "#E4B84A",
+  "#D47B42",
+  "#A8D5BA",
+  "#4C9FBE",
+  "#17212B",
+  "#F0C36A",
+  "#7C9EB2",
+  "#DCE7EF",
+  "#E4B84A",
+  "#4C9FBE",
+] as const;
