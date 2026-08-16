@@ -16,7 +16,7 @@ import {
 const STEPS = [
   { id: 1, title: "Observe sampling", detail: "Read the sampled pixel field" },
   { id: 2, title: "Adjust quantization", detail: "Tune density and palette depth" },
-  { id: 3, title: "Calculate file size", detail: "Compare the encoded estimate" },
+  { id: 3, title: "Calculate encoded payload", detail: "Compare pixel payload" },
   { id: 4, title: "Write conclusion", detail: "Record what changed" },
 ] as const;
 
@@ -33,7 +33,7 @@ function WorkflowRail({ step }: { step: number }) {
       <div className="rail-heading">
         <div>
           <p className="eyebrow">WORKFLOW</p>
-          <h2>Compression pass</h2>
+          <h2>Encoding experiment</h2>
         </div>
         <span className="rail-count">0{step}/04</span>
       </div>
@@ -107,7 +107,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
   return (
     <LabShell
-      controlsLabel="Compression inspector"
+      controlsLabel="Encoding inspector"
       eyebrow="IMAGE / 01"
       title="图像编码"
       subtitle="Sampling and quantization"
@@ -224,7 +224,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
         <div className="inspector-panel">
           <div className="inspector-heading">
             <p className="eyebrow">INSPECTOR</p>
-            <strong>Compression settings</strong>
+            <strong>Encoding settings</strong>
           </div>
           <div className="inspector-body">
             <div className="inspector-intro">
@@ -281,7 +281,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               Run preview <span aria-hidden="true">→</span>
             </button>
             <button className="button button-primary" onClick={submit} type="button">
-              Submit <span aria-hidden="true">→</span>
+              Submit encoding <span aria-hidden="true">→</span>
             </button>
             <button
               className="button button-secondary"

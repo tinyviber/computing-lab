@@ -18,7 +18,7 @@ function formulaPanel() {
 
 async function reachSuccess(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByRole("button", { name: /run preview/i }));
-  await user.click(screen.getByRole("button", { name: /^submit$/i }));
+  await user.click(screen.getByRole("button", { name: /^submit encoding$/i }));
 }
 
 describe("ImageEncodingPage", () => {
@@ -58,6 +58,26 @@ describe("ImageEncodingPage", () => {
     expect(within(screen.getByRole("grid")).getAllByRole("gridcell")).toHaveLength(16);
   });
 
+  it("exposes the encoding workflow labels and updated inspector landmarks", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    expect(
+      screen.getByRole("heading", { level: 2, name: "Encoding experiment" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Adjust quantization", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Calculate encoded payload", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Compare pixel payload", { exact: true })).toBeInTheDocument();
+    expect(screen.getByText("Encoding settings", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("complementary", { name: "Encoding inspector" })).toBeInTheDocument();
+
+    expect(screen.queryByText("Compression pass", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Calculate file size", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Compression settings", { exact: true })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("complementary", { name: "Compression inspector" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("updates exact formula metrics and pixel count", async () => {
     await renderAppAt("/labs/image-encoding");
     setSlider(slider(/density/i), 5);
@@ -78,16 +98,16 @@ describe("ImageEncodingPage", () => {
   it("submits only from editing and handles retry/success progression", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
-    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    await user.click(screen.getByRole("button", { name: /^submit encoding$/i }));
     expect(status()).toHaveTextContent(/ready/i);
     setSlider(slider(/density/i), 2);
-    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    await user.click(screen.getByRole("button", { name: /^submit encoding$/i }));
     expect(status()).toHaveTextContent(/failure/i);
     expect(screen.getByRole("alert")).toHaveTextContent(/density 4 and 8 bits/i);
     await user.click(screen.getByRole("button", { name: /^retry$/i }));
     expect(status()).toHaveTextContent(/editing/i);
     setSlider(slider(/density/i), 4);
-    await user.click(screen.getByRole("button", { name: /^submit$/i }));
+    await user.click(screen.getByRole("button", { name: /^submit encoding$/i }));
     expect(status()).toHaveTextContent(/success/i);
     await user.click(screen.getByRole("button", { name: /next step/i }));
     expect(screen.getByText("Step 2 / 4")).toBeInTheDocument();

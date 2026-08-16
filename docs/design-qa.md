@@ -30,10 +30,10 @@ The existing `vercel_design.md` reference is preserved as-is. This screen intent
 
 ## Interaction QA
 
-- The visible teaching loop is four steps: `01 Observe sampling`, `02 Adjust quantization`, `03 Calculate file size`, and `04 Write conclusion`; progress starts at `1 / 4`.
+- The visible teaching loop is four steps: `01 Observe sampling`, `02 Adjust quantization`, `03 Calculate encoded payload`, and `04 Write conclusion`; progress starts at `1 / 4`.
 - Density and bits are constrained to `2..8`; moving either slider enters `editing`.
 - `ready` exposes Run preview; Run preview enters `editing`.
-- `editing` exposes Submit compression; only `density=4` and `bits=8` produce `success`.
+- `editing` exposes Submit encoding; only `density=4` and `bits=8` produce `success`.
 - Other submitted profiles produce `failure`; Retry retains values and returns to `editing`.
 - Success advances only while `step < 4`; the final-step action stays disabled.
 - Reset returns to `ready` with density `4` and bits `8`, retaining the current workflow step.

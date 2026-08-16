@@ -174,14 +174,6 @@ export function quantizeColorToPalette(
   const source = parseHex(normalizedHex);
   const palette = buildPalette(safeBits);
 
-  if (safeBits === 8) {
-    const sourceIndex = palette.indexOf(normalizedHex);
-    return {
-      paletteIndex: sourceIndex >= 0 ? sourceIndex : packRgb(source),
-      displayColor: normalizedHex,
-    };
-  }
-
   let nearestIndex = 0;
   let nearestDistance = Number.POSITIVE_INFINITY;
 

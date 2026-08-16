@@ -82,10 +82,18 @@ describe("image encoding domain model", () => {
     );
   });
 
-  it("preserves black and white at full 8-bit indexed depth", () => {
-    expect(snapColor("#000000", 8)).toBe("#000000");
-    expect(snapColor("#FFFFFF", 8)).toBe("#FFFFFF");
-  });
+  it.each(["#000000", "#FFFFFF"])(
+    "maps %s to a valid indexed palette entry at full 8-bit depth",
+    (color) => {
+      const palette = buildPalette(8);
+      const { paletteIndex, displayColor } = quantizeColorToPalette(color, 8);
+
+      expect(Number.isInteger(paletteIndex)).toBe(true);
+      expect(paletteIndex).toBeGreaterThanOrEqual(0);
+      expect(paletteIndex).toBeLessThan(palette.length);
+      expect(displayColor).toBe(palette[paletteIndex]);
+    },
+  );
 
   it("builds a deterministic indexed palette from canonical source colors", () => {
     expect(buildPalette(2)).toEqual(["#17212B", "#7C9EB2", "#E4B84A", "#DCE7EF"]);
@@ -109,6 +117,31 @@ describe("image encoding domain model", () => {
       paletteIndex: 1,
       displayColor: "#7C9EB2",
     });
+  });
+
+  it("keeps every representative quantized color addressable in its indexed palette", () => {
+    const representativeColors = ["#000000", "#FFFFFF", "#B0AB7E", "#123456", "#2E6F95"];
+
+    for (let bits = 2; bits <= 8; bits += 1) {
+      const palette = buildPalette(bits);
+
+      for (const color of representativeColors) {
+        const { paletteIndex, displayColor } = quantizeColorToPalette(color, bits);
+
+        expect(Number.isInteger(paletteIndex)).toBe(true);
+        expect(paletteIndex).toBeGreaterThanOrEqual(0);
+        expect(paletteIndex).toBeLessThan(palette.length);
+        expect(paletteIndex).toBeLessThan(2 ** bits);
+        expect(displayColor).toBe(palette[paletteIndex]);
+      }
+    }
+
+    const fullDepthPalette = buildPalette(8);
+    const fullDepthWhite = quantizeColorToPalette("#FFFFFF", 8);
+    expect(fullDepthWhite.paletteIndex).not.toBe(16777215);
+    expect(fullDepthWhite.paletteIndex).toBeGreaterThanOrEqual(0);
+    expect(fullDepthWhite.paletteIndex).toBeLessThan(fullDepthPalette.length);
+    expect(fullDepthWhite.displayColor).toBe(fullDepthPalette[fullDepthWhite.paletteIndex]);
   });
 
   it("renders a real density × density sampled grid", () => {
