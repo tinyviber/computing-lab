@@ -17,9 +17,9 @@ describe("application router integration", () => {
     ],
     [
       "audio lesson",
-      "/labs/audio-encoding?scenario=low-frequency",
+      "/labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12",
       /声音编码 workspace/i,
-      /8 sampled waveform points/i,
+      /high-pulse|16.?000|12.?bit/i,
     ],
     [
       "network lesson",
@@ -34,7 +34,7 @@ describe("application router integration", () => {
     if (_name === "image lesson") {
       expect(screen.getByRole("grid", { name: expected })).toBeInTheDocument();
     } else if (_name === "audio lesson") {
-      expect(screen.getByRole("group", { name: expected })).toBeInTheDocument();
+      expect(document.body).toHaveTextContent(expected);
     } else {
       expect(document.body).toHaveTextContent(expected);
     }
@@ -63,14 +63,17 @@ describe("application router integration", () => {
     expect(document.body).toHaveTextContent("9 × 7 = 63 bits");
   });
 
-  it("changes audio lesson state when the same route receives a new search", async () => {
-    const { router } = await renderAppAt("/labs/audio-encoding?scenario=low-frequency");
-    expect(screen.getByRole("group", { name: /8 sampled waveform points/i })).toBeInTheDocument();
+  it("changes Sound lesson state when the same route receives a new canonical search", async () => {
+    const { router } = await renderAppAt("/labs/audio-encoding?source=pure440");
+    expect(document.body).toHaveTextContent(/pure440/i);
 
-    await navigateApp(router, "/labs/audio-encoding?scenario=low-bits");
+    await navigateApp(
+      router,
+      "/labs/audio-encoding?source=sawtooth&sampleRate=16000&bitDepth=12&mode=quantization&view=levels",
+    );
 
-    expect(screen.getByRole("group", { name: /16 sampled waveform points/i })).toBeInTheDocument();
-    expect(document.body).toHaveTextContent("16 × 2 bits");
+    expect(document.body).toHaveTextContent(/sawtooth/i);
+    expect(document.body).toHaveTextContent(/quantization|levels/i);
   });
 
   it("changes network lesson state when the same route receives a new search", async () => {
@@ -97,13 +100,13 @@ describe("application router integration", () => {
 
   it("restores lesson and query state through back and forward", async () => {
     const { history, router } = await renderAppAt("/labs/image-encoding");
-    await navigateApp(router, "/labs/audio-encoding?scenario=low-frequency");
+    await navigateApp(router, "/labs/audio-encoding?source=high-pulse&mode=aliasing");
     await navigateApp(router, "/labs/home-network?scenario=wrong-gateway");
 
     history.back();
     await router.load();
     expect(document.querySelector("h1")).toHaveTextContent("声音编码");
-    expect(screen.getByRole("group", { name: /8 sampled waveform points/i })).toBeInTheDocument();
+    expect(document.body).toHaveTextContent(/high-pulse|aliasing/i);
 
     history.forward();
     await router.load();

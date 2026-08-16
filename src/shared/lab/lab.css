@@ -242,48 +242,8 @@
   min-width: 0;
 }
 
-.lab-shell-workspace {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
-  min-width: 0;
-}
-
-.lab-visualization,
-.lab-controls {
-  min-width: 0;
-}
-
-.lab-controls {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface);
-  border-left: 1px solid var(--border);
-}
-
-.lab-controls > .inspector-panel {
-  border-color: transparent;
-  border-radius: 0;
-}
-
-.lab-explanation {
-  padding: 0 24px;
-}
-
-.lab-explanation .formula-panel {
-  margin-top: 0;
-}
-
-.lab-actions {
-  margin-top: auto;
-  padding: 22px 24px 24px;
-}
-
-.lab-actions .inspector-actions {
-  padding: 0;
-}
-
 .lesson-section,
-.lab-visualization > .lesson-section {
+.feature-section {
   min-width: 0;
   padding: 38px 40px 48px;
 }
@@ -578,17 +538,8 @@
     grid-template-columns: 240px minmax(0, 1fr);
   }
 
-  .lab-shell-workspace {
-    display: block;
-  }
-
-  .lab-controls {
-    border-top: 1px solid var(--border);
-    border-left: 0;
-  }
-
   .lesson-section,
-  .lab-visualization > .lesson-section {
+  .feature-section {
     padding: 32px 28px;
   }
 }
@@ -652,7 +603,7 @@
   }
 
   .lesson-section,
-  .lab-visualization > .lesson-section {
+  .feature-section {
     padding: 26px 16px 24px;
   }
 
@@ -668,14 +619,6 @@
 
   .phase-badge {
     margin-top: 14px;
-  }
-
-  .lab-explanation {
-    padding: 0 16px;
-  }
-
-  .lab-actions {
-    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
   }
 
   .inspector-body {

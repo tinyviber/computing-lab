@@ -1,90 +1,93 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAppAt } from "../../../test/router-test-helpers";
 
-function formulaPanel() {
-  const panel = document.querySelector<HTMLElement>(".formula-panel");
-  if (!panel) throw new Error("FormulaPanel is not rendered");
-  return within(panel);
-}
+const control = (name: RegExp) => screen.getByLabelText(name);
+const button = (name: RegExp) => screen.getByRole("button", { name });
 
-describe("AudioEncodingPage", () => {
-  it("renders waveform, formula, controls, and local status", async () => {
+describe("Sound reference UI", () => {
+  it("renders native labelled controls for the orthogonal Sound state", async () => {
     await renderAppAt("/labs/audio-encoding");
 
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("main", { name: /声音编码 workspace/i })).toBeInTheDocument();
-    expect(screen.getByRole("group", { name: /16 sampled waveform points/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /16 reconstructed waveform samples/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("slider", { name: /sampling rate/i })).toHaveValue("16");
-    expect(screen.getByRole("slider", { name: /quantization bits/i })).toHaveValue("8");
-    expect(formulaPanel().getByText("Packed payload")).toBeInTheDocument();
-    expect(formulaPanel().getByText("16 × 8 bits")).toBeInTheDocument();
-    expect(formulaPanel().getByText("16 bytes")).toBeInTheDocument();
-    expect(document.querySelector(".visualization-panel")).toBeInTheDocument();
-    expect(document.querySelector(".formula-panel")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/ready/i);
+    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(control(/^source$/i)).toHaveValue("pure440");
+    expect(control(/sample rate/i)).toHaveValue("8000");
+    expect(control(/bit depth/i)).toHaveValue("8");
+    expect(control(/^phase$/i)).toHaveValue("0");
+
+    for (const name of [/stop/i, /play/i, /pause/i, /original/i, /reconstructed/i]) {
+      expect(button(name)).toBeInTheDocument();
+    }
+    for (const name of [
+      /compare/i,
+      /aliasing/i,
+      /quantization/i,
+      /samples/i,
+      /levels/i,
+      /error/i,
+    ]) {
+      expect(button(name)).toBeInTheDocument();
+    }
   });
 
-  it("exposes a labelled SVG waveform with varying y values", async () => {
-    await renderAppAt("/labs/audio-encoding");
-
-    const waveform = screen.getByRole("group", { name: /16 sampled waveform points/i });
-    const waveformImage = within(waveform).getByRole("img", {
-      name: /16 reconstructed waveform samples/i,
-    });
-    const line = waveformImage.querySelector(".waveform-line");
-    if (!line) throw new Error("Waveform polyline is not rendered");
-    const points = line.getAttribute("points");
-    if (!points) throw new Error("Waveform polyline points are not rendered");
-    const yValues = points
-      .split(" ")
-      .map((point) => Number(point.split(",")[1]))
-      .filter((value) => Number.isFinite(value));
-
-    expect(waveform).toHaveAccessibleName("16 sampled waveform points");
-    expect(yValues).toHaveLength(16);
-    expect(new Set(yValues).size).toBeGreaterThan(1);
-  });
-
-  it("updates waveform point count, formula, and editing status", async () => {
+  it("keeps source, audition, mode, and view changes orthogonal", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    const rate = screen.getByRole("slider", { name: /sampling rate/i });
-    rate.focus();
-    await user.keyboard("{ArrowRight}{ArrowRight}");
-    fireEvent.change(rate, { target: { value: "18" } });
+    await user.selectOptions(control(/^source$/i), "sawtooth");
+    await user.click(button(/^original$/i));
+    await user.click(button(/^aliasing$/i));
+    await user.click(button(/^error$/i));
 
-    expect(rate).toHaveValue("18");
-    expect(screen.getByRole("group", { name: /18 sampled waveform points/i })).toBeInTheDocument();
-    expect(
-      screen.getByRole("img", { name: /18 reconstructed waveform samples/i }),
-    ).toBeInTheDocument();
-    expect(formulaPanel().getByText("18 × 8 bits")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/listening/i);
+    expect(control(/^source$/i)).toHaveValue("sawtooth");
+    expect(button(/^original$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^aliasing$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^error$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^compare$/i)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^quantization$/i)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^levels$/i)).toHaveAttribute("aria-pressed", "false");
   });
 
-  it("clamps range input events and exposes encoded byte metric", async () => {
+  it("supports keyboard-labelled controls without stealing focus", async () => {
+    const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    fireEvent.change(screen.getByRole("slider", { name: /quantization bits/i }), {
-      target: { value: "2" },
-    });
+    const sampleRate = control(/sample rate/i);
+    sampleRate.focus();
+    fireEvent.change(sampleRate, { target: { value: "16000" } });
+    expect(sampleRate).toHaveFocus();
+    expect(sampleRate).toHaveValue("16000");
 
-    expect(screen.getByRole("slider", { name: /quantization bits/i })).toHaveValue("2");
-    const summary = document.querySelector<HTMLElement>(".audio-summary");
-    if (!summary) throw new Error("Audio summary is not rendered");
-    expect(within(summary).getByText("Encoded bytes").parentElement).toHaveTextContent("4");
+    const source = control(/^source$/i);
+    source.focus();
+    await user.selectOptions(source, "high-pulse");
+    expect(source).toHaveFocus();
   });
 
-  it("hydrates low-frequency scenario from URL when supported by lesson parser", async () => {
-    await renderAppAt("/labs/audio-encoding?scenario=low-frequency");
+  it("exposes a bounded polite live region and bounded accessible plot", async () => {
+    await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=48000&bitDepth=16");
 
-    expect(screen.getByRole("slider", { name: /sampling rate/i })).toHaveValue("8");
-    expect(screen.getByRole("slider", { name: /quantization bits/i })).toHaveValue("8");
+    const live = screen.getByRole("status");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect((live.textContent ?? "").length).toBeLessThanOrEqual(240);
+
+    const plot = screen.getByRole("img", { name: /sound|waveform|plot/i });
+    expect(plot).toBeInTheDocument();
+    expect(plot.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it("does not write live URL state while interacting with Sound controls", async () => {
+    const user = userEvent.setup();
+    const { history } = await renderAppAt("/labs/audio-encoding");
+    const initial = history.location.href;
+
+    await user.selectOptions(control(/^source$/i), "speech");
+    await user.click(button(/^aliasing$/i));
+    await user.click(button(/^error$/i));
+
+    expect(history.location.href).toBe(initial);
   });
 });

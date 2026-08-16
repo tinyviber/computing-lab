@@ -133,14 +133,14 @@ submit 只在局部 checkpoint 有意义，例如“预测降低 sample rate 会
 
 #### Scenario URL
 
-以下是重做后的 target scenario contract，用于教师分享有意义的声音情境。它们不是当前 parser 已支持的完整 query contract；当前实现只支持有限的 `scenario`/numeric keys。`source`、`mode`、`loop`、`view` 等语义需在 Sound 重做时由 feature parser 明确定义。
+以下是重做后的 target scenario contract，用于教师分享有意义的声音情境。Sound reference implementation 已落地这组 canonical keys；parser 的完整边界与 legacy 兼容规则在 `src/features/audio-encoding/lesson/scenario.ts` 及其测试中定义。loop 使用 `off`、`on` 或 `startMs,endMs`，view 使用 `compare`、`samples`、`levels`、`error`。
 
 ```text
 /labs/audio-encoding?source=pure440&sampleRate=2000&bitDepth=16&mode=compare
 /labs/audio-encoding?source=high-pulse&sampleRate=8000&bitDepth=16&mode=aliasing
 /labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=3&mode=quantization
-/labs/audio-encoding?source=sawtooth&sampleRate=44100&bitDepth=2&loop=local
-/labs/audio-encoding?source=440&sampleRate=8000&bitDepth=8&phase=0.37&view=zoom
+/labs/audio-encoding?source=sawtooth&sampleRate=44100&bitDepth=2&loop=on
+/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&phase=0.37&view=error
 ```
 
 不要使用 `step=3&status=active` 这类无法表达声音场景的 URL。

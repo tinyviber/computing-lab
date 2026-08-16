@@ -1,3 +1,29 @@
+.network-feature-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  min-width: 0;
+}
+
+.network-visualization,
+.network-inspector {
+  min-width: 0;
+}
+
+.network-inspector {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.network-inspector > .formula-panel {
+  margin: 0 24px;
+}
+
+.network-inspector .inspector-actions {
+  margin-top: auto;
+}
+
 .topology-stage {
   display: block;
   padding: 18px 24px 22px;
@@ -144,6 +170,19 @@ select {
 }
 
 @media (max-width: 767px) {
+  .network-feature-layout {
+    display: block;
+  }
+
+  .network-inspector {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .network-inspector > .formula-panel {
+    margin: 0 16px;
+  }
+
   .topology-stage {
     padding: 24px 12px;
   }
