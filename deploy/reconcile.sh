@@ -462,8 +462,9 @@ for current, dirs, files in os.walk(root, followlinks=False):
             raise SystemExit("dist contains hard-linked file: " + relative)
 PY
   [[ -f "$dist/index.html" ]] || die 'dist/index.html is missing'
-  find "$dist" -type f ! -name index.html -print -quit | grep -q . \
-    || die 'dist has no static asset besides index.html'
+  local asset
+  asset="$(find "$dist" -type f ! -name index.html -print -quit)"
+  [[ -n "$asset" ]] || die 'dist has no static asset besides index.html'
 }
 
 validate_release() {
