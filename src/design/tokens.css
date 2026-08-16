@@ -1,0 +1,23 @@
+:root {
+  --canvas: #f6f8fb;
+  --surface: #ffffff;
+  --subtle: #f1f4f8;
+  --border: #d9e0e8;
+  --primary: #17212b;
+  --secondary: #526171;
+  --muted: #526171;
+  --accent: #2563eb;
+  --focus: #60a5fa;
+  --focus-ring: #1d4ed8;
+  --success: #15803d;
+  --warning: #b45309;
+  --danger: #b42318;
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+}
