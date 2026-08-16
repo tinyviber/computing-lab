@@ -62,6 +62,7 @@ if [[ "${1:-}" == "run" && "${2:-}" == "build" ]]; then
   mkdir -p dist/assets
   printf '<div id="root">%s</div><script src="%s"></script>\n' "$marker" "$asset" >dist/index.html
   printf '%s\n' "$marker" >dist/assets/app.js
+  printf '%s\n' "$marker" >dist/assets/app.css
   exit 0
 fi
 if [[ "${1:-}" == *.mjs ]]; then
