@@ -1,0 +1,22 @@
+# Production template: one dedicated subdomain and the root-built artifact
+# (VITE_BASE_PATH=/) only. Replace placeholders in a host-managed copy.
+{$SITE_ADDRESS} {
+    root * {$DEPLOY_ROOT}/current/dist
+
+    @spa {
+        not file
+        not path /assets/* /icons/* /fonts/* /favicon.ico /robots.txt /manifest.webmanifest
+        path_regexp extensionless ^(?:/[^./]+)*/?$
+    }
+
+    # Production root artifact only. try_files keeps real files authoritative;
+    # only extensionless, non-asset paths reach index.html, so missing
+    # JS/CSS/image files remain 404.
+    handle {
+        route {
+            try_files {path}
+            rewrite @spa /index.html
+            file_server
+        }
+    }
+}
