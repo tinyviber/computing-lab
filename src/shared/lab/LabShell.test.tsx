@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { renderAppAt } from "../../test/router-test-helpers.test";
+import { renderAppAt } from "../../test/router-test-helpers";
 
 afterEach(() => {
   vi.unstubAllGlobals();

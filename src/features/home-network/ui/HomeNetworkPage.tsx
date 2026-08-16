@@ -1,16 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import { useSearch } from "@tanstack/react-router";
+import { ExperimentStatus } from "../../../shared/lab/ExperimentStatus";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
 import { LabShell } from "../../../shared/lab/LabShell";
-import { StatusMessage, type LabPhase } from "../../../shared/lab/StatusMessage";
 import { VisualizationPanel } from "../../../shared/lab/VisualizationPanel";
-import {
-  NETWORK_DEVICES,
-  NETWORK_FIXTURE,
-  NETWORK_LINKS,
-  parseHomeNetworkScenario,
-  validateNetwork,
-} from "../domain/model";
+import { NETWORK_DEVICES, NETWORK_FIXTURE, NETWORK_LINKS, validateNetwork } from "../domain/model";
+import { parseHomeNetworkScenario } from "../lesson/scenario";
+import { createHomeNetworkLessonState, transitionHomeNetworkLesson } from "../lesson/state";
+import "./home-network.css";
 
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
   router: { x: 240, y: 100 },
@@ -20,20 +17,19 @@ const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
 
 function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseHomeNetworkScenario(search), [search]);
-  const [gateway, setGateway] = useState(scenario.gateway);
-  const [phase, setPhase] = useState<LabPhase>("ready");
+  const [lesson, dispatch] = useReducer(
+    transitionHomeNetworkLesson,
+    scenario,
+    createHomeNetworkLessonState,
+  );
+  const { gateway, phase } = lesson;
   const validation = useMemo(() => validateNetwork({ ...NETWORK_FIXTURE, gateway }), [gateway]);
 
   useEffect(() => {
-    setGateway(scenario.gateway);
-    setPhase("ready");
+    dispatch({ type: "load-scenario", scenario });
   }, [scenario.gateway, scenario.scenario]);
 
-  const submit = () => setPhase(validation.valid ? "success" : "failure");
-  const reset = () => {
-    setGateway(scenario.gateway);
-    setPhase("ready");
-  };
+  const submit = () => dispatch({ type: "submit", valid: validation.valid });
   const statusDetail = validation.valid
     ? "All devices share the router gateway."
     : `Issue codes: ${validation.issues.join(", ")}`;
@@ -141,8 +137,10 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                           aria-label={`${device.name}, ${device.ip}`}
                           className="device-palette-button"
                           onClick={() => {
-                            if (device.kind === "router") setGateway(device.ip);
-                            setPhase("editing");
+                            dispatch({
+                              type: "set-gateway",
+                              gateway: device.kind === "router" ? device.ip : gateway,
+                            });
                           }}
                           type="button"
                         >
@@ -175,8 +173,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             className="network-input"
             id="gateway"
             onChange={(event) => {
-              setGateway(event.target.value);
-              setPhase("editing");
+              dispatch({ type: "set-gateway", gateway: event.target.value });
             }}
             role="combobox"
             type="text"
@@ -216,7 +213,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           <button className="button button-primary" onClick={submit} type="button">
             Check configuration <span aria-hidden="true">→</span>
           </button>
-          <StatusMessage
+          <ExperimentStatus
             phase={phase}
             title={
               phase === "success" ? "Connected" : phase === "failure" ? "Wrong gateway" : "Ready"
@@ -229,7 +226,11 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                   : statusDetail
             }
           />
-          <button className="button button-secondary" onClick={reset} type="button">
+          <button
+            className="button button-secondary"
+            onClick={() => dispatch({ type: "reset" })}
+            type="button"
+          >
             Reset
           </button>
         </div>

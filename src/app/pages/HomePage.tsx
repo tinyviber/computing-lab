@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { labs } from "../app/lab-registry";
+import { labs } from "../catalog/labs";
+import "./home.css";
 
 export function HomePage() {
   return (

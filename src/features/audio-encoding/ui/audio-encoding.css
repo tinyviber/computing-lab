@@ -1,0 +1,51 @@
+.audio-controls {
+  padding-bottom: 20px;
+}
+
+.audio-controls .control-group,
+.audio-controls .calculation-card,
+.audio-controls .status-message {
+  margin-left: 24px;
+  margin-right: 24px;
+}
+
+.audio-controls .control-group {
+  margin-top: 22px;
+}
+
+.waveform-stage {
+  display: block;
+  height: 300px;
+  overflow: hidden;
+  padding: 30px 24px;
+  background: var(--subtle);
+}
+
+.waveform-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.waveform-axis {
+  stroke: var(--border);
+  stroke-width: 0.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.waveform-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+@media (max-width: 767px) {
+  .waveform-stage {
+    height: 240px;
+    padding: 20px 14px;
+  }
+}

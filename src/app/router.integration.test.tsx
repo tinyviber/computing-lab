@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { navigateApp, navigateAppWithSearch, renderAppAt } from "../test/router-test-helpers.test";
+import { navigateApp, navigateAppWithSearch, renderAppAt } from "../test/router-test-helpers";
 
 afterEach(() => {
   window.history.replaceState({}, "", "/");

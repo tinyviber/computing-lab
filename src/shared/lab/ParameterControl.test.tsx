@@ -1,14 +1,14 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { RangeControl } from "./RangeControl";
+import { ParameterControl } from "./ParameterControl";
 
-describe("RangeControl", () => {
+describe("ParameterControl", () => {
   it("associates label, description, value, bounds, and keyboard changes", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
-      <RangeControl
+      <ParameterControl
         description="Control description"
         id="density"
         label="Sampling density"
@@ -28,7 +28,6 @@ describe("RangeControl", () => {
 
     input.focus();
     await user.keyboard("{ArrowRight}");
-    // jsdom does not synthesize native range input change from keyboard events.
     fireEvent.change(input, { target: { value: "5" } });
     expect(onChange).toHaveBeenCalledWith(5);
   });

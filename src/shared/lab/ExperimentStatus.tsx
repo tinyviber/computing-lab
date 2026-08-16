@@ -1,8 +1,9 @@
 import type { ReactNode } from "react";
-import type { LabPhase } from "./StatusMessage";
+
+export type ExperimentPhase = "ready" | "editing" | "success" | "failure";
 
 type ExperimentStatusProps = {
-  phase: LabPhase;
+  phase: ExperimentPhase;
   title: string;
   detail: string;
   icon?: ReactNode;

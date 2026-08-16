@@ -1,5 +1,4 @@
 import {
-  Link,
   Outlet,
   createBrowserHistory,
   createRootRoute,
@@ -7,26 +6,15 @@ import {
   createRouter,
   type RouterHistory,
 } from "@tanstack/react-router";
-import { HomePage } from "../pages/HomePage";
-import { AudioEncodingPage } from "../features/audio-encoding/ui/AudioEncodingPage";
-import { HomeNetworkPage } from "../features/home-network/ui/HomeNetworkPage";
-import { ImageEncodingPage } from "../features/image-encoding/ui/ImageEncodingPage";
+import { AudioEncodingPage } from "../features/audio-encoding";
+import { HomeNetworkPage } from "../features/home-network";
+import { ImageEncodingPage } from "../features/image-encoding";
+import { HomePage } from "./pages/HomePage";
+import { LabErrorPage } from "./pages/LabErrorPage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
 function RootLayout() {
   return <Outlet />;
-}
-
-function NotFoundPage() {
-  return (
-    <div className="not-found">
-      <p className="eyebrow">404 / ROUTE NOT FOUND</p>
-      <h1>实验不存在</h1>
-      <p>这个地址没有对应的 Computing Lab 实验。</p>
-      <Link className="button button-primary" to="/">
-        返回首页
-      </Link>
-    </div>
-  );
 }
 
 function normalizeBasePath(baseUrl: string): string {
@@ -60,18 +48,21 @@ const imageRoute = createRoute({
   path: "/labs/image-encoding",
   validateSearch: passThroughSearch,
   component: ImageEncodingPage,
+  errorComponent: LabErrorPage,
 });
 const audioRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/audio-encoding",
   validateSearch: passThroughSearch,
   component: AudioEncodingPage,
+  errorComponent: LabErrorPage,
 });
 const networkRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/home-network",
   validateSearch: passThroughSearch,
   component: HomeNetworkPage,
+  errorComponent: LabErrorPage,
 });
 
 const routeTree = rootRoute.addChildren([indexRoute, imageRoute, audioRoute, networkRoute]);

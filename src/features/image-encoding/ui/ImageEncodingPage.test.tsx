@@ -1,7 +1,7 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import { renderAppAt } from "../../../test/router-test-helpers.test";
+import { renderAppAt } from "../../../test/router-test-helpers";
 
 const slider = (name: RegExp) => screen.getByRole("slider", { name });
 const status = () => screen.getByRole("status");
