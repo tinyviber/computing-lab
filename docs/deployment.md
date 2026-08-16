@@ -250,11 +250,26 @@ sudo test -d /srv/computing-lab/current/dist
 sudo docker exec kotoba-caddy-1 test -d /srv/computing-lab/current/dist
 ```
 
-If this mount is absent, stop. Do not modify talk-polish Compose, copy releases
-into `/opt/kotoba`, create a temporary namespace mount or symlink, start a
-second Caddy, or open another public port. Current txc discovery has no such
-mount, so its Caddy integration is intentionally blocked pending a user-approved
-host-owned lifecycle integration.
+If this mount is absent, stop. Do not modify the talk-polish Compose source,
+copy releases into `/opt/kotoba`, create a temporary namespace mount or symlink,
+start a second Caddy, or open another public port. On txc the approved
+host-owned integration is:
+
+- `/etc/computing-lab/caddy/Caddyfile` imports the unchanged
+  `/opt/kotoba/Caddyfile` through a read-only container mount, then adds only
+  the `it.cp4.fun` root-only static site.
+- `/etc/computing-lab/caddy/compose.override.yml` adds read-only mounts for
+  that wrapper, the original Caddyfile, and `/srv/computing-lab`; it is passed
+  together with `/opt/kotoba/compose.yml` only for the `caddy` service.
+- `computing-lab-caddy-integration.service` owns a lock-protected,
+  event-triggered re-ensure loop. It debounces Docker Compose caddy restarts,
+  validates the same Caddy image before applying, reloads through the
+  container-local binary, and restores the base Compose caddy definition if
+  post-apply validation fails.
+
+This layer does not edit the talk-polish Compose source or release tree and
+does not manage any other container. Re-prove its mounts and lifecycle after
+any talk-polish deployment.
 
 When a compliant mount exists, install a root-owned host-managed copy of the
 reviewed root-only site block for `it.cp4.fun`, back up the actual config first,
