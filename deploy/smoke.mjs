@@ -75,6 +75,14 @@ try {
     if (response.status !== 200)
       throw new Error(`smoke: asset ${asset} returned ${response.status}`);
   }
+  const missingAssetResponse = await fetch(`${origin}${rootPath}assets/missing.js`);
+  if (missingAssetResponse.status !== 404)
+    throw new Error(`smoke: missing asset returned ${missingAssetResponse.status}`);
+  if (base !== "/") {
+    const unprefixedResponse = await fetch(`${origin}/labs/image-encoding`);
+    if (unprefixedResponse.status !== 404)
+      throw new Error(`smoke: unprefixed subpath returned ${unprefixedResponse.status}`);
+  }
   console.log(`smoke: ok base=${base} assets=${assets.length}`);
 } finally {
   server.stop(true);

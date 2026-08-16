@@ -7,6 +7,7 @@ umask 027
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_CONFIG="${DEPLOY_CONFIG:-/etc/computing-lab/deploy.env}"
+INHERITED_GIT_SSH_COMMAND_SET="${GIT_SSH_COMMAND+x}"
 if [[ -f "$DEPLOY_CONFIG" ]]; then
   # shellcheck disable=SC1090
   source "$DEPLOY_CONFIG"
@@ -15,6 +16,11 @@ fi
 DEPLOY_ROOT="${DEPLOY_ROOT:-/srv/computing-lab}"
 GITEE_REMOTE="${GITEE_REMOTE:-}"
 GITEE_REF="${GITEE_REF:-main}"
+GITEE_SSH_HOST="${GITEE_SSH_HOST:-}"
+GITEE_SSH_CONFIG="${GITEE_SSH_CONFIG:-/etc/computing-lab/gitee_ssh_config}"
+GITEE_SSH_KEY="${GITEE_SSH_KEY:-/etc/computing-lab/keys/gitee-readonly}"
+GITEE_KNOWN_HOSTS="${GITEE_KNOWN_HOSTS:-/etc/computing-lab/known_hosts}"
+SSH_BIN="${SSH_BIN:-/usr/bin/ssh}"
 BUN_BIN="${BUN_BIN:-}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 FLOCK_BIN="${FLOCK_BIN:-flock}"
@@ -45,6 +51,104 @@ die() { printf 'computing-lab-deploy: %s\n' "$*" >&2; exit 1; }
 
 is_sha() { [[ "$1" =~ ^[0-9a-f]{40}$ ]]; }
 
+validate_host_file() {
+  local path="$1" label="$2" kind="$3"
+  "$PYTHON_BIN" - "$path" "$label" "$kind" <<'PY'
+import os
+import stat
+import sys
+
+path, label, kind = sys.argv[1:]
+try:
+    info = os.lstat(path)
+    parent_info = os.lstat(os.path.dirname(os.path.abspath(path)))
+except OSError as error:
+    raise SystemExit(f"{label} cannot be inspected: {error}")
+
+if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+    raise SystemExit(f"{label} must be a regular non-symlink file")
+if info.st_uid not in (0, os.geteuid()):
+    raise SystemExit(f"{label} has an unexpected owner")
+if stat.S_IMODE(info.st_mode) & 0o022:
+    raise SystemExit(f"{label} has unsafe permissions")
+if kind == "key" and stat.S_IMODE(info.st_mode) != 0o600:
+    raise SystemExit(f"{label} private key must be mode 0600")
+if stat.S_ISLNK(parent_info.st_mode) or not stat.S_ISDIR(parent_info.st_mode):
+    raise SystemExit(f"{label} parent must be a real directory")
+if parent_info.st_uid not in (0, os.geteuid()) or stat.S_IMODE(parent_info.st_mode) & 0o022:
+    raise SystemExit(f"{label} parent directory is unsafe")
+PY
+}
+
+parse_gitee_remote() {
+  local user host path
+  if [[ "$GITEE_REMOTE" =~ ^([^@/:[:space:]]+)@([A-Za-z0-9._-]+):([^[:space:]]+)$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    host="${BASH_REMATCH[2]}"
+    path="${BASH_REMATCH[3]}"
+  elif [[ "$GITEE_REMOTE" =~ ^ssh://([^@/:[:space:]]+)@([A-Za-z0-9._-]+)/([^[:space:]]+)$ ]]; then
+    user="${BASH_REMATCH[1]}"
+    host="${BASH_REMATCH[2]}"
+    path="${BASH_REMATCH[3]}"
+  else
+    die 'GITEE_REMOTE must use git@host:path or ssh://git@host/path syntax'
+  fi
+  [[ "$user" == git && -n "$path" ]] || die 'GITEE_REMOTE must use the read-only git user'
+  [[ "$host" == "$GITEE_SSH_HOST" ]] || die 'GITEE_REMOTE host must equal GITEE_SSH_HOST'
+}
+
+validate_ssh_transport() {
+  [[ "$INHERITED_GIT_SSH_COMMAND_SET" != x && "${GIT_SSH_COMMAND+x}" != x ]] \
+    || die 'GIT_SSH_COMMAND must not be inherited or set in deploy config'
+  [[ "$GITEE_SSH_HOST" =~ ^[A-Za-z0-9._-]+$ ]] || die 'GITEE_SSH_HOST is unsafe'
+  [[ "$SSH_BIN" == /* && -x "$SSH_BIN" && ! -L "$SSH_BIN" ]] \
+    || die 'SSH_BIN must be an absolute, executable, non-symlink regular file'
+  parse_gitee_remote
+  validate_host_file "$GITEE_SSH_CONFIG" GITEE_SSH_CONFIG config
+  validate_host_file "$GITEE_SSH_KEY" GITEE_SSH_KEY key
+  validate_host_file "$GITEE_KNOWN_HOSTS" GITEE_KNOWN_HOSTS known_hosts
+  validate_host_file "$SSH_BIN" SSH_BIN binary
+
+  local effective
+  effective="$(LC_ALL=C "$SSH_BIN" -G -F "$GITEE_SSH_CONFIG" \
+    -i "$GITEE_SSH_KEY" \
+    -o BatchMode=yes \
+    -o StrictHostKeyChecking=yes \
+    -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile="$GITEE_KNOWN_HOSTS" \
+    -o GlobalKnownHostsFile=/dev/null \
+    -o IdentityAgent=none \
+    -o ControlMaster=no \
+    -o ControlPath=none \
+    "git@$GITEE_SSH_HOST")" || die 'SSH configuration cannot be parsed'
+  grep -Fxq 'batchmode yes' <<<"$effective" || die 'SSH BatchMode is not enabled'
+  grep -Eq '^stricthostkeychecking (true|yes)$' <<<"$effective" \
+    || die 'SSH strict host-key checking is not enabled'
+  grep -Fxq 'identitiesonly yes' <<<"$effective" || die 'SSH agent identities are not restricted'
+  grep -Fxq "identityfile $GITEE_SSH_KEY" <<<"$effective" || die 'SSH identity file is not the configured key'
+  grep -Fxq "userknownhostsfile $GITEE_KNOWN_HOSTS" <<<"$effective" || die 'SSH known_hosts is not pinned'
+  grep -Fxq 'globalknownhostsfile /dev/null' <<<"$effective" || die 'SSH global known_hosts fallback is enabled'
+  grep -Fxq 'identityagent none' <<<"$effective" || die 'SSH agent use is not disabled'
+  if grep -q '^controlpath ' <<<"$effective"; then
+    grep -Fxq 'controlpath none' <<<"$effective" || die 'SSH connection sharing is not disabled'
+  fi
+  grep -Eq '^controlmaster (false|no)$' <<<"$effective" || die 'SSH ControlMaster is not disabled'
+
+  printf -v GIT_SSH_COMMAND '%q ' "$SSH_BIN" \
+    -F "$GITEE_SSH_CONFIG" \
+    -i "$GITEE_SSH_KEY" \
+    -o BatchMode=yes \
+    -o StrictHostKeyChecking=yes \
+    -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile="$GITEE_KNOWN_HOSTS" \
+    -o GlobalKnownHostsFile=/dev/null \
+    -o IdentityAgent=none \
+    -o ControlMaster=no \
+    -o ControlPath=none
+  GIT_SSH_COMMAND="${GIT_SSH_COMMAND% }"
+  export GIT_SSH_COMMAND
+}
+
 validate_base() {
   local value="$1"
   [[ "$value" == "/" || "$value" =~ ^/[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*/?$ ]] \
@@ -55,6 +159,7 @@ validate_config() {
   [[ "$DEPLOY_ROOT" == /* && "$DEPLOY_ROOT" != "/" && "$DEPLOY_ROOT" != */..* ]] \
     || die 'DEPLOY_ROOT must be an absolute non-root path'
   [[ "$GITEE_REF" == main ]] || die 'GITEE_REF must be main for production reconciliation'
+  [[ "$VITE_BASE_PATH" == "/" ]] || die 'production reconciler requires VITE_BASE_PATH=/'
   git check-ref-format --branch "$GITEE_REF" >/dev/null \
     || die 'GITEE_REF failed git check-ref-format'
   [[ -n "$GITEE_REMOTE" ]] || die 'GITEE_REMOTE is required'
@@ -64,6 +169,7 @@ validate_config() {
   validate_base "$VITE_BASE_PATH"
   command -v "$PYTHON_BIN" >/dev/null || die 'PYTHON_BIN is unavailable'
   command -v "$FLOCK_BIN" >/dev/null || die 'flock is required on deployment host'
+  validate_ssh_transport
 }
 
 ensure_root_safety() {

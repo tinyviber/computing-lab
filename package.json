@@ -13,6 +13,7 @@
     "test:deploy": "bash deploy/tests/reconcile.test.sh",
     "test:e2e": "bun run build && playwright test",
     "deploy": "bash deploy/reconcile.sh reconcile",
+    "test:caddy": "bash deploy/tests/caddy.test.sh",
     "deploy:rollback": "bash deploy/reconcile.sh rollback",
     "deploy:status": "bash deploy/reconcile.sh status",
     "lint": "bun run eslint .",
