@@ -45,3 +45,17 @@ Routes:
 - `/labs/home-network` — gateway configuration
 
 All lesson calculations run in the browser. Query scenarios are shareable, for example `/labs/image-encoding?scenario=low-sampling`.
+
+## Static host deployment
+
+Computing Lab deploys as static files only. GitHub `main` is canonical, CI
+promotes its exact verified SHA to Gitee `main`, and a Tencent host pulls and
+reconciles that qualified SHA into an atomic `current` release for Caddy.
+
+The host-side reconciler, Caddy template, systemd timer, failure invariants,
+and Tencent bootstrap/rollback runbook are in [docs/deployment.md](docs/deployment.md).
+Run deterministic deployment checks with:
+
+```sh
+bun run test:deploy
+```

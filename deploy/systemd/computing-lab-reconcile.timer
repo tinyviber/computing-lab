@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll qualified Computing Lab Gitee main
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=60s
+Persistent=true
+Unit=computing-lab-reconcile.service
+
+[Install]
+WantedBy=timers.target

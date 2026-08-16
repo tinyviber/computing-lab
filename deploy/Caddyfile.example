@@ -1,0 +1,33 @@
+# Template only. Set SITE_ADDRESS and DEPLOY_ROOT in Caddy's environment or
+# replace them in an environment-specific, reviewed site file.
+{$SITE_ADDRESS} {
+    root * {$DEPLOY_ROOT}/current/dist
+
+    # Existing subpath compatibility. A /computing-lab/-built artifact is
+    # required for the app router to work under this prefix.
+    redir /computing-lab /computing-lab/ 308
+
+    @spa {
+        not file
+        not path /assets/* /icons/* /fonts/* /favicon.ico /robots.txt /manifest.webmanifest
+        path_regexp extensionless ^(?:/[^./]+)*/?$
+    }
+
+    # try_files keeps real files authoritative. Only extensionless, non-asset
+    # paths reach index.html, so missing JS/CSS/image files remain 404.
+    handle_path /computing-lab/* {
+        route {
+            try_files {path}
+            rewrite @spa /index.html
+            file_server
+        }
+    }
+
+    handle {
+        route {
+            try_files {path}
+            rewrite @spa /index.html
+            file_server
+        }
+    }
+}
