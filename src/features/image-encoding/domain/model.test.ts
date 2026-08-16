@@ -1,100 +1,125 @@
 import { describe, expect, it } from "vitest";
 import {
   SOURCE_COLORS,
+  SOURCE_HEIGHT,
+  SOURCE_WIDTH,
+  buildPalette,
   buildPixelGrid,
   calculateEncodingStats,
+  quantizeColorToPalette,
+  sampleImage,
   snapColor,
 } from "./model";
 
 describe("image encoding domain model", () => {
-  it("keeps the source palette in the specified order and canonical format", () => {
-    expect(SOURCE_COLORS).toEqual([
-      "#2E6F95",
-      "#6EA5C4",
-      "#D9A441",
-      "#A9C7D6",
-      "#4C9FBE",
-      "#8AC1D1",
-      "#E4B84A",
-      "#D47B42",
-      "#A8D5BA",
-      "#4C9FBE",
-      "#17212B",
-      "#F0C36A",
-      "#7C9EB2",
-      "#DCE7EF",
-      "#E4B84A",
-      "#4C9FBE",
-    ]);
+  it("keeps the canonical source palette", () => {
+    expect(SOURCE_COLORS).toHaveLength(16);
     expect(SOURCE_COLORS.every((color) => /^#[0-9A-F]{6}$/.test(color))).toBe(true);
   });
 
   it.each([
-    [2, 2, { sampledPixels: 4, fileSize: 6, quality: 67, error: 33, ratio: 341.3 }],
-    [4, 8, { sampledPixels: 16, fileSize: 96, quality: 92, error: 8, ratio: 21.3 }],
-    [8, 8, { sampledPixels: 64, fileSize: 384, quality: 100, error: 0, ratio: 5.3 }],
-    [8, 2, { sampledPixels: 64, fileSize: 96, quality: 100, error: 0, ratio: 21.3 }],
-  ])(
-    "calculates exact stats for density %i and %i bits",
-    (density, bits, expected) => {
-      expect(calculateEncodingStats({ density, bits })).toEqual(expected);
+    [2, 2, { sampledPixels: 4, encodedBits: 8, encodedBytes: 1, paletteLevels: 4 }],
+    [4, 8, { sampledPixels: 16, encodedBits: 128, encodedBytes: 16, paletteLevels: 256 }],
+    [8, 8, { sampledPixels: 64, encodedBits: 512, encodedBytes: 64, paletteLevels: 256 }],
+  ])("uses sampled pixels × bits formula for density %i and %i bits", (density, bits, expected) => {
+    expect(calculateEncodingStats({ density, bits })).toMatchObject(expected);
+  });
+
+  it.each([2, 4, 8])("expands sampled output to a real %i×%i grid", (density) => {
+    const grid = buildPixelGrid({ density, bits: 8 });
+
+    expect(grid).toHaveLength(density * density);
+    expect(grid.map(({ row, col }) => `${row}:${col}`)).toEqual(
+      Array.from({ length: density * density }, (_, index) => {
+        const row = Math.floor(index / density);
+        const col = index % density;
+        return `${row}:${col}`;
+      }),
+    );
+  });
+
+  it.each([
+    [2, [2, 6]],
+    [4, [1, 3, 5, 7]],
+    [8, [0, 1, 2, 3, 4, 5, 6, 7]],
+  ] as const)("uses center-nearest source coordinates for density %i", (density, expectedRows) => {
+    const samples = sampleImage(density);
+    expect(samples).toHaveLength(density * density);
+    expect(samples.filter((sample) => sample.col === 0).map((sample) => sample.sourceRow)).toEqual(
+      expectedRows,
+    );
+    expect(samples.filter((sample) => sample.row === 0).map((sample) => sample.sourceCol)).toEqual(
+      expectedRows,
+    );
+  });
+
+  it("clamps input at domain boundary and rounds byte size up", () => {
+    expect(calculateEncodingStats({ density: 1, bits: 1 })).toMatchObject({
+      sampledPixels: 4,
+      quantizationBits: 2,
+      encodedBits: 8,
+      encodedBytes: 1,
+    });
+    expect(calculateEncodingStats({ density: 3, bits: 5 }).encodedBytes).toBe(6);
+    expect(calculateEncodingStats({ density: 3, bits: 5 }).encodedBits).toBe(45);
+  });
+
+  it("uses raw source size only as an explicit comparison baseline", () => {
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).rawSourceBits).toBe(
+      SOURCE_WIDTH * SOURCE_HEIGHT * 24,
+    );
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).rawSourceBits).toBe(1536);
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).encodedBits).toBe(128);
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).encodedBytes).toBe(16);
+  });
+
+  it("rounds compression ratio to one decimal without surrogate multipliers", () => {
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).compressionRatio).toBe(12);
+    expect(calculateEncodingStats({ density: 3, bits: 5 }).compressionRatio).toBe(34.1);
+  });
+
+  it("preserves black and white at full 8-bit indexed depth", () => {
+    expect(snapColor("#000000", 8)).toBe("#000000");
+    expect(snapColor("#FFFFFF", 8)).toBe("#FFFFFF");
+  });
+
+  it("builds a deterministic indexed palette from canonical source colors", () => {
+    expect(buildPalette(2)).toEqual(["#17212B", "#7C9EB2", "#E4B84A", "#DCE7EF"]);
+    expect(buildPalette(8)).toEqual(buildPalette(8));
+  });
+
+  it.each([
+    ["#2E6F95", 2, 1, "#7C9EB2"],
+    ["#2e6f95", 2, 1, "#7C9EB2"],
+    ["#B0AB7E", 2, 1, "#7C9EB2"],
+    ["#17212B", 8, 0, "#17212B"],
+  ] as const)(
+    "selects the nearest indexed palette entry for %s at %i bits",
+    (source, bits, paletteIndex, displayColor) => {
+      expect(quantizeColorToPalette(source, bits)).toEqual({ paletteIndex, displayColor });
     },
   );
 
-  it("uses the specified file, quality, error, and ratio formulas", () => {
-    expect(calculateEncodingStats({ density: 3, bits: 5 })).toEqual({
-      sampledPixels: 9,
-      fileSize: 34,
-      quality: 79,
-      error: 21,
-      ratio: 60.2,
+  it("uses the lower palette index for an exact nearest-distance tie", () => {
+    expect(quantizeColorToPalette("#B0AB7E", 2)).toMatchObject({
+      paletteIndex: 1,
+      displayColor: "#7C9EB2",
     });
   });
 
-  it("snaps each channel to 2^bits palette levels and returns uppercase hex", () => {
-    expect(snapColor("#2E6F95", 2)).toBe("#5555AA");
-    expect(snapColor("#2e6f95", 2)).toBe("#5555AA");
-    expect(snapColor("#2E6F95", 8)).toBe("#2E6F95");
-    expect(snapColor("#F0C36A", 2)).toBe("#FFAA55");
+  it("renders a real density × density sampled grid", () => {
+    const grid = buildPixelGrid({ density: 3, bits: 4 });
+    expect(grid).toHaveLength(9);
+    expect(grid.at(-1)).toMatchObject({ row: 2, col: 2, sampleIndex: 9 });
+    expect(grid[0].displayColor).toBe(snapColor(grid[0].sourceColor, 4));
   });
 
-  it("builds a fixed 4x4 grid with density-based sample indices", () => {
-    const grid = buildPixelGrid({ density: 2, bits: 2 });
+  it("is deterministic and keeps stable sample indices across repeated calls", () => {
+    const options = { density: 4, bits: 3 };
 
-    expect(grid).toHaveLength(16);
-    expect(grid.map(({ row, col }) => [row, col])).toEqual(
-      Array.from({ length: 4 }, (_, row) =>
-        Array.from({ length: 4 }, (_, col) => [row, col]),
-      ).flat(),
+    expect(buildPixelGrid(options)).toEqual(buildPixelGrid(options));
+    expect(buildPixelGrid(options).map((pixel) => pixel.sampleIndex)).toEqual(
+      Array.from({ length: 16 }, (_, index) => index + 1),
     );
-    expect(grid.map(({ sampleIndex }) => sampleIndex)).toEqual([
-      1, 2, 3, 4,
-      1, 2, 3, 4,
-      1, 2, 3, 4,
-      1, 2, 3, 4,
-    ]);
-    expect(grid[0]).toEqual({
-      row: 0,
-      col: 0,
-      sourceColor: "#2E6F95",
-      displayColor: "#5555AA",
-      sampleIndex: 1,
-    });
-  });
-
-  it("keeps the grid fixed at 16 cells while sampling the full density range", () => {
-    const grid = buildPixelGrid({ density: 8, bits: 8 });
-
-    expect(grid).toHaveLength(16);
-    expect(grid[0]).toMatchObject({
-      sourceColor: "#2E6F95",
-      displayColor: "#2E6F95",
-      sampleIndex: 1,
-    });
-    expect(grid[15]).toMatchObject({
-      sourceColor: "#4C9FBE",
-      displayColor: "#4C9FBE",
-      sampleIndex: 16,
-    });
   });
 });

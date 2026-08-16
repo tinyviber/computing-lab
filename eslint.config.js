@@ -1,25 +1,58 @@
-import eslint from "@eslint/js";
+import js from "@eslint/js";
+import eslintPluginPrettier from "eslint-plugin-prettier/recommended";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", "node_modules", "**/*.test.{ts,tsx}", "src/test/**"],
+    ignores: ["dist", "node_modules", "coverage", "**/*.test.{ts,tsx}", "src/test/**"],
   },
-  eslint.configs.recommended,
-  ...tseslint.configs.recommended,
   {
+    extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ["**/*.{ts,tsx}"],
     languageOptions: {
-      parserOptions: {
-        ecmaFeatures: { jsx: true },
-      },
-      globals: {
-        document: "readonly",
-        window: "readonly",
-      },
+      ecmaVersion: 2022,
+      globals: globals.browser,
+      parserOptions: { ecmaFeatures: { jsx: true } },
     },
     rules: {
       "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
+      "react-refresh/only-export-components": "off",
+    },
+  },
+  eslintPluginPrettier,
+  {
+    files: ["src/shared/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["**/app/**", "**/features/**"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/features/**/domain/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom"],
+          patterns: ["**/ui/**", "**/app/**", "**/features/**"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/features/**/ui/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["**/App", "**/app/**"],
+        },
+      ],
     },
   },
 );

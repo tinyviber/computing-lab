@@ -3,9 +3,5 @@ dist/
 coverage/
 playwright-report/
 test-results/
+bun.lock
 bun.lockb
-.env
-.env.*
-!.env.example
-*.log
-logs/
