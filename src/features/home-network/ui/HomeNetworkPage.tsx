@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { StatusMessage, type LabPhase } from "../../../shared/lab/StatusMessage";
@@ -11,49 +12,13 @@ import {
   validateNetwork,
 } from "../domain/model";
 
-const LOCATION_CHANGE_EVENT = "computing-lab-locationchange";
-let historyEventsInstalled = false;
-
 const NODE_POSITIONS: Record<string, { x: number; y: number }> = {
   router: { x: 240, y: 100 },
   laptop: { x: 120, y: 230 },
   phone: { x: 360, y: 230 },
 };
 
-function currentSearch(): string {
-  return typeof window === "undefined" ? "" : window.location.search;
-}
-
-function installHistoryEvents() {
-  if (typeof window === "undefined" || historyEventsInstalled) return;
-  historyEventsInstalled = true;
-  for (const method of ["pushState", "replaceState"] as const) {
-    const original = window.history[method];
-    window.history[method] = function patchedHistoryMethod(...args) {
-      const result = original.apply(this, args);
-      window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
-      return result;
-    };
-  }
-}
-
-function subscribeToLocation(listener: () => void): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  installHistoryEvents();
-  window.addEventListener("popstate", listener);
-  window.addEventListener(LOCATION_CHANGE_EVENT, listener);
-  return () => {
-    window.removeEventListener("popstate", listener);
-    window.removeEventListener(LOCATION_CHANGE_EVENT, listener);
-  };
-}
-
-function useLocationSearch(): string {
-  return useSyncExternalStore(subscribeToLocation, currentSearch, () => "");
-}
-
-export function HomeNetworkPage() {
-  const search = useLocationSearch();
+function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseHomeNetworkScenario(search), [search]);
   const [gateway, setGateway] = useState(scenario.gateway);
   const [phase, setPhase] = useState<LabPhase>("ready");
@@ -271,4 +236,9 @@ export function HomeNetworkPage() {
       }
     />
   );
+}
+
+export function HomeNetworkPage() {
+  const search = useSearch({ from: "/labs/home-network" });
+  return <HomeNetworkContent search={search} />;
 }

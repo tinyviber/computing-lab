@@ -71,11 +71,21 @@ function firstInteger(params: URLSearchParams, key: string): number | undefined 
   return Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : undefined;
 }
 
-function toParams(input: URLSearchParams | string): URLSearchParams {
-  return input instanceof URLSearchParams ? input : new URLSearchParams(input.replace(/^\?/, ""));
+export type AudioScenarioSearch = URLSearchParams | string | Record<string, unknown>;
+
+function toParams(input: AudioScenarioSearch): URLSearchParams {
+  if (input instanceof URLSearchParams) return input;
+  if (typeof input === "string") return new URLSearchParams(input.replace(/^\?/, ""));
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    if (firstValue !== undefined && firstValue !== null) params.set(key, String(firstValue));
+  }
+  return params;
 }
 
-export function parseAudioEncodingScenario(input: URLSearchParams | string): AudioScenarioState {
+export function parseAudioEncodingScenario(input: AudioScenarioSearch): AudioScenarioState {
   const params = toParams(input);
   const requested = params.get("scenario");
   const scenario: AudioScenario =

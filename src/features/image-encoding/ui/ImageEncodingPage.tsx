@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
 import { RangeControl } from "../../../shared/lab/RangeControl";
@@ -25,41 +26,6 @@ const STATUS_COPY: Record<Phase, { title: string; detail: string }> = {
   success: { title: "Success", detail: "The target profile produced the expected local result." },
   failure: { title: "Failure", detail: "Use density 4 and 8 bits for the target lesson profile." },
 };
-
-const LOCATION_CHANGE_EVENT = "computing-lab-locationchange";
-let historyEventsInstalled = false;
-
-function currentSearch(): string {
-  return typeof window === "undefined" ? "" : window.location.search;
-}
-
-function installHistoryEvents() {
-  if (typeof window === "undefined" || historyEventsInstalled) return;
-  historyEventsInstalled = true;
-  for (const method of ["pushState", "replaceState"] as const) {
-    const original = window.history[method];
-    window.history[method] = function patchedHistoryMethod(...args) {
-      const result = original.apply(this, args);
-      window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
-      return result;
-    };
-  }
-}
-
-function subscribeToLocation(listener: () => void): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  installHistoryEvents();
-  window.addEventListener("popstate", listener);
-  window.addEventListener(LOCATION_CHANGE_EVENT, listener);
-  return () => {
-    window.removeEventListener("popstate", listener);
-    window.removeEventListener(LOCATION_CHANGE_EVENT, listener);
-  };
-}
-
-function useLocationSearch(): string {
-  return useSyncExternalStore(subscribeToLocation, currentSearch, () => "");
-}
 
 function WorkflowRail({ step }: { step: number }) {
   return (
@@ -96,8 +62,7 @@ function WorkflowRail({ step }: { step: number }) {
   );
 }
 
-export function ImageEncodingPage() {
-  const search = useLocationSearch();
+function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseImageEncodingScenario(search), [search]);
   const [density, setDensity] = useState(scenario.density);
   const [bits, setBits] = useState(scenario.bits);
@@ -241,13 +206,17 @@ export function ImageEncodingPage() {
                 </dd>
               </div>
               <div className="metric-item">
-                <dt>Compression ratio</dt>
+                <dt>Theoretical pixel-payload comparison</dt>
                 <dd>
-                  {metrics.compressionRatio}
+                  {metrics.theoreticalPixelPayloadComparison}
                   <span>×</span>
                 </dd>
               </div>
             </dl>
+            <p className="metric-note">
+              仅理论 pixel payload 比较；排除 palette、file header、metadata、container/codec、实际
+              file size/compression。
+            </p>
           </div>
         </section>
       }
@@ -338,4 +307,9 @@ export function ImageEncodingPage() {
       }
     />
   );
+}
+
+export function ImageEncodingPage() {
+  const search = useSearch({ from: "/labs/image-encoding" });
+  return <ImageEncodingContent search={search} />;
 }

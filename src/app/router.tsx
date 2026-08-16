@@ -1,4 +1,12 @@
-import { Link, Outlet, createRootRoute, createRoute, createRouter } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createBrowserHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  type RouterHistory,
+} from "@tanstack/react-router";
 import { HomePage } from "../pages/HomePage";
 import { AudioEncodingPage } from "../features/audio-encoding/ui/AudioEncodingPage";
 import { HomeNetworkPage } from "../features/home-network/ui/HomeNetworkPage";
@@ -37,31 +45,45 @@ function resolveRuntimeBasePath(configuredBasePath: string): string {
 
 const configuredBasePath = normalizeBasePath(import.meta.env.BASE_URL);
 
+export type AppRouterOptions = {
+  history?: RouterHistory;
+  basepath?: string;
+};
+
+export const passThroughSearch = (search: Record<string, unknown>): Record<string, unknown> =>
+  search;
+
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
 const imageRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/image-encoding",
+  validateSearch: passThroughSearch,
   component: ImageEncodingPage,
 });
 const audioRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/audio-encoding",
+  validateSearch: passThroughSearch,
   component: AudioEncodingPage,
 });
 const networkRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/home-network",
+  validateSearch: passThroughSearch,
   component: HomeNetworkPage,
 });
 
 const routeTree = rootRoute.addChildren([indexRoute, imageRoute, audioRoute, networkRoute]);
 
-export const router = createRouter({
-  basepath: resolveRuntimeBasePath(configuredBasePath),
-  defaultPreload: "intent",
-  routeTree,
-});
+export function createAppRouter({
+  history = createBrowserHistory(),
+  basepath = resolveRuntimeBasePath(configuredBasePath),
+}: AppRouterOptions = {}) {
+  return createRouter({ history, basepath, defaultPreload: "intent", routeTree });
+}
+
+export const router = createAppRouter();
 
 export { normalizeBasePath, resolveRuntimeBasePath };
 

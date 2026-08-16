@@ -112,12 +112,22 @@ export function validateNetwork(config: NetworkConfig): NetworkValidation {
   return { valid: issues.length === 0, issues };
 }
 
-function toParams(input: URLSearchParams | string): URLSearchParams {
-  return input instanceof URLSearchParams ? input : new URLSearchParams(input.replace(/^\?/, ""));
+export type HomeNetworkScenarioSearch = URLSearchParams | string | Record<string, unknown>;
+
+function toParams(input: HomeNetworkScenarioSearch): URLSearchParams {
+  if (input instanceof URLSearchParams) return input;
+  if (typeof input === "string") return new URLSearchParams(input.replace(/^\?/, ""));
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    if (firstValue !== undefined && firstValue !== null) params.set(key, String(firstValue));
+  }
+  return params;
 }
 
 export function parseHomeNetworkScenario(
-  input: URLSearchParams | string,
+  input: HomeNetworkScenarioSearch,
 ): HomeNetworkScenarioState {
   const params = toParams(input);
   const scenario: HomeNetworkScenario =
@@ -131,11 +141,10 @@ export function parseHomeNetworkScenario(
   };
 }
 
-export function getNetworkScenario(search: string): HomeNetworkScenario | null {
-  const scenario = parseHomeNetworkScenario(search).scenario;
-  return scenario === "balanced" && !new URLSearchParams(search.replace(/^\?/, "")).has("scenario")
-    ? null
-    : scenario;
+export function getNetworkScenario(search: HomeNetworkScenarioSearch): HomeNetworkScenario | null {
+  const params = toParams(search);
+  const scenario = parseHomeNetworkScenario(params).scenario;
+  return scenario === "balanced" && !params.has("scenario") ? null : scenario;
 }
 
 export function validateGateway(gateway: string): boolean {

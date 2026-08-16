@@ -4,11 +4,13 @@ on:
   workflow_run:
     workflows: [CI]
     types: [completed]
-    branches: [main]
+    branches:
+      - main
+      - "codex/**"
   workflow_dispatch:
     inputs:
       target_ref:
-        description: Branch ref to mirror (for example main or codex/lesson-update)
+        description: Branch ref to sync (for example main or codex/lesson-update)
         required: true
         type: string
       target_sha:
@@ -17,10 +19,11 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
-  group: sync-gitee-${{ github.event.workflow_run.head_branch || inputs.target_ref || 'main' }}
+  group: sync-gitee-${{ github.event.workflow_run.head_branch || inputs.target_ref || 'manual' }}
   cancel-in-progress: false
 
 jobs:
@@ -28,14 +31,19 @@ jobs:
     if: vars.GITEE_REPOSITORY != '' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     env:
-      TARGET_SHA: ${{ inputs.target_sha || github.event.workflow_run.head_sha }}
-      TARGET_REF: ${{ inputs.target_ref || 'main' }}
+      TARGET_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || inputs.target_sha }}
+      TARGET_REF: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_branch || inputs.target_ref }}
       CI_CONCLUSION: ${{ github.event.workflow_run.conclusion || '' }}
+      CI_RUN_ID: ${{ github.event.workflow_run.id || '' }}
       GITEE_HOST: ${{ vars.GITEE_HOST || 'gitee.com' }}
       GITEE_REPOSITORY: ${{ vars.GITEE_REPOSITORY }}
     steps:
-      - name: Validate target identity
+      - name: Validate target and GitHub canonical ref
         shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          EVENT_TARGET_REF: ${{ github.event.workflow_run.head_branch || '' }}
+          EVENT_TARGET_SHA: ${{ github.event.workflow_run.head_sha || '' }}
         run: |
           set -Eeuo pipefail
           [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || {
@@ -46,10 +54,10 @@ jobs:
             echo "target_ref is not an allowed branch name" >&2
             exit 1
           }
-          if [[ "$GITHUB_EVENT_NAME" == workflow_run && "$CI_CONCLUSION" != success ]]; then
-            echo "CI did not succeed for target commit" >&2
+          git check-ref-format --branch "$TARGET_REF" >/dev/null || {
+            echo "target_ref failed git check-ref-format --branch" >&2
             exit 1
-          fi
+          }
           [[ "$GITEE_HOST" =~ ^[a-z0-9.-]+$ ]] || {
             echo "GITEE_HOST contains invalid characters" >&2
             exit 1
@@ -58,11 +66,89 @@ jobs:
             echo "GITEE_REPOSITORY must be owner/repository" >&2
             exit 1
           }
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            [[ "$CI_CONCLUSION" == success ]] || {
+              echo "CI did not succeed for target commit" >&2
+              exit 1
+            }
+            [[ "$TARGET_REF" == "$EVENT_TARGET_REF" ]] || {
+              echo "workflow_run target ref changed unexpectedly" >&2
+              exit 1
+            }
+            [[ "$TARGET_SHA" == "$EVENT_TARGET_SHA" ]] || {
+              echo "workflow_run target SHA changed unexpectedly" >&2
+              exit 1
+            }
+          fi
+
+          encoded_target_ref="$(jq -rn --arg ref "$TARGET_REF" '$ref | @uri')"
+          canonical_json="$(curl --fail --silent --show-error --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded_target_ref")"
+          canonical_sha="$(jq -r '.object.sha // empty' <<<"$canonical_json")"
+          canonical_type="$(jq -r '.object.type // empty' <<<"$canonical_json")"
+          [[ "$canonical_type" == commit && "$canonical_sha" == "$TARGET_SHA" ]] || {
+            echo "GitHub canonical ref does not point to the requested commit" >&2
+            exit 1
+          }
+
+      - name: Require exact successful CI jobs
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+
+          require_green_jobs() {
+            local jobs_json="$1"
+            jq -e '
+              [.jobs[] | select(.name == "checks" or .name == "e2e-base-path")]
+              | map(select(.status == "completed" and .conclusion == "success") | .name)
+              | unique
+              | . == ["checks", "e2e-base-path"]
+            ' <<<"$jobs_json" >/dev/null
+          }
+
+          if [[ "$GITHUB_EVENT_NAME" == workflow_run ]]; then
+            jobs_json="$(curl --fail --silent --show-error --location \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$CI_RUN_ID/jobs?per_page=100")"
+            require_green_jobs "$jobs_json" || {
+              echo "workflow_run is missing green checks and e2e-base-path jobs" >&2
+              exit 1
+            }
+          else
+            runs_json="$(curl --fail --silent --show-error --location \
+              -H "Accept: application/vnd.github+json" \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&per_page=100")"
+            found_run=0
+            while IFS= read -r run_id; do
+              jobs_json="$(curl --fail --silent --show-error --location \
+                -H "Accept: application/vnd.github+json" \
+                -H "Authorization: Bearer $GITHUB_TOKEN" \
+                "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
+              if require_green_jobs "$jobs_json"; then
+                found_run=1
+                break
+              fi
+            done < <(jq -r --arg sha "$TARGET_SHA" '
+              .workflow_runs[]
+              | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")
+              | .id
+            ' <<<"$runs_json")
+            [[ "$found_run" == 1 ]] || {
+              echo "No exact successful CI run has green checks and e2e-base-path jobs" >&2
+              exit 1
+            }
+          fi
 
       - name: Checkout exact commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.target_sha || github.event.workflow_run.head_sha }}
+          ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
           persist-credentials: false
 
@@ -70,40 +156,13 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          actual_sha="$(git rev-parse HEAD)"
+          actual_sha="$(git rev-parse --verify HEAD)"
           [[ "$actual_sha" == "$TARGET_SHA" ]] || {
             echo "Checked out commit does not match target SHA" >&2
             exit 1
           }
-          git cat-file -e "$TARGET_SHA^{commit}"
-
-      - name: Require successful CI for manual sync
-        if: github.event_name == 'workflow_dispatch'
-        shell: bash
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -Eeuo pipefail
-          runs_json="$(curl --fail --silent --show-error --location \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$TARGET_SHA&per_page=100")"
-          run_id="$(jq -r --arg sha "$TARGET_SHA" '
-            [.workflow_runs[] | select(.head_sha == $sha and .status == "completed" and .conclusion == "success")]
-            | .[0].id // empty
-          ' <<<"$runs_json")"
-          test -n "$run_id" || {
-            echo "No successful CI run found for target SHA" >&2
-            exit 1
-          }
-          jobs_json="$(curl --fail --silent --show-error --location \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
-            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs?per_page=100")"
-          jq -e '
-            any(.jobs[]; .name == "checks" and .status == "completed" and .conclusion == "success")
-          ' <<<"$jobs_json" >/dev/null || {
-            echo "Successful CI run lacks a green checks job" >&2
+          [[ "$(git cat-file -t "$TARGET_SHA")" == commit ]] || {
+            echo "Target SHA is not a commit object" >&2
             exit 1
           }
 
@@ -128,13 +187,37 @@ jobs:
             echo "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o IdentitiesOnly=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$ssh_dir/known_hosts"
           } >> "$GITHUB_ENV"
 
-      - name: Push exact commit without force or mirror
+      - name: Recheck GitHub canonical ref before push
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          encoded_target_ref="$(jq -rn --arg ref "$TARGET_REF" '$ref | @uri')"
+          canonical_json="$(curl --fail --silent --show-error --location \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/git/ref/heads/$encoded_target_ref")"
+          canonical_sha="$(jq -r '.object.sha // empty' <<<"$canonical_json")"
+          canonical_type="$(jq -r '.object.type // empty' <<<"$canonical_json")"
+          [[ "$canonical_type" == commit && "$canonical_sha" == "$TARGET_SHA" ]] || {
+            echo "GitHub canonical ref moved before push" >&2
+            exit 1
+          }
+
+      - name: Push exact commit without force
         shell: bash
         run: |
           set -Eeuo pipefail
           gitee_url="git@$GITEE_HOST:$GITEE_REPOSITORY.git"
-          git push "$gitee_url" "HEAD:refs/heads/$TARGET_REF"
-          remote_sha="$(git ls-remote "$gitee_url" "refs/heads/$TARGET_REF" | awk '{print $1}')"
+          git push --no-force "$gitee_url" "$TARGET_SHA:refs/heads/$TARGET_REF"
+
+      - name: Verify exact Gitee ref
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          gitee_url="git@$GITEE_HOST:$GITEE_REPOSITORY.git"
+          remote_sha="$(git ls-remote --exit-code "$gitee_url" "refs/heads/$TARGET_REF" | awk '{print $1}')"
           [[ "$remote_sha" == "$TARGET_SHA" ]] || {
             echo "Gitee ref does not point to target SHA after push" >&2
             exit 1

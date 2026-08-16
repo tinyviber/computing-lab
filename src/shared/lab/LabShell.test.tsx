@@ -1,36 +1,18 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LabShell } from "./LabShell";
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: ReactNode }) => <a href={to}>{children}</a>,
-}));
+import { renderAppAt } from "../../test/router-test-helpers.test";
 
 afterEach(() => {
   vi.unstubAllGlobals();
 });
 
 describe("LabShell", () => {
-  it("renders heading, navigation slot, workspace, and available lab links", () => {
-    window.history.replaceState({}, "", "/labs/image-encoding");
-    render(
-      <LabShell
-        eyebrow="TEST / 01"
-        navigation={<div data-testid="navigation-slot">Lesson navigation</div>}
-        subtitle="Test subtitle"
-        title="测试实验"
-      >
-        <p>Visualization slot</p>
-      </LabShell>,
-    );
+  it("renders the lesson shell workspace and available lab links through the app router", async () => {
+    await renderAppAt("/labs/image-encoding");
 
-    expect(screen.getByRole("heading", { level: 1, name: "测试实验" })).toBeInTheDocument();
-    expect(screen.getByTestId("navigation-slot")).toBeInTheDocument();
-    expect(screen.getByRole("main", { name: /测试实验 workspace/i })).toHaveTextContent(
-      "Visualization slot",
-    );
+    expect(screen.getByRole("heading", { level: 1, name: "图像编码" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /图像编码 workspace/i })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: /available labs/i })).toBeInTheDocument();
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
       expect.arrayContaining([
@@ -54,12 +36,7 @@ describe("LabShell", () => {
       dispatchEvent: vi.fn(),
     }));
     vi.stubGlobal("matchMedia", matchMedia);
-    window.history.replaceState({}, "", "/labs/image-encoding");
-    render(
-      <LabShell eyebrow="TEST / 01" subtitle="Test" title="测试实验">
-        <p>Content</p>
-      </LabShell>,
-    );
+    await renderAppAt("/labs/image-encoding");
 
     await waitFor(() =>
       expect(screen.getByRole("button", { name: /open lab menu/i })).toBeInTheDocument(),
@@ -89,11 +66,7 @@ describe("LabShell", () => {
         removeEventListener: vi.fn(),
       }),
     );
-    render(
-      <LabShell eyebrow="TEST / 01" subtitle="Test" title="测试实验">
-        <p>Content</p>
-      </LabShell>,
-    );
+    await renderAppAt("/labs/image-encoding");
 
     const open = screen.getByRole("button", { name: /open lab menu/i });
     const rail = document.querySelector<HTMLElement>("#lab-navigation")!;

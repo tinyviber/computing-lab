@@ -1,4 +1,4 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LAB_NAV_ITEMS } from "./navigation";
 
@@ -15,17 +15,71 @@ type LabShellProps = {
   children?: ReactNode;
 };
 
-function normalizeBasePath(baseUrl: string): string {
-  const pathname = baseUrl.split("?")[0].split("#")[0] || "/";
-  if (pathname === "/") return "/";
-  return `/${pathname.replace(/^\/+|\/+$/g, "")}`;
+type LabNavigationProps = {
+  isMobile: boolean;
+  navigation?: ReactNode;
+  pathname: string;
+  railOpen: boolean;
+  setRailOpen: (open: boolean) => void;
+};
+
+function LabNavigation({
+  isMobile,
+  navigation,
+  pathname,
+  railOpen,
+  setRailOpen,
+}: LabNavigationProps) {
+  return (
+    <aside
+      aria-label="Lab navigation"
+      aria-hidden={isMobile && !railOpen}
+      className={`workflow-rail lab-navigation${railOpen ? " is-open" : ""}`}
+      id="lab-navigation"
+      inert={isMobile && !railOpen ? true : undefined}
+    >
+      <div className="rail-heading">
+        <div>
+          <p className="eyebrow">COMPUTING LAB</p>
+          <h2>Experiments</h2>
+        </div>
+        <span className="rail-count">{LAB_NAV_ITEMS.length.toString().padStart(2, "0")}</span>
+      </div>
+      <nav aria-label="Available labs">
+        <ul className="lab-list">
+          {LAB_NAV_ITEMS.map((lab) => (
+            <li key={lab.id}>
+              <Link
+                className={`lab-link${pathname === lab.route ? " is-active" : ""}`}
+                data-status={lab.status}
+                onClick={() => isMobile && setRailOpen(false)}
+                to={lab.route}
+              >
+                <span>
+                  <strong>{lab.title}</strong>
+                  <span>{lab.category}</span>
+                </span>
+                <span aria-hidden="true">{pathname === lab.route ? "●" : "○"}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      {navigation}
+      <div className="rail-footer">
+        <span className="local-dot" aria-hidden="true" />
+        <div>
+          <strong>Local workspace</strong>
+          <span>No account or network needed</span>
+        </div>
+      </div>
+    </aside>
+  );
 }
 
-function normalizeRoutePath(pathname: string, baseUrl: string): string {
-  const basePath = normalizeBasePath(baseUrl);
-  if (basePath === "/") return pathname || "/";
-  if (pathname === basePath) return "/";
-  return pathname.startsWith(`${basePath}/`) ? pathname.slice(basePath.length) || "/" : pathname;
+function RoutedLabNavigation(props: Omit<LabNavigationProps, "pathname">) {
+  const pathname = useLocation({ select: (location) => location.pathname });
+  return <LabNavigation {...props} pathname={pathname} />;
 }
 
 export function LabShell({
@@ -43,10 +97,6 @@ export function LabShell({
   const [railOpen, setRailOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const pathname =
-    typeof window === "undefined"
-      ? ""
-      : normalizeRoutePath(window.location.pathname, import.meta.env.BASE_URL);
   const hasSlots = visualization || controls || explanation || actions;
 
   useEffect(() => {
@@ -114,49 +164,12 @@ export function LabShell({
       ) : null}
 
       <div className="app-layout">
-        <aside
-          aria-label="Lab navigation"
-          aria-hidden={isMobile && !railOpen}
-          className={`workflow-rail lab-navigation${railOpen ? " is-open" : ""}`}
-          id="lab-navigation"
-          inert={isMobile && !railOpen ? true : undefined}
-        >
-          <div className="rail-heading">
-            <div>
-              <p className="eyebrow">COMPUTING LAB</p>
-              <h2>Experiments</h2>
-            </div>
-            <span className="rail-count">{LAB_NAV_ITEMS.length.toString().padStart(2, "0")}</span>
-          </div>
-          <nav aria-label="Available labs">
-            <ul className="lab-list">
-              {LAB_NAV_ITEMS.map((lab) => (
-                <li key={lab.id}>
-                  <Link
-                    className={`lab-link${pathname === lab.route ? " is-active" : ""}`}
-                    data-status={lab.status}
-                    onClick={() => isMobile && setRailOpen(false)}
-                    to={lab.route}
-                  >
-                    <span>
-                      <strong>{lab.title}</strong>
-                      <span>{lab.category}</span>
-                    </span>
-                    <span aria-hidden="true">{pathname === lab.route ? "●" : "○"}</span>
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-          {navigation}
-          <div className="rail-footer">
-            <span className="local-dot" aria-hidden="true" />
-            <div>
-              <strong>Local workspace</strong>
-              <span>No account or network needed</span>
-            </div>
-          </div>
-        </aside>
+        <RoutedLabNavigation
+          isMobile={isMobile}
+          navigation={navigation}
+          railOpen={railOpen}
+          setRailOpen={setRailOpen}
+        />
 
         <main
           className={`workspace${hasSlots ? " lab-shell-workspace" : ""}`}

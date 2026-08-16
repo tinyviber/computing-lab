@@ -35,7 +35,7 @@ export type EncodingStats = {
   encodedBits: number;
   encodedBytes: number;
   rawSourceBits: number;
-  compressionRatio: number;
+  theoreticalPixelPayloadComparison: number;
 };
 
 export type CompressionMetrics = EncodingStats;
@@ -81,12 +81,22 @@ function firstInteger(params: URLSearchParams, key: string): number | undefined 
   return Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : undefined;
 }
 
-function toParams(input: URLSearchParams | string): URLSearchParams {
-  return input instanceof URLSearchParams ? input : new URLSearchParams(input.replace(/^\?/, ""));
+export type ImageScenarioSearch = URLSearchParams | string | Record<string, unknown>;
+
+function toParams(input: ImageScenarioSearch): URLSearchParams {
+  if (input instanceof URLSearchParams) return input;
+  if (typeof input === "string") return new URLSearchParams(input.replace(/^\?/, ""));
+
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    const firstValue = Array.isArray(value) ? value[0] : value;
+    if (firstValue !== undefined && firstValue !== null) params.set(key, String(firstValue));
+  }
+  return params;
 }
 
 /** Parse shareable lesson state: default → preset → first valid explicit value → clamp. */
-export function parseImageEncodingScenario(input: URLSearchParams | string): ImageScenarioState {
+export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageScenarioState {
   const params = toParams(input);
   const requested = params.get("scenario");
   const scenario: ImageScenario =
@@ -232,7 +242,7 @@ export function calculateEncodingStats({ density, bits }: EncodingOptions): Enco
     encodedBits,
     encodedBytes: Math.ceil(encodedBits / 8),
     rawSourceBits,
-    compressionRatio: Math.round((rawSourceBits / encodedBits) * 10) / 10,
+    theoreticalPixelPayloadComparison: Math.round((rawSourceBits / encodedBits) * 10) / 10,
   };
 }
 

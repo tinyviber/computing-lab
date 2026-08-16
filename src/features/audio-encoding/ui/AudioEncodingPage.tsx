@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearch } from "@tanstack/react-router";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { RangeControl } from "../../../shared/lab/RangeControl";
@@ -17,43 +18,7 @@ import {
   type AudioEncodingOptions,
 } from "../domain/model";
 
-const LOCATION_CHANGE_EVENT = "computing-lab-locationchange";
-let historyEventsInstalled = false;
-
-function currentSearch(): string {
-  return typeof window === "undefined" ? "" : window.location.search;
-}
-
-function installHistoryEvents() {
-  if (typeof window === "undefined" || historyEventsInstalled) return;
-  historyEventsInstalled = true;
-  for (const method of ["pushState", "replaceState"] as const) {
-    const original = window.history[method];
-    window.history[method] = function patchedHistoryMethod(...args) {
-      const result = original.apply(this, args);
-      window.dispatchEvent(new Event(LOCATION_CHANGE_EVENT));
-      return result;
-    };
-  }
-}
-
-function subscribeToLocation(listener: () => void): () => void {
-  if (typeof window === "undefined") return () => undefined;
-  installHistoryEvents();
-  window.addEventListener("popstate", listener);
-  window.addEventListener(LOCATION_CHANGE_EVENT, listener);
-  return () => {
-    window.removeEventListener("popstate", listener);
-    window.removeEventListener(LOCATION_CHANGE_EVENT, listener);
-  };
-}
-
-function useLocationSearch(): string {
-  return useSyncExternalStore(subscribeToLocation, currentSearch, () => "");
-}
-
-export function AudioEncodingPage() {
-  const search = useLocationSearch();
+function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseAudioEncodingScenario(search), [search]);
   const [options, setOptions] = useState<AudioEncodingOptions>(scenario);
   const [phase, setPhase] = useState<LabPhase>("ready");
@@ -214,4 +179,9 @@ export function AudioEncodingPage() {
       }
     />
   );
+}
+
+export function AudioEncodingPage() {
+  const search = useSearch({ from: "/labs/audio-encoding" });
+  return <AudioEncodingContent search={search} />;
 }

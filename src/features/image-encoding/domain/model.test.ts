@@ -73,9 +73,13 @@ describe("image encoding domain model", () => {
     expect(calculateEncodingStats({ density: 4, bits: 8 }).encodedBytes).toBe(16);
   });
 
-  it("rounds compression ratio to one decimal without surrogate multipliers", () => {
-    expect(calculateEncodingStats({ density: 4, bits: 8 }).compressionRatio).toBe(12);
-    expect(calculateEncodingStats({ density: 3, bits: 5 }).compressionRatio).toBe(34.1);
+  it("rounds theoretical pixel-payload comparison to one decimal", () => {
+    expect(calculateEncodingStats({ density: 4, bits: 8 }).theoreticalPixelPayloadComparison).toBe(
+      12,
+    );
+    expect(calculateEncodingStats({ density: 3, bits: 5 }).theoreticalPixelPayloadComparison).toBe(
+      34.1,
+    );
   });
 
   it("preserves black and white at full 8-bit indexed depth", () => {

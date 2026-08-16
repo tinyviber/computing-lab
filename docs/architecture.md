@@ -18,6 +18,11 @@ Image palettes are derived from the unique 8×8 source colors, sorted determinis
 and quantized by nearest RGB squared distance. The index width remains `2..8` bits per
 pixel; the source-derived palette is not a fixed RGB-space quantizer.
 
+The image lesson exposes a theoretical pixel-payload comparison based only on
+`8×8×24` source bits versus `sampledPixels×bits`. It excludes palette, file header, metadata,
+container/codec overhead, and actual file size/compression; it does not represent a file-size or
+compression result.
+
 Do not create a framework package yet. All three consumers are inside one product and still have different teaching semantics. A package becomes justified only after an external consumer needs the same contract. `programming-viz` is intentionally outside this change.
 
 ## Boundary checks

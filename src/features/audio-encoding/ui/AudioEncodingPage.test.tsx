@@ -1,12 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
-import { AudioEncodingPage } from "./AudioEncodingPage";
-
-vi.mock("@tanstack/react-router", () => ({
-  Link: ({ to, children }: { to: string; children?: ReactNode }) => <a href={to}>{children}</a>,
-}));
+import { describe, expect, it } from "vitest";
+import { renderAppAt } from "../../../test/router-test-helpers.test";
 
 function formulaPanel() {
   const panel = document.querySelector<HTMLElement>(".formula-panel");
@@ -15,9 +10,8 @@ function formulaPanel() {
 }
 
 describe("AudioEncodingPage", () => {
-  it("renders waveform, formula, controls, and local status", () => {
-    window.history.replaceState({}, "", "/labs/audio-encoding");
-    render(<AudioEncodingPage />);
+  it("renders waveform, formula, controls, and local status", async () => {
+    await renderAppAt("/labs/audio-encoding");
 
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(screen.getByRole("main", { name: /声音编码 workspace/i })).toBeInTheDocument();
@@ -35,9 +29,8 @@ describe("AudioEncodingPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/ready/i);
   });
 
-  it("exposes a labelled SVG waveform with varying y values", () => {
-    window.history.replaceState({}, "", "/labs/audio-encoding");
-    render(<AudioEncodingPage />);
+  it("exposes a labelled SVG waveform with varying y values", async () => {
+    await renderAppAt("/labs/audio-encoding");
 
     const waveform = screen.getByRole("group", { name: /16 sampled waveform points/i });
     const waveformImage = within(waveform).getByRole("img", {
@@ -59,8 +52,7 @@ describe("AudioEncodingPage", () => {
 
   it("updates waveform point count, formula, and editing status", async () => {
     const user = userEvent.setup();
-    window.history.replaceState({}, "", "/labs/audio-encoding");
-    render(<AudioEncodingPage />);
+    await renderAppAt("/labs/audio-encoding");
 
     const rate = screen.getByRole("slider", { name: /sampling rate/i });
     rate.focus();
@@ -76,9 +68,8 @@ describe("AudioEncodingPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/listening/i);
   });
 
-  it("clamps range input events and exposes encoded byte metric", () => {
-    window.history.replaceState({}, "", "/labs/audio-encoding");
-    render(<AudioEncodingPage />);
+  it("clamps range input events and exposes encoded byte metric", async () => {
+    await renderAppAt("/labs/audio-encoding");
 
     fireEvent.change(screen.getByRole("slider", { name: /quantization bits/i }), {
       target: { value: "2" },
@@ -90,9 +81,8 @@ describe("AudioEncodingPage", () => {
     expect(within(summary).getByText("Encoded bytes").parentElement).toHaveTextContent("4");
   });
 
-  it("hydrates low-frequency scenario from URL when supported by lesson parser", () => {
-    window.history.replaceState({}, "", "/labs/audio-encoding?scenario=low-frequency");
-    render(<AudioEncodingPage />);
+  it("hydrates low-frequency scenario from URL when supported by lesson parser", async () => {
+    await renderAppAt("/labs/audio-encoding?scenario=low-frequency");
 
     expect(screen.getByRole("slider", { name: /sampling rate/i })).toHaveValue("8");
     expect(screen.getByRole("slider", { name: /quantization bits/i })).toHaveValue("8");
