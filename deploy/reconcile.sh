@@ -8,10 +8,36 @@ umask 027
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEPLOY_CONFIG="${DEPLOY_CONFIG:-/etc/computing-lab/deploy.env}"
 INHERITED_GIT_SSH_COMMAND_SET="${GIT_SSH_COMMAND+x}"
+REQUESTED_TEST_MODE="${DEPLOY_TEST_MODE:-0}"
 if [[ -f "$DEPLOY_CONFIG" ]]; then
+  /usr/bin/python3 - "$DEPLOY_CONFIG" "$REQUESTED_TEST_MODE" <<'PY'
+import os
+import stat
+import sys
+
+path, test_mode = sys.argv[1:]
+try:
+    info = os.lstat(path)
+    parent = os.lstat(os.path.dirname(os.path.abspath(path)))
+except OSError as error:
+    raise SystemExit(f"DEPLOY_CONFIG cannot be inspected: {error}")
+if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+    raise SystemExit("DEPLOY_CONFIG must be a regular non-symlink file")
+if test_mode != "1" and info.st_uid != 0:
+    raise SystemExit("DEPLOY_CONFIG must be root-owned")
+if stat.S_IMODE(info.st_mode) & 0o022:
+    raise SystemExit("DEPLOY_CONFIG has unsafe permissions")
+if stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode):
+    raise SystemExit("DEPLOY_CONFIG parent must be a real directory")
+if test_mode != "1" and parent.st_uid != 0:
+    raise SystemExit("DEPLOY_CONFIG parent must be root-owned")
+if stat.S_IMODE(parent.st_mode) & 0o022:
+    raise SystemExit("DEPLOY_CONFIG parent is unsafe")
+PY
   # shellcheck disable=SC1090
   source "$DEPLOY_CONFIG"
 fi
+DEPLOY_TEST_MODE="$REQUESTED_TEST_MODE"
 
 DEPLOY_ROOT="${DEPLOY_ROOT:-/srv/computing-lab}"
 GITEE_REMOTE="${GITEE_REMOTE:-}"
@@ -26,6 +52,8 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 FLOCK_BIN="${FLOCK_BIN:-flock}"
 KEEP_RELEASES="${KEEP_RELEASES:-3}"
 VITE_BASE_PATH="${VITE_BASE_PATH:-/}"
+BUILD_PATH='/usr/bin:/bin'
+SOURCE_REF_PREFIX='refs/computing-lab/releases/'
 
 SOURCE_REPO="$DEPLOY_ROOT/source.git"
 RELEASES_DIR="$DEPLOY_ROOT/releases"
@@ -51,32 +79,87 @@ die() { printf 'computing-lab-deploy: %s\n' "$*" >&2; exit 1; }
 
 is_sha() { [[ "$1" =~ ^[0-9a-f]{40}$ ]]; }
 
-validate_host_file() {
-  local path="$1" label="$2" kind="$3"
-  "$PYTHON_BIN" - "$path" "$label" "$kind" <<'PY'
+validate_trusted_file() {
+  local path="$1" label="$2" kind="$3" owner_policy="$4"
+  /usr/bin/python3 - "$path" "$label" "$kind" "$owner_policy" "$DEPLOY_TEST_MODE" <<'PY'
 import os
 import stat
 import sys
 
-path, label, kind = sys.argv[1:]
+path, label, kind, owner_policy, test_mode = sys.argv[1:]
 try:
     info = os.lstat(path)
     parent_info = os.lstat(os.path.dirname(os.path.abspath(path)))
 except OSError as error:
     raise SystemExit(f"{label} cannot be inspected: {error}")
 
-if stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
+if not os.path.isabs(path) or stat.S_ISLNK(info.st_mode) or not stat.S_ISREG(info.st_mode):
     raise SystemExit(f"{label} must be a regular non-symlink file")
-if info.st_uid not in (0, os.geteuid()):
+if owner_policy == "root" and info.st_uid != 0 and test_mode != "1":
+    raise SystemExit(f"{label} must be root-owned")
+if owner_policy == "self" and info.st_uid not in (0, os.geteuid()):
     raise SystemExit(f"{label} has an unexpected owner")
 if stat.S_IMODE(info.st_mode) & 0o022:
     raise SystemExit(f"{label} has unsafe permissions")
+if kind == "binary" and not (stat.S_IMODE(info.st_mode) & 0o100):
+    raise SystemExit(f"{label} is not owner-executable")
 if kind == "key" and stat.S_IMODE(info.st_mode) != 0o600:
     raise SystemExit(f"{label} private key must be mode 0600")
 if stat.S_ISLNK(parent_info.st_mode) or not stat.S_ISDIR(parent_info.st_mode):
     raise SystemExit(f"{label} parent must be a real directory")
-if parent_info.st_uid not in (0, os.geteuid()) or stat.S_IMODE(parent_info.st_mode) & 0o022:
+if test_mode != "1" and parent_info.st_uid != 0:
+    raise SystemExit(f"{label} parent directory must be root-owned")
+if stat.S_IMODE(parent_info.st_mode) & 0o022:
     raise SystemExit(f"{label} parent directory is unsafe")
+PY
+}
+
+validate_tooling_dir() {
+  /usr/bin/python3 - "$SCRIPT_DIR" "$DEPLOY_TEST_MODE" <<'PY'
+import os
+import stat
+import sys
+
+path, test_mode = sys.argv[1:]
+info = os.lstat(path)
+parent = os.lstat(os.path.dirname(os.path.abspath(path)))
+if not os.path.isabs(path) or stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+    raise SystemExit("deployment tooling directory must be a real absolute directory")
+if test_mode != "1" and info.st_uid != 0:
+    raise SystemExit("deployment tooling directory must be root-owned")
+if stat.S_IMODE(info.st_mode) & 0o022:
+    raise SystemExit("deployment tooling directory is writable by group/other")
+if stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode):
+    raise SystemExit("deployment tooling parent must be a real directory")
+if test_mode != "1" and parent.st_uid != 0:
+    raise SystemExit("deployment tooling parent must be root-owned")
+if stat.S_IMODE(parent.st_mode) & 0o022:
+    raise SystemExit("deployment tooling parent is writable by group/other")
+PY
+}
+
+validate_deploy_root() {
+  /usr/bin/python3 - "$DEPLOY_ROOT" "$DEPLOY_TEST_MODE" <<'PY'
+import os
+import stat
+import sys
+
+path, test_mode = sys.argv[1:]
+info = os.lstat(path)
+parent = os.lstat(os.path.dirname(os.path.abspath(path)))
+if stat.S_ISLNK(info.st_mode) or not stat.S_ISDIR(info.st_mode):
+    raise SystemExit("DEPLOY_ROOT must be a real non-symlink directory")
+if info.st_uid != os.geteuid():
+    raise SystemExit("DEPLOY_ROOT must be owned by deployment identity")
+mode = stat.S_IMODE(info.st_mode)
+if not (mode & 0o200) or mode & 0o022:
+    raise SystemExit("DEPLOY_ROOT must be owner-writable and not group/world-writable")
+if stat.S_ISLNK(parent.st_mode) or not stat.S_ISDIR(parent.st_mode):
+    raise SystemExit("DEPLOY_ROOT parent must be a real directory")
+if test_mode != "1" and parent.st_uid != 0:
+    raise SystemExit("DEPLOY_ROOT parent must be root-owned")
+if stat.S_IMODE(parent.st_mode) & 0o022:
+    raise SystemExit("DEPLOY_ROOT parent is writable by group/other")
 PY
 }
 
@@ -104,10 +187,10 @@ validate_ssh_transport() {
   [[ "$SSH_BIN" == /* && -x "$SSH_BIN" && ! -L "$SSH_BIN" ]] \
     || die 'SSH_BIN must be an absolute, executable, non-symlink regular file'
   parse_gitee_remote
-  validate_host_file "$GITEE_SSH_CONFIG" GITEE_SSH_CONFIG config
-  validate_host_file "$GITEE_SSH_KEY" GITEE_SSH_KEY key
-  validate_host_file "$GITEE_KNOWN_HOSTS" GITEE_KNOWN_HOSTS known_hosts
-  validate_host_file "$SSH_BIN" SSH_BIN binary
+  validate_trusted_file "$GITEE_SSH_CONFIG" GITEE_SSH_CONFIG config root
+  validate_trusted_file "$GITEE_SSH_KEY" GITEE_SSH_KEY key self
+  validate_trusted_file "$GITEE_KNOWN_HOSTS" GITEE_KNOWN_HOSTS known_hosts root
+  validate_trusted_file "$SSH_BIN" SSH_BIN binary root
 
   local effective
   effective="$(LC_ALL=C "$SSH_BIN" -G -F "$GITEE_SSH_CONFIG" \
@@ -160,6 +243,13 @@ validate_config() {
     || die 'DEPLOY_ROOT must be an absolute non-root path'
   [[ "$GITEE_REF" == main ]] || die 'GITEE_REF must be main for production reconciliation'
   [[ "$VITE_BASE_PATH" == "/" ]] || die 'production reconciler requires VITE_BASE_PATH=/'
+  [[ "$DEPLOY_TEST_MODE" == 0 || "$DEPLOY_TEST_MODE" == 1 ]] || die 'DEPLOY_TEST_MODE must be 0 or 1'
+  [[ "$DEPLOY_CONFIG" == /* && -f "$DEPLOY_CONFIG" && ! -L "$DEPLOY_CONFIG" ]] \
+    || die 'DEPLOY_CONFIG must be an existing regular non-symlink file'
+  [[ "$PYTHON_BIN" == /* && -x "$PYTHON_BIN" && ! -L "$PYTHON_BIN" ]] \
+    || die 'PYTHON_BIN must be an absolute executable non-symlink path'
+  [[ "$FLOCK_BIN" == /* && -x "$FLOCK_BIN" && ! -L "$FLOCK_BIN" ]] \
+    || die 'FLOCK_BIN must be an absolute executable non-symlink path'
   git check-ref-format --branch "$GITEE_REF" >/dev/null \
     || die 'GITEE_REF failed git check-ref-format'
   [[ -n "$GITEE_REMOTE" ]] || die 'GITEE_REMOTE is required'
@@ -167,14 +257,19 @@ validate_config() {
     || die 'BUN_BIN must be an absolute, executable, non-symlink path'
   [[ "$KEEP_RELEASES" =~ ^[1-9][0-9]*$ ]] || die 'KEEP_RELEASES must be positive'
   validate_base "$VITE_BASE_PATH"
-  command -v "$PYTHON_BIN" >/dev/null || die 'PYTHON_BIN is unavailable'
-  command -v "$FLOCK_BIN" >/dev/null || die 'flock is required on deployment host'
+  validate_tooling_dir
+  validate_trusted_file "$SCRIPT_DIR/reconcile.sh" RECONCILE_SCRIPT script root
+  validate_trusted_file "$SCRIPT_DIR/fsync.py" FSYNC_TOOL script root
+  validate_trusted_file "$DEPLOY_CONFIG" DEPLOY_CONFIG config root
+  validate_trusted_file "$PYTHON_BIN" PYTHON_BIN binary root
+  validate_trusted_file "$FLOCK_BIN" FLOCK_BIN binary root
   validate_ssh_transport
 }
 
 ensure_root_safety() {
   [[ -e "$DEPLOY_ROOT" && ! -L "$DEPLOY_ROOT" && -d "$DEPLOY_ROOT" ]] \
     || die 'DEPLOY_ROOT must already exist as a non-symlink directory; bootstrap it first'
+  validate_deploy_root
   [[ -w "$DEPLOY_ROOT" ]] || die 'DEPLOY_ROOT is not writable by deployment identity'
 }
 
@@ -522,26 +617,53 @@ ensure_source_repo() {
   fi
 }
 
+source_ref() { printf '%s%s' "$SOURCE_REF_PREFIX" "$1"; }
+
+retain_source_ref() {
+  local sha="$1"
+  is_sha "$sha" || die 'cannot retain invalid source SHA'
+  git --git-dir="$SOURCE_REPO" update-ref "$(source_ref "$sha")" "$sha"
+}
+
+retain_existing_source_refs() {
+  local path sha
+  for path in "$RELEASES_DIR"/*; do
+    [[ -d "$path" && ! -L "$path" ]] || continue
+    sha="${path##*/}"
+    is_sha "$sha" || continue
+    git --git-dir="$SOURCE_REPO" cat-file -e "$sha^{commit}" 2>/dev/null || continue
+    retain_source_ref "$sha"
+  done
+}
+
+drop_source_ref() {
+  local sha="$1"
+  is_sha "$sha" || return 0
+  git --git-dir="$SOURCE_REPO" update-ref -d "$(source_ref "$sha")" "$sha" 2>/dev/null || true
+}
+
 build_candidate() {
   local sha="$1" source build_home lock_digest manifest
-  STAGING_DIR="$WORK_DIR/$sha.$$"
+  STAGING_DIR="$WORK_DIR/$sha.$$.$RANDOM"
   source="$STAGING_DIR/source"
   build_home="$STAGING_DIR/home"
-  mkdir -p "$source" "$build_home"
+  [[ ! -e "$STAGING_DIR" && ! -L "$STAGING_DIR" ]] || die 'staging path already exists'
+  mkdir "$STAGING_DIR"
+  mkdir "$source" "$build_home"
   git --git-dir="$SOURCE_REPO" archive "$sha" | tar -x -C "$source"
   [[ -f "$source/package.json" && -f "$source/bun.lock" ]] || die 'exact source lacks package manifests'
   lock_digest="$(sha256_file "$source/bun.lock")"
   log "installing frozen dependencies for $sha"
-  (cd "$source" && env -i PATH="${PATH:-/usr/bin:/bin}" HOME="$build_home" \
+  (cd "$source" && env -i PATH="$BUILD_PATH" HOME="$build_home" \
     VITE_BASE_PATH="$VITE_BASE_PATH" NODE_ENV=production \
     "$BUN_BIN" install --frozen-lockfile)
   log "building static dist for $sha"
-  (cd "$source" && env -i PATH="${PATH:-/usr/bin:/bin}" HOME="$build_home" \
+  (cd "$source" && env -i PATH="$BUILD_PATH" HOME="$build_home" \
     VITE_BASE_PATH="$VITE_BASE_PATH" NODE_ENV=production \
     "$BUN_BIN" run build)
   validate_static_tree "$source/dist"
   log "smoking staged dist for $sha"
-  (cd "$source" && env -i PATH="${PATH:-/usr/bin:/bin}" HOME="$build_home" \
+  (cd "$source" && env -i PATH="$BUILD_PATH" HOME="$build_home" \
     VITE_BASE_PATH="$VITE_BASE_PATH" \
     "$BUN_BIN" "$source/deploy/smoke.mjs" "$source/dist" "$VITE_BASE_PATH")
   validate_static_tree "$source/dist"
@@ -593,6 +715,19 @@ publish_candidate() {
   log "published $sha"
 }
 
+cleanup_source_refs() {
+  local current previous ref sha
+  current="$(read_link_sha "$CURRENT_LINK")"
+  previous="$(read_link_sha "$PREVIOUS_LINK")"
+  while IFS= read -r ref; do
+    [[ -n "$ref" ]] || continue
+    sha="${ref##*/}"
+    is_sha "$sha" || { git --git-dir="$SOURCE_REPO" update-ref -d "$ref" || true; continue; }
+    [[ "$sha" == "$current" || "$sha" == "$previous" || -d "$RELEASES_DIR/$sha" ]] && continue
+    drop_source_ref "$sha"
+  done < <(git --git-dir="$SOURCE_REPO" for-each-ref --format='%(refname)' "$SOURCE_REF_PREFIX")
+}
+
 cleanup_releases() {
   local current previous path sha kept=0
   current="$(read_link_sha "$CURRENT_LINK")"
@@ -608,11 +743,13 @@ cleanup_releases() {
     fi
     kept=$((kept + 1))
     if (( kept > KEEP_RELEASES )); then
+      drop_source_ref "$sha"
       rm -rf "$path"
       fsync_path "$RELEASES_DIR"
       log "removed old release $sha"
     fi
   done
+  cleanup_source_refs
 }
 
 reconcile() {
@@ -621,6 +758,7 @@ reconcile() {
   init_layout
   acquire_lock
   ensure_source_repo
+  retain_existing_source_refs
   recover_transaction
   validate_active_releases
   validate_markers
@@ -637,6 +775,7 @@ reconcile() {
   git --git-dir="$SOURCE_REPO" fetch --no-tags --prune origin "$TARGET_SHA" >/dev/null
   git --git-dir="$SOURCE_REPO" cat-file -e "$TARGET_SHA^{commit}" \
     || die 'fetched target is not a commit'
+  retain_source_ref "$TARGET_SHA"
   [[ "$(read_remote_sha)" == "$TARGET_SHA" ]] || die 'Gitee main moved before build'
   build_candidate "$TARGET_SHA"
   [[ "$(read_remote_sha)" == "$TARGET_SHA" ]] || die 'Gitee main moved during build; stale release refused'
@@ -651,6 +790,7 @@ rollback() {
   init_layout
   acquire_lock
   ensure_source_repo
+  retain_existing_source_refs
   recover_transaction
   validate_active_releases
   validate_markers
@@ -696,9 +836,9 @@ status_command() {
   exec {LOCK_FD}>&-
 }
 
-hold_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; recover_transaction; validate_active_releases; validate_markers; atomic_write "$HOLD_FILE" "manual hold $(date -u +%Y-%m-%dT%H:%M:%SZ)"; log 'hold enabled'; }
-resume_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; recover_transaction; validate_active_releases; validate_markers; remove_file "$HOLD_FILE"; log 'hold cleared; run reconcile to deploy'; }
-cleanup_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; recover_transaction; validate_active_releases; validate_markers; cleanup_releases; }
+hold_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; retain_existing_source_refs; recover_transaction; validate_active_releases; validate_markers; atomic_write "$HOLD_FILE" "manual hold $(date -u +%Y-%m-%dT%H:%M:%SZ)"; log 'hold enabled'; }
+resume_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; retain_existing_source_refs; recover_transaction; validate_active_releases; validate_markers; remove_file "$HOLD_FILE"; log 'hold cleared; run reconcile to deploy'; }
+cleanup_command() { validate_config; init_layout; acquire_lock; ensure_source_repo; retain_existing_source_refs; recover_transaction; validate_active_releases; validate_markers; cleanup_releases; }
 
 command="${1:-}"
 case "$command" in

@@ -27,12 +27,14 @@ metrics="__METRICS__"
 env_log="__BUN_ENV_LOG__"
 leaks="__LEAKS__"
 assert_clean_env() {
-  printf 'TRACE_RUN=%s GIT_SSH_COMMAND=%s GITEE_SSH_CONFIG=%s GITEE_SSH_KEY=%s GITEE_KNOWN_HOSTS=%s SSH_AUTH_SOCK=%s\n' \
-    "${TRACE_RUN:-none}" "${GIT_SSH_COMMAND:-}" "${GITEE_SSH_CONFIG:-}" "${GITEE_SSH_KEY:-}" \
+  printf 'TRACE_RUN=%s PATH=%s GIT_SSH_COMMAND=%s GITEE_SSH_CONFIG=%s GITEE_SSH_KEY=%s GITEE_KNOWN_HOSTS=%s SSH_AUTH_SOCK=%s\n' \
+    "${TRACE_RUN:-none}" "${PATH:-}" \
+    "${GIT_SSH_COMMAND:-}" "${GITEE_SSH_CONFIG:-}" "${GITEE_SSH_KEY:-}" \
     "${GITEE_KNOWN_HOSTS:-}" "${SSH_AUTH_SOCK:-}" >>"$env_log"
   for name in GIT_SSH_COMMAND GITEE_SSH_CONFIG GITEE_SSH_KEY GITEE_KNOWN_HOSTS SSH_AUTH_SOCK; do
     [[ -z "${!name:-}" ]] || { printf '%s\n' "$name" >>"$leaks"; exit 46; }
   done
+  [[ "${PATH:-}" == '/usr/bin:/bin' ]] || { printf 'PATH=%s\n' "${PATH:-}" >>"$leaks"; exit 47; }
 }
 if [[ "${1:-}" == "--version" ]]; then
   printf '%s\n' "${FAKE_BUN_VERSION:-1.2.17}"
@@ -146,6 +148,7 @@ PY
 chmod +x "$TMP/bin/git"
 
 cat >"$TMP/config.env" <<EOF
+DEPLOY_TEST_MODE=1
 DEPLOY_ROOT=$TMP/host
 GITEE_REMOTE=$synthetic_remote
 GITEE_REF=main
@@ -155,7 +158,7 @@ GITEE_SSH_KEY=$GITEE_SSH_KEY
 GITEE_KNOWN_HOSTS=$GITEE_KNOWN_HOSTS
 SSH_BIN=$SSH_BIN
 BUN_BIN=$TMP/bin/bun
-PYTHON_BIN=$(command -v python3)
+PYTHON_BIN=$(python3 -c 'import os,sys; print(os.path.realpath(sys.executable))')
 FLOCK_BIN=$FLOCK_HELPER
 VITE_BASE_PATH=/
 KEEP_RELEASES=1
@@ -183,7 +186,7 @@ commit_fixture() {
 
 clean_env_prefix() {
   env -u GIT_SSH_COMMAND -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS -u SSH_AUTH_SOCK \
-    PATH="$TMP/bin:$ORIGINAL_PATH" "$@"
+    DEPLOY_TEST_MODE=1 PATH="$TMP/bin:$ORIGINAL_PATH" "$@"
 }
 
 run_deploy() {
@@ -196,7 +199,7 @@ run_manual_deploy() {
   TRACE_RUN=manual clean_env_prefix DEPLOY_CONFIG="$TMP/manual.env" bash "$SCRIPT" reconcile
 }
 run_systemd_deploy() {
-  env -i PATH="$TMP/bin:$ORIGINAL_PATH" HOME="$TMP/systemd-home" TRACE_RUN=systemd \
+  env -i DEPLOY_TEST_MODE=1 PATH="$TMP/bin:$ORIGINAL_PATH" HOME="$TMP/systemd-home" TRACE_RUN=systemd \
     DEPLOY_CONFIG="$TMP/systemd.env" bash "$SCRIPT" reconcile
 }
 current_target() { readlink "$TMP/host/current"; }
@@ -243,7 +246,12 @@ expect_fail env -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
   || fail 'inherited GIT_SSH_COMMAND was not rejected'
 pass 'inherited GIT_SSH_COMMAND rejected'
 
-TRACE_RUN=manual env -u GIT_SSH_COMMAND -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
+expect_fail env -u DEPLOY_TEST_MODE -u GIT_SSH_COMMAND \
+  PATH="$TMP/bin:$ORIGINAL_PATH" DEPLOY_CONFIG="$TMP/config.env" bash "$SCRIPT" status \
+  || fail 'production mode accepted non-root test config'
+pass 'production mode rejects test-owned config and tooling'
+
+TRACE_RUN=manual DEPLOY_TEST_MODE=1 env -u GIT_SSH_COMMAND -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
   PATH="$TMP/bin:$ORIGINAL_PATH" SSH_AUTH_SOCK="$TMP/fake-agent.sock" \
   DEPLOY_CONFIG="$TMP/manual.env" bash "$SCRIPT" reconcile
 run_systemd_deploy
@@ -261,6 +269,26 @@ run_deploy
 [[ "$(current_target)" == "$TMP/host/releases/$sha1" ]] || fail 'initial exact-SHA publish'
 [[ -f "$TMP/host/releases/$sha1/dist/index.html" && ! -d "$TMP/host/releases/$sha1/node_modules" ]] || fail 'release contains static payload only'
 pass 'initial exact-SHA publish'
+
+bad_mode_root="$TMP/bad-mode-host"
+mkdir -p "$bad_mode_root"
+chmod 0770 "$bad_mode_root"
+python3 - "$TMP/config.env" "$TMP/bad-mode.env" "$bad_mode_root" <<'PY'
+from pathlib import Path
+import sys
+
+source, target, root = map(Path, sys.argv[1:])
+target.write_text(source.read_text().replace("DEPLOY_ROOT=" + str(Path(sys.argv[3]).parent / "host"), "DEPLOY_ROOT=" + str(root)))
+PY
+expect_fail env DEPLOY_TEST_MODE=1 DEPLOY_CONFIG="$TMP/bad-mode.env" bash "$SCRIPT" status \
+  || fail 'group-writable DEPLOY_ROOT was accepted'
+pass 'group-writable DEPLOY_ROOT rejected'
+
+ln -s "$TMP/host" "$TMP/root-link"
+sed "s#DEPLOY_ROOT=$TMP/host#DEPLOY_ROOT=$TMP/root-link#" "$TMP/config.env" >"$TMP/symlink-root.env"
+expect_fail env DEPLOY_TEST_MODE=1 DEPLOY_CONFIG="$TMP/symlink-root.env" bash "$SCRIPT" status \
+  || fail 'symlinked DEPLOY_ROOT was accepted'
+pass 'symlinked DEPLOY_ROOT rejected'
 
 before_metrics="$(wc -l <"$TMP/metrics" | tr -d ' ')"
 before_snapshot="$(snapshot)"
@@ -300,6 +328,14 @@ run_deploy
 [[ "$(current_target)" == "$TMP/host/releases/$sha2" ]] || fail 'second publish failed'
 [[ "$(previous_target)" == "$TMP/host/releases/$sha1" ]] || fail 'previous marker target wrong'
 pass 'previous marker tracks prior release'
+
+git --git-dir="$TMP/host/source.git" gc --prune=now >/dev/null
+run_cmd rollback
+[[ "$(current_target)" == "$TMP/host/releases/$sha1" ]] || fail 'rollback after source gc failed'
+run_cmd resume
+run_deploy
+[[ "$(current_target)" == "$TMP/host/releases/$sha2" ]] || fail 'reconcile after source gc failed'
+pass 'source release refs survive aggressive git gc'
 
 sha_atomic="$(commit_fixture atomic atomic-publish)"
 reader_failed="$TMP/reader.failed"
@@ -376,7 +412,7 @@ quarantined="$(find "$TMP/host/quarantine" -mindepth 1 -maxdepth 1 -type d -prin
 pass 'cleanup protects current and previous'
 
 sha_recovery="$(commit_fixture recovery recovery)"
-env -u GIT_SSH_COMMAND -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
+DEPLOY_TEST_MODE=1 env -u GIT_SSH_COMMAND -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
   PATH="$TMP/bin:$ORIGINAL_PATH" TRACE_RUN=crash DEPLOY_TEST_FAIL_PHASE=after-current \
   DEPLOY_CONFIG="$TMP/config.env" bash "$SCRIPT" reconcile >/dev/null 2>&1 || true
 [[ -e "$TMP/host/state/transaction" ]] || fail 'crash phase did not leave transaction intent'
@@ -392,7 +428,7 @@ source, target = map(Path, sys.argv[1:])
 target.write_text(source.read_text().replace("VITE_BASE_PATH=/\n", "VITE_BASE_PATH=/computing-lab/\n"))
 PY
 before_snapshot="$(snapshot)"
-expect_fail env -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
+expect_fail DEPLOY_TEST_MODE=1 env -u GITEE_SSH_CONFIG -u GITEE_SSH_KEY -u GITEE_KNOWN_HOSTS \
   PATH="$TMP/bin:$ORIGINAL_PATH" DEPLOY_CONFIG="$TMP/subpath.env" bash "$SCRIPT" reconcile \
   || fail 'subpath production base was accepted'
 [[ "$(snapshot)" == "$before_snapshot" ]] || fail 'subpath rejection mutated production state'
@@ -428,7 +464,7 @@ source, target, root = map(Path, sys.argv[1:])
 lines = [f"DEPLOY_ROOT={root}" if line.startswith("DEPLOY_ROOT=") else line for line in source.read_text().splitlines()]
 target.write_text("\n".join(lines) + "\n")
 PY
-symlink_error="$(env DEPLOY_CONFIG="$TMP/symlink-config.env" bash "$SCRIPT" status 2>&1 || true)"
+symlink_error="$(env DEPLOY_TEST_MODE=1 DEPLOY_CONFIG="$TMP/symlink-config.env" bash "$SCRIPT" status 2>&1 || true)"
 grep -Fq 'deployment child is unsafe' <<<"$symlink_error" \
   || fail 'symlinked deployment child did not reach the child safety check'
 pass 'deployment child symlink rejected'
@@ -444,7 +480,7 @@ source, target, root = map(Path, sys.argv[1:])
 lines = [f"DEPLOY_ROOT={root}" if line.startswith("DEPLOY_ROOT=") else line for line in source.read_text().splitlines()]
 target.write_text("\n".join(lines) + "\n")
 PY
-lock_error="$(env DEPLOY_CONFIG="$TMP/lock-config.env" bash "$SCRIPT" status 2>&1 || true)"
+lock_error="$(env DEPLOY_TEST_MODE=1 DEPLOY_CONFIG="$TMP/lock-config.env" bash "$SCRIPT" status 2>&1 || true)"
 grep -Fq 'deployment lock path is unsafe' <<<"$lock_error" \
   || fail 'symlinked deployment lock did not reach the lock safety check'
 pass 'deployment lock symlink rejected'

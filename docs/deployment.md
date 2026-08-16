@@ -65,11 +65,18 @@ staging and is removed with the staging directory.
 - Production host configuration requires `VITE_BASE_PATH=/`; a subpath build is
   rejected before any release state changes.
 - Bun version must be exactly `1.2.17`; install is frozen against `bun.lock`.
+- Production tooling/config files are regular non-symlink files. Binaries and
+  tooling directory are root-owned, executable where applicable, and not
+  group/world-writable. `DEPLOY_ROOT` is a real directory owned by the
+  deployment identity; its parent is root-owned and not group/world-writable.
 - Git always receives a reconciler-built `GIT_SSH_COMMAND` from the host SSH
   config. It uses a pinned key/known_hosts file, strict host-key checking,
   batch mode, no agent, no global known_hosts, and no connection sharing.
-- Build and smoke run in unique staging, with deployment config excluded from
-  the build environment.
+- Build and smoke run in unique fresh staging, with literal `PATH=/usr/bin:/bin`
+  and deployment config excluded from the `env -i` environment.
+- `source.git` retains `refs/computing-lab/releases/<sha>` for every active
+  release, so source objects survive garbage collection while rollback targets
+  remain valid.
 - `current` changes only after exact-source fetch, build, static validation,
   staged smoke, and a final exact Gitee SHA check.
 - Build, install, smoke, fetch, lock, and stale-ref failure leave current and
@@ -107,10 +114,13 @@ private keys or secrets in it. Host-specific values are:
 - `GITEE_SSH_CONFIG`: root-owned, group-readable OpenSSH config file.
 - `GITEE_SSH_KEY`: deployment private key, mode `0600`.
 - `GITEE_KNOWN_HOSTS`: pinned known_hosts file, no global fallback.
-- `SSH_BIN`: absolute, executable, non-symlink OpenSSH client.
-- `BUN_BIN`: absolute, non-symlink Bun 1.2.17 executable.
+- `SSH_BIN`: absolute, executable, root-owned non-symlink OpenSSH client.
+- `BUN_BIN`: absolute, root-owned non-symlink Bun 1.2.17 executable.
 - `VITE_BASE_PATH`: must be `/` for this production reconciler.
 - `KEEP_RELEASES`: number of non-current, non-previous valid releases retained.
+
+`DEPLOY_TEST_MODE` is not a host setting. It defaults to `0`; only the isolated
+temporary-repository test harness may set it to `1` for user-owned fixtures.
 
 Do not put private keys, known-host contents, real domains, IPs, or credentials
 in this repository. Do not set or export `GIT_SSH_COMMAND`; the reconciler
@@ -122,8 +132,8 @@ present.
 Run these steps on a new host later, when computer access is available. This
 runbook intentionally contains placeholders, not real infrastructure values.
 
-1. Install system software: Git, Bash, util-linux `flock`, Python 3, SHA-256
-   tooling, OpenSSH client, curl, Caddy, and Bun 1.2.17. Install Chromium only if the host
+1. Verify system software: Git, Bash, util-linux `flock`, Python 3, SHA-256
+   tooling, OpenSSH client, curl, the discovered Caddy lifecycle, and Bun 1.2.17. Install Chromium only if the host
    smoke policy uses browser-level checks; the checked-in smoke is local Bun
    HTTP and needs no external network.
 2. Create a dedicated non-root identity and directories. Example:
@@ -131,13 +141,15 @@ runbook intentionally contains placeholders, not real infrastructure values.
    ```sh
    sudo groupadd --system computing-lab
    sudo useradd --system --gid computing-lab --home /nonexistent --shell /usr/sbin/nologin computing-lab
-   sudo usermod --append --groups computing-lab caddy
    sudo install -d -o computing-lab -g computing-lab -m 02750 /srv/computing-lab
    sudo install -d -o root -g root -m 0755 /etc/computing-lab
    ```
 
-   The `computing-lab` group is read/execute for Caddy; the deployment user is
-   the only writer. Keep parent directories root-owned and non-symlink.
+   The deployment user is the only writer. If discovery proves a host Caddy
+   process runs as a `caddy` group member, grant that identity read/execute
+   traversal. A Docker Caddy container does not inherit host group membership;
+   it needs an explicit persistent read-only bind mount, proved at the Caddy
+   gate. Keep parent directories root-owned and non-symlink.
 
 3. Install Bun 1.2.17 into a root-owned, non-symlink path. Verify:
 
@@ -206,52 +218,59 @@ runbook intentionally contains placeholders, not real infrastructure values.
    # Edit only host values; keep key contents out of this file.
    ```
 
-## Caddy installation and validation
+## Caddy discovery and validation
 
-First inspect the existing Caddy layout. Never assume `/etc/caddy/sites` is
-imported:
-
-```sh
-sudo test -r /etc/caddy/Caddyfile
-sudo sed -n '1,240p' /etc/caddy/Caddyfile
-sudo grep -nE '^[[:space:]]*import[[:space:]]+' /etc/caddy/Caddyfile || true
-sudo find /etc/caddy -maxdepth 2 -type f -print
-```
-
-If the main file already imports `/etc/caddy/sites/*.caddy` (or an equivalent
-reviewed pattern), install the private Computing Lab site into that directory.
-If it does not, preserve the existing file first, then use `sudoedit` to add
-exactly one top-level import line:
-
-```text
-import /etc/caddy/sites/computing-lab.caddy
-```
-
-For a missing import, back up before editing and verify the import appears once:
+Caddy lifecycle is a host fact. Never assume `/etc/caddy`, `/etc/caddy/sites`,
+`caddy` in `PATH`, or `caddy.service`. Before changing anything, record the
+listener PID, `/proc/<pid>/exe`, command line, cwd, cgroup, parent chain, binary
+version, loaded config, and owner of the reload mechanism. Inspect systemd,
+Docker/Compose, supervisor, shell processes, and the localhost admin API.
 
 ```sh
-sudo cp -a --preserve=mode,ownership /etc/caddy/Caddyfile \
-  "/etc/caddy/Caddyfile.bak.$(date -u +%Y%m%dT%H%M%SZ)"
-sudoedit /etc/caddy/Caddyfile
-test "$(sudo grep -Fxc 'import /etc/caddy/sites/computing-lab.caddy' /etc/caddy/Caddyfile)" -eq 1
+sudo ss -ltnp | grep -E ':(80|443)\b'
+sudo readlink -f /proc/<pid>/exe
+sudo tr '\0' ' ' </proc/<pid>/cmdline; sudo readlink -f /proc/<pid>/cwd
+sudo cat /proc/<pid>/cgroup
+sudo docker inspect <container> --format '{{json .Mounts}}'
+curl --fail --silent http://127.0.0.1:2019/config/ | sha256sum
 ```
 
-Do not overwrite the main file or existing site blocks. If the main config uses
-another adapter/format, merge the reviewed root-only site block in that format
-instead of adding an incompatible Caddyfile import. Prove the final ownership
-and import before reload:
+The discovered txc lifecycle is Docker Compose: container `kotoba-caddy-1`,
+Caddy v2.10.2, host config `/opt/kotoba/Caddyfile` bind-mounted read-only as
+`/etc/caddy/Caddyfile`, with `/opt/kotoba/caddy/{data,config}` mounted into
+the container. There is no `caddy.service`. Preserve the existing
+`learn.cp4.fun` block and `/opt/kotoba/current` release tree.
+
+Before adding the site, prove the Caddy container has a persistent, read-only
+view of `/srv/computing-lab/current/dist`:
 
 ```sh
-sudo install -d -o root -g root -m 0755 /etc/caddy/sites
-sudo install -o root -g root -m 0644 deploy/Caddyfile.example /etc/caddy/sites/computing-lab.caddy
-# Replace only {$SITE_ADDRESS} and {$DEPLOY_ROOT} in this host-managed copy.
-sudo grep -nE '^[[:space:]]*import[[:space:]]+' /etc/caddy/Caddyfile
-sudo caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile --pretty >/tmp/computing-lab-caddy.json
-sudo grep -F '/current/dist' /tmp/computing-lab-caddy.json
-sudo caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-sudo systemctl restart caddy  # once after adding caddy to the computing-lab group
-sudo systemctl reload caddy   # later reviewed site-file changes
+sudo docker inspect kotoba-caddy-1 --format '{{range .Mounts}}{{println .Source .Destination .RW}}{{end}}'
+sudo test -d /srv/computing-lab/current/dist
+sudo docker exec kotoba-caddy-1 test -d /srv/computing-lab/current/dist
 ```
+
+If this mount is absent, stop. Do not modify talk-polish Compose, copy releases
+into `/opt/kotoba`, create a temporary namespace mount or symlink, start a
+second Caddy, or open another public port. Current txc discovery has no such
+mount, so its Caddy integration is intentionally blocked pending a user-approved
+host-owned lifecycle integration.
+
+When a compliant mount exists, install a root-owned host-managed copy of the
+reviewed root-only site block for `it.cp4.fun`, back up the actual config first,
+and prove the existing site block is byte-for-byte unchanged. Use the discovered
+Caddy binary and lifecycle for validate/reload; for the current Docker lifecycle
+that means container-local commands, not `systemctl`:
+
+```sh
+sudo docker exec kotoba-caddy-1 caddy validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile
+sudo docker exec kotoba-caddy-1 caddy reload \
+  --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+Validate before reload, retain a timestamped config backup, inspect the loaded
+admin config after reload, and smoke-test `learn.cp4.fun` before and after.
 
 The repository's optional Caddy behavior test never downloads a server or
 contacts Gitee/Tencent. Run it only when a reviewed, pinned Caddy binary is
