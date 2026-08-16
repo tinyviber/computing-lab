@@ -1,10 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { StatusMessage } from "./StatusMessage";
+import { ExperimentStatus } from "./ExperimentStatus";
 
-describe("StatusMessage", () => {
+describe("ExperimentStatus", () => {
   it.each(["ready", "editing", "success"] as const)("uses status semantics for %s", (phase) => {
-    render(<StatusMessage detail="Details" phase={phase} title="Title" />);
+    render(<ExperimentStatus detail="Details" phase={phase} title="Title" />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Title");
     expect(screen.getByRole("status")).toHaveTextContent("Details");
@@ -12,7 +12,7 @@ describe("StatusMessage", () => {
   });
 
   it("adds alert semantics for failure without removing status", () => {
-    render(<StatusMessage detail="Fix it" phase="failure" title="Failure" />);
+    render(<ExperimentStatus detail="Fix it" phase="failure" title="Failure" />);
 
     expect(screen.getByRole("status")).toBeInTheDocument();
     expect(screen.getByRole("alert")).toHaveTextContent("Failure");

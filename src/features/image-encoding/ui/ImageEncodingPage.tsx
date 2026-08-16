@@ -1,17 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import { useSearch } from "@tanstack/react-router";
+import { ExperimentStatus } from "../../../shared/lab/ExperimentStatus";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
-import { RangeControl } from "../../../shared/lab/RangeControl";
-import { StatusMessage } from "../../../shared/lab/StatusMessage";
+import { ParameterControl } from "../../../shared/lab/ParameterControl";
 import { VisualizationPanel } from "../../../shared/lab/VisualizationPanel";
-import {
-  buildPixelGrid,
-  calculateMetrics,
-  clamp,
-  parseImageEncodingScenario,
-  type Phase,
-} from "../domain/model";
+import { buildPixelGrid, calculateMetrics } from "../domain/model";
+import { parseImageEncodingScenario } from "../lesson/scenario";
+import { createImageLessonState, transitionImageLesson, type ImagePhase } from "../lesson/state";
+import "./image-encoding.css";
 
 const STEPS = [
   { id: 1, title: "Observe sampling", detail: "Read the sampled pixel field" },
@@ -20,7 +17,7 @@ const STEPS = [
   { id: 4, title: "Write conclusion", detail: "Record what changed" },
 ] as const;
 
-const STATUS_COPY: Record<Phase, { title: string; detail: string }> = {
+const STATUS_COPY: Record<ImagePhase, { title: string; detail: string }> = {
   ready: { title: "Ready", detail: "Set a sampling profile, then run a local preview." },
   editing: { title: "Editing", detail: "Review the sampled frame and submit when ready." },
   success: { title: "Success", detail: "The target profile produced the expected local result." },
@@ -64,46 +61,18 @@ function WorkflowRail({ step }: { step: number }) {
 
 function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseImageEncodingScenario(search), [search]);
-  const [density, setDensity] = useState(scenario.density);
-  const [bits, setBits] = useState(scenario.bits);
-  const [phase, setPhase] = useState<Phase>("ready");
-  const [step, setStep] = useState(1);
+  const [lesson, dispatch] = useReducer(transitionImageLesson, scenario, createImageLessonState);
+  const { density, bits, phase, step } = lesson;
   const metrics = useMemo(() => calculateMetrics(density, bits), [density, bits]);
   const pixels = useMemo(() => buildPixelGrid({ density, bits }), [density, bits]);
   const status = STATUS_COPY[phase];
 
   useEffect(() => {
-    setDensity(scenario.density);
-    setBits(scenario.bits);
-    setPhase("ready");
-    setStep(1);
+    dispatch({ type: "load-scenario", scenario });
   }, [scenario.bits, scenario.density, scenario.scenario]);
 
-  const updateDensity = (value: number) => {
-    setDensity(clamp(value, 2, 8));
-    setPhase("editing");
-  };
-  const updateBits = (value: number) => {
-    setBits(clamp(value, 2, 8));
-    setPhase("editing");
-  };
-  const runPreview = () => {
-    if (phase === "ready") setPhase("editing");
-  };
-  const submit = () => {
-    if (phase === "editing") setPhase(density === 4 && bits === 8 ? "success" : "failure");
-  };
-  const nextStep = () => {
-    if (phase === "success" && step < 4) {
-      setStep((current) => current + 1);
-      setPhase("ready");
-    }
-  };
-  const reset = () => {
-    setDensity(scenario.density);
-    setBits(scenario.bits);
-    setPhase("ready");
-  };
+  const updateDensity = (value: number) => dispatch({ type: "set-density", density: value });
+  const updateBits = (value: number) => dispatch({ type: "set-bits", bits: value });
 
   return (
     <LabShell
@@ -231,7 +200,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               <p>Adjust profile to see indexed palette data against its raw source.</p>
               <span className="profile-code">PX / LOCAL</span>
             </div>
-            <RangeControl
+            <ParameterControl
               description="How many source samples to retain."
               id="density"
               label="Sampling density"
@@ -241,7 +210,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               unit="×"
               value={density}
             />
-            <RangeControl
+            <ParameterControl
               description="Bits stored for each indexed pixel."
               id="bits"
               label="Quantization bits"
@@ -275,17 +244,25 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       }
       actions={
         <div className="inspector-actions">
-          <StatusMessage phase={phase} title={status.title} detail={status.detail} />
+          <ExperimentStatus phase={phase} title={status.title} detail={status.detail} />
           <div className="action-grid">
-            <button className="button button-primary" onClick={runPreview} type="button">
+            <button
+              className="button button-primary"
+              onClick={() => dispatch({ type: "run-preview" })}
+              type="button"
+            >
               Run preview <span aria-hidden="true">→</span>
             </button>
-            <button className="button button-primary" onClick={submit} type="button">
+            <button
+              className="button button-primary"
+              onClick={() => dispatch({ type: "submit" })}
+              type="button"
+            >
               Submit encoding <span aria-hidden="true">→</span>
             </button>
             <button
               className="button button-secondary"
-              onClick={() => phase === "failure" && setPhase("editing")}
+              onClick={() => dispatch({ type: "retry" })}
               type="button"
             >
               Retry
@@ -293,12 +270,16 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <button
               className="button button-secondary"
               disabled={step === 4}
-              onClick={nextStep}
+              onClick={() => dispatch({ type: "next-step" })}
               type="button"
             >
               Next step <span aria-hidden="true">→</span>
             </button>
-            <button className="button button-secondary button-reset" onClick={reset} type="button">
+            <button
+              className="button button-secondary button-reset"
+              onClick={() => dispatch({ type: "reset" })}
+              type="button"
+            >
               Reset
             </button>
           </div>

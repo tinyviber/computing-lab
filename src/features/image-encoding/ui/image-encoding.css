@@ -1,0 +1,153 @@
+.workflow-progress {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.pixel-stage {
+  position: relative;
+  display: grid;
+  min-height: 380px;
+  place-items: center;
+  padding: 30px;
+  background: var(--subtle);
+}
+
+.pixel-grid {
+  display: grid;
+  gap: 6px;
+  width: min(360px, 100%);
+  aspect-ratio: 1;
+}
+
+.pixel-cell {
+  min-width: 0;
+  border: 1px solid rgb(255 255 255 / 32%);
+  border-radius: 2px;
+}
+
+.summary-panel {
+  margin-top: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.summary-heading {
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.metrics-grid-six {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.metric-item {
+  min-width: 0;
+  padding: 14px;
+  border-left: 1px solid var(--border);
+}
+
+.metric-item:first-child,
+.metric-item:nth-child(4n + 1) {
+  border-left: 0;
+}
+
+.metric-item dt {
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.metric-item dd {
+  margin: 4px 0 0;
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.metric-item dd span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.metric-note {
+  padding: 0 14px 14px;
+  font-size: 11px;
+}
+
+.legend-item {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+.legend-swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.legend-source {
+  background: var(--primary);
+}
+
+.legend-display {
+  background: var(--accent);
+}
+
+.sample-count {
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+.inspector-actions .button {
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .pixel-stage {
+    min-height: 286px;
+    padding: 20px;
+  }
+
+  .pixel-grid {
+    width: min(240px, calc(100vw - 96px));
+    gap: 5px;
+  }
+
+  .preview-panel-footer {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    min-height: 54px;
+    padding: 11px 14px;
+  }
+
+  .preview-panel-footer .sample-count {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .metrics-grid,
+  .metrics-grid-six {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metric-item:nth-child(odd) {
+    border-left: 0;
+  }
+
+  .metric-item:nth-child(n + 3) {
+    border-top: 1px solid var(--border);
+  }
+}

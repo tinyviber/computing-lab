@@ -1,0 +1,154 @@
+.topology-stage {
+  display: block;
+  padding: 18px 24px 22px;
+  background-color: var(--subtle);
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.topology-graph {
+  display: block;
+  width: 100%;
+  max-width: 520px;
+  height: auto;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.topology-link {
+  stroke: var(--accent);
+  stroke-dasharray: 5 4;
+  stroke-width: 2;
+}
+
+.topology-node circle {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 2;
+}
+
+.topology-node-router circle {
+  fill: #eaf0ff;
+  stroke: var(--accent);
+}
+
+.topology-node-label {
+  fill: var(--primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.topology-node-ip {
+  fill: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+}
+
+.device-palette {
+  margin-top: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.device-palette ul {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.device-palette li {
+  align-items: center;
+  display: flex;
+  min-width: 0;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.device-palette-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.device-palette-button:hover {
+  color: var(--accent);
+}
+
+.device-palette li strong,
+.device-palette li small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.device-palette li small {
+  margin-top: 2px;
+  color: var(--secondary);
+  font-size: 9px;
+}
+
+.device-palette-icon {
+  display: block;
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.device-palette-icon.device-router {
+  background: var(--success);
+}
+
+.select-label {
+  display: block;
+  margin: 22px 24px 7px;
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.network-input,
+select {
+  display: block;
+  width: calc(100% - 48px);
+  min-height: 40px;
+  margin: 0 24px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.network-input {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.network-input-description {
+  margin: 7px 24px 0;
+}
+
+@media (max-width: 767px) {
+  .topology-stage {
+    padding: 24px 12px;
+  }
+
+  .device-palette ul {
+    grid-template-columns: 1fr;
+  }
+}

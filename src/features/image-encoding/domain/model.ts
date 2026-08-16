@@ -2,8 +2,6 @@ import { SOURCE_HEIGHT, SOURCE_PIXELS, SOURCE_WIDTH } from "./fixture";
 
 export { SOURCE_COLORS, SOURCE_HEIGHT, SOURCE_PIXELS, SOURCE_WIDTH } from "./fixture";
 
-export type Phase = "ready" | "editing" | "success" | "failure";
-
 export type EncodingOptions = {
   density: number;
   bits: number;
@@ -40,22 +38,6 @@ export type EncodingStats = {
 
 export type CompressionMetrics = EncodingStats;
 
-export type ImageScenario = "balanced" | "low-sampling" | "high-quantization";
-
-export type ImageScenarioState = {
-  scenario: ImageScenario;
-  density: number;
-  sampling: number;
-  bits: number;
-};
-
-export const DEFAULT_IMAGE_OPTIONS = { density: 4, bits: 8 } as const;
-
-export const IMAGE_SCENARIO_PRESETS: Record<Exclude<ImageScenario, "balanced">, EncodingOptions> = {
-  "low-sampling": { density: 2, bits: 8 },
-  "high-quantization": { density: 8, bits: 2 },
-};
-
 export const SOURCE_BITS_PER_PIXEL = 24;
 
 export function clamp(value: number, min: number, max: number): number {
@@ -72,43 +54,6 @@ function normalizeBits(bits: number): number {
 
 function normalizeDensity(density: number): number {
   return normalizeInteger(density, 2, 8);
-}
-
-function firstInteger(params: URLSearchParams, key: string): number | undefined {
-  const value = params.get(key);
-  if (value === null || value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : undefined;
-}
-
-export type ImageScenarioSearch = URLSearchParams | string | Record<string, unknown>;
-
-function toParams(input: ImageScenarioSearch): URLSearchParams {
-  if (input instanceof URLSearchParams) return input;
-  if (typeof input === "string") return new URLSearchParams(input.replace(/^\?/, ""));
-
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(input)) {
-    const firstValue = Array.isArray(value) ? value[0] : value;
-    if (firstValue !== undefined && firstValue !== null) params.set(key, String(firstValue));
-  }
-  return params;
-}
-
-/** Parse shareable lesson state: default → preset → first valid explicit value → clamp. */
-export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageScenarioState {
-  const params = toParams(input);
-  const requested = params.get("scenario");
-  const scenario: ImageScenario =
-    requested === "low-sampling" || requested === "high-quantization" ? requested : "balanced";
-  const preset = scenario === "balanced" ? DEFAULT_IMAGE_OPTIONS : IMAGE_SCENARIO_PRESETS[scenario];
-  const explicitSampling = firstInteger(params, "sampling");
-  const explicitDensity = firstInteger(params, "density");
-  const explicitBits = firstInteger(params, "bits");
-  const density = normalizeDensity(explicitSampling ?? explicitDensity ?? preset.density);
-  const bits = normalizeBits(explicitBits ?? preset.bits);
-
-  return { scenario, density, sampling: density, bits };
 }
 
 function parseHex(hex: string): [number, number, number] {

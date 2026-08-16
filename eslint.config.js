@@ -55,4 +55,27 @@ export default tseslint.config(
       ],
     },
   },
+  {
+    files: ["src/features/**/lesson/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom", "@tanstack/react-router"],
+          patterns: ["**/app/**", "**/ui/**"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/features/**/ui/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: ["**/app/**"],
+        },
+      ],
+    },
+  },
 );

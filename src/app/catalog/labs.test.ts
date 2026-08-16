@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getLab, labs } from "./lab-registry";
+import { getLab, labs } from "./labs";
 
-describe("lab registry", () => {
+describe("lab catalog", () => {
   it("keeps ids and routes unique and metadata complete", () => {
     expect(new Set(labs.map((lab) => lab.id)).size).toBe(labs.length);
     expect(new Set(labs.map((lab) => lab.route)).size).toBe(labs.length);

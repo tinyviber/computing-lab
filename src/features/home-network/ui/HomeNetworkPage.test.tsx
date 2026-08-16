@@ -1,6 +1,6 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { renderAppAt } from "../../../test/router-test-helpers.test";
+import { renderAppAt } from "../../../test/router-test-helpers";
 
 describe("HomeNetworkPage", () => {
   it("renders device palette and accessible topology links for every fixture edge", async () => {

@@ -1,7 +1,6 @@
-import type { LabDefinition } from "./contracts";
+import type { LabDefinition } from "./types";
 
-/** Navigation metadata is UI-safe and shared; route composition stays in app/. */
-export const LAB_NAV_ITEMS: LabDefinition[] = [
+export const labs: LabDefinition[] = [
   {
     id: "image-encoding",
     title: "图像编码",
@@ -27,3 +26,7 @@ export const LAB_NAV_ITEMS: LabDefinition[] = [
     status: "available",
   },
 ];
+
+export function getLab(id: string): LabDefinition | undefined {
+  return labs.find((lab) => lab.id === id);
+}

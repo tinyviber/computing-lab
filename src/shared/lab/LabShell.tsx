@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { LAB_NAV_ITEMS } from "./navigation";
+import { useLabNavigationItems } from "./LabNavigationProvider";
+import "./lab.css";
 
 type LabShellProps = {
   eyebrow: string;
@@ -16,6 +17,7 @@ type LabShellProps = {
 };
 
 type LabNavigationProps = {
+  labNavigationItems: ReturnType<typeof useLabNavigationItems>;
   isMobile: boolean;
   navigation?: ReactNode;
   pathname: string;
@@ -24,6 +26,7 @@ type LabNavigationProps = {
 };
 
 function LabNavigation({
+  labNavigationItems,
   isMobile,
   navigation,
   pathname,
@@ -43,11 +46,11 @@ function LabNavigation({
           <p className="eyebrow">COMPUTING LAB</p>
           <h2>Experiments</h2>
         </div>
-        <span className="rail-count">{LAB_NAV_ITEMS.length.toString().padStart(2, "0")}</span>
+        <span className="rail-count">{labNavigationItems.length.toString().padStart(2, "0")}</span>
       </div>
       <nav aria-label="Available labs">
         <ul className="lab-list">
-          {LAB_NAV_ITEMS.map((lab) => (
+          {labNavigationItems.map((lab) => (
             <li key={lab.id}>
               <Link
                 className={`lab-link${pathname === lab.route ? " is-active" : ""}`}
@@ -94,6 +97,7 @@ export function LabShell({
   actions,
   children,
 }: LabShellProps) {
+  const labNavigationItems = useLabNavigationItems();
   const [railOpen, setRailOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
@@ -165,6 +169,7 @@ export function LabShell({
 
       <div className="app-layout">
         <RoutedLabNavigation
+          labNavigationItems={labNavigationItems}
           isMobile={isMobile}
           navigation={navigation}
           railOpen={railOpen}

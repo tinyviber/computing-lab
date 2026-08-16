@@ -74,16 +74,4 @@ describe("home network domain contract", () => {
     expect(result.valid).toBe(false);
     expect(result.issues).toEqual(["invalid-ip", "duplicate-ip"]);
   });
-
-  it("hydrates wrong-gateway scenario with reproducible initial state", () => {
-    const parseScenario = requiredFunction("parseHomeNetworkScenario");
-
-    expect(parseScenario(new URLSearchParams())).toMatchObject({ gateway: "192.168.1.1" });
-    expect(parseScenario(new URLSearchParams("scenario=wrong-gateway"))).toMatchObject({
-      gateway: "192.168.1.254",
-    });
-    expect(parseScenario(new URLSearchParams("scenario=nope"))).toMatchObject({
-      gateway: "192.168.1.1",
-    });
-  });
 });

@@ -1,0 +1,696 @@
+.app-shell {
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.topbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  height: 72px;
+  padding: 0 28px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.brand-lockup,
+.topbar-context,
+.rail-heading,
+.preview-panel-header,
+.preview-panel-footer,
+.summary-heading,
+.control-heading,
+.rail-footer,
+.status-message,
+.calculation-row {
+  align-items: center;
+  display: flex;
+}
+
+.brand-lockup {
+  gap: 12px;
+}
+
+.brand-mark {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-control);
+  background: var(--primary);
+  color: var(--surface);
+  font-size: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.brand-lockup h1 {
+  color: var(--primary);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 20px;
+}
+
+.brand-lockup p {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.topbar-context {
+  gap: 10px;
+}
+
+.context-value {
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.mobile-menu-button {
+  display: none;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: transparent;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  min-height: calc(100vh - 72px);
+}
+
+.workflow-rail {
+  display: flex;
+  flex-direction: column;
+  padding: 28px 20px 20px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.lab-navigation {
+  min-height: calc(100vh - 72px);
+}
+
+.rail-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 8px 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.rail-heading h2 {
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 22px;
+}
+
+.rail-count {
+  padding-top: 2px;
+  color: var(--accent);
+}
+
+.lab-list,
+.step-list {
+  list-style: none;
+  margin: 22px 0 0;
+  padding: 0;
+}
+
+.lab-list {
+  display: grid;
+  gap: 6px;
+}
+
+.lab-link {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--secondary);
+  text-decoration: none;
+}
+
+.lab-link:hover,
+.lab-link.is-active {
+  background: var(--subtle);
+  border-color: var(--border);
+  color: var(--primary);
+}
+
+.lab-link strong,
+.lab-link span span {
+  display: block;
+}
+
+.lab-link strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.lab-link span span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.rail-footer {
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: auto;
+  padding: 18px 8px 0;
+  border-top: 1px solid var(--border);
+}
+
+.rail-footer strong,
+.rail-footer span:not(.local-dot) {
+  display: block;
+}
+
+.rail-footer strong {
+  font-size: 12px;
+}
+
+.rail-footer span:not(.local-dot),
+.step-item span:not(.step-marker) {
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.lesson-steps {
+  margin-top: 26px;
+}
+
+.lesson-steps .step-list {
+  margin-top: 16px;
+}
+
+.step-item {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  min-height: 68px;
+  padding: 0 8px 22px;
+  position: relative;
+}
+
+.step-item:not(:last-child)::after {
+  position: absolute;
+  top: 25px;
+  left: 18px;
+  width: 1px;
+  height: 26px;
+  background: var(--border);
+  content: "";
+}
+
+.step-marker {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  position: relative;
+  z-index: 1;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--subtle);
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.step-item strong {
+  display: block;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.workspace {
+  display: block;
+  min-width: 0;
+}
+
+.lab-shell-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  min-width: 0;
+}
+
+.lab-visualization,
+.lab-controls {
+  min-width: 0;
+}
+
+.lab-controls {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.lab-controls > .inspector-panel {
+  border-color: transparent;
+  border-radius: 0;
+}
+
+.lab-explanation {
+  padding: 0 24px;
+}
+
+.lab-explanation .formula-panel {
+  margin-top: 0;
+}
+
+.lab-actions {
+  margin-top: auto;
+  padding: 22px 24px 24px;
+}
+
+.lab-actions .inspector-actions {
+  padding: 0;
+}
+
+.lesson-section,
+.lab-visualization > .lesson-section {
+  min-width: 0;
+  padding: 38px 40px 48px;
+}
+
+.preview-panel {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.preview-panel-header,
+.preview-panel-footer {
+  justify-content: space-between;
+  min-height: 48px;
+  padding: 0 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.preview-panel-header {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.preview-panel-footer {
+  min-height: 44px;
+  border-bottom: 0;
+  gap: 14px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+.inspector-panel {
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-heading {
+  display: grid;
+  gap: 5px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-heading strong {
+  font-size: 16px;
+}
+
+.inspector-body {
+  padding: 0 24px 26px;
+}
+
+.inspector-intro {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.inspector-intro p {
+  max-width: 230px;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.profile-code {
+  flex: 0 0 auto;
+  padding-top: 2px;
+  color: var(--accent);
+  font-size: 9px;
+}
+
+.control-group {
+  padding: 22px 0 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.control-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.control-label {
+  display: block;
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.control-description {
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.control-value {
+  flex: 0 0 auto;
+  min-width: 47px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  text-align: center;
+}
+
+.range-input {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 22px;
+  margin: 14px 0 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.range-input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) 0%,
+    var(--accent) var(--range-progress, 50%),
+    #dfe5ec var(--range-progress, 50%),
+    #dfe5ec 100%
+  );
+}
+
+.range-input::-moz-range-track,
+.range-input::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+}
+
+.range-input::-moz-range-track {
+  background: #dfe5ec;
+}
+
+.range-input::-moz-range-progress {
+  background: var(--accent);
+}
+
+.range-input::-webkit-slider-thumb,
+.range-input::-moz-range-thumb {
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.range-scale {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.calculation-card {
+  margin-top: 20px;
+  padding: 11px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--subtle);
+}
+
+.formula-title {
+  margin-bottom: 8px;
+}
+
+.calculation-row {
+  justify-content: space-between;
+  min-height: 24px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+.calculation-row + .calculation-row {
+  border-top: 1px solid var(--border);
+}
+
+.calculation-row code {
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.inspector-actions {
+  margin-top: auto;
+  padding: 22px 24px 24px;
+}
+
+.status-message {
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--subtle);
+}
+
+.status-icon {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: 50%;
+  background: #e7eefc;
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.status-message strong {
+  display: block;
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.status-message p {
+  margin-top: 2px;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.status-success {
+  border-color: #c6e4cc;
+  background: #f1f8f3;
+}
+
+.status-success .status-icon {
+  background: #dcefe1;
+  color: var(--success);
+}
+
+.status-failure {
+  border-color: #f1c9c4;
+  background: #fff5f4;
+}
+
+.status-failure .status-icon {
+  background: #fbe2df;
+  color: var(--danger);
+}
+
+.action-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.action-grid .button {
+  width: 100%;
+}
+
+.action-grid .button-reset {
+  grid-column: span 2;
+}
+
+.action-hint {
+  margin-top: 12px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.rail-scrim {
+  display: none;
+}
+
+@media (max-width: 1199px) {
+  .app-layout {
+    grid-template-columns: 240px minmax(0, 1fr);
+  }
+
+  .lab-shell-workspace {
+    display: block;
+  }
+
+  .lab-controls {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .lesson-section,
+  .lab-visualization > .lesson-section {
+    padding: 32px 28px;
+  }
+}
+
+@media (max-width: 767px) {
+  .topbar {
+    height: 64px;
+    padding: 0 16px;
+  }
+
+  .mobile-menu-button {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+  }
+
+  .brand-mark,
+  .brand-lockup p,
+  .context-label {
+    display: none;
+  }
+
+  .brand-lockup {
+    gap: 10px;
+  }
+
+  .topbar-context {
+    gap: 0;
+  }
+
+  .app-layout {
+    display: block;
+    min-height: calc(100vh - 64px);
+  }
+
+  .workflow-rail {
+    position: fixed;
+    top: 64px;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: calc(100vw - 44px);
+    max-width: 300px;
+    padding-top: 24px;
+    box-shadow: 12px 0 30px rgb(23 33 43 / 13%);
+    transform: translateX(-105%);
+    transition: transform 180ms ease;
+  }
+
+  .workflow-rail.is-open {
+    transform: translateX(0);
+  }
+
+  .rail-scrim {
+    position: fixed;
+    inset: 64px 0 0;
+    z-index: 10;
+    display: block;
+    border: 0;
+    background: rgb(23 33 43 / 24%);
+  }
+
+  .lesson-section,
+  .lab-visualization > .lesson-section {
+    padding: 26px 16px 24px;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    display: block;
+  }
+
+  .section-heading h2 {
+    font-size: 20px;
+    line-height: 26px;
+  }
+
+  .phase-badge {
+    margin-top: 14px;
+  }
+
+  .lab-explanation {
+    padding: 0 16px;
+  }
+
+  .lab-actions {
+    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+  }
+
+  .inspector-body {
+    padding: 0 16px 20px;
+  }
+
+  .inspector-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    padding: 14px 16px max(14px, env(safe-area-inset-bottom));
+    background: rgb(255 255 255 / 96%);
+  }
+
+  .status-message {
+    margin-bottom: 10px;
+  }
+}

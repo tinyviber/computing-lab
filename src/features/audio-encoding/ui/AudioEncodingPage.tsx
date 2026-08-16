@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import { useSearch } from "@tanstack/react-router";
+import { ExperimentStatus } from "../../../shared/lab/ExperimentStatus";
 import { FormulaPanel } from "../../../shared/lab/FormulaPanel";
 import { LabShell } from "../../../shared/lab/LabShell";
-import { RangeControl } from "../../../shared/lab/RangeControl";
-import { StatusMessage, type LabPhase } from "../../../shared/lab/StatusMessage";
+import { ParameterControl } from "../../../shared/lab/ParameterControl";
 import { VisualizationPanel } from "../../../shared/lab/VisualizationPanel";
 import {
   AUDIO_MAX_BITS,
@@ -14,18 +14,24 @@ import {
   AUDIO_MIN_RATE,
   buildWaveform,
   calculateAudioStats,
-  parseAudioEncodingScenario,
   type AudioEncodingOptions,
 } from "../domain/model";
+import { parseAudioEncodingScenario } from "../lesson/scenario";
+import { createAudioLessonState, transitionAudioLesson } from "../lesson/state";
+import "./audio-encoding.css";
 
 function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseAudioEncodingScenario(search), [search]);
-  const [options, setOptions] = useState<AudioEncodingOptions>(scenario);
-  const [phase, setPhase] = useState<LabPhase>("ready");
+  const [lesson, dispatch] = useReducer(transitionAudioLesson, scenario, createAudioLessonState);
+  const { phase } = lesson;
+  const options: AudioEncodingOptions = {
+    frequency: lesson.frequency,
+    sampleRate: lesson.sampleRate,
+    bits: lesson.bits,
+  };
 
   useEffect(() => {
-    setOptions(scenario);
-    setPhase("ready");
+    dispatch({ type: "load-scenario", scenario });
   }, [scenario.bits, scenario.frequency, scenario.sampleRate]);
 
   const stats = useMemo(() => calculateAudioStats(options), [options]);
@@ -43,13 +49,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   );
 
   const update = (key: keyof AudioEncodingOptions, value: number) => {
-    setOptions((current) => ({ ...current, [key]: value }));
-    setPhase("editing");
-  };
-
-  const reset = () => {
-    setOptions(scenario);
-    setPhase("ready");
+    dispatch({ type: "set-option", key, value });
   };
 
   return (
@@ -122,7 +122,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <p className="eyebrow">INSPECTOR</p>
             <strong>Encoding settings</strong>
           </div>
-          <RangeControl
+          <ParameterControl
             description="Cycles per second in the local fixture."
             id="audio-frequency"
             label="Frequency"
@@ -132,7 +132,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             unit=" Hz"
             value={options.frequency}
           />
-          <RangeControl
+          <ParameterControl
             description="Samples captured in one second."
             id="sample-rate"
             label="Sampling rate"
@@ -142,7 +142,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             unit=" /s"
             value={options.sampleRate}
           />
-          <RangeControl
+          <ParameterControl
             description="Bits used for each sampled amplitude."
             id="audio-bits"
             label="Quantization bits"
@@ -167,12 +167,16 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
       }
       actions={
         <div className="inspector-actions">
-          <StatusMessage
+          <ExperimentStatus
             phase={phase}
             title={phase === "editing" ? "Listening" : "Ready"}
             detail="Move controls to inspect the local representation."
           />
-          <button className="button button-secondary" onClick={reset} type="button">
+          <button
+            className="button button-secondary"
+            onClick={() => dispatch({ type: "reset" })}
+            type="button"
+          >
             Reset
           </button>
         </div>
