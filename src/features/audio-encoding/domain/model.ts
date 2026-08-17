@@ -2,6 +2,7 @@ import {
   getSoundFixture,
   sampleSoundFixture,
   type SoundComponent,
+  type SoundFixture,
   type SoundSource,
 } from "./fixtures";
 

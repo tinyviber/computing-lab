@@ -1,6 +1,6 @@
 # Local host safety rules
 
-These rules are mandatory for agents working in this repository.
+These rules apply when an agent runs commands on the affected development Mac described below. They are not a universal concurrency policy for every clone: remote CI and other hosts may use their own safe, host-appropriate limits.
 
 ## Why these rules exist
 
@@ -26,4 +26,4 @@ This development Mac has repeated macOS 14.4.1 kernel panics while `node` is act
 
 ## Safe handoff
 
-Agents must report the exact command, worker count, and whether it was serial. A passing local test is not permission to increase concurrency. Remote CI may run its normal parallel jobs; local execution remains single-worker.
+Agents running on the affected host must report the exact command, worker count, and whether it was serial. A passing local test is not permission to increase concurrency. Remote CI and healthy hosts may run their normal safe jobs; this host remains single-worker.

@@ -99,6 +99,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const cursorDigits = cursorStep < 1 ? 3 : 0;
   const cursorReadoutDigits = cursorStep < 1 ? 3 : 1;
   const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
+  const plotWindowWidthMs = plotWindow.endMs - plotWindow.startMs;
   const isLooping = state.loop !== "off";
   const selectedView = state.view;
   const showOriginal = selectedView === "compare" || selectedView === "samples";
@@ -242,8 +243,9 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <div className="sound-panel-header">
               <span>BOUNDED PLOT</span>
               <code>
-                {plot.length} points · {formatNumber(plot[plot.length - 1]?.timeMs ?? 0, 1)} ms
-                window / {model.sampleCount} samples
+                {plot.length} points · {formatNumber(plotWindowWidthMs, 1)} ms window ·{" "}
+                {formatNumber(plotWindow.startMs, 1)}–{formatNumber(plotWindow.endMs, 1)} ms /{" "}
+                {model.sampleCount} samples
               </code>
             </div>
             <div

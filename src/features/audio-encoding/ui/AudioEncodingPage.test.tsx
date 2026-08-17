@@ -283,6 +283,18 @@ describe("Sound reference UI", () => {
     expect(initialPoints).toBeLessThanOrEqual(360);
   });
 
+  it("keeps the plot header's window width correct after a centered seek", async () => {
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
+
+    const header = document.querySelector(".sound-panel-header code");
+    const cursor = document.querySelector("#sound-cursor") as HTMLInputElement;
+    expect(header).not.toBeNull();
+    fireEvent.change(cursor, { target: { value: "500.25" } });
+
+    expect(header).toHaveTextContent(/9\.1 ms window/);
+    expect(header).not.toHaveTextContent(/504\.8 ms window/);
+  });
+
   it("shows real full-range quantization codes in a bounded preview", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=16");
