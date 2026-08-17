@@ -75,6 +75,59 @@ describe("home network packet-path contract", () => {
     expect(result.outcome).toBe("blocked");
   });
 
+  it("stops a printer probe when WAN ARP resolves the selected IP to Internet", () => {
+    const result = run(createNetworkConfig({ printer: { ip: INTERNET_IP } }), "printer");
+
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-remote",
+      "arp-gateway-resolved",
+      "frame-sent",
+      "route-to-internet",
+      "arp-target-resolved",
+      "wrong-endpoint",
+    ]);
+    expect(result.events.at(-1)).toMatchObject({
+      kind: "transmit-request",
+      actor: "router",
+      hop: "internet",
+      outcome: "fail",
+      reasonCode: "wrong-endpoint",
+    });
+    expect(
+      result.events.some((event) => event.kind === "target-response" && event.actor === "printer"),
+    ).toBe(false);
+    expect(result.outcome).toBe("blocked");
+  });
+
+  it("stops an Internet probe when LAN ARP resolves the selected IP to the printer", () => {
+    const result = run(
+      createNetworkConfig({
+        laptop: { ip: "203.0.113.20", prefix: "24" },
+        printer: { ip: INTERNET_IP, prefix: "24" },
+      }),
+      "internet",
+    );
+
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-local",
+      "arp-target-resolved",
+      "wrong-endpoint",
+    ]);
+    expect(result.events.at(-1)).toMatchObject({
+      kind: "transmit-request",
+      actor: "laptop",
+      hop: "printer",
+      outcome: "fail",
+      reasonCode: "wrong-endpoint",
+    });
+    expect(
+      result.events.some((event) => event.kind === "target-response" && event.actor === "internet"),
+    ).toBe(false);
+    expect(result.outcome).toBe("blocked");
+  });
+
   it("models local delivery without gateway/router/NAT hops", () => {
     const result = run(createNetworkConfig(), "printer");
 
@@ -180,7 +233,7 @@ describe("home network packet-path contract", () => {
     const route = result.events.find((event) => event.kind === "route-lookup");
     const nat = result.events.find((event) => event.kind === "nat-request");
     const wanTransmit = result.events.find(
-      (event) => event.kind === "transmit-request" && event.hop === "Internet",
+      (event) => event.kind === "transmit-request" && event.hop === "internet",
     );
 
     expect(createNetworkConfig().router).not.toHaveProperty("gateway");

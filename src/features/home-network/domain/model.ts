@@ -272,6 +272,7 @@ export type ProbeReasonCode =
   | "network-address"
   | "broadcast-address"
   | "duplicate-address"
+  | "wrong-endpoint"
   | "destination-local"
   | "destination-remote"
   | "arp-target-resolved"
@@ -364,6 +365,7 @@ const REASON_TEXT: Record<ProbeReasonCode, string> = {
   "network-address": "A path participant is using its subnet network address.",
   "broadcast-address": "A path participant is using its subnet broadcast address.",
   "duplicate-address": "Two path participants are configured with the same IPv4 address.",
+  "wrong-endpoint": "ARP resolved the address to a different device than the selected endpoint.",
   "destination-local": "The destination is local to the source IP and prefix.",
   "destination-remote": "The destination is outside the source IP and prefix.",
   "arp-target-resolved": "ARP resolved the selected next hop on the egress segment.",
@@ -544,12 +546,16 @@ function lookupConnectedRoute(
 
 type RouterForwardOptions = {
   leg: "request" | "reply";
+  expectedNeighbor: NetworkDeviceId;
   resolutionHop: string;
-  transmitHop: string;
   transmitKind: "transmit-request" | "transmit-reply";
   transmitReasonCode: "frame-sent" | "wan-frame-sent" | "direct-delivery" | "reply-delivered";
   transform?: (routePacket: NetworkPacket, match: ConnectedRouteMatch) => NetworkPacket;
 };
+
+type ForwardResult =
+  | { status: "delivered"; neighbor: NetworkDeviceId }
+  | { status: "blocked"; neighbor?: NetworkDeviceId };
 
 function hashProbeInput(input: string): string {
   let hash = 2166136261;
@@ -611,7 +617,7 @@ export function runHomeNetworkProbe(
   const forwardThroughRouter = (
     inputPacket: NetworkPacket,
     options: RouterForwardOptions,
-  ): boolean => {
+  ): ForwardResult => {
     const match = lookupConnectedRoute(snapshot.router, inputPacket.destinationIp);
     const routePacket = match
       ? packet(inputPacket.sourceIp, inputPacket.destinationIp, match.nextHopIp)
@@ -626,7 +632,7 @@ export function runHomeNetworkProbe(
       reasonCode: match?.reasonCode ?? "no-route",
       reason: REASON_TEXT[match?.reasonCode ?? "no-route"],
     });
-    if (!match) return false;
+    if (!match) return { status: "blocked" };
 
     const transmittedPacket = options.transform?.(routePacket, match) ?? routePacket;
     const neighbor = resolveNeighbor(snapshot, match.segment, match.nextHopIp);
@@ -644,18 +650,21 @@ export function runHomeNetworkProbe(
       reasonCode: neighborReasonCode,
       reason: REASON_TEXT[neighborReasonCode],
     });
-    if (!neighborResolved) return false;
+    if (!neighborResolved) return { status: "blocked" };
+    const endpointMatches = neighbor.deviceId === options.expectedNeighbor;
     addEvent({
       leg: options.leg,
       actor: "router",
-      hop: options.transmitHop,
+      hop: neighbor.deviceId,
       packet: transmittedPacket,
       kind: options.transmitKind,
-      outcome: "pass",
-      reasonCode: options.transmitReasonCode,
-      reason: REASON_TEXT[options.transmitReasonCode],
+      outcome: endpointMatches ? "pass" : "fail",
+      reasonCode: endpointMatches ? options.transmitReasonCode : "wrong-endpoint",
+      reason: REASON_TEXT[endpointMatches ? options.transmitReasonCode : "wrong-endpoint"],
     });
-    return true;
+    return endpointMatches
+      ? { status: "delivered", neighbor: neighbor.deviceId }
+      : { status: "blocked", neighbor: neighbor.deviceId };
   };
 
   const requestPacket = packet(sourceDevice.ip, targetDevice.ip, "");
@@ -718,10 +727,23 @@ export function runHomeNetworkProbe(
     if (!neighborResolved) {
       return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
     }
+    if (neighbor.deviceId !== target) {
+      addEvent({
+        leg: "request",
+        actor: normalizedSource,
+        hop: neighbor.deviceId,
+        packet: packet(sourceDevice.ip, targetDevice.ip, targetDevice.ip),
+        kind: "transmit-request",
+        outcome: "fail",
+        reasonCode: "wrong-endpoint",
+        reason: REASON_TEXT["wrong-endpoint"],
+      });
+      return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
+    }
     addEvent({
       leg: "request",
       actor: normalizedSource,
-      hop: target,
+      hop: neighbor.deviceId,
       packet: packet(sourceDevice.ip, targetDevice.ip, targetDevice.ip),
       kind: "transmit-request",
       outcome: "pass",
@@ -805,13 +827,13 @@ export function runHomeNetworkProbe(
         packet(targetDevice.ip, sourceDevice.ip, snapshot.printer.gateway),
         {
           leg: "reply",
+          expectedNeighbor: normalizedSource,
           resolutionHop: normalizedSource,
-          transmitHop: normalizedSource,
           transmitKind: "transmit-reply",
           transmitReasonCode: "reply-delivered",
         },
       );
-      if (!replyForwarded) {
+      if (replyForwarded.status === "blocked") {
         return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
       }
     }
@@ -869,8 +891,8 @@ export function runHomeNetworkProbe(
     target === "internet"
       ? {
           leg: "request",
+          expectedNeighbor: target,
           resolutionHop: "Internet",
-          transmitHop: "Internet",
           transmitKind: "transmit-request",
           transmitReasonCode: "wan-frame-sent",
           transform: (routePacket) => {
@@ -895,13 +917,13 @@ export function runHomeNetworkProbe(
         }
       : {
           leg: "request",
+          expectedNeighbor: target,
           resolutionHop: "printer",
-          transmitHop: "printer",
           transmitKind: "transmit-request",
           transmitReasonCode: "frame-sent",
         },
   );
-  if (!requestForwarded) {
+  if (requestForwarded.status === "blocked") {
     return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
   }
 
@@ -970,13 +992,13 @@ export function runHomeNetworkProbe(
         packet(targetDevice.ip, sourceDevice.ip, snapshot.printer.gateway),
         {
           leg: "reply",
+          expectedNeighbor: normalizedSource,
           resolutionHop: normalizedSource,
-          transmitHop: normalizedSource,
           transmitKind: "transmit-reply",
           transmitReasonCode: "reply-delivered",
         },
       );
-      if (!replyForwarded) {
+      if (replyForwarded.status === "blocked") {
         return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
       }
     } else {
@@ -1029,12 +1051,14 @@ export function runHomeNetworkProbe(
   });
   const replyForwarded = forwardThroughRouter(replyAfter, {
     leg: "reply",
+    expectedNeighbor: normalizedSource,
     resolutionHop: normalizedSource,
-    transmitHop: normalizedSource,
     transmitKind: "transmit-reply",
     transmitReasonCode: "reply-delivered",
   });
-  if (!replyForwarded) return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
+  if (replyForwarded.status === "blocked") {
+    return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
+  }
   addEvent({
     leg: "control",
     actor: normalizedSource,
