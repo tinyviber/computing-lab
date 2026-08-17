@@ -236,14 +236,23 @@ export function sampledDimensions(
   };
 }
 
+function effectivePhaseForAxis(phase: number, sampledSize: number, sourceSize: number): number {
+  return sampledSize >= sourceSize ? MIN_PHASE : normalizePhase(phase);
+}
+
+function wrapIndex(index: number, size: number): number {
+  return ((index % size) + size) % size;
+}
+
 function sampleSourceCoordinate(
   index: number,
   sampledSize: number,
   sourceSize: number,
   phase: number,
 ): number {
-  const position = ((index + 0.5 + normalizePhase(phase)) / sampledSize) * sourceSize;
-  return Math.min(sourceSize - 1, Math.max(0, Math.floor(position)));
+  const axisPhase = effectivePhaseForAxis(phase, sampledSize, sourceSize);
+  const position = ((index + 0.5 + axisPhase) / sampledSize) * sourceSize;
+  return wrapIndex(Math.floor(position), sourceSize);
 }
 
 function sampleIndexForSourceCoordinate(
@@ -252,8 +261,9 @@ function sampleIndexForSourceCoordinate(
   sourceSize: number,
   phase: number,
 ): number {
-  const position = ((coordinate + 0.5) / sourceSize) * sampledSize - normalizePhase(phase);
-  return Math.min(sampledSize - 1, Math.max(0, Math.floor(position)));
+  const axisPhase = effectivePhaseForAxis(phase, sampledSize, sourceSize);
+  const position = ((coordinate + 0.5) / sourceSize) * sampledSize - axisPhase;
+  return wrapIndex(Math.floor(position), sampledSize);
 }
 
 export function sampleImage(

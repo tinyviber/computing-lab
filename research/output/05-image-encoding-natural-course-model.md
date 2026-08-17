@@ -24,6 +24,6 @@ First release excludes JPEG/PNG compression/file size, codec black boxes, univer
 
 ## Invariants
 
-Sampling controls encoded dimensions while display dimensions stay source-sized. Reconstruction colors come only from sampled values and the fixed codebook selection. Every index is allowed and its bit string is exactly bitDepth bits. Lower bit depth exposes fewer nested states; higher bit depth cannot increase sampled-RGB quantization error. Raw payload is explicit and independent of browser file bytes. Pixel inspection equals the value used by reconstruction. Similar payloads can show different loss types.
+Sampling controls encoded dimensions while display dimensions stay source-sized. Downsampled axes apply phase with periodic edge wrapping; full-density axes force phase to zero. Reconstruction colors come only from sampled values and the fixed codebook selection. Every index is allowed and its bit string is exactly bitDepth bits. Lower bit depth exposes fewer nested states; higher bit depth cannot increase sampled-RGB quantization error. Raw payload is explicit and independent of browser file bytes. Pixel inspection equals the value used by reconstruction. Similar payloads can show different loss types.
 
 No shared extraction or changes to Sound/Network are part of this implementation.

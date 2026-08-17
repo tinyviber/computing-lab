@@ -77,6 +77,57 @@ describe("image encoding domain model", () => {
     expect(ownedCells.size).toBe(model.sampled.width * model.sampled.height);
   });
 
+  it("uses zero phase only on axes that round to full density", () => {
+    const narrowSource = {
+      id: "narrow-rounding-source",
+      label: "Narrow rounding source",
+      sourceKind: "upload" as const,
+      width: 3,
+      height: 20,
+      pixels: Array.from({ length: 3 * 20 }, (_, index) => ({
+        r: index % 3 === 0 ? 240 : 30,
+        g: Math.floor(index / 3) * 10,
+        b: 80,
+      })),
+    };
+    const cases = [
+      {
+        source: getImageFixture("checkerboard"),
+        samplingPercent: 99,
+        expectedDimensions: [48, 32],
+      },
+      { source: narrowSource, samplingPercent: 90, expectedDimensions: [3, 18] },
+    ] as const;
+
+    for (const { source, samplingPercent, expectedDimensions } of cases) {
+      const model = deriveImageEncodingModel(source, {
+        samplingPercent,
+        bitDepth: 3,
+        phase: 0.8,
+      });
+      expect([model.sampled.width, model.sampled.height]).toEqual(expectedDimensions);
+      for (const pixel of model.sampled.pixels) {
+        const inspection = inspectPixel(model, pixel.sourceX, pixel.sourceY);
+        expect([inspection.sampleX, inspection.sampleY]).toEqual([pixel.sampleX, pixel.sampleY]);
+      }
+      const ownedCells = new Set<string>();
+      for (let y = 0; y < model.source.height; y += 1) {
+        for (let x = 0; x < model.source.width; x += 1) {
+          const inspection = inspectPixel(model, x, y);
+          ownedCells.add(`${inspection.sampleX},${inspection.sampleY}`);
+        }
+      }
+      expect(ownedCells.size).toBe(model.sampled.width * model.sampled.height);
+    }
+
+    const narrowPhase = sampleImage(narrowSource, { samplingPercent: 90, phase: 0.8 });
+    const narrowNoPhase = sampleImage(narrowSource, { samplingPercent: 90, phase: 0 });
+    expect(narrowPhase.pixels.slice(0, 3).map((pixel) => pixel.sourceX)).toEqual([0, 1, 2]);
+    expect(narrowPhase.pixels.map((pixel) => pixel.sourceY)).not.toEqual(
+      narrowNoPhase.pixels.map((pixel) => pixel.sourceY),
+    );
+  });
+
   it("uses the same phase-aware cell geometry for reconstruction and inspection", () => {
     const model = deriveImageEncodingModel(getImageFixture("checkerboard"), {
       samplingPercent: 25,
