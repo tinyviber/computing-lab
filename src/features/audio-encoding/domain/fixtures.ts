@@ -1,12 +1,18 @@
 export type SoundSource = "pure440" | "high-pulse" | "speech" | "sawtooth";
 
+export type SoundComponent = {
+  frequencyHz: number;
+  amplitude: number;
+};
+
 export type SoundFixture = {
   id: SoundSource;
   label: string;
   description: string;
   frequencyHz: number;
   durationMs: number;
-  sampleAt: (timeMs: number, phaseTurns?: number) => number;
+  components: readonly SoundComponent[];
+  sampleAt: (timeMs: number) => number;
 };
 
 const TWO_PI = 2 * Math.PI;
@@ -15,36 +21,53 @@ function clampUnit(value: number): number {
   return Math.min(1, Math.max(-1, value));
 }
 
-function phaseRadians(phaseTurns: number): number {
-  const turns = Number.isFinite(phaseTurns) ? phaseTurns : 0;
-  return TWO_PI * (turns % 1);
+function pure440(timeMs: number): number {
+  return Math.sin(TWO_PI * 440 * (timeMs / 1000));
 }
 
-function pure440(timeMs: number, phaseTurns = 0): number {
-  return Math.sin(TWO_PI * 440 * (timeMs / 1000) + phaseRadians(phaseTurns));
-}
+const HIGH_PULSE_COMPONENTS: readonly SoundComponent[] = [1, 2, 3, 4, 5].map((harmonic) => ({
+  frequencyHz: 6000 * harmonic,
+  amplitude: 1 / harmonic,
+}));
 
-function highPulse(timeMs: number, phaseTurns = 0): number {
-  const phase = (TWO_PI * 6000 * (timeMs / 1000) + phaseRadians(phaseTurns)) % TWO_PI;
-  const normalizedPhase = phase < 0 ? phase + TWO_PI : phase;
-  return normalizedPhase < TWO_PI * 0.18 ? 1 : -0.72;
-}
-
-function speech(timeMs: number, phaseTurns = 0): number {
+function highPulse(timeMs: number): number {
   const seconds = timeMs / 1000;
-  const envelope = 0.58 + 0.42 * Math.sin(TWO_PI * 2.2 * seconds) ** 2;
-  const phase = phaseRadians(phaseTurns);
-  const value =
-    0.58 * Math.sin(TWO_PI * 180 * seconds + phase) +
-    0.27 * Math.sin(TWO_PI * 420 * seconds + phase) +
-    0.15 * Math.sin(TWO_PI * 780 * seconds + phase);
-  return envelope * value;
+  const value = HIGH_PULSE_COMPONENTS.reduce(
+    (sum, component, index) =>
+      sum +
+      component.amplitude *
+        Math.sin(TWO_PI * component.frequencyHz * seconds + (index % 2 ? Math.PI / 3 : 0)),
+    0,
+  );
+  return clampUnit(value / 1.9);
 }
 
-function sawtooth(timeMs: number, phaseTurns = 0): number {
-  const phase = (TWO_PI * 220 * (timeMs / 1000) + phaseRadians(phaseTurns)) % TWO_PI;
-  const normalizedPhase = phase < 0 ? phase + TWO_PI : phase;
-  return 2 * (normalizedPhase / TWO_PI) - 1;
+function speech(timeMs: number): number {
+  const seconds = timeMs / 1000;
+  const value =
+    0.58 * Math.sin(TWO_PI * 180 * seconds) +
+    0.27 * Math.sin(TWO_PI * 420 * seconds) +
+    0.15 * Math.sin(TWO_PI * 780 * seconds);
+  return clampUnit(value);
+}
+
+const SAWTOOTH_COMPONENTS: readonly SoundComponent[] = Array.from({ length: 9 }, (_, index) => {
+  const harmonic = index + 1;
+  return {
+    frequencyHz: 220 * harmonic,
+    amplitude: (2 / Math.PI) * ((harmonic % 2 === 0 ? -1 : 1) / harmonic),
+  };
+});
+
+function sawtooth(timeMs: number): number {
+  const seconds = timeMs / 1000;
+  return clampUnit(
+    SAWTOOTH_COMPONENTS.reduce(
+      (sum, component) =>
+        sum + component.amplitude * Math.sin(TWO_PI * component.frequencyHz * seconds),
+      0,
+    ),
+  );
 }
 
 export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
@@ -54,6 +77,7 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     description: "A stable reference tone for comparing sampling and quantization.",
     frequencyHz: 440,
     durationMs: 1000,
+    components: [{ frequencyHz: 440, amplitude: 1 }],
     sampleAt: pure440,
   },
   "high-pulse": {
@@ -62,14 +86,20 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     description: "A high-frequency pulse train that makes aliasing easy to see.",
     frequencyHz: 6000,
     durationMs: 1000,
+    components: HIGH_PULSE_COMPONENTS,
     sampleAt: highPulse,
   },
   speech: {
     id: "speech",
     label: "Speech-like",
-    description: "A deterministic voiced composite with a changing envelope.",
+    description: "A deterministic voiced composite made from explicit components.",
     frequencyHz: 780,
     durationMs: 1000,
+    components: [
+      { frequencyHz: 180, amplitude: 0.58 },
+      { frequencyHz: 420, amplitude: 0.27 },
+      { frequencyHz: 780, amplitude: 0.15 },
+    ],
     sampleAt: speech,
   },
   sawtooth: {
@@ -78,6 +108,7 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     description: "A harmonic-rich ramp that reveals quantization steps.",
     frequencyHz: 220,
     durationMs: 1000,
+    components: SAWTOOTH_COMPONENTS,
     sampleAt: sawtooth,
   },
 };
@@ -86,6 +117,10 @@ export function getSoundFixture(source: SoundSource): SoundFixture {
   return SOUND_FIXTURES[source] ?? SOUND_FIXTURES.pure440;
 }
 
-export function sampleSoundFixture(source: SoundSource, timeMs: number, phaseTurns = 0): number {
-  return clampUnit(getSoundFixture(source).sampleAt(timeMs, phaseTurns));
+export function sampleSoundFixture(
+  source: SoundSource,
+  timeMs: number,
+  _ignoredPhaseTurns?: number,
+): number {
+  return clampUnit(getSoundFixture(source).sampleAt(timeMs));
 }

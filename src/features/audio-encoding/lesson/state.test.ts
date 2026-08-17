@@ -129,4 +129,45 @@ describe("Sound orthogonal reducer", () => {
       loop: "off",
     });
   });
+
+  it("normalizes a URL loop into the initial state and restores that loop on reset", () => {
+    const scenario = {
+      ...initialScenario,
+      source: "speech",
+      sampleRate: 16000,
+      bitDepth: 12,
+      phase: 0.25,
+      mode: "aliasing",
+      view: "samples",
+      loop: { startMs: 125, endMs: 875 },
+    };
+    let state = (createState as (scenario: SoundState) => SoundState)(scenario);
+    expect(state.loop).toEqual({ startMs: 125, endMs: 875 });
+
+    for (const action of [
+      { type: "set-source", source: "high-pulse" },
+      { type: "set-sample-rate", sampleRate: 2000 },
+      { type: "set-bit-depth", bitDepth: 4 },
+      { type: "set-phase", phase: 0.75 },
+      { type: "set-mode", mode: "quantization" },
+      { type: "set-view", view: "levels" },
+      { type: "set-audition", audition: "reconstructed" },
+      { type: "set-transport", transport: "playing" },
+      { type: "set-cursor", cursor: 400 },
+      { type: "set-loop", loop: { startMs: 200, endMs: 600 } },
+    ]) {
+      state = transition(state, action);
+    }
+
+    expect(transition(state, { type: "reset" })).toMatchObject({
+      source: "speech",
+      config: { sampleRate: 16000, bitDepth: 12, phase: 0.25 },
+      mode: "aliasing",
+      view: "samples",
+      transport: "stopped",
+      audition: "original",
+      cursor: 0,
+      loop: { startMs: 125, endMs: 875 },
+    });
+  });
 });

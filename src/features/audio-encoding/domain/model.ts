@@ -1,8 +1,13 @@
-import { getSoundFixture, sampleSoundFixture, type SoundSource } from "./fixtures";
+import {
+  getSoundFixture,
+  sampleSoundFixture,
+  type SoundComponent,
+  type SoundSource,
+} from "./fixtures";
 
 export const SOUND_DURATION_MS = 1000;
-export const SOUND_MIN_SAMPLE_RATE = 1000;
-export const SOUND_MAX_SAMPLE_RATE = 48_000;
+export const SOUND_MIN_SAMPLE_RATE = 2;
+export const SOUND_MAX_SAMPLE_RATE = 44_100;
 export const SOUND_MIN_BIT_DEPTH = 2;
 export const SOUND_MAX_BIT_DEPTH = 16;
 export const SOUND_MIN_PHASE = 0;
@@ -18,7 +23,29 @@ export type SoundConfig = {
 export type Quantization = {
   codes: readonly number[];
   levels: number;
+  levelValues: readonly number[];
   reconstructed: readonly number[];
+};
+
+export type SoundSample = {
+  index: number;
+  timestampMs: number;
+  original: number;
+  code: number;
+  reconstructed: number;
+  error: number;
+};
+
+export type AliasingClassification = "below" | "at" | "aliased";
+
+export type SoundAliasingComponent = SoundComponent & {
+  classification: AliasingClassification;
+  foldedFrequencyHz: number;
+};
+
+export type SoundAliasingEvidence = {
+  anyAliasing: boolean;
+  components: readonly SoundAliasingComponent[];
 };
 
 export type SoundCursorReadout = {
@@ -45,6 +72,7 @@ export type SoundModel = {
   sampleCount: number;
   original: readonly number[];
   timestamps: readonly number[];
+  samples: readonly SoundSample[];
   quantization: Quantization;
   reconstruction: readonly number[];
   sampleHold: readonly number[];
@@ -55,6 +83,10 @@ export type SoundModel = {
   sourceFrequencyHz: number;
   foldedFrequencyHz: number;
   aliasing: boolean;
+  anyAliasing: boolean;
+  components: readonly SoundComponent[];
+  aliasingEvidence: SoundAliasingEvidence;
+  cursorAt: (timeMs: number) => SoundCursorReadout;
   payload: {
     sampleCount: number;
     bitDepth: number;
@@ -65,6 +97,7 @@ export type SoundModel = {
   };
   cursor: SoundCursorReadout;
   plot: readonly SoundPlotPoint[];
+  reconstructAt: (timeMs: number) => number;
 };
 
 function clamp(value: number, min: number, max: number): number {
@@ -99,51 +132,94 @@ function reconstruct(code: number, levels: number): number {
   return (2 * code) / (levels - 1) - 1;
 }
 
-function foldedFrequency(frequencyHz: number, sampleRate: number): number {
-  const remainder = frequencyHz % sampleRate;
+const quantizationLevelCache = new Map<number, readonly number[]>();
+
+function getQuantizationLevels(levels: number): readonly number[] {
+  const cached = quantizationLevelCache.get(levels);
+  if (cached) return cached;
+
+  const values = Object.freeze(
+    Array.from({ length: levels }, (_, index) => reconstruct(index, levels)),
+  );
+  quantizationLevelCache.set(levels, values);
+  return values;
+}
+
+export function foldedFrequency(frequencyHz: number, sampleRate: number): number {
+  const remainder = ((frequencyHz % sampleRate) + sampleRate) % sampleRate;
   const reflected = remainder > sampleRate / 2 ? sampleRate - remainder : remainder;
-  return reflected === 0 ? 0 : Math.abs(reflected);
+  return Math.abs(reflected);
+}
+
+function classifyFrequency(frequencyHz: number, nyquistHz: number): AliasingClassification {
+  if (frequencyHz === nyquistHz) return "at";
+  if (frequencyHz < nyquistHz) return "below";
+  return "aliased";
+}
+
+function sampleIndexAt(timeMs: number, timestamps: readonly number[], durationMs: number): number {
+  if (timestamps.length === 0) return -1;
+  const safeTime = clamp(finiteOr(timeMs, 0), 0, durationMs);
+  let low = 0;
+  let high = timestamps.length - 1;
+  let result = 0;
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    if (timestamps[middle] <= safeTime) {
+      result = middle;
+      low = middle + 1;
+    } else {
+      high = middle - 1;
+    }
+  }
+  return result;
+}
+
+export function reconstructAt(
+  timeMs: number,
+  timestamps: readonly number[],
+  reconstruction: readonly number[],
+  durationMs = SOUND_DURATION_MS,
+): number {
+  if (reconstruction.length === 0) return 0;
+  const index = sampleIndexAt(timeMs, timestamps, durationMs);
+  return reconstruction[Math.max(0, index)] ?? 0;
 }
 
 function buildPlot(
   source: SoundSource,
-  config: SoundConfig,
   timestamps: readonly number[],
-  original: readonly number[],
   reconstruction: readonly number[],
-  errors: readonly number[],
   durationMs: number,
 ): SoundPlotPoint[] {
   const count = Math.min(SOUND_PLOT_POINT_LIMIT, Math.max(2, Math.ceil(durationMs / 4)));
-  const samplePeriod = 1000 / config.sampleRate;
   return Array.from({ length: count }, (_, index) => {
     const timeMs = (index / (count - 1)) * durationMs;
-    const sampleIndex = clamp(Math.floor(timeMs / samplePeriod), 0, reconstruction.length - 1);
-    const originalValue = sampleSoundFixture(source, timeMs, config.phase);
+    const sampleIndex = sampleIndexAt(timeMs, timestamps, durationMs);
+    const originalValue = sampleSoundFixture(source, timeMs);
     return {
       timeMs,
       original: originalValue,
-      reconstructed: reconstruction[sampleIndex] ?? 0,
-      error: originalValue - (reconstruction[sampleIndex] ?? 0),
+      reconstructed: reconstruction[Math.max(0, sampleIndex)] ?? 0,
+      error: originalValue - (reconstruction[Math.max(0, sampleIndex)] ?? 0),
     };
   });
 }
 
 function cursorReadout(
   source: SoundSource,
-  config: SoundConfig,
   cursorMs: number,
   timestamps: readonly number[],
   original: readonly number[],
   codes: readonly number[],
   reconstruction: readonly number[],
+  durationMs: number,
 ): SoundCursorReadout {
-  const safeCursor = clamp(finiteOr(cursorMs, 0), 0, SOUND_DURATION_MS);
-  const samplePeriod = 1000 / config.sampleRate;
-  const sampleIndex = clamp(Math.floor(safeCursor / samplePeriod), 0, original.length - 1);
+  const safeCursor = clamp(finiteOr(cursorMs, 0), 0, durationMs);
+  const sampleIndex = sampleIndexAt(safeCursor, timestamps, durationMs);
   const sampleTimestampMs = timestamps[sampleIndex] ?? 0;
-  const originalValue = sampleSoundFixture(source, safeCursor, config.phase);
-  const reconstructed = reconstruction[sampleIndex] ?? 0;
+  const originalValue = sampleSoundFixture(source, safeCursor);
+  const reconstructed = reconstruction[Math.max(0, sampleIndex)] ?? 0;
   return {
     timeMs: safeCursor,
     sampleIndex,
@@ -163,28 +239,50 @@ export function deriveSoundModel(
   const safeConfig = normalizeSoundConfig(config);
   const fixture = getSoundFixture(source);
   const durationMs = fixture.durationMs;
-  const sampleCount = Math.max(1, Math.ceil((durationMs * safeConfig.sampleRate) / 1000));
-  const samplePeriod = 1000 / safeConfig.sampleRate;
-  const timestamps = Array.from({ length: sampleCount }, (_, index) => index * samplePeriod);
-  const original = timestamps.map((timeMs) => sampleSoundFixture(source, timeMs, safeConfig.phase));
+  const sampleLimit = (durationMs * safeConfig.sampleRate) / 1000 - safeConfig.phase;
+  const sampleCount = Math.max(0, Math.ceil(sampleLimit));
+  const timestamps = Array.from(
+    { length: sampleCount },
+    (_, index) => ((index + safeConfig.phase) / safeConfig.sampleRate) * 1000,
+  );
+  const original = timestamps.map((timeMs) => sampleSoundFixture(source, timeMs));
   const levels = 2 ** safeConfig.bitDepth;
+  const levelValues = getQuantizationLevels(levels);
   const codes = original.map((value) => quantize(value, levels));
   const reconstruction = codes.map((code) => reconstruct(code, levels));
   const errors = original.map((value, index) => value - reconstruction[index]);
-  const rmsError = Math.sqrt(errors.reduce((sum, value) => sum + value * value, 0) / errors.length);
+  const rmsError = errors.length
+    ? Math.sqrt(errors.reduce((sum, value) => sum + value * value, 0) / errors.length)
+    : 0;
   const peakError = errors.reduce((peak, value) => Math.max(peak, Math.abs(value)), 0);
   const nyquistHz = safeConfig.sampleRate / 2;
-  const aliasing = fixture.frequencyHz > nyquistHz;
+  const aliasingComponents = fixture.components.map((component) => ({
+    ...component,
+    classification: classifyFrequency(component.frequencyHz, nyquistHz),
+    foldedFrequencyHz: foldedFrequency(component.frequencyHz, safeConfig.sampleRate),
+  }));
+  const anyAliasing = aliasingComponents.some(
+    (component) => component.classification === "aliased",
+  );
+  const aliasingEvidence = { anyAliasing, components: aliasingComponents };
   const totalBits = sampleCount * safeConfig.bitDepth;
   const cursor = cursorReadout(
     source,
-    safeConfig,
     cursorMs,
     timestamps,
     original,
     codes,
     reconstruction,
+    durationMs,
   );
+  const samples = timestamps.map((timestampMs, index) => ({
+    index,
+    timestampMs,
+    original: original[index],
+    code: codes[index],
+    reconstructed: reconstruction[index],
+    error: errors[index],
+  }));
 
   return {
     source,
@@ -193,7 +291,8 @@ export function deriveSoundModel(
     sampleCount,
     original,
     timestamps,
-    quantization: { codes, levels, reconstructed: reconstruction },
+    samples,
+    quantization: { codes, levels, levelValues, reconstructed: reconstruction },
     reconstruction,
     sampleHold: reconstruction,
     errors,
@@ -202,7 +301,10 @@ export function deriveSoundModel(
     nyquistHz,
     sourceFrequencyHz: fixture.frequencyHz,
     foldedFrequencyHz: foldedFrequency(fixture.frequencyHz, safeConfig.sampleRate),
-    aliasing,
+    aliasing: anyAliasing,
+    anyAliasing,
+    components: fixture.components,
+    aliasingEvidence,
     payload: {
       sampleCount,
       bitDepth: safeConfig.bitDepth,
@@ -212,7 +314,11 @@ export function deriveSoundModel(
       bytesPerSecond: Math.ceil((safeConfig.sampleRate * safeConfig.bitDepth) / 8),
     },
     cursor,
-    plot: buildPlot(source, safeConfig, timestamps, original, reconstruction, errors, durationMs),
+    plot: buildPlot(source, timestamps, reconstruction, durationMs),
+    reconstructAt: (timeMs: number) =>
+      reconstructAt(timeMs, timestamps, reconstruction, durationMs),
+    cursorAt: (timeMs: number) =>
+      cursorReadout(source, timeMs, timestamps, original, codes, reconstruction, durationMs),
   };
 }
 

@@ -155,6 +155,65 @@
   stroke: var(--danger);
 }
 
+.sound-sample-marker {
+  fill: var(--accent);
+  stroke: var(--surface);
+  stroke-width: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.sound-level-line {
+  stroke: var(--border);
+  stroke-dasharray: 1 2;
+  stroke-width: 0.35;
+  vector-effect: non-scaling-stroke;
+}
+
+.sound-mode-evidence {
+  min-height: 76px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.sound-mode-evidence p {
+  margin: 0;
+}
+
+.sound-mode-evidence .eyebrow {
+  margin-bottom: 5px;
+}
+
+.sound-evidence-table {
+  display: grid;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.sound-evidence-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.6fr;
+  gap: 8px;
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.sound-level-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 8px;
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
 .sound-panel-footer {
   justify-content: flex-start;
   min-height: 42px;
@@ -281,6 +340,14 @@
   gap: 7px;
   color: var(--secondary);
   font-size: 12px;
+}
+
+.sound-audio-status {
+  min-height: 17px;
+  margin: 0;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
 }
 
 .sound-choice {

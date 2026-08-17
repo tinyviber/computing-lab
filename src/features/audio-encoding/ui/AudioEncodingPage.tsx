@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from "react";
+import { useEffect, useMemo, useReducer, useState } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { SOUND_FIXTURES, type SoundSource } from "../domain/fixtures";
@@ -13,6 +13,7 @@ import {
 } from "../domain/model";
 import { parseSoundScenario, type SoundMode, type SoundView } from "../lesson/scenario";
 import { createSoundLessonState, transitionSoundLesson } from "../lesson/state";
+import { createAudioPlaybackRuntime, type AudioPlaybackRequest } from "./audioPlayback";
 import "./audio-encoding.css";
 
 const MODE_LABELS: Record<SoundMode, string> = {
@@ -29,7 +30,9 @@ const VIEW_LABELS: Record<SoundView, string> = {
 };
 
 function formatNumber(value: number, digits = 3): string {
-  return value.toFixed(digits).replace(/\.?(0+)$/, "");
+  const fixed = value.toFixed(digits);
+  if (!fixed.includes(".")) return fixed;
+  return fixed.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
 }
 
 function plotPoints(values: readonly number[], scale = 1): string {
@@ -43,19 +46,42 @@ function plotPoints(values: readonly number[], scale = 1): string {
     .join(" ");
 }
 
+function classificationLabel(classification: "below" | "at" | "aliased"): string {
+  if (classification === "aliased") return "aliased";
+  if (classification === "at") return "at Nyquist";
+  return "below Nyquist";
+}
+
 function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseSoundScenario(search), [search]);
   const [state, dispatch] = useReducer(transitionSoundLesson, scenario, createSoundLessonState);
+  const [audioStatus, setAudioStatus] = useState("Audio is ready when Play is pressed.");
+  const playback = useMemo(() => createAudioPlaybackRuntime(), []);
   const model = useMemo(
-    () => deriveSoundModel(state.source, state.config, state.cursor),
-    [state.config, state.cursor, state.source],
+    () => deriveSoundModel(state.source, state.config),
+    [state.config, state.source],
   );
+  const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
   const fixture = SOUND_FIXTURES[state.source];
   const isLooping = state.loop !== "off";
   const selectedView = state.view;
   const showOriginal = selectedView === "compare" || selectedView === "samples";
   const showReconstructed = selectedView !== "error";
   const plotError = selectedView === "error";
+  const sampleStride = Math.max(1, Math.ceil(model.samples.length / 160));
+  const visibleSamples = model.samples.filter((_, index) => index % sampleStride === 0);
+  const levelPreview = model.quantization.levelValues.slice(0, 24);
+  const playbackRequest: AudioPlaybackRequest = useMemo(
+    () => ({
+      source: state.source,
+      config: state.config,
+      audition: state.audition,
+      cursorMs: state.cursor,
+      loop: state.loop,
+      durationMs: model.durationMs,
+    }),
+    [model.durationMs, state.audition, state.config, state.cursor, state.loop, state.source],
+  );
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
@@ -69,7 +95,58 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     scenario.view,
   ]);
 
-  const liveMessage = `${fixture.label}; ${state.transport}; cursor ${formatNumber(state.cursor, 0)} milliseconds; ${model.aliasing ? "aliasing detected" : "below Nyquist"}.`;
+  useEffect(() => {
+    if (state.transport === "playing") playback.sync(playbackRequest);
+    else playback.stop();
+  }, [playback, playbackRequest, state.transport]);
+
+  useEffect(() => () => playback.dispose(), [playback]);
+
+  useEffect(() => {
+    if (state.transport !== "playing") return undefined;
+
+    let lastTime: number | undefined;
+    let frameId: number | undefined;
+    let intervalId: ReturnType<typeof setInterval> | undefined;
+    const advance = (now: number) => {
+      if (!Number.isFinite(now)) return;
+      if (lastTime === undefined) {
+        lastTime = now;
+        return;
+      }
+      const deltaMs = Math.max(0, now - lastTime);
+      lastTime = now;
+      dispatch({ type: "tick", deltaMs });
+    };
+
+    if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+      const frame = (now: number) => {
+        advance(now);
+        frameId = window.requestAnimationFrame(frame);
+      };
+      frameId = window.requestAnimationFrame(frame);
+    } else {
+      intervalId = setInterval(
+        () => advance(typeof performance === "undefined" ? Date.now() : performance.now()),
+        16,
+      );
+    }
+
+    return () => {
+      if (frameId !== undefined && typeof window !== "undefined") {
+        window.cancelAnimationFrame(frameId);
+      }
+      if (intervalId !== undefined) clearInterval(intervalId);
+    };
+  }, [state.transport]);
+
+  const liveMessage = `${fixture.label}; ${state.transport}; cursor ${formatNumber(state.cursor, 0)} milliseconds; ${model.anyAliasing ? "one or more components alias" : "all components are below or at Nyquist"}.`;
+
+  const play = () => {
+    const result = playback.play(playbackRequest);
+    setAudioStatus(result.message);
+    dispatch({ type: "play" });
+  };
 
   return (
     <LabShell eyebrow="AUDIO / 01" title="声音编码" subtitle="Sampling and quantization">
@@ -80,7 +157,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <p className="eyebrow">REFERENCE IMPLEMENTATION</p>
               <h2 id="sound-heading">采样、量化与重建</h2>
               <p className="section-description">
-                所有读数来自确定性的本地夹具；播放按钮只改变状态，时间只由显式步进推进。
+                所有读数来自确定性的本地夹具；视觉时钟由显式步进推进，音频试听使用固定 48 kHz
+                缓冲区。
               </p>
             </div>
             <span className="sound-transport-badge">{state.transport}</span>
@@ -96,6 +174,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <div
               aria-label={`${fixture.label} ${selectedView} plot`}
               className="sound-plot-stage"
+              data-audition={state.audition}
+              data-evidence={selectedView === "error" ? "error-waveform" : selectedView}
+              data-sound-mode={state.mode}
+              data-sound-view={selectedView}
               role="img"
             >
               <svg className="sound-plot" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -121,6 +203,33 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                     )}
                   />
                 ) : null}
+                {selectedView === "samples"
+                  ? visibleSamples.map((sample) => (
+                      <circle
+                        className="sound-sample-marker"
+                        cx={(sample.timestampMs / model.durationMs) * 100}
+                        cy={50 - sample.original * 40}
+                        data-sample-marker="true"
+                        data-sample-index={sample.index}
+                        data-sample-timestamp-ms={sample.timestampMs}
+                        key={sample.index}
+                        r="1.15"
+                      />
+                    ))
+                  : null}
+                {selectedView === "levels"
+                  ? levelPreview.map((level) => (
+                      <line
+                        className="sound-level-line"
+                        data-bounded-line="true"
+                        key={level}
+                        x1="0"
+                        x2="100"
+                        y1={50 - level * 40}
+                        y2={50 - level * 40}
+                      />
+                    ))
+                  : null}
                 <line
                   className="sound-cursor-line"
                   x1={(state.cursor / model.durationMs) * 100}
@@ -143,6 +252,62 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
           </div>
 
+          <div className="sound-mode-evidence" data-sound-mode={state.mode}>
+            {state.mode === "compare" ? (
+              <div data-testid="sound-compare-evidence">
+                <p className="eyebrow">COMPARE EVIDENCE</p>
+                <p>
+                  Overlay shows immutable original x(t) against the sample-hold reconstruction. Use
+                  the A/B controls to audition either buffer.
+                </p>
+              </div>
+            ) : null}
+            {state.mode === "aliasing" ? (
+              <div data-testid="sound-aliasing-evidence">
+                <p className="eyebrow">COMPONENT ALIASING EVIDENCE</p>
+                <p>
+                  {model.anyAliasing
+                    ? "At least one exposed component is above Nyquist."
+                    : "Every exposed component is below or exactly at Nyquist."}
+                </p>
+                <div className="sound-evidence-table" role="table">
+                  {model.aliasingEvidence.components.map((component) => (
+                    <div
+                      className="sound-evidence-row"
+                      key={`${component.frequencyHz}-${component.amplitude}`}
+                      role="row"
+                    >
+                      <span role="cell">{formatNumber(component.frequencyHz, 0)} Hz</span>
+                      <span role="cell">{classificationLabel(component.classification)}</span>
+                      <span role="cell">
+                        folds to {formatNumber(component.foldedFrequencyHz, 1)} Hz
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {state.mode === "quantization" ? (
+              <div data-testid="sound-quantization-evidence">
+                <p className="eyebrow">QUANTIZATION EVIDENCE</p>
+                <p>
+                  {model.quantization.levelValues.length} complete level values; showing a bounded
+                  preview of {levelPreview.length}.
+                </p>
+                <div
+                  className="sound-level-preview"
+                  data-level-count={model.quantization.levelValues.length}
+                >
+                  {levelPreview.map((level, index) => (
+                    <span data-level-value={level} key={level} title={`Level ${index}`}>
+                      {formatNumber(level)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+
           <div className="sound-summary" aria-label="Derived sound metrics">
             <div>
               <span>Nyquist</span>
@@ -150,7 +315,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
             <div>
               <span>Folded frequency</span>
-              <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz</strong>
+              <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz fundamental</strong>
             </div>
             <div>
               <span>RMS error</span>
@@ -173,37 +338,44 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <dl>
               <div>
                 <dt>Time</dt>
-                <dd>{formatNumber(model.cursor.timeMs, 1)} ms</dd>
+                <dd>{formatNumber(cursor.timeMs, 1)} ms</dd>
               </div>
               <div>
                 <dt>Sample</dt>
                 <dd>
-                  #{model.cursor.sampleIndex + 1} @{" "}
-                  {formatNumber(model.cursor.sampleTimestampMs, 2)} ms
+                  #{cursor.sampleIndex + 1} @ {formatNumber(cursor.sampleTimestampMs, 2)} ms
                 </dd>
               </div>
               <div>
                 <dt>Original</dt>
-                <dd>{formatNumber(model.cursor.original)}</dd>
+                <dd>{formatNumber(cursor.original)}</dd>
               </div>
               <div>
                 <dt>Code</dt>
                 <dd>
-                  {model.cursor.code} / {model.quantization.levels - 1}
+                  {cursor.code} / {model.quantization.levels - 1}
                 </dd>
               </div>
               <div>
                 <dt>Reconstructed</dt>
-                <dd>{formatNumber(model.cursor.reconstructed)}</dd>
+                <dd>{formatNumber(cursor.reconstructed)}</dd>
               </div>
               <div>
                 <dt>Error</dt>
-                <dd>{formatNumber(model.cursor.error)}</dd>
+                <dd>{formatNumber(cursor.error)}</dd>
               </div>
             </dl>
           </div>
-          <p aria-atomic="true" aria-live="polite" className="sound-live-region" role="status">
-            {liveMessage}
+          <p
+            aria-atomic="true"
+            aria-live="polite"
+            className="sound-live-region"
+            data-analysis-status={state.mode}
+            data-audition={state.audition}
+            data-testid="sound-audio-status"
+            role="status"
+          >
+            {liveMessage} {audioStatus}
           </p>
         </section>
 
@@ -245,7 +417,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               onChange={(event) =>
                 dispatch({ type: "set-sample-rate", sampleRate: Number(event.target.value) })
               }
-              step={100}
+              step={1}
               type="range"
               value={state.config.sampleRate}
             />
@@ -293,23 +465,25 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div className="sound-inspector-section">
             <p className="eyebrow">TRANSPORT</p>
             <div className="sound-button-row">
-              <button
-                className="button button-primary"
-                onClick={() => dispatch({ type: "play" })}
-                type="button"
-              >
+              <button className="button button-primary" onClick={play} type="button">
                 Play
               </button>
               <button
                 className="button button-secondary"
-                onClick={() => dispatch({ type: "pause" })}
+                onClick={() => {
+                  playback.pause();
+                  dispatch({ type: "pause" });
+                }}
                 type="button"
               >
                 Pause
               </button>
               <button
                 className="button button-secondary"
-                onClick={() => dispatch({ type: "stop" })}
+                onClick={() => {
+                  playback.stop();
+                  dispatch({ type: "stop" });
+                }}
                 type="button"
               >
                 Stop
@@ -387,9 +561,9 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               ))}
             </div>
             <p className="sound-mode-note">
-              {model.aliasing
-                ? `The ${fixture.frequencyHz} Hz fixture exceeds the ${model.nyquistHz} Hz Nyquist limit.`
-                : "This fixture is below the current Nyquist limit."}
+              {model.anyAliasing
+                ? `${model.aliasingEvidence.components.filter((component) => component.classification === "aliased").length} exposed component(s) exceed the ${model.nyquistHz} Hz Nyquist limit.`
+                : "Every exposed component is below or exactly at the current Nyquist limit."}
             </p>
           </div>
 

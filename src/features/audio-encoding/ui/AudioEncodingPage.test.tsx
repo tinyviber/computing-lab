@@ -1,4 +1,4 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAppAt } from "../../../test/router-test-helpers";
@@ -70,7 +70,7 @@ describe("Sound reference UI", () => {
   it("exposes a bounded polite live region and bounded accessible plot", async () => {
     await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=48000&bitDepth=16");
 
-    const live = screen.getByRole("status");
+    const live = screen.getByText(/High pulse; stopped/i);
     expect(live).toHaveAttribute("aria-live", "polite");
     expect((live.textContent ?? "").length).toBeLessThanOrEqual(240);
 
@@ -89,5 +89,108 @@ describe("Sound reference UI", () => {
     await user.click(button(/^error$/i));
 
     expect(history.location.href).toBe(initial);
+  });
+
+  it("renders real sample markers and bounded evidence for the Samples view", async () => {
+    const user = userEvent.setup();
+    await renderAppAt(
+      "/labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=8&phase=0.25&view=samples",
+    );
+
+    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "true");
+    const plot = screen.getByRole("img", { name: /samples plot/i });
+    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^samples$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    const markers = document.querySelectorAll(".sound-sample-marker");
+    expect(markers.length).toBeGreaterThan(0);
+    expect(markers.length).toBeLessThanOrEqual(160);
+    for (const marker of markers) {
+      expect(marker.getAttribute("data-sample-index")).toMatch(/^\d+$/);
+    }
+
+    await user.click(button(/^levels$/i));
+    expect(screen.getByRole("button", { name: /^levels$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("keeps complete level values and error evidence bounded in the DOM", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=48000&bitDepth=4");
+
+    await user.click(button(/^quantization$/i));
+    await user.click(button(/^levels$/i));
+    const levelPreview = screen.getByTestId("sound-quantization-evidence");
+    expect(levelPreview.querySelector("[data-level-count]")).toHaveAttribute(
+      "data-level-count",
+      "16",
+    );
+    expect(levelPreview.querySelectorAll(".sound-level-preview span").length).toBeLessThanOrEqual(
+      24,
+    );
+
+    expect(document.querySelectorAll(".sound-level-line").length).toBeLessThanOrEqual(24);
+    expect(document.querySelectorAll(".sound-sample-marker").length).toBeLessThanOrEqual(160);
+
+    await user.click(button(/^error$/i));
+    const errorPlot = screen.getByRole("img", { name: /error plot/i });
+    expect(button(/^error$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(errorPlot.querySelector(".sound-error-line")).toBeInTheDocument();
+  });
+
+  it("renders distinct compare, aliasing, and quantization evidence without scalar composite claims", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=speech&sampleRate=840&bitDepth=4");
+    const plot = () => screen.getByRole("img", { name: /plot/i });
+
+    expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
+      "data-sound-mode",
+      "compare",
+    );
+    expect(screen.getByTestId("sound-compare-evidence")).toBeInTheDocument();
+
+    await user.click(button(/^aliasing$/i));
+    expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
+      "data-sound-mode",
+      "aliasing",
+    );
+    const aliasingEvidence = screen.getByTestId("sound-aliasing-evidence");
+    expect(aliasingEvidence).toBeInTheDocument();
+    const evidenceTable = screen.getByRole("table");
+    expect(evidenceTable).toHaveTextContent("180 Hz");
+    expect(evidenceTable).toHaveTextContent("420 Hz");
+    expect(evidenceTable).toHaveTextContent("780 Hz");
+    expect(within(aliasingEvidence).getByText(/component aliasing evidence/i)).toBeInTheDocument();
+    expect(screen.queryByText(/speech-like.*below.*nyquist/i)).not.toBeInTheDocument();
+
+    await user.click(button(/^quantization$/i));
+    expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
+      "data-sound-mode",
+      "quantization",
+    );
+    const quantizationEvidence = screen.getByTestId("sound-quantization-evidence");
+    expect(quantizationEvidence).toBeInTheDocument();
+    expect(within(quantizationEvidence).getByText(/quantization evidence/i)).toBeInTheDocument();
+  });
+
+  it("keeps compare overlay and A/B audition selection as separate evidence", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
+
+    const plot = screen.getByRole("img", { name: /plot/i });
+    expect(plot.querySelector(".sound-original-line")).toBeInTheDocument();
+    expect(plot.querySelector(".sound-reconstructed-line")).toBeInTheDocument();
+
+    await user.click(button(/^reconstructed$/i));
+    expect(button(/^reconstructed$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^reconstructed$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
   });
 });

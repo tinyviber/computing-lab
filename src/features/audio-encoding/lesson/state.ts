@@ -11,6 +11,7 @@ type SoundResetState = {
   mode: SoundMode;
   view: SoundView;
   durationMs: number;
+  loop: SoundLoop;
 };
 
 export type SoundLessonState = SoundResetState & {
@@ -43,14 +44,16 @@ export type SoundLessonAction =
   | { type: "reset-analysis" };
 
 function resetState(scenario: SoundScenario): SoundResetState {
+  const durationMs = Number.isFinite(scenario.durationMs)
+    ? Math.max(0, scenario.durationMs as number)
+    : getSoundFixture(scenario.source).durationMs;
   return {
     source: scenario.source,
     config: normalizeSoundConfig(scenario),
     mode: scenario.mode,
     view: scenario.view,
-    durationMs: Number.isFinite(scenario.durationMs)
-      ? Math.max(0, scenario.durationMs as number)
-      : getSoundFixture(scenario.source).durationMs,
+    durationMs,
+    loop: normalizeLoop(scenario.loop, durationMs),
   };
 }
 
@@ -61,7 +64,7 @@ export function createSoundLessonState(scenario: SoundScenario): SoundLessonStat
     transport: "stopped",
     audition: "original",
     cursor: 0,
-    loop: normalizeLoop(scenario.loop, initial.durationMs),
+    loop: initial.loop,
     initial,
   };
 }
@@ -182,7 +185,7 @@ export function transitionSoundLesson(
         transport: "stopped",
         audition: "original",
         cursor: 0,
-        loop: "off",
+        loop: state.initial.loop,
         initial: state.initial,
       };
     case "reset-transport":
