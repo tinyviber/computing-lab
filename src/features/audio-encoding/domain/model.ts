@@ -230,7 +230,7 @@ function normalizePlotWindow(
   return { startMs, endMs };
 }
 
-function buildPlot(
+export function buildSoundPlot(
   source: SoundSource,
   timestamps: readonly number[],
   reconstruction: readonly number[],
@@ -377,7 +377,7 @@ export function deriveSoundModel(
     },
     cursor,
     plotWindow: normalizedPlotWindow,
-    plot: buildPlot(source, timestamps, reconstruction, durationMs, normalizedPlotWindow),
+    plot: buildSoundPlot(source, timestamps, reconstruction, durationMs, normalizedPlotWindow),
     reconstructAt: (timeMs: number) =>
       reconstructAt(timeMs, timestamps, reconstruction, durationMs),
     cursorAt: (timeMs: number) =>

@@ -3,6 +3,7 @@ import { useSearch } from "@tanstack/react-router";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { SOUND_FIXTURES, type SoundSource } from "../domain/fixtures";
 import {
+  buildSoundPlot,
   deriveSoundModel,
   SOUND_MAX_BIT_DEPTH,
   SOUND_MIN_BIT_DEPTH,
@@ -30,6 +31,10 @@ function formatNumber(value: number, digits = 3): string {
   const fixed = value.toFixed(digits);
   if (!fixed.includes(".")) return fixed;
   return fixed.replace(/(\.\d*?[1-9])0+$/, "$1").replace(/\.0+$/, "");
+}
+
+function formatCursorTime(value: number, digits: number): string {
+  return digits >= 3 ? value.toFixed(digits) : formatNumber(value, digits);
 }
 
 function plotPoints(values: readonly number[], scale = 1): string {
@@ -60,18 +65,33 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const [audioStatus, setAudioStatus] = useState("Audio is ready when Play is pressed.");
   const playback = useMemo(() => createAudioPlaybackRuntime(), []);
   const model = useMemo(() => {
-    const fixture = SOUND_FIXTURES[state.source];
-    const windowMs = Math.min(
-      fixture.durationMs,
-      (1000 * plotPeriods) / Math.max(fixture.frequencyHz, 1),
-    );
-    return deriveSoundModel(state.source, state.config, 0, {
-      startMs: 0,
-      endMs: windowMs,
-    });
-  }, [plotPeriods, state.config, state.source]);
-  const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
+    return deriveSoundModel(state.source, state.config);
+  }, [state.config, state.source]);
   const fixture = SOUND_FIXTURES[state.source];
+  const windowWidth = useMemo(
+    () => Math.min(model.durationMs, (1000 * plotPeriods) / Math.max(fixture.frequencyHz, 1)),
+    [fixture.frequencyHz, model.durationMs, plotPeriods],
+  );
+  const plotWindow = useMemo(() => {
+    const maxStartMs = Math.max(0, model.durationMs - windowWidth);
+    const startMs = Math.min(maxStartMs, Math.max(0, state.cursor - windowWidth / 2));
+    return { startMs, endMs: startMs + windowWidth };
+  }, [model.durationMs, state.cursor, windowWidth]);
+  const plot = useMemo(
+    () =>
+      buildSoundPlot(
+        state.source,
+        model.timestamps,
+        model.reconstruction,
+        model.durationMs,
+        plotWindow,
+      ),
+    [model.durationMs, model.reconstruction, model.timestamps, plotWindow, state.source],
+  );
+  const cursorStep = Math.min(1, Math.max(0.01, windowWidth < 20 ? 0.01 : windowWidth / 100));
+  const cursorDigits = cursorStep < 1 ? 3 : 0;
+  const cursorReadoutDigits = cursorStep < 1 ? 3 : 1;
+  const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
   const isLooping = state.loop !== "off";
   const selectedView = state.view;
   const showOriginal = selectedView === "compare" || selectedView === "samples";
@@ -85,24 +105,24 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     [model],
   );
   const { levelPreview, plotLines, visibleSamples } = useMemo(() => {
-    const sampleStride = Math.max(1, Math.ceil(model.samples.length / 160));
-    const { startMs, endMs } = model.plotWindow;
     const samplesInWindow = model.samples.filter(
-      (sample) => sample.timestampMs >= startMs && sample.timestampMs <= endMs,
+      (sample) =>
+        sample.timestampMs >= plotWindow.startMs && sample.timestampMs <= plotWindow.endMs,
     );
+    const sampleStride = Math.max(1, Math.ceil(samplesInWindow.length / 160));
     return {
       levelPreview: model.quantization.preview,
       plotLines: {
         error: plotPoints(
-          model.plot.map((point) => point.error),
+          plot.map((point) => point.error),
           4,
         ),
-        original: plotPoints(model.plot.map((point) => point.original)),
-        reconstructed: plotPoints(model.plot.map((point) => point.reconstructed)),
+        original: plotPoints(plot.map((point) => point.original)),
+        reconstructed: plotPoints(plot.map((point) => point.reconstructed)),
       },
-      visibleSamples: samplesInWindow.filter((sample) => sample.index % sampleStride === 0),
+      visibleSamples: samplesInWindow.filter((_, index) => index % sampleStride === 0),
     };
-  }, [model]);
+  }, [model, plot, plotWindow]);
   const playbackRequest: AudioPlaybackRequest = useMemo(
     () => ({
       source: state.source,
@@ -172,7 +192,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     };
   }, [state.transport]);
 
-  const liveMessage = `${fixture.label}; ${state.transport}; cursor ${formatNumber(state.cursor, 0)} milliseconds; ${model.anyAliasing ? "one or more components alias" : "all components are below or at Nyquist"}.`;
+  const liveMessage = `${fixture.label}; ${state.transport}; cursor ${formatCursorTime(cursor.timeMs, cursorDigits)} milliseconds; ${model.anyAliasing ? "one or more components alias" : "all components are below or at Nyquist"}.`;
 
   const play = () => {
     const result = playback.play(playbackRequest);
@@ -206,9 +226,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <div className="sound-panel-header">
               <span>BOUNDED PLOT</span>
               <code>
-                {model.plot.length} points ·{" "}
-                {formatNumber(model.plot[model.plot.length - 1]?.timeMs ?? 0, 1)} ms window /{" "}
-                {model.sampleCount} samples
+                {plot.length} points · {formatNumber(plot[plot.length - 1]?.timeMs ?? 0, 1)} ms
+                window / {model.sampleCount} samples
               </code>
             </div>
             <div
@@ -218,8 +237,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               data-evidence={selectedView === "error" ? "error-waveform" : selectedView}
               data-sound-mode={state.mode}
               data-sound-view={selectedView}
-              data-time-window-start={model.plotWindow.startMs}
-              data-time-window-end={model.plotWindow.endMs}
+              data-time-window-start={plotWindow.startMs}
+              data-time-window-end={plotWindow.endMs}
               role="img"
             >
               <svg className="sound-plot" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -238,8 +257,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <circle
                         className="sound-sample-marker"
                         cx={
-                          ((sample.timestampMs - model.plotWindow.startMs) /
-                            (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                          ((sample.timestampMs - plotWindow.startMs) /
+                            (plotWindow.endMs - plotWindow.startMs)) *
                           100
                         }
                         cy={50 - sample.original * 40}
@@ -264,18 +283,17 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                       />
                     ))
                   : null}
-                {state.cursor >= model.plotWindow.startMs &&
-                state.cursor <= model.plotWindow.endMs ? (
+                {cursor.timeMs >= plotWindow.startMs && cursor.timeMs <= plotWindow.endMs ? (
                   <line
                     className="sound-cursor-line"
                     x1={
-                      ((state.cursor - model.plotWindow.startMs) /
-                        (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                      ((cursor.timeMs - plotWindow.startMs) /
+                        (plotWindow.endMs - plotWindow.startMs)) *
                       100
                     }
                     x2={
-                      ((state.cursor - model.plotWindow.startMs) /
-                        (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                      ((cursor.timeMs - plotWindow.startMs) /
+                        (plotWindow.endMs - plotWindow.startMs)) *
                       100
                     }
                     y1="0"
@@ -400,12 +418,13 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <dl>
               <div>
                 <dt>Time</dt>
-                <dd>{formatNumber(cursor.timeMs, 1)} ms</dd>
+                <dd>{formatCursorTime(cursor.timeMs, cursorReadoutDigits)} ms</dd>
               </div>
               <div>
                 <dt>Sample</dt>
                 <dd>
-                  #{cursor.sampleIndex + 1} @ {formatNumber(cursor.sampleTimestampMs, 2)} ms
+                  #{cursor.sampleIndex + 1} @{" "}
+                  {formatCursorTime(cursor.sampleTimestampMs, cursorReadoutDigits)} ms
                 </dd>
               </div>
               <div>
@@ -582,7 +601,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <label className="sound-label" htmlFor="sound-cursor">
               Cursor{" "}
               <span>
-                {formatNumber(state.cursor, 0)} / {model.durationMs} ms
+                {formatCursorTime(state.cursor, cursorDigits)} / {model.durationMs} ms
               </span>
             </label>
             <input
@@ -590,7 +609,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               max={model.durationMs}
               min="0"
               onChange={(event) => seek(Number(event.target.value))}
-              step="1"
+              step={cursorStep}
               type="range"
               value={state.cursor}
             />

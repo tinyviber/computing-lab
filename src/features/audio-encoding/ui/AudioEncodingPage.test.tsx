@@ -251,7 +251,7 @@ describe("Sound reference UI", () => {
     expect(evidence).toHaveTextContent(/65536 (?:total levels|complete level values)/i);
   });
 
-  it("keeps sample markers inside the selected plot window and aligned to local time", async () => {
+  it("keeps pure440 sample markers dense and aligned to dynamic local time", async () => {
     const user = userEvent.setup();
     await renderAppAt(
       "/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&view=samples",
@@ -265,7 +265,7 @@ describe("Sound reference UI", () => {
     expect(endMs).toBeGreaterThan(startMs);
 
     const markers = [...plot.querySelectorAll<SVGCircleElement>(".sound-sample-marker")];
-    expect(markers.length).toBeGreaterThan(0);
+    expect(markers.length).toBeGreaterThan(1);
     for (const marker of markers) {
       const timestampMs = Number(marker.getAttribute("data-sample-timestamp-ms"));
       const cx = Number(marker.getAttribute("cx"));
@@ -277,35 +277,54 @@ describe("Sound reference UI", () => {
       expect(cx).toBeLessThanOrEqual(100);
       expect(cx).toBeCloseTo(expectedCx, 5);
     }
+
+    const initialStart = Number(plot.getAttribute("data-time-window-start"));
+    const initialEnd = Number(plot.getAttribute("data-time-window-end"));
+    const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
+    fireEvent.change(cursorInput, { target: { value: "500.25" } });
+
+    const shiftedStart = Number(plot.getAttribute("data-time-window-start"));
+    const shiftedEnd = Number(plot.getAttribute("data-time-window-end"));
+    expect(shiftedStart).not.toBe(initialStart);
+    expect(shiftedEnd).not.toBe(initialEnd);
+
+    const shiftedMarkers = [...plot.querySelectorAll<SVGCircleElement>(".sound-sample-marker")];
+    expect(shiftedMarkers.length).toBeGreaterThan(1);
+    for (const marker of shiftedMarkers) {
+      const timestampMs = Number(marker.getAttribute("data-sample-timestamp-ms"));
+      const cx = Number(marker.getAttribute("cx"));
+      expect(cx).toBeCloseTo(((timestampMs - shiftedStart) / (shiftedEnd - shiftedStart)) * 100, 5);
+    }
   });
 
-  it("uses plot-local cursor coordinates and does not place an out-of-window cursor in the middle", async () => {
+  it("uses sub-ms high-pulse cursor precision and keeps a distant seek centered in the plot", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
 
-    const plot = screen.getByRole("img", { name: /plot/i });
-    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
-    const startMs = Number(plot.getAttribute("data-time-window-start"));
-    const endMs = Number(plot.getAttribute("data-time-window-end"));
+    await user.selectOptions(control(/^source$/i), "high-pulse");
     const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
-    expect(cursorInput).not.toBeNull();
-
-    const insideCursorMs = Math.round(startMs + (endMs - startMs) / 2);
-    fireEvent.change(cursorInput, { target: { value: String(insideCursorMs) } });
-    const actualInsideCursorMs = Number((cursorInput as HTMLInputElement).value);
-    const cursorLine = () => plot.querySelector<SVGLineElement>(".sound-cursor-line");
-    const insideLine = cursorLine();
-    expect(insideLine).not.toBeNull();
-    expect(Number(insideLine?.getAttribute("x1"))).toBeCloseTo(
-      ((actualInsideCursorMs - startMs) / (endMs - startMs)) * 100,
-      5,
+    expect(Number(cursorInput.getAttribute("step"))).toBeGreaterThan(0);
+    expect(Number(cursorInput.getAttribute("step"))).toBeLessThan(1);
+    expect(document.querySelector('label[for="sound-cursor"]')).toHaveTextContent(
+      /\d+\.\d+\s*\/\s*1000 ms/,
     );
 
-    fireEvent.change(cursorInput, { target: { value: "750" } });
-    const outsideLine = cursorLine();
-    if (outsideLine) {
-      const outsideX = Number(outsideLine.getAttribute("x1"));
-      expect(outsideX === 0 || outsideX === 100).toBe(true);
-    }
+    const plot = screen.getByRole("img", { name: /plot/i });
+    const initialStart = Number(plot.getAttribute("data-time-window-start"));
+    const initialEnd = Number(plot.getAttribute("data-time-window-end"));
+    fireEvent.change(cursorInput, { target: { value: "500.25" } });
+
+    const actualCursorMs = Number(cursorInput.value);
+    const shiftedStart = Number(plot.getAttribute("data-time-window-start"));
+    const shiftedEnd = Number(plot.getAttribute("data-time-window-end"));
+    expect(actualCursorMs).toBeCloseTo(500.25, 2);
+    expect(shiftedStart).not.toBe(initialStart);
+    expect(shiftedEnd).not.toBe(initialEnd);
+    expect(actualCursorMs).toBeGreaterThan(shiftedStart);
+    expect(actualCursorMs).toBeLessThan(shiftedEnd);
+
+    const cursorLine = plot.querySelector<SVGLineElement>(".sound-cursor-line");
+    expect(cursorLine).not.toBeNull();
+    expect(Number(cursorLine?.getAttribute("x1"))).toBeCloseTo(50, 0);
   });
 });

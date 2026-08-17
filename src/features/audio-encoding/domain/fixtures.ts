@@ -25,7 +25,7 @@ function pure440(timeMs: number): number {
   return Math.sin(TWO_PI * 440 * (timeMs / 1000));
 }
 
-const HIGH_PULSE_COMPONENTS: readonly SoundComponent[] = [1, 2, 3, 4, 5].map((harmonic) => ({
+const HIGH_PULSE_COMPONENTS: readonly SoundComponent[] = [1, 2, 3].map((harmonic) => ({
   frequencyHz: 6000 * harmonic,
   amplitude: 1 / harmonic,
 }));

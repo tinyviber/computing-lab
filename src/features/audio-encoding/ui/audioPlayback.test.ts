@@ -1,6 +1,8 @@
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderAppAt } from "../../../test/router-test-helpers";
+import { sampleSoundFixture } from "../domain/fixtures";
+import { deriveSoundModel } from "../domain/model";
 import {
   buildPlaybackBuffers,
   createAudioPlaybackRuntime,
@@ -184,6 +186,45 @@ describe("Sound audioPlayback boundary", () => {
     expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(/audio playback active/i);
 
     unmount();
+  });
+
+  it("keeps the full 48 kHz high-pulse original buffer continuous with the source fixture", () => {
+    const request: AudioPlaybackRequest = {
+      source: "high-pulse",
+      config: { sampleRate: 8000, bitDepth: 8, phase: 0 },
+      audition: "original",
+      cursorMs: 0,
+      loop: "off",
+      durationMs: 1000,
+    };
+    const buffers = buildPlaybackBuffers(request);
+
+    expect(buffers.sampleRate).toBe(48_000);
+    expect(buffers.original).toHaveLength(48_000);
+
+    let maximumAbsoluteError = 0;
+    for (let index = 0; index < buffers.original.length; index += 1) {
+      const timeMs = (index / buffers.sampleRate) * 1000;
+      maximumAbsoluteError = Math.max(
+        maximumAbsoluteError,
+        Math.abs(buffers.original[index] - sampleSoundFixture("high-pulse", timeMs)),
+      );
+    }
+
+    expect(maximumAbsoluteError).toBeLessThanOrEqual(2e-6);
+  });
+
+  it("preserves domain aliasing for high-pulse at 8 kHz and lower sample rates", () => {
+    for (const sampleRate of [8000, 2000, 800]) {
+      const model = deriveSoundModel("high-pulse", {
+        sampleRate,
+        bitDepth: 8,
+        phase: 0,
+      });
+
+      expect(model.aliasing).toBe(true);
+      expect(model.aliasingEvidence.anyAliasing).toBe(true);
+    }
   });
 
   it("selects the A/B buffer without recreating a source for cursor ticks", async () => {
