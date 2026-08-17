@@ -31,7 +31,7 @@ The existing `vercel_design.md` reference is preserved as-is. This screen intent
 ## Interaction QA
 
 - The course is continuous: source selection/upload, sampling, phase, bit depth, view changes, and pixel inspection update evidence immediately. There is no workflow step, submit, retry, success/failure, or unique target profile.
-- Sampling is constrained to `10..100%`; bit depth is constrained to `1..8`; phase is constrained to `0..0.99` and fixed at `0` when sampling is `100%` so full-density sampling remains identity.
+- Sampling is constrained to `10..100%`; bit depth is constrained to `1..8`; phase is constrained to `0..0.99`. Per-axis rounded geometry is authoritative: when both axes already match source density, phase canonicalizes to `0` and the control is disabled; when only one axis is full density, the control remains active and identifies the fixed axis.
 - Source and reconstructed canvases retain the same source display dimensions. The reconstructed raster is generated from sampled/quantized cells and is not CSS resizing.
 - Built-in fixtures include a disclosed controlled color scene (not a photograph), gradient, checkerboard, text-edge, and pixel-grid material. Upload decode errors are feature-local alerts; uploaded pixels stay in memory.
 - The representation grid is a read-only dynamic sampled grid with accessible cell labels containing sample index, source color, palette index, and encoded bits.

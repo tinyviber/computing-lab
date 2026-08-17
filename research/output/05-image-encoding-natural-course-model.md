@@ -14,7 +14,7 @@ Implementation freeze: source raster → spatial sampling → sampled representa
 
 ## State
 
-Feature state: decoded raster source, samplingPercent, bitDepth, view (compare/sampling/quantization/representation), selectedCoordinate, and decodeError. Derived state: sampled dimensions/pixel count, coordinate mapping, finite palette, indices/bits, source-sized reconstructed raster, spatial/color loss evidence, selected-pixel inspection, and raw payload `sampledWidth × sampledHeight × bitDepth` bits with `ceil(bits / 8)` bytes. URL scenario state is only fixture, sampling, bits, and view; uploaded pixels, selection, file input/object URL, focus and reveal state are transient. There is no uploading/ready/completed phase.
+Feature state: decoded raster source, samplingPercent, requested phase, bitDepth, view (compare/sampling/quantization/representation), selectedCoordinate, and decodeError. Derived state: sampled dimensions/pixel count, per-axis effective phase/coordinate mapping, finite palette, indices/bits, source-sized reconstructed raster, spatial/color loss evidence, selected-pixel inspection, and raw payload `sampledWidth × sampledHeight × bitDepth` bits with `ceil(bits / 8)` bytes. When rounded geometry makes both axes full density, phase canonicalizes to `0`; when only one axis is full density, only that axis has effective phase `0`. URL scenario state is fixture, sampling, phase, bits, and view; uploaded pixels, selection, file input/object URL, focus and reveal state are transient. There is no uploading/ready/completed phase.
 
 ## Comparison and boundaries
 

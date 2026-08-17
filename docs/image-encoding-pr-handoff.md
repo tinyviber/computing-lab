@@ -22,7 +22,7 @@ The feature keeps source image, sampled representation, quantized representation
 - **Quantization**: keep sampling fixed, reduce bit depth, observe finite palette states and banding, then inspect the color and index bits of one displayed pixel.
 - **Combined trade-off**: compare sampling-heavy/low-color and sampling-light/high-color profiles with similar raw payloads; the goal is to explain different loss types, not find one answer.
 - **Pixel-to-bits**: click a source or reconstructed pixel and follow source coordinate → sample cell → sampled value → palette entry → encoded index → exact bit string.
-- **Phase evidence**: move the sampling grid phase on high-frequency fixtures such as checkerboard and text-edge; phase changes which source positions are retained. Downsampled axes use periodic edge wrapping so every sampled cell remains live; a full-density axis is fixed at zero phase and remains an identity baseline.
+- **Phase evidence**: move the sampling grid phase on high-frequency fixtures such as checkerboard and text-edge; phase changes which source positions are retained. Downsampled axes use periodic edge wrapping so every sampled cell remains live; a full-density axis is fixed at zero phase and remains an identity baseline. The feature exposes per-axis effective phase to the control: both full-density axes disable it at `0`; one full-density axis leaves it active and labels that axis as fixed.
 - **Error evidence**: switch to the local RGB error map to see where reconstruction differs from the source.
 
 ## 3. Data flow

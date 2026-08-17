@@ -1,10 +1,10 @@
 import { getImageFixture } from "../domain/fixture";
 import type { RasterImage } from "../domain/model";
 import {
+  isSamplingPhaseInert,
   normalizeBitDepth,
   normalizeImage,
   normalizePhase,
-  normalizePhaseForSampling,
   normalizeSamplingPercent,
 } from "../domain/model";
 import type { ImageScenarioState } from "./scenario";
@@ -33,19 +33,27 @@ function initialCoordinate(source: RasterImage): { x: number; y: number } {
   return { x: Math.floor(source.width / 2), y: Math.floor(source.height / 2) };
 }
 
-function normalizeScenario(scenario: ImageScenarioState): ImageScenarioState {
+function canonicalPhaseForSource(
+  source: RasterImage,
+  samplingPercent: number,
+  phase: number,
+): number {
+  return isSamplingPhaseInert(source, samplingPercent) ? 0 : normalizePhase(phase);
+}
+
+function normalizeScenario(scenario: ImageScenarioState, source: RasterImage): ImageScenarioState {
   const samplingPercent = normalizeSamplingPercent(scenario.samplingPercent);
   return {
     ...scenario,
     samplingPercent,
     bitDepth: normalizeBitDepth(scenario.bitDepth),
-    phase: normalizePhaseForSampling(samplingPercent, scenario.phase),
+    phase: canonicalPhaseForSource(source, samplingPercent, scenario.phase),
   };
 }
 
 export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
-  const normalizedScenario = normalizeScenario(scenario);
-  const source = getImageFixture(normalizedScenario.fixture);
+  const source = getImageFixture(scenario.fixture);
+  const normalizedScenario = normalizeScenario(scenario, source);
   return {
     ...normalizedScenario,
     source,
@@ -66,7 +74,7 @@ export function transitionImageLesson(
       return {
         ...state,
         samplingPercent,
-        phase: normalizePhaseForSampling(samplingPercent, state.phase),
+        phase: canonicalPhaseForSource(state.source, samplingPercent, state.phase),
       };
     }
     case "set-bit-depth":
@@ -74,7 +82,11 @@ export function transitionImageLesson(
     case "set-phase":
       return {
         ...state,
-        phase: normalizePhaseForSampling(state.samplingPercent, normalizePhase(action.phase)),
+        phase: canonicalPhaseForSource(
+          state.source,
+          state.samplingPercent,
+          normalizePhase(action.phase),
+        ),
       };
     case "set-view":
       return { ...state, view: action.view };
@@ -91,6 +103,7 @@ export function transitionImageLesson(
       return {
         ...state,
         source,
+        phase: canonicalPhaseForSource(source, state.samplingPercent, state.phase),
         decodeError: undefined,
         selectedCoordinate: initialCoordinate(source),
       };

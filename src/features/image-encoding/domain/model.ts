@@ -27,12 +27,24 @@ export type SampledPixel = {
   sourceColor: RGB;
 };
 
+export type SamplingAxisGeometry = {
+  sourceSize: number;
+  sampledSize: number;
+  effectivePhase: number;
+};
+
+export type SamplingGeometry = {
+  x: SamplingAxisGeometry;
+  y: SamplingAxisGeometry;
+};
+
 export type SampledRepresentation = {
   width: number;
   height: number;
   pixels: readonly SampledPixel[];
   samplingPercent: number;
-  phase: number;
+  requestedPhase: number;
+  geometry: SamplingGeometry;
 };
 
 export type PaletteEntry = {
@@ -54,7 +66,7 @@ export type QuantizedRepresentation = {
   pixels: readonly QuantizedPixel[];
   palette: readonly PaletteEntry[];
   bitDepth: number;
-  phase: number;
+  requestedPhase: number;
 };
 
 export type PixelError = {
@@ -122,12 +134,6 @@ export function normalizeBitDepth(value: number): number {
 
 export function normalizePhase(value: number): number {
   return clamp(finiteOr(value, 0), MIN_PHASE, MAX_PHASE);
-}
-
-export function normalizePhaseForSampling(samplingPercent: number, phase: number): number {
-  return normalizeSamplingPercent(samplingPercent) >= MAX_SAMPLING_PERCENT
-    ? MIN_PHASE
-    : normalizePhase(phase);
 }
 
 export function normalizeImage(source: RasterImage): RasterImage {
@@ -240,6 +246,48 @@ function effectivePhaseForAxis(phase: number, sampledSize: number, sourceSize: n
   return sampledSize >= sourceSize ? MIN_PHASE : normalizePhase(phase);
 }
 
+function samplingGeometryForNormalizedSource(
+  source: RasterImage,
+  samplingPercentInput: number,
+  phaseInput: number,
+): SamplingGeometry {
+  const samplingPercent = normalizeSamplingPercent(samplingPercentInput);
+  const { width, height } = sampledDimensions(source, samplingPercent);
+  const phase = normalizePhase(phaseInput);
+  return {
+    x: {
+      sourceSize: source.width,
+      sampledSize: width,
+      effectivePhase: effectivePhaseForAxis(phase, width, source.width),
+    },
+    y: {
+      sourceSize: source.height,
+      sampledSize: height,
+      effectivePhase: effectivePhaseForAxis(phase, height, source.height),
+    },
+  };
+}
+
+/** Per-axis geometry is the source of truth for whether phase can affect sampling. */
+export function samplingGeometry(
+  sourceInput: RasterImage,
+  options: Pick<ImageEncodingOptions, "samplingPercent" | "phase">,
+): SamplingGeometry {
+  return samplingGeometryForNormalizedSource(
+    normalizeImage(sourceInput),
+    options.samplingPercent,
+    options.phase,
+  );
+}
+
+export function isSamplingPhaseInert(sourceInput: RasterImage, samplingPercent: number): boolean {
+  const geometry = samplingGeometry(sourceInput, { samplingPercent, phase: MIN_PHASE });
+  return (
+    geometry.x.sampledSize >= geometry.x.sourceSize &&
+    geometry.y.sampledSize >= geometry.y.sourceSize
+  );
+}
+
 function wrapIndex(index: number, size: number): number {
   return ((index % size) + size) % size;
 }
@@ -271,14 +319,21 @@ export function sampleImage(
   options: Pick<ImageEncodingOptions, "samplingPercent" | "phase">,
 ): SampledRepresentation {
   const source = normalizeImage(sourceInput);
-  const { width, height } = sampledDimensions(source, options.samplingPercent);
   const samplingPercent = normalizeSamplingPercent(options.samplingPercent);
-  const phase = normalizePhaseForSampling(samplingPercent, options.phase);
+  const requestedPhase = normalizePhase(options.phase);
+  const geometry = samplingGeometryForNormalizedSource(source, samplingPercent, requestedPhase);
+  const { sampledSize: width } = geometry.x;
+  const { sampledSize: height } = geometry.y;
   const pixels = Array.from({ length: width * height }, (_, index) => {
     const sampleY = Math.floor(index / width);
     const sampleX = index % width;
-    const sourceX = sampleSourceCoordinate(sampleX, width, source.width, phase);
-    const sourceY = sampleSourceCoordinate(sampleY, height, source.height, phase);
+    const sourceX = sampleSourceCoordinate(sampleX, width, source.width, geometry.x.effectivePhase);
+    const sourceY = sampleSourceCoordinate(
+      sampleY,
+      height,
+      source.height,
+      geometry.y.effectivePhase,
+    );
     return {
       sampleX,
       sampleY,
@@ -293,7 +348,8 @@ export function sampleImage(
     height,
     pixels,
     samplingPercent,
-    phase,
+    requestedPhase,
+    geometry,
   };
 }
 
@@ -345,7 +401,7 @@ export function quantizeSampledImage(
     pixels,
     palette,
     bitDepth: safeBits,
-    phase: sampled.phase,
+    requestedPhase: sampled.requestedPhase,
   };
 }
 
@@ -361,13 +417,13 @@ export function reconstructImage(
       x,
       quantized.width,
       normalized.width,
-      quantized.phase,
+      quantized.requestedPhase,
     );
     const sampleY = sampleIndexForSourceCoordinate(
       y,
       quantized.height,
       normalized.height,
-      quantized.phase,
+      quantized.requestedPhase,
     );
     return (
       quantized.pixels[sampleY * quantized.width + sampleX]?.quantizedColor ?? { r: 0, g: 0, b: 0 }
@@ -435,13 +491,13 @@ export function inspectPixel(
     sourceX,
     model.sampled.width,
     model.source.width,
-    model.quantized.phase,
+    model.quantized.requestedPhase,
   );
   const sampleY = sampleIndexForSourceCoordinate(
     sourceY,
     model.sampled.height,
     model.source.height,
-    model.quantized.phase,
+    model.quantized.requestedPhase,
   );
   const sampled = model.sampled.pixels[sampleY * model.sampled.width + sampleX];
   const quantized = model.quantized.pixels[sampleY * model.quantized.width + sampleX];

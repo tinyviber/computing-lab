@@ -41,6 +41,23 @@ describe("image lesson scenario", () => {
     });
   });
 
+  it("canonicalizes phase from rounded fixture geometry rather than percentage alone", () => {
+    expect(parseImageEncodingScenario("image=photo&sample=99&phase=0.8")).toMatchObject({
+      fixture: "photo",
+      samplingPercent: 99,
+      phase: 0,
+    });
+    expect(
+      serializeImageEncodingScenario({
+        fixture: "photo",
+        samplingPercent: 99,
+        phase: 0.8,
+        bitDepth: 4,
+        view: "compare",
+      }),
+    ).toBe("image=photo&sample=99&phase=0.00&bits=4&view=compare");
+  });
+
   it("serializes only reproducible configuration", () => {
     const state = {
       fixture: "gradient" as const,

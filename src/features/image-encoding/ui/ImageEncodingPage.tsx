@@ -17,6 +17,7 @@ import {
   rgbToHex,
   type RGB,
   type RasterImage,
+  type SamplingGeometry,
   MAX_BIT_DEPTH,
   MAX_PHASE,
   MAX_SAMPLING_PERCENT,
@@ -45,6 +46,21 @@ const VIEW_LABELS: Record<ImageView, string> = {
   representation: "Encoded representation",
   error: "Visible error map",
 };
+
+export function phaseControlDescription(geometry: SamplingGeometry): string {
+  const xFullDensity = geometry.x.sampledSize >= geometry.x.sourceSize;
+  const yFullDensity = geometry.y.sampledSize >= geometry.y.sourceSize;
+  if (xFullDensity && yFullDensity) {
+    return "Both axes are already sampled at full source density, so phase is fixed at 0.";
+  }
+  if (xFullDensity) {
+    return `Horizontal: full density (${geometry.x.sampledSize}/${geometry.x.sourceSize}) · phase fixed at 0. Vertical: ${geometry.y.sampledSize}/${geometry.y.sourceSize} samples · phase ${geometry.y.effectivePhase.toFixed(2)}.`;
+  }
+  if (yFullDensity) {
+    return `Vertical: full density (${geometry.y.sampledSize}/${geometry.y.sourceSize}) · phase fixed at 0. Horizontal: ${geometry.x.sampledSize}/${geometry.x.sourceSize} samples · phase ${geometry.x.effectivePhase.toFixed(2)}.`;
+  }
+  return "Move both sampling axes within one cell to expose phase-sensitive patterns.";
+}
 
 function drawRaster(
   canvas: HTMLCanvasElement,
@@ -257,6 +273,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     () => inspectPixel(model, lesson.selectedCoordinate.x, lesson.selectedCoordinate.y),
     [lesson.selectedCoordinate.x, lesson.selectedCoordinate.y, model],
   );
+  const phaseGeometry = model.sampled.geometry;
+  const phaseIsInert =
+    phaseGeometry.x.sampledSize >= phaseGeometry.x.sourceSize &&
+    phaseGeometry.y.sampledSize >= phaseGeometry.y.sourceSize;
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
@@ -535,8 +555,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={lesson.samplingPercent}
               />
               <RangeField
-                description="Move the sampling grid within one cell to expose phase-sensitive patterns. At 100% sampling, this is fixed at 0 so every source pixel is retained once."
-                disabled={lesson.samplingPercent >= MAX_SAMPLING_PERCENT}
+                description={phaseControlDescription(phaseGeometry)}
+                disabled={phaseIsInert}
                 id="sampling-phase"
                 label="Sampling grid phase"
                 max={MAX_PHASE}
@@ -544,7 +564,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 onChange={(value) => dispatch({ type: "set-phase", phase: value })}
                 step={0.01}
                 unit=""
-                value={lesson.phase}
+                value={phaseIsInert ? 0 : lesson.phase}
               />
               <RangeField
                 description="Bits stored for the palette index of each sampled pixel."

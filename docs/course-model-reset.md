@@ -74,7 +74,7 @@ source image / source pixels
 
 #### Scenario URL
 
-重做后的 Image feature 已落地一个可复现、但不保存通用 workflow 状态的 scenario contract。`image` 选择内置材料，`sample` 是每轴空间采样百分比，`phase` 是采样网格相位，`bits` 是 indexed palette index width，`view` 只选择观察证据。上传的 bitmap、选中像素、hover/focus 和 decode 错误不进入 URL。
+重做后的 Image feature 已落地一个可复现、但不保存通用 workflow 状态的 scenario contract。`image` 选择内置材料，`sample` 是每轴空间采样百分比，`phase` 是采样网格相位，`bits` 是 indexed palette index width，`view` 只选择观察证据。`phase` 的 canonical value 由内置 fixture 的 rounded sampled geometry 决定：两轴都已达到 source density 时为 `0`；只有一个轴达到 density 时，另一个轴仍可使用 phase。上传的 bitmap、选中像素、hover/focus 和 decode 错误不进入 URL。
 
 ```text
 /labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=compare

@@ -1,6 +1,8 @@
 import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
+import { samplingGeometry } from "../domain/model";
+import { phaseControlDescription } from "./ImageEncodingPage";
 import { renderAppAt } from "../../../test/router-test-helpers";
 
 const slider = (name: RegExp) => screen.getByRole("slider", { name });
@@ -22,6 +24,37 @@ describe("ImageEncodingPage", () => {
       "true",
     );
     expect(screen.getByText("12 × 8 × 2 = 192 bits")).toBeInTheDocument();
+  });
+
+  it("uses rounded per-axis geometry to explain or disable phase", async () => {
+    await renderAppAt("/labs/image-encoding?image=photo&sample=99&phase=0.8");
+    expect(slider(/grid phase/i)).toHaveValue("0");
+    expect(slider(/grid phase/i)).toBeDisabled();
+    expect(
+      screen.getByText(/Both axes are already sampled at full source density/i),
+    ).toBeInTheDocument();
+
+    const narrowGeometry = samplingGeometry(
+      {
+        id: "narrow-ui-source",
+        label: "Narrow UI source",
+        sourceKind: "upload",
+        width: 3,
+        height: 20,
+        pixels: Array.from({ length: 60 }, () => ({ r: 0, g: 0, b: 0 })),
+      },
+      { samplingPercent: 90, phase: 0.8 },
+    );
+    expect(narrowGeometry).toMatchObject({
+      x: { sourceSize: 3, sampledSize: 3, effectivePhase: 0 },
+      y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
+    });
+    expect(phaseControlDescription(narrowGeometry)).toContain(
+      "Horizontal: full density (3/3) · phase fixed at 0.",
+    );
+    expect(phaseControlDescription(narrowGeometry)).toContain(
+      "Vertical: 18/20 samples · phase 0.80.",
+    );
   });
 
   it("renders app chrome plus feature-owned source, compare, and inspector regions", async () => {

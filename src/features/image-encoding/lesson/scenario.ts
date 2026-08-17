@@ -6,8 +6,9 @@ import {
   MIN_BIT_DEPTH,
   MIN_PHASE,
   MIN_SAMPLING_PERCENT,
+  isSamplingPhaseInert,
   normalizeBitDepth,
-  normalizePhaseForSampling,
+  normalizePhase,
   normalizeSamplingPercent,
 } from "../domain/model";
 import type { ImageView } from "./state";
@@ -87,6 +88,16 @@ function viewFromParams(params: URLSearchParams): ImageView {
     : DEFAULT_IMAGE_SCENARIO.view;
 }
 
+function canonicalPhaseForFixture(
+  fixture: ImageFixtureId,
+  samplingPercent: number,
+  phase: number,
+): number {
+  return isSamplingPhaseInert(getImageFixture(fixture), samplingPercent)
+    ? MIN_PHASE
+    : normalizePhase(phase);
+}
+
 export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageScenarioState {
   const params = toParams(input);
   const fixture = fixtureFromParams(params);
@@ -102,7 +113,8 @@ export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageSce
     firstInteger(params, ["bits", "bitDepth"]) ??
       (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
   );
-  const phase = normalizePhaseForSampling(
+  const phase = canonicalPhaseForFixture(
+    fixture,
     samplingPercent,
     firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase,
   );
@@ -114,7 +126,10 @@ export function serializeImageEncodingScenario(state: ImageScenarioState): strin
   params.set("image", state.fixture);
   const samplingPercent = normalizeSamplingPercent(state.samplingPercent);
   params.set("sample", String(samplingPercent));
-  params.set("phase", normalizePhaseForSampling(samplingPercent, state.phase).toFixed(2));
+  params.set(
+    "phase",
+    canonicalPhaseForFixture(state.fixture, samplingPercent, state.phase).toFixed(2),
+  );
   params.set("bits", String(normalizeBitDepth(state.bitDepth)));
   params.set("view", state.view);
   return params.toString();

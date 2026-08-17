@@ -49,7 +49,11 @@ describe("image encoding domain model", () => {
   it("keeps full-density sampling identity regardless of requested phase", () => {
     const source = getImageFixture("pixel-grid");
     const sampled = sampleImage(source, { samplingPercent: 100, phase: 0.8 });
-    expect(sampled.phase).toBe(0);
+    expect(sampled.requestedPhase).toBe(0.8);
+    expect(sampled.geometry).toMatchObject({
+      x: { effectivePhase: 0 },
+      y: { effectivePhase: 0 },
+    });
     expect(sampled.width).toBe(source.width);
     expect(sampled.height).toBe(source.height);
     expect(sampled.pixels.map((pixel) => [pixel.sourceX, pixel.sourceY])).toEqual(
@@ -126,6 +130,54 @@ describe("image encoding domain model", () => {
     expect(narrowPhase.pixels.map((pixel) => pixel.sourceY)).not.toEqual(
       narrowNoPhase.pixels.map((pixel) => pixel.sourceY),
     );
+  });
+
+  it("keeps every sample live across rounded dimensions and multiple phase values", () => {
+    const sources = [
+      getImageFixture("checkerboard"),
+      {
+        id: "small-rounding-source",
+        label: "Small rounding source",
+        sourceKind: "upload" as const,
+        width: 7,
+        height: 5,
+        pixels: Array.from({ length: 35 }, (_, index) => ({
+          r: index * 7,
+          g: index * 3,
+          b: 255 - index * 5,
+        })),
+      },
+      {
+        id: "narrow-rounding-matrix-source",
+        label: "Narrow rounding matrix source",
+        sourceKind: "upload" as const,
+        width: 3,
+        height: 20,
+        pixels: Array.from({ length: 60 }, (_, index) => ({ r: index, g: 0, b: 0 })),
+      },
+    ];
+    for (const source of sources) {
+      for (const samplingPercent of [10, 50, 90, 99]) {
+        for (const phase of [0, 0.2, 0.8, 0.99]) {
+          const model = deriveImageEncodingModel(source, { samplingPercent, bitDepth: 2, phase });
+          const ownedCells = new Set<string>();
+          for (let y = 0; y < model.source.height; y += 1) {
+            for (let x = 0; x < model.source.width; x += 1) {
+              const inspection = inspectPixel(model, x, y);
+              ownedCells.add(`${inspection.sampleX},${inspection.sampleY}`);
+            }
+          }
+          for (const pixel of model.sampled.pixels) {
+            const inspection = inspectPixel(model, pixel.sourceX, pixel.sourceY);
+            expect([inspection.sampleX, inspection.sampleY]).toEqual([
+              pixel.sampleX,
+              pixel.sampleY,
+            ]);
+          }
+          expect(ownedCells.size).toBe(model.sampled.width * model.sampled.height);
+        }
+      }
+    }
   });
 
   it("uses the same phase-aware cell geometry for reconstruction and inspection", () => {

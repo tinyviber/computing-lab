@@ -20,13 +20,32 @@ describe("image lesson state", () => {
     expect("submit" in state).toBe(false);
   });
 
-  it("keeps full-density scenarios at zero phase", () => {
+  it("canonicalizes phase against actual rounded geometry", () => {
     const state = createImageLessonState(
-      parseImageEncodingScenario("image=pixel-grid&sample=100&phase=0.8"),
+      parseImageEncodingScenario("image=photo&sample=99&phase=0.8"),
     );
-    expect(state.samplingPercent).toBe(100);
+    expect(state.samplingPercent).toBe(99);
     expect(state.phase).toBe(0);
     expect(transitionImageLesson(state, { type: "set-phase", phase: 0.8 }).phase).toBe(0);
+  });
+
+  it("keeps phase when only one uploaded-source axis is full density", () => {
+    const narrowSource = {
+      id: "upload:narrow",
+      label: "Narrow upload",
+      sourceKind: "upload" as const,
+      width: 3,
+      height: 20,
+      pixels: Array.from({ length: 60 }, (_, index) => ({ r: index, g: 0, b: 0 })),
+    };
+    let state = createImageLessonState(parseImageEncodingScenario("image=photo&sample=50"));
+    state = transitionImageLesson(state, { type: "load-source", source: narrowSource });
+    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 90 });
+    state = transitionImageLesson(state, { type: "set-phase", phase: 0.8 });
+    expect(state).toMatchObject({ samplingPercent: 90, phase: 0.8 });
+    expect(transitionImageLesson(state, { type: "set-sampling", samplingPercent: 99 }).phase).toBe(
+      0,
+    );
   });
 
   it("selects a bounded source coordinate and keeps uploaded pixels transient", () => {

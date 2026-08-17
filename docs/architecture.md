@@ -50,7 +50,7 @@ Keep `src/shared/lab` as an internal UI layer. It does not own lesson state, for
 schemas, renderers, or action interpreters.
 
 Image uses a source-sized raster model. Spatial sampling derives a smaller sampled representation
-and coordinate mapping (with per-axis phase and periodic edge wrapping); indexed quantization exposes a deterministic nested RGB codebook whose first
+and coordinate mapping (with per-axis phase and periodic edge wrapping). The derived per-axis geometry also drives Image's phase control and URL canonicalization, rather than inferring identity from the percentage alone. Indexed quantization exposes a deterministic nested RGB codebook whose first
 `2^bitDepth` entries are available to sampled values; reconstruction expands those quantized sample
 cells back to source dimensions. `bitDepth` is the index width and adding a bit cannot increase
 nearest-color error for the same sampled representation. The feature exposes source, sampled,
