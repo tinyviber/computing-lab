@@ -42,7 +42,7 @@ export type SoundSample = {
   original: number;
   code: number;
   reconstructed: number;
-  error: number;
+  quantizationError: number;
 };
 
 export type AliasingClassification = "below" | "at" | "aliased";
@@ -64,14 +64,14 @@ export type SoundCursorReadout = {
   original: number;
   code: number;
   reconstructed: number;
-  error: number;
+  reconstructionError: number;
 };
 
 export type SoundPlotPoint = {
   timeMs: number;
   original: number;
   reconstructed: number;
-  error: number;
+  reconstructionError: number;
 };
 
 export type SoundModel = {
@@ -85,9 +85,9 @@ export type SoundModel = {
   quantization: Quantization;
   reconstruction: readonly number[];
   sampleHold: readonly number[];
-  errors: readonly number[];
-  rmsError: number;
-  peakError: number;
+  quantizationErrors: readonly number[];
+  sampleQuantizationRmsError: number;
+  sampleQuantizationPeakError: number;
   nyquistHz: number;
   sourceFrequencyHz: number;
   foldedFrequencyHz: number;
@@ -216,13 +216,25 @@ export function reconstructAt(
   return reconstruction[Math.max(0, index)] ?? 0;
 }
 
+export function getPlotWindowWidthMs(fixture: SoundFixture, choice?: number): number {
+  const definition = fixture.plotWindowDefinition;
+  const selectedValue =
+    choice !== undefined && Number.isFinite(choice) && definition.options.includes(choice)
+      ? choice
+      : definition.defaultValue;
+  if (definition.kind === "periods") {
+    return (1000 * selectedValue) / definition.referenceFrequencyHz;
+  }
+  return selectedValue;
+}
+
 function normalizePlotWindow(
   source: SoundSource,
   durationMs: number,
   plotWindow?: SoundPlotWindow,
 ): SoundPlotWindow {
   const fixture = getSoundFixture(source);
-  const defaultWindowMs = Math.min(durationMs, 4000 / Math.max(fixture.frequencyHz, 1));
+  const defaultWindowMs = Math.min(durationMs, getPlotWindowWidthMs(fixture));
   const maxStartMs = Math.max(0, durationMs - 0.001);
   const startMs = clamp(finiteOr(plotWindow?.startMs ?? 0, 0), 0, maxStartMs);
   const requestedEnd = finiteOr(plotWindow?.endMs ?? defaultWindowMs, defaultWindowMs);
@@ -255,7 +267,7 @@ export function buildSoundPlot(
       timeMs,
       original: originalValue,
       reconstructed: reconstruction[Math.max(0, sampleIndex)] ?? 0,
-      error: originalValue - (reconstruction[Math.max(0, sampleIndex)] ?? 0),
+      reconstructionError: originalValue - (reconstruction[Math.max(0, sampleIndex)] ?? 0),
     };
   });
 }
@@ -281,7 +293,7 @@ function cursorReadout(
     original: originalValue,
     code: codes[sampleIndex] ?? 0,
     reconstructed,
-    error: originalValue - reconstructed,
+    reconstructionError: originalValue - reconstructed,
   };
 }
 
@@ -305,11 +317,17 @@ export function deriveSoundModel(
   const levelValues = getQuantizationLevels(levels);
   const codes = original.map((value) => quantize(value, levels));
   const reconstruction = codes.map((code) => reconstruct(code, levels));
-  const errors = original.map((value, index) => value - reconstruction[index]);
-  const rmsError = errors.length
-    ? Math.sqrt(errors.reduce((sum, value) => sum + value * value, 0) / errors.length)
+  const quantizationErrors = original.map((value, index) => value - reconstruction[index]);
+  const sampleQuantizationRmsError = quantizationErrors.length
+    ? Math.sqrt(
+        quantizationErrors.reduce((sum, value) => sum + value * value, 0) /
+          quantizationErrors.length,
+      )
     : 0;
-  const peakError = errors.reduce((peak, value) => Math.max(peak, Math.abs(value)), 0);
+  const sampleQuantizationPeakError = quantizationErrors.reduce(
+    (peak, value) => Math.max(peak, Math.abs(value)),
+    0,
+  );
   const nyquistHz = safeConfig.sampleRate / 2;
   const aliasingComponents = fixture.components.map((component) => ({
     ...component,
@@ -337,7 +355,7 @@ export function deriveSoundModel(
     original: original[index],
     code: codes[index],
     reconstructed: reconstruction[index],
-    error: errors[index],
+    quantizationError: quantizationErrors[index],
   }));
 
   return {
@@ -357,9 +375,9 @@ export function deriveSoundModel(
     },
     reconstruction,
     sampleHold: reconstruction,
-    errors,
-    rmsError,
-    peakError,
+    quantizationErrors,
+    sampleQuantizationRmsError,
+    sampleQuantizationPeakError,
     nyquistHz,
     sourceFrequencyHz: fixture.frequencyHz,
     foldedFrequencyHz: foldedFrequency(fixture.frequencyHz, safeConfig.sampleRate),

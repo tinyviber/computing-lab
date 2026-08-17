@@ -17,16 +17,33 @@ type SampleEntry = {
   original: number;
   code: number;
   reconstructed: number;
-  error: number;
+  quantizationError: number;
 };
 type DerivedSoundContract = DerivedModel & {
   samples: SampleEntry[];
+  quantizationErrors: readonly number[];
+  sampleQuantizationRmsError: number;
+  sampleQuantizationPeakError: number;
   reconstructAt: (timeMs: number) => number;
   quantization: {
     codes: readonly number[];
     levelValues: number[];
     reconstructed: readonly number[];
   };
+  cursor: {
+    timeMs: number;
+    sampleIndex: number;
+    sampleTimestampMs: number;
+    original: number;
+    reconstructed: number;
+    reconstructionError: number;
+  };
+  plot: Array<{
+    timeMs: number;
+    original: number;
+    reconstructed: number;
+    reconstructionError: number;
+  }>;
   aliasingEvidence: {
     anyAliasing: boolean;
     components: Array<SoundComponent & { classification: string; foldedFrequencyHz: number }>;
@@ -148,7 +165,9 @@ describe("Sound reference model", () => {
         "quantization.reconstructed",
       ),
     ).toHaveLength(arrayField(first, "original").length);
-    expect(arrayField(first, "errors")).toHaveLength(arrayField(first, "original").length);
+    expect(arrayField(first, "quantizationErrors")).toHaveLength(
+      arrayField(first, "original").length,
+    );
     expect(arrayField(first, "plot", "plotPoints", "boundedPlot").length).toBeLessThanOrEqual(600);
     expect(first).toHaveProperty("payload");
     expect(first).toHaveProperty("cursor");
@@ -157,7 +176,7 @@ describe("Sound reference model", () => {
       sampleIndex: expect.any(Number),
       original: expect.any(Number),
       reconstructed: expect.any(Number),
-      error: expect.any(Number),
+      reconstructionError: expect.any(Number),
     });
     expect(first).toHaveProperty("aliasing");
     expect(numberField(first, "nyquist", "nyquistHz")).toBeGreaterThan(0);
@@ -201,15 +220,15 @@ describe("Sound reference model", () => {
     for (const result of results) {
       const original = arrayField(result, "original").map(Number);
       const timestamps = arrayField(result, "timestamps").map(Number);
-      const errors = arrayField(result, "errors").map(Number);
+      const errors = arrayField(result, "quantizationErrors").map(Number);
       expect(original.length).toBeGreaterThan(0);
       expect(original.every(Number.isFinite)).toBe(true);
       expect(timestamps.every(Number.isFinite)).toBe(true);
       expect(errors.every(Number.isFinite)).toBe(true);
-      expect(numberField(result, "rms", "errorRms", "rmsError")).toBeGreaterThanOrEqual(0);
-      expect(numberField(result, "peak", "peakError", "errorPeak")).toBeGreaterThanOrEqual(0);
-      expect(numberField(result, "rms", "errorRms", "rmsError")).toBeLessThanOrEqual(
-        numberField(result, "peak", "peakError", "errorPeak") + 1e-12,
+      expect(numberField(result, "sampleQuantizationRmsError")).toBeGreaterThanOrEqual(0);
+      expect(numberField(result, "sampleQuantizationPeakError")).toBeGreaterThanOrEqual(0);
+      expect(numberField(result, "sampleQuantizationRmsError")).toBeLessThanOrEqual(
+        numberField(result, "sampleQuantizationPeakError") + 1e-12,
       );
     }
   });
@@ -321,7 +340,73 @@ describe("Sound reference model", () => {
     );
     expect(typedResult.timestamps).toEqual(samples.map((sample) => sample.timestampMs));
     expect(typedResult.original).toEqual(samples.map((sample) => sample.original));
-    expect(samples.every((sample) => Number.isFinite(sample.error))).toBe(true);
+    expect(samples.every((sample) => Number.isFinite(sample.quantizationError))).toBe(true);
+  });
+
+  it("defines source-aware default plot widths for periodic and continuous fixtures", () => {
+    const expectedWidths = {
+      pure440: (4 / 440) * 1000,
+      sawtooth: (4 / 220) * 1000,
+      "high-pulse": (4 / 6000) * 1000,
+      speech: 40,
+    } as const;
+
+    for (const [source, expectedWidthMs] of Object.entries(expectedWidths) as Array<
+      [keyof typeof expectedWidths, number]
+    >) {
+      const result = derive({ source, sampleRate: 8000, bitDepth: 8, phase: 0 });
+      const fixture = getSoundFixture(source);
+      const definition = fixture.plotWindowDefinition;
+      expect(definition.defaultValue).toBe(source === "speech" ? 40 : 4);
+      expect(result.plotWindow).toMatchObject({ startMs: 0 });
+      expect(result.plotWindow.endMs).toBeCloseTo(expectedWidthMs, 10);
+    }
+  });
+
+  it("exposes sample-only quantization errors separately from reconstruction errors", () => {
+    const result = derive({ source: "pure440", sampleRate: 1000, bitDepth: 4, phase: 0 }, 123.456);
+    const typedResult = result as DerivedSoundContract;
+
+    expect(typedResult.quantizationErrors).toHaveLength(typedResult.samples.length);
+    expect(typedResult.samples.map((sample) => sample.quantizationError)).toEqual(
+      typedResult.quantizationErrors,
+    );
+    typedResult.samples.slice(0, 32).forEach((sample, index) => {
+      expect(sample.quantizationError).toBeCloseTo(sample.original - sample.reconstructed, 12);
+      expect(typedResult.quantizationErrors[index]).toBeCloseTo(sample.quantizationError, 12);
+    });
+
+    const expectedRms = Math.sqrt(
+      typedResult.quantizationErrors.reduce((sum, error) => sum + error ** 2, 0) /
+        typedResult.quantizationErrors.length,
+    );
+    const expectedPeak = Math.max(
+      ...typedResult.quantizationErrors.map((error) => Math.abs(error)),
+    );
+    expect(typedResult.sampleQuantizationRmsError).toBeCloseTo(expectedRms, 12);
+    expect(typedResult.sampleQuantizationPeakError).toBeCloseTo(expectedPeak, 12);
+
+    const cursor = typedResult.cursor;
+    expect(cursor.timeMs).not.toBe(cursor.sampleTimestampMs);
+    expect(cursor.reconstructionError).toBeCloseTo(
+      sampleSoundFixture("pure440", cursor.timeMs) - cursor.reconstructed,
+      12,
+    );
+    expect(cursor.reconstructionError).not.toBeCloseTo(typedResult.sampleQuantizationRmsError, 12);
+
+    const plotPoint = typedResult.plot.find(
+      (point) =>
+        !typedResult.samples.some((sample) => Math.abs(sample.timestampMs - point.timeMs) < 1e-9),
+    );
+    expect(plotPoint).toBeDefined();
+    expect(plotPoint?.reconstructionError).toBeCloseTo(
+      plotPoint!.original - plotPoint!.reconstructed,
+      12,
+    );
+    expect(plotPoint?.reconstructionError).not.toBeCloseTo(
+      typedResult.sampleQuantizationPeakError,
+      12,
+    );
   });
 
   it("keeps the source immutable for cursor reads and reconstructs with half-open sample hold", () => {

@@ -45,9 +45,18 @@ test.describe("Sound reference trajectories", () => {
 
     const plot = page.getByRole("img", { name: /samples plot/i });
     await expect(plot).toHaveAttribute("data-evidence", "samples");
-    const initialWindow = await plot.getAttribute("data-time-window-end");
-    await page.locator("#sound-plot-periods").selectOption("1");
-    await expect(plot).not.toHaveAttribute("data-time-window-end", initialWindow ?? "");
+    const plotWindow = page.getByLabel(/plot window/i);
+    await expect(plotWindow).toHaveValue("40");
+    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/40 ms/i);
+    const initialStart = Number(await plot.getAttribute("data-time-window-start"));
+    const initialEnd = Number(await plot.getAttribute("data-time-window-end"));
+    expect(initialEnd - initialStart).toBeCloseTo(40, 3);
+    await plotWindow.selectOption("20");
+    await expect(plotWindow).toHaveValue("20");
+    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/20 ms/i);
+    const selectedStart = Number(await plot.getAttribute("data-time-window-start"));
+    const selectedEnd = Number(await plot.getAttribute("data-time-window-end"));
+    expect(selectedEnd - selectedStart).toBeCloseTo(20, 3);
     const markers = page.locator(".sound-sample-marker");
     await expect(markers.first()).toBeVisible();
     expect(await markers.count()).toBeLessThanOrEqual(160);
@@ -61,8 +70,8 @@ test.describe("Sound reference trajectories", () => {
     expect(await page.locator(".sound-level-line").count()).toBeLessThanOrEqual(24);
     await expect(page.locator("[data-level-code='0']")).toHaveAttribute("data-level-value", "-1");
 
-    await page.getByRole("button", { name: /^error$/i }).click();
-    await expect(page.getByRole("button", { name: /^error$/i })).toHaveAttribute(
+    await page.getByRole("button", { name: /reconstruction error/i }).click();
+    await expect(page.getByRole("button", { name: /reconstruction error/i })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -77,7 +86,7 @@ test.describe("Sound reference trajectories", () => {
     });
 
     const plot = page.getByRole("img", { name: /samples plot/i });
-    await page.locator("#sound-plot-periods").selectOption("1");
+    await page.locator("#sound-plot-window").selectOption("1");
     const startMs = Number(await plot.getAttribute("data-time-window-start"));
     const endMs = Number(await plot.getAttribute("data-time-window-end"));
     expect(endMs).toBeGreaterThan(startMs);

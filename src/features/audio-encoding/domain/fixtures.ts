@@ -5,6 +5,19 @@ export type SoundComponent = {
   amplitude: number;
 };
 
+export type SoundPlotWindowDefinition =
+  | {
+      kind: "periods";
+      referenceFrequencyHz: number;
+      options: readonly number[];
+      defaultValue: number;
+    }
+  | {
+      kind: "milliseconds";
+      options: readonly number[];
+      defaultValue: number;
+    };
+
 export type SoundFixture = {
   id: SoundSource;
   label: string;
@@ -12,6 +25,7 @@ export type SoundFixture = {
   frequencyHz: number;
   durationMs: number;
   components: readonly SoundComponent[];
+  plotWindowDefinition: SoundPlotWindowDefinition;
   sampleAt: (timeMs: number) => number;
 };
 
@@ -82,6 +96,12 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     frequencyHz: 440,
     durationMs: 1000,
     components: [{ frequencyHz: 440, amplitude: 1 }],
+    plotWindowDefinition: {
+      kind: "periods",
+      referenceFrequencyHz: 440,
+      options: [0.5, 1, 2, 4],
+      defaultValue: 4,
+    },
     sampleAt: pure440,
   },
   "high-pulse": {
@@ -91,6 +111,12 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     frequencyHz: 6000,
     durationMs: 1000,
     components: HIGH_PULSE_COMPONENTS,
+    plotWindowDefinition: {
+      kind: "periods",
+      referenceFrequencyHz: 6000,
+      options: [0.5, 1, 2, 4],
+      defaultValue: 4,
+    },
     sampleAt: highPulse,
   },
   speech: {
@@ -104,6 +130,11 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
       { frequencyHz: 420, amplitude: 0.27 },
       { frequencyHz: 780, amplitude: 0.15 },
     ],
+    plotWindowDefinition: {
+      kind: "milliseconds",
+      options: [20, 40, 80],
+      defaultValue: 40,
+    },
     sampleAt: speech,
   },
   sawtooth: {
@@ -113,6 +144,12 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     frequencyHz: 220,
     durationMs: 1000,
     components: NORMALIZED_SAWTOOTH_COMPONENTS,
+    plotWindowDefinition: {
+      kind: "periods",
+      referenceFrequencyHz: 220,
+      options: [0.5, 1, 2, 4],
+      defaultValue: 4,
+    },
     sampleAt: sawtooth,
   },
 };

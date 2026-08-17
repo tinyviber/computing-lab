@@ -32,6 +32,55 @@ describe("Sound reference UI", () => {
     }
   });
 
+  it("labels sample quantization statistics and continuous reconstruction error separately", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=1000&bitDepth=4");
+
+    const metrics = screen.getByLabelText("Derived sound metrics");
+    expect(within(metrics).getByText(/sample quantization rms/i)).toBeInTheDocument();
+    expect(within(metrics).getByText(/sample quantization peak/i)).toBeInTheDocument();
+    expect(screen.queryByText(/^rms error$/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^peak error$/i)).not.toBeInTheDocument();
+
+    const readout = screen.getByLabelText("Cursor readout");
+    expect(within(readout).getByText(/reconstruction error/i)).toBeInTheDocument();
+
+    await user.click(button(/^quantization$/i));
+    const evidence = screen.getByTestId("sound-quantization-evidence");
+    expect(evidence).toHaveTextContent(/only at sampling instants/i);
+    expect(evidence).not.toHaveTextContent(/reconstruction error/i);
+  });
+
+  it("uses milliseconds for speech and falls back through the controlled window select", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding");
+
+    const source = control(/^source$/i);
+    const plotWindow = control(/plot window/i);
+    expect(plotWindow).toHaveValue("4");
+    expect(plotWindow).toHaveTextContent(/4 reference periods/i);
+
+    await user.selectOptions(source, "speech");
+    expect(source).toHaveValue("speech");
+    expect(plotWindow).toHaveValue("40");
+    expect(plotWindow).toHaveTextContent(/40 ms/i);
+    expect(screen.queryByText(/reference periods/i)).not.toBeInTheDocument();
+
+    await user.selectOptions(source, "sawtooth");
+    expect(source).toHaveValue("sawtooth");
+    expect(plotWindow).toHaveValue("4");
+    expect(plotWindow).toHaveTextContent(/4 reference periods/i);
+  });
+
+  it("starts speech with a 40 ms window and no periodic reference label", async () => {
+    await renderAppAt("/labs/audio-encoding?source=speech");
+
+    const plotWindow = control(/plot window/i);
+    expect(plotWindow).toHaveValue("40");
+    expect(plotWindow).toHaveTextContent(/40 ms/i);
+    expect(screen.queryByText(/reference periods/i)).not.toBeInTheDocument();
+  });
+
   it("keeps source, audition, mode, and view changes orthogonal", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
@@ -39,12 +88,12 @@ describe("Sound reference UI", () => {
     await user.selectOptions(control(/^source$/i), "sawtooth");
     await user.click(button(/^original$/i));
     await user.click(button(/^aliasing$/i));
-    await user.click(button(/^error$/i));
+    await user.click(button(/reconstruction error/i));
 
     expect(control(/^source$/i)).toHaveValue("sawtooth");
     expect(button(/^original$/i)).toHaveAttribute("aria-pressed", "true");
     expect(button(/^aliasing$/i)).toHaveAttribute("aria-pressed", "true");
-    expect(button(/^error$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/reconstruction error/i)).toHaveAttribute("aria-pressed", "true");
     expect(button(/^compare$/i)).toHaveAttribute("aria-pressed", "false");
     expect(button(/^quantization$/i)).toHaveAttribute("aria-pressed", "false");
     expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "false");
@@ -86,7 +135,7 @@ describe("Sound reference UI", () => {
 
     await user.selectOptions(control(/^source$/i), "speech");
     await user.click(button(/^aliasing$/i));
-    await user.click(button(/^error$/i));
+    await user.click(button(/reconstruction error/i));
 
     expect(history.location.href).toBe(initial);
   });
@@ -137,9 +186,9 @@ describe("Sound reference UI", () => {
     expect(document.querySelectorAll(".sound-level-line").length).toBeLessThanOrEqual(24);
     expect(document.querySelectorAll(".sound-sample-marker").length).toBeLessThanOrEqual(160);
 
-    await user.click(button(/^error$/i));
+    await user.click(button(/reconstruction error/i));
     const errorPlot = screen.getByRole("img", { name: /error plot/i });
-    expect(button(/^error$/i)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/reconstruction error/i)).toHaveAttribute("aria-pressed", "true");
     expect(errorPlot.querySelector(".sound-error-line")).toBeInTheDocument();
   });
 

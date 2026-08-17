@@ -5,6 +5,7 @@ import { SOUND_FIXTURES, type SoundSource } from "../domain/fixtures";
 import {
   buildSoundPlot,
   deriveSoundModel,
+  getPlotWindowWidthMs,
   SOUND_MAX_BIT_DEPTH,
   SOUND_MIN_BIT_DEPTH,
   SOUND_MIN_PHASE,
@@ -24,7 +25,7 @@ const VIEW_LABELS: Record<SoundView, string> = {
   compare: "Compare",
   samples: "Samples",
   levels: "Levels",
-  error: "Error",
+  error: "Reconstruction error",
 };
 
 function formatNumber(value: number, digits = 3): string {
@@ -61,17 +62,23 @@ const SAMPLE_RATE_STOPS = [
 function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseSoundScenario(search), [search]);
   const [state, dispatch] = useReducer(transitionSoundLesson, scenario, createSoundLessonState);
-  const [plotPeriods, setPlotPeriods] = useState(4);
+  const [plotWindowSelection, setPlotWindowSelection] = useState(() => ({
+    source: scenario.source,
+    choice: SOUND_FIXTURES[scenario.source].plotWindowDefinition.defaultValue,
+  }));
   const [audioStatus, setAudioStatus] = useState("Audio is ready when Play is pressed.");
   const playback = useMemo(() => createAudioPlaybackRuntime(), []);
   const model = useMemo(() => {
     return deriveSoundModel(state.source, state.config);
   }, [state.config, state.source]);
   const fixture = SOUND_FIXTURES[state.source];
-  const windowWidth = useMemo(
-    () => Math.min(model.durationMs, (1000 * plotPeriods) / Math.max(fixture.frequencyHz, 1)),
-    [fixture.frequencyHz, model.durationMs, plotPeriods],
-  );
+  const plotWindowDefinition = fixture.plotWindowDefinition;
+  const plotWindowChoice =
+    plotWindowSelection.source === state.source &&
+    plotWindowDefinition.options.includes(plotWindowSelection.choice)
+      ? plotWindowSelection.choice
+      : plotWindowDefinition.defaultValue;
+  const windowWidth = Math.min(model.durationMs, getPlotWindowWidthMs(fixture, plotWindowChoice));
   const plotWindow = useMemo(() => {
     const maxStartMs = Math.max(0, model.durationMs - windowWidth);
     const startMs = Math.min(maxStartMs, Math.max(0, state.cursor - windowWidth / 2));
@@ -113,8 +120,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     return {
       levelPreview: model.quantization.preview,
       plotLines: {
-        error: plotPoints(
-          plot.map((point) => point.error),
+        reconstructionError: plotPoints(
+          plot.map((point) => point.reconstructionError),
           4,
         ),
         original: plotPoints(plot.map((point) => point.original)),
@@ -146,6 +153,15 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     scenario.source,
     scenario.view,
   ]);
+
+  useEffect(() => {
+    if (
+      plotWindowSelection.source !== state.source ||
+      plotWindowSelection.choice !== plotWindowChoice
+    ) {
+      setPlotWindowSelection({ source: state.source, choice: plotWindowChoice });
+    }
+  }, [plotWindowChoice, plotWindowSelection.choice, plotWindowSelection.source, state.source]);
 
   useEffect(() => {
     if (state.transport === "playing") playback.sync(playbackRequest);
@@ -231,10 +247,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               </code>
             </div>
             <div
-              aria-label={`${fixture.label} ${selectedView} plot`}
+              aria-label={`${fixture.label} ${VIEW_LABELS[selectedView]} plot`}
               className="sound-plot-stage"
               data-audition={state.audition}
-              data-evidence={selectedView === "error" ? "error-waveform" : selectedView}
+              data-evidence={
+                selectedView === "error" ? "reconstruction-error-waveform" : selectedView
+              }
               data-sound-mode={state.mode}
               data-sound-view={selectedView}
               data-time-window-start={plotWindow.startMs}
@@ -250,7 +268,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <polyline className="sound-reconstructed-line" points={plotLines.reconstructed} />
                 ) : null}
                 {plotError ? (
-                  <polyline className="sound-error-line" points={plotLines.error} />
+                  <polyline
+                    aria-label="Reconstruction error"
+                    className="sound-error-line"
+                    points={plotLines.reconstructionError}
+                  />
                 ) : null}
                 {selectedView === "samples"
                   ? visibleSamples.map((sample) => (
@@ -310,7 +332,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 <i className="sound-legend-reconstructed" /> Sample-hold reconstruction
               </span>
               <span>
-                <i className="sound-legend-error" /> Error
+                <i className="sound-legend-error" /> Reconstruction error
               </span>
             </div>
           </div>
@@ -357,6 +379,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                   {model.quantization.levelValues.length} total levels; showing bounded preview of{" "}
                   {levelPreview.length}.
                 </p>
+                <p>Sample quantization metrics are measured only at sampling instants.</p>
                 <div
                   className="sound-level-preview"
                   data-level-count={model.quantization.levelValues.length}
@@ -398,12 +421,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               )}
             </div>
             <div>
-              <span>RMS error</span>
-              <strong>{formatNumber(model.rmsError)}</strong>
+              <span>Sample quantization RMS</span>
+              <strong>{formatNumber(model.sampleQuantizationRmsError)}</strong>
             </div>
             <div>
-              <span>Peak error</span>
-              <strong>{formatNumber(model.peakError)}</strong>
+              <span>Sample quantization peak</span>
+              <strong>{formatNumber(model.sampleQuantizationPeakError)}</strong>
             </div>
             <div>
               <span>Payload</span>
@@ -442,8 +465,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 <dd>{formatNumber(cursor.reconstructed)}</dd>
               </div>
               <div>
-                <dt>Error</dt>
-                <dd>{formatNumber(cursor.error)}</dd>
+                <dt>Reconstruction error</dt>
+                <dd>{formatNumber(cursor.reconstructionError)}</dd>
               </div>
             </dl>
           </div>
@@ -548,17 +571,33 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <p className="sound-control-description" id="sound-phase-description">
               Moves sampling timestamps; source x(t) stays unchanged.
             </p>
-            <label className="sound-label" htmlFor="sound-plot-periods">
-              Plot window <span>{plotPeriods} source periods</span>
+            <label className="sound-label" htmlFor="sound-plot-window">
+              Plot window{" "}
+              <span>
+                {plotWindowChoice}{" "}
+                {plotWindowDefinition.kind === "periods"
+                  ? "reference periods"
+                  : "ms analysis window"}
+              </span>
             </label>
             <select
-              id="sound-plot-periods"
-              onChange={(event) => setPlotPeriods(Number(event.target.value))}
-              value={plotPeriods}
+              aria-label={
+                plotWindowDefinition.kind === "periods"
+                  ? "Plot window in reference periods"
+                  : "Plot window analysis window in milliseconds"
+              }
+              id="sound-plot-window"
+              onChange={(event) =>
+                setPlotWindowSelection({
+                  source: state.source,
+                  choice: Number(event.target.value),
+                })
+              }
+              value={plotWindowChoice}
             >
-              {[0.5, 1, 2, 4].map((periods) => (
-                <option key={periods} value={periods}>
-                  {periods} periods
+              {plotWindowDefinition.options.map((option) => (
+                <option key={option} value={option}>
+                  {option} {plotWindowDefinition.kind === "periods" ? "reference periods" : "ms"}
                 </option>
               ))}
             </select>
