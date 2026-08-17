@@ -1,193 +1,783 @@
-.network-feature-layout {
+.home-network-page {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 18px;
   min-width: 0;
+  padding: 28px;
 }
 
-.network-visualization,
-.network-inspector {
-  min-width: 0;
-}
-
-.network-inspector {
+.network-lesson-intro,
+.network-card-heading,
+.probe-control-grid,
+.topology-notes,
+.network-device-list,
+.history-layout {
+  align-items: center;
   display: flex;
-  flex-direction: column;
+}
+
+.network-lesson-intro {
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.network-lesson-intro h2 {
+  margin-top: 7px;
+  color: var(--primary);
+  font-size: clamp(23px, 3vw, 32px);
+  letter-spacing: -0.04em;
+  line-height: 1.08;
+}
+
+.network-lesson-intro p:not(.eyebrow) {
+  max-width: 700px;
+  margin-top: 10px;
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.scenario-chip,
+.source-chip,
+.network-metric,
+.inspector-lock,
+.trace-id {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.scenario-chip {
+  display: grid;
+  gap: 5px;
+  min-width: 168px;
+  padding: 11px 13px;
   background: var(--surface);
-  border-left: 1px solid var(--border);
 }
 
-.network-inspector > .formula-panel {
-  margin: 0 24px;
+.scenario-chip span,
+.source-chip,
+.network-metric,
+.inspector-lock {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.network-inspector .inspector-actions {
-  margin-top: auto;
+.scenario-chip strong {
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 650;
 }
 
-.topology-stage {
+.network-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(310px, 0.75fr);
+  gap: 18px;
+  min-width: 0;
+}
+
+.network-canvas-card,
+.network-inspector-card,
+.probe-control-card,
+.trace-card,
+.probe-evidence-card,
+.history-card {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.network-canvas-card,
+.network-inspector-card,
+.probe-control-card,
+.trace-card,
+.history-card {
+  overflow: hidden;
+}
+
+.network-card-heading {
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.network-card-heading h3 {
+  margin-top: 5px;
+  color: var(--primary);
+  font-size: 16px;
+  font-weight: 650;
+  line-height: 21px;
+}
+
+.network-metric,
+.trace-id {
+  padding: 6px 8px;
+}
+
+.network-topology-svg {
   display: block;
-  padding: 18px 24px 22px;
+  width: calc(100% - 32px);
+  height: auto;
+  margin: 16px;
+  overflow: visible;
+  border-radius: var(--radius-control);
   background-color: var(--subtle);
   background-image:
     linear-gradient(var(--border) 1px, transparent 1px),
     linear-gradient(90deg, var(--border) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-size: 28px 28px;
 }
 
-.topology-graph {
-  display: block;
-  width: 100%;
-  max-width: 520px;
-  height: auto;
-  margin: 0 auto;
-  overflow: visible;
-}
-
-.topology-link {
+.network-topology-link {
   stroke: var(--accent);
-  stroke-dasharray: 5 4;
+  stroke-dasharray: 6 5;
   stroke-width: 2;
 }
 
-.topology-node circle {
+.network-topology-node circle {
   fill: var(--surface);
   stroke: var(--border);
   stroke-width: 2;
 }
 
-.topology-node-router circle {
+.network-topology-node.network-node-router circle {
   fill: #eaf0ff;
   stroke: var(--accent);
 }
 
-.topology-node-label {
+.network-topology-node.network-node-internet circle {
+  fill: #f3f8f0;
+  stroke: var(--success);
+}
+
+.network-topology-node.is-selected circle {
+  stroke: var(--primary);
+  stroke-width: 3;
+}
+
+.network-node-label {
   fill: var(--primary);
   font-size: 12px;
   font-weight: 650;
 }
 
-.topology-node-ip {
+.network-node-ip {
   fill: var(--secondary);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 9px;
 }
 
-.device-palette {
-  margin-top: 8px;
-  padding-top: 16px;
+.topology-notes {
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 0 20px 16px;
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.topology-notes b {
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.network-device-list {
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 20px 18px;
   border-top: 1px solid var(--border);
 }
 
-.device-palette ul {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  list-style: none;
-  margin: 10px 0 0;
-  padding: 0;
-}
-
-.device-palette li {
+.device-summary {
   align-items: center;
   display: flex;
-  min-width: 0;
   gap: 8px;
+  min-width: 132px;
   padding: 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--surface);
-}
-
-.device-palette-button {
-  padding: 0;
-  border: 0;
-  background: transparent;
   color: var(--primary);
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 650;
   text-align: left;
 }
 
-.device-palette-button:hover {
-  color: var(--accent);
+.device-summary:hover,
+.device-summary[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: var(--subtle);
 }
 
-.device-palette li strong,
-.device-palette li small {
+.device-summary-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.device-summary-router .device-summary-dot {
+  background: var(--success);
+}
+.device-summary-internet .device-summary-dot {
+  background: var(--warning);
+}
+.device-summary strong,
+.device-summary small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.device-palette li small {
+.device-summary strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+.device-summary small {
   margin-top: 2px;
   color: var(--secondary);
-  font-size: 9px;
+  font:
+    9px "SFMono-Regular",
+    Consolas,
+    monospace;
 }
 
-.device-palette-icon {
+.network-inspector-card {
+  padding-bottom: 20px;
+}
+
+.network-inspector-card > .network-card-heading {
+  align-items: flex-start;
+}
+
+.inspector-lock {
+  padding-top: 4px;
+  border: 0;
+}
+
+.network-field-label {
   display: block;
-  flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.device-palette-icon.device-router {
-  background: var(--success);
-}
-
-.select-label {
-  display: block;
-  margin: 22px 24px 7px;
+  margin: 18px 20px 7px;
   color: var(--secondary);
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 650;
 }
 
-.network-input,
-select {
+.network-select,
+.network-input {
   display: block;
-  width: calc(100% - 48px);
-  min-height: 40px;
-  margin: 0 24px;
+  width: calc(100% - 40px);
+  min-height: 38px;
+  margin: 0 20px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--primary);
+  font-size: 12px;
+}
+
+.network-select:focus,
+.network-input:focus,
+.network-button:focus-visible,
+.trace-event-button:focus-visible,
+.history-item:focus-visible,
+.device-summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .network-input {
   font-family: "SFMono-Regular", Consolas, monospace;
 }
-
-.network-input-description {
-  margin: 7px 24px 0;
+.network-input[readonly] {
+  background: var(--subtle);
+  color: var(--secondary);
 }
 
-@media (max-width: 767px) {
-  .network-feature-layout {
+.network-field-help {
+  margin: 6px 20px 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.network-inspector-details {
+  margin-top: 18px;
+  padding-top: 3px;
+  border-top: 1px solid var(--border);
+}
+
+.device-detail-heading {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+.device-detail-heading strong {
+  color: var(--primary);
+  font-size: 14px;
+}
+.detail-device-kind {
+  color: var(--muted);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+  text-transform: uppercase;
+}
+
+.network-prefix-input {
+  position: relative;
+}
+.network-prefix-input > span {
+  position: absolute;
+  top: 10px;
+  left: 29px;
+  z-index: 1;
+  color: var(--muted);
+  font-family: monospace;
+}
+.network-prefix-input .network-prefix {
+  padding-left: 22px;
+}
+
+.fixed-route-list {
+  display: grid;
+  gap: 5px;
+  margin: 18px 20px 0;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+  color: var(--secondary);
+  font:
+    10px/16px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+
+.fixed-route-list strong {
+  color: var(--primary);
+  font-family: inherit;
+}
+
+.probe-control-card {
+  padding-bottom: 16px;
+}
+.probe-control-grid {
+  align-items: flex-end;
+  gap: 14px;
+  padding: 2px 20px 0;
+}
+.probe-control-grid > div {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.probe-control-grid .network-field-label {
+  margin-left: 0;
+  margin-right: 0;
+}
+.network-select-wide {
+  width: 100%;
+  margin: 0;
+}
+.probe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.network-button {
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.network-button-primary {
+  background: var(--primary);
+  color: var(--surface);
+  border-color: var(--primary);
+}
+.network-button-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.network-button-secondary {
+  background: var(--surface);
+  color: var(--secondary);
+}
+.network-button-secondary:hover {
+  color: var(--primary);
+  background: var(--subtle);
+}
+
+.source-chip {
+  display: inline-block;
+  margin: 0 20px;
+  padding: 6px 8px;
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+}
+.probe-outcome {
+  margin: 16px 20px 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--border);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 11px;
+}
+.probe-outcome-delivered {
+  border-color: var(--success);
+}
+.probe-outcome-blocked {
+  border-color: var(--warning);
+}
+.probe-prediction-feedback {
+  margin: 8px 20px 0;
+  color: var(--secondary);
+  font-size: 10px;
+  line-height: 15px;
+}
+.probe-prediction-feedback strong {
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 18px;
+  min-width: 0;
+}
+.trace-card {
+  padding-bottom: 8px;
+}
+.trace-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 20px;
+}
+.trace-item {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.trace-item:last-child {
+  border-bottom: 0;
+}
+.trace-event-button {
+  align-items: center;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  text-align: left;
+}
+.trace-event-button:hover,
+.trace-event-button.is-selected {
+  border-color: var(--border);
+  background: var(--subtle);
+}
+.trace-sequence {
+  color: var(--muted);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.trace-event-copy {
+  min-width: 0;
+}
+.trace-event-copy strong,
+.trace-event-copy span {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trace-event-copy strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+.trace-event-copy span {
+  margin-top: 2px;
+  color: var(--secondary);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.trace-event-outcome {
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--secondary);
+  font:
+    9px "SFMono-Regular",
+    Consolas,
+    monospace;
+  text-transform: uppercase;
+}
+.trace-item-fail .trace-event-outcome {
+  color: var(--primary);
+  border-color: var(--warning);
+}
+.trace-item-complete .trace-event-outcome {
+  color: var(--primary);
+  border-color: var(--success);
+}
+.trace-item p {
+  margin: 3px 8px 2px 48px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.probe-evidence-card {
+  display: grid;
+  align-content: start;
+  gap: 0;
+  overflow: hidden;
+}
+.failure-panel,
+.selected-event-panel {
+  padding: 20px;
+}
+.failure-panel {
+  background: var(--subtle);
+  border-bottom: 1px solid var(--border);
+}
+.failure-panel h3,
+.selected-event-panel h3 {
+  margin-top: 6px;
+  color: var(--primary);
+  font:
+    650 15px/20px "SFMono-Regular",
+    Consolas,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.failure-panel p:last-child,
+.selected-event-panel p:last-child {
+  margin-top: 8px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+.packet-details {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.packet-details > span {
+  color: var(--accent);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.packet-details code {
+  display: block;
+  padding: 8px;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--secondary);
+  font:
+    10px/15px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+
+.history-card {
+  padding-bottom: 18px;
+}
+.history-card > .network-card-heading > span {
+  color: var(--muted);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.history-layout {
+  align-items: stretch;
+  gap: 16px;
+  padding: 16px 20px 0;
+}
+.history-list {
+  display: grid;
+  flex: 0 0 260px;
+  gap: 7px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.history-item {
+  align-items: center;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--secondary);
+  cursor: pointer;
+  text-align: left;
+}
+.history-item:hover,
+.history-item.is-selected {
+  border-color: var(--accent);
+  background: var(--subtle);
+  color: var(--primary);
+}
+.history-item > span:first-child {
+  color: var(--muted);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.history-item strong {
+  font-size: 11px;
+  font-weight: 650;
+}
+.history-item small {
+  grid-column: 2 / -1;
+  color: var(--muted);
+  font:
+    9px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.history-comparison {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+.history-comparison dl {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+}
+.history-comparison dl div {
+  display: grid;
+  grid-template-columns: 55px minmax(0, 1fr);
+  gap: 8px;
+}
+.history-comparison dt {
+  color: var(--muted);
+  font:
+    10px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.history-comparison dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--primary);
+  font:
+    10px/16px "SFMono-Regular",
+    Consolas,
+    monospace;
+}
+.empty-evidence {
+  padding: 18px 20px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@media (max-width: 980px) {
+  .network-workspace,
+  .evidence-grid {
+    grid-template-columns: 1fr;
+  }
+  .network-inspector-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 16px;
+    padding-bottom: 20px;
+  }
+  .network-inspector-card > .network-card-heading,
+  .network-inspector-details {
+    grid-column: 1 / -1;
+  }
+  .network-inspector-card > .network-card-heading {
+    margin-bottom: 0;
+  }
+  .network-inspector-card > .network-field-label,
+  .network-inspector-card > .network-select,
+  .network-inspector-card > .network-field-help {
+    grid-column: auto;
+  }
+  .network-inspector-card > .network-field-label {
+    margin-top: 18px;
+  }
+}
+
+@media (max-width: 680px) {
+  .home-network-page {
+    padding: 18px 14px;
+  }
+  .network-lesson-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .scenario-chip {
+    min-width: 0;
+  }
+  .network-card-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .network-card-heading > .source-chip {
+    margin: 0;
+  }
+  .network-inspector-card {
     display: block;
   }
-
-  .network-inspector {
-    border-top: 1px solid var(--border);
-    border-left: 0;
+  .probe-control-grid {
+    align-items: stretch;
+    flex-direction: column;
   }
-
-  .network-inspector > .formula-panel {
-    margin: 0 16px;
+  .probe-actions {
+    justify-content: stretch;
   }
-
-  .topology-stage {
-    padding: 24px 12px;
+  .probe-actions .network-button {
+    flex: 1 1 auto;
   }
-
-  .device-palette ul {
-    grid-template-columns: 1fr;
+  .history-layout {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .history-list {
+    flex-basis: auto;
   }
 }

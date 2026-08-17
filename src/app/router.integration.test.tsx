@@ -24,8 +24,8 @@ describe("application router integration", () => {
     [
       "network lesson",
       "/labs/home-network?scenario=wrong-gateway",
-      /家庭网络配置 workspace/i,
-      /192\.168\.1\.254/i,
+      /家庭网络探针 workspace/i,
+      /Send probe|事件链/i,
     ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
@@ -36,7 +36,9 @@ describe("application router integration", () => {
     } else if (_name === "audio lesson") {
       expect(document.body).toHaveTextContent(expected);
     } else {
-      expect(document.body).toHaveTextContent(expected);
+      expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
     }
   });
 
@@ -78,11 +80,16 @@ describe("application router integration", () => {
 
   it("changes network lesson state when the same route receives a new search", async () => {
     const { router } = await renderAppAt("/labs/home-network");
-    expect(screenText()).toContain("192.168.1.1");
+    expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
 
     await navigateApp(router, "/labs/home-network?scenario=wrong-gateway");
 
-    expect(screenText()).toContain("192.168.1.254");
+    expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /send probe/i }));
+    expect(screen.getByRole("region", { name: /事件链/i })).toHaveTextContent(
+      /gateway-unresolved|gateway|arp/i,
+    );
   });
 
   it("navigates between lessons through real router links without a document reload", async () => {
@@ -95,7 +102,8 @@ describe("application router integration", () => {
 
     await user.click(document.querySelector('a.lab-link[href="/labs/home-network"]')!);
     await router.load();
-    expect(document.querySelector("h1")).toHaveTextContent("家庭网络配置");
+    expect(document.querySelector("h1")).toHaveTextContent("家庭网络探针");
+    expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
   });
 
   it("restores lesson and query state through back and forward", async () => {
@@ -110,8 +118,12 @@ describe("application router integration", () => {
 
     history.forward();
     await router.load();
-    expect(document.querySelector("h1")).toHaveTextContent("家庭网络配置");
-    expect(document.body).toHaveTextContent("192.168.1.254");
+    expect(document.querySelector("h1")).toHaveTextContent("家庭网络探针");
+    expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: /send probe/i }));
+    expect(screen.getByRole("region", { name: /事件链/i })).toHaveTextContent(
+      /gateway-unresolved|gateway|arp/i,
+    );
   });
 
   it.each([
@@ -159,7 +171,3 @@ describe("application router integration", () => {
     expect(screen.getByRole("grid", { name: new RegExp(expected, "i") })).toBeInTheDocument();
   });
 });
-
-function screenText(): string {
-  return document.body.textContent ?? "";
-}

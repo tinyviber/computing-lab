@@ -1,77 +1,145 @@
 import { describe, expect, it } from "vitest";
-import * as model from "./model";
+import { createNetworkConfig, probeNetwork, type NetworkConfig, type ProbeResult } from "./model";
 
-type Callable = (...args: unknown[]) => unknown;
-
-function requiredFunction(name: string): Callable {
-  const candidate = (model as Record<string, unknown>)[name];
-  expect(typeof candidate, `${name} must be exported by network domain`).toBe("function");
-  return candidate as Callable;
+function run(config: NetworkConfig, target: "printer" | "internet"): ProbeResult {
+  return probeNetwork(config, target, "laptop");
 }
 
-const validDevices = [
-  { id: "router", name: "家庭路由器", kind: "router", ip: "192.168.1.1" },
-  { id: "laptop", name: "学习电脑", kind: "laptop", ip: "192.168.1.20" },
-  { id: "phone", name: "手机", kind: "phone", ip: "192.168.1.21" },
-  { id: "printer", name: "打印机", kind: "printer", ip: "192.168.1.30" },
-];
+function kinds(result: ProbeResult): string[] {
+  return result.events.map((event) => event.kind);
+}
 
-const validConfig = {
-  devices: validDevices,
-  subnet: "192.168.1.0/24",
-  gateway: "192.168.1.1",
-};
+function reasons(result: ProbeResult): string[] {
+  return result.events.map((event) => event.reasonCode);
+}
 
-describe("home network domain contract", () => {
-  it("accepts canonical IPv4/CIDR topology and returns no issues", () => {
-    const validateNetwork = requiredFunction("validateNetwork");
-    expect(
-      validateNetwork({
-        cidr: validConfig.subnet,
-        gateway: validConfig.gateway,
-        nodes: validDevices.slice(0, 3),
-      }),
-    ).toMatchObject({ valid: true, issues: [] });
+describe("home network packet-path contract", () => {
+  it("models local delivery without gateway/router/NAT hops", () => {
+    const result = run(createNetworkConfig(), "printer");
+
+    expect(kinds(result)).toEqual([
+      "address-validation",
+      "destination-classification",
+      "arp-next-hop",
+      "transmit-request",
+      "target-response",
+      "transmit-reply",
+      "probe-complete",
+    ]);
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-local",
+      "arp-target-resolved",
+      "frame-sent",
+      "target-replied",
+      "direct-delivery",
+      "probe-complete",
+    ]);
+    expect(kinds(result)).not.toEqual(expect.arrayContaining(["route-lookup", "nat-request"]));
+    expect(reasons(result)).not.toContain("arp-gateway-resolved");
   });
 
-  it("computes network and broadcast boundaries and rejects outside gateway", () => {
-    const validateNetwork = requiredFunction("validateNetwork");
+  it("models remote delivery as gateway ARP, route, NAT, WAN, and reverse NAT", () => {
+    const result = run(createNetworkConfig(), "internet");
 
-    expect(
-      validateNetwork({
-        cidr: validConfig.subnet,
-        gateway: "10.0.0.1",
-        nodes: validDevices.slice(0, 3),
-      }),
-    ).toMatchObject({
-      valid: false,
-      issues: ["outside-subnet", "gateway-mismatch"],
-    });
-    expect(
-      validateNetwork({
-        cidr: "192.168.1.128/25",
-        gateway: validConfig.gateway,
-        nodes: validDevices.slice(0, 3),
-      }),
-    ).toMatchObject({
-      valid: false,
-      issues: ["outside-subnet"],
-    });
+    expect(kinds(result)).toEqual([
+      "address-validation",
+      "destination-classification",
+      "arp-next-hop",
+      "transmit-request",
+      "route-lookup",
+      "nat-request",
+      "transmit-request",
+      "target-response",
+      "reverse-nat",
+      "transmit-reply",
+      "probe-complete",
+    ]);
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-remote",
+      "arp-gateway-resolved",
+      "frame-sent",
+      "route-to-internet",
+      "nat-applied",
+      "wan-frame-sent",
+      "target-replied",
+      "reverse-nat-applied",
+      "reply-delivered",
+      "probe-complete",
+    ]);
   });
 
-  it("reports invalid and duplicate IPs in fixed deterministic order", () => {
-    const validateNetwork = requiredFunction("validateNetwork");
-    const result = validateNetwork({
-      cidr: validConfig.subnet,
-      gateway: validConfig.gateway,
-      nodes: [
-        ...validDevices,
-        { id: "bad", name: "坏设备", kind: "laptop", ip: "not-an-ip" },
-        { id: "duplicate", name: "重复设备", kind: "phone", ip: "192.168.1.20" },
-      ],
-    }) as { valid: boolean; issues: string[] };
+  it("stops a wrong gateway at gateway ARP with gateway-unresolved, not preflight", () => {
+    const result = run(createNetworkConfig({ laptop: { gateway: "192.168.1.254" } }), "internet");
 
-    expect(result.valid).toBe(false);
-    expect(result.issues).toEqual(["invalid-ip", "duplicate-ip"]);
+    expect(reasons(result)).toEqual(["address-valid", "destination-remote", "gateway-unresolved"]);
+    expect(result.outcome).toBe("blocked");
+    expect(result.firstFailure?.reasonCode).toBe("gateway-unresolved");
+    expect(kinds(result)).not.toContain("preflight");
+    expect(result.events.at(-1)?.reasonCode).toBe("gateway-unresolved");
+  });
+
+  it("does not resolve a canonical gateway outside the source prefix", () => {
+    const result = run(createNetworkConfig({ laptop: { prefix: "30" } }), "internet");
+
+    expect(reasons(result)).toEqual(["address-valid", "destination-remote", "gateway-unresolved"]);
+    expect(result.events.at(-1)?.kind).toBe("arp-next-hop");
+    expect(result.outcome).toBe("blocked");
+  });
+
+  it("reports a malformed gateway at the ARP event with an invalid-ip reason", () => {
+    const result = run(createNetworkConfig({ laptop: { gateway: "not-an-ip" } }), "internet");
+
+    expect(reasons(result)).toEqual(["address-valid", "destination-remote", "invalid-ip"]);
+    expect(result.firstFailure?.reasonCode).toBe("invalid-ip");
+    expect(result.events.at(-1)?.kind).toBe("arp-next-hop");
+  });
+
+  it("stops a wrong-subnet static printer at router no-route, then reprobes locally after repair", () => {
+    const wrongSubnet = createNetworkConfig({ printer: { ip: "192.168.2.30" } });
+    const failed = run(wrongSubnet, "printer");
+
+    expect(reasons(failed)).toEqual([
+      "address-valid",
+      "destination-remote",
+      "arp-gateway-resolved",
+      "frame-sent",
+      "no-route",
+    ]);
+    expect(failed.outcome).toBe("blocked");
+    expect(failed.events.at(-1)?.reasonCode).toBe("no-route");
+
+    const repaired = run(createNetworkConfig({ printer: { ip: "192.168.1.30" } }), "printer");
+    expect(reasons(repaired)).toContain("direct-delivery");
+    expect(repaired.outcome).toBe("delivered");
+    expect(failed).not.toEqual(repaired);
+  });
+
+  it("does not let an unrelated malformed printer block Internet route and NAT", () => {
+    const result = run(createNetworkConfig({ printer: { ip: "not-an-ip" } }), "internet");
+
+    expect(result.outcome).toBe("delivered");
+    expect(reasons(result)).toEqual(
+      expect.arrayContaining(["route-to-internet", "nat-applied", "reverse-nat-applied"]),
+    );
+  });
+
+  it("uses deterministic probe IDs and ends every failed trace at its first stopped event", () => {
+    const config = createNetworkConfig();
+    const first = run(config, "internet");
+    const second = run(config, "internet");
+    expect(first.id).toBe(second.id);
+    expect(first.id).toMatch(/^probe-[0-9a-f]{8}$/);
+    expect(kinds(first)).toEqual(kinds(second));
+
+    for (const failed of [
+      run(createNetworkConfig({ laptop: { gateway: "192.168.1.254" } }), "internet"),
+      run(createNetworkConfig({ printer: { ip: "192.168.2.30" } }), "printer"),
+    ]) {
+      expect(failed.outcome).toBe("blocked");
+      expect(failed.events.at(-1)?.outcome).toBe("fail");
+      expect(failed.firstFailure?.eventId).toBe(failed.events.at(-1)?.id);
+    }
   });
 });
