@@ -22,9 +22,6 @@ export type RouterConfig = {
   id: "router";
   name: string;
   kind: "router";
-  ip: string;
-  prefix: string;
-  gateway: string;
   lanIp: string;
   lanPrefix: string;
   wanIp: string;
@@ -75,9 +72,6 @@ function createRouterConfig(): RouterConfig {
     id: "router",
     name: ROUTER_NAME,
     kind: "router",
-    ip: ROUTER_LAN_IP,
-    prefix: FIXED_LAN_PREFIX,
-    gateway: ROUTER_LAN_IP,
     lanIp: ROUTER_LAN_IP,
     lanPrefix: FIXED_LAN_PREFIX,
     wanIp: ROUTER_WAN_IP,
@@ -185,7 +179,12 @@ export function isOnFixedLan(ip: string): boolean {
 
 export function validateNetwork(config: NetworkConfig): NetworkValidation {
   const issues: IssueCode[] = [];
-  const devices = [config.router, config.laptop, config.printer];
+  const devices = [
+    { ip: config.router.lanIp, prefix: config.router.lanPrefix },
+    { ip: config.router.wanIp, prefix: config.router.wanPrefix },
+    config.laptop,
+    config.printer,
+  ];
   const parsed = devices.map((device) => ({ device, ip: parseIpv4(device.ip) }));
   if (parsed.some(({ ip }) => ip === undefined)) issues.push("invalid-ip");
   if (devices.some((device) => parseHostPrefix(device.prefix) === undefined)) {
@@ -299,8 +298,8 @@ const REASON_TEXT: Record<ProbeReasonCode, string> = {
   "network-address": "A path participant is using its subnet network address.",
   "broadcast-address": "A path participant is using its subnet broadcast address.",
   "duplicate-address": "Two path participants are configured with the same IPv4 address.",
-  "destination-local": "The destination is local to the source prefix and fixed LAN.",
-  "destination-remote": "The destination is outside the source prefix or fixed LAN.",
+  "destination-local": "The destination is local to the source IP and prefix.",
+  "destination-remote": "The destination is outside the source IP and prefix.",
   "arp-target-resolved": "ARP resolved the target on the fixed LAN.",
   "arp-gateway-resolved": "ARP resolved the configured router LAN gateway.",
   "gateway-unresolved": "The configured gateway did not resolve to the router LAN address.",
@@ -308,7 +307,7 @@ const REASON_TEXT: Record<ProbeReasonCode, string> = {
   "direct-delivery": "The reply was delivered directly on the fixed LAN.",
   "no-route": "The router has no connected route for this destination.",
   "route-to-internet": "The router selected its connected WAN route to Internet.",
-  "nat-applied": "The router applied the fixed reverse-NAT mapping.",
+  "nat-applied": "The router applied source NAT (SNAT) to the request.",
   "wan-frame-sent": "The translated frame was transmitted on the WAN.",
   "target-replied": "The target replied to the probe.",
   "reverse-nat-applied": "The router reversed the fixed NAT mapping for the reply.",
@@ -368,7 +367,7 @@ function validateProbeParticipants(
   target: ProbeTarget,
 ): ParticipantValidation {
   const participantIds: NetworkDeviceId[] =
-    target === "printer" ? ["laptop", "printer"] : ["laptop", "router"];
+    target === "printer" ? ["router", "laptop", "printer"] : ["laptop", "router"];
   const participants = participantIds.map((id) => participantFor(config, id));
   for (const participant of participants) {
     const validation = validateProbeParticipant(participant);
@@ -479,10 +478,7 @@ export function runHomeNetworkProbe(
 
   const sourcePrefix = parseHostPrefix(sourceDevice.prefix) ?? 24;
   const targetIsLocal =
-    target === "printer" &&
-    isOnFixedLan(targetDevice.ip) &&
-    isInSubnet(targetDevice.ip, sourceDevice.ip, sourcePrefix) &&
-    isInSubnet(sourceDevice.ip, targetDevice.ip, targetDevice.prefix);
+    target === "printer" && isInSubnet(targetDevice.ip, sourceDevice.ip, sourcePrefix);
   const nextHopIp = targetIsLocal ? targetDevice.ip : sourceDevice.gateway;
   addEvent({
     leg: "request",
@@ -516,11 +512,14 @@ export function runHomeNetworkProbe(
       reasonCode: "frame-sent",
       reason: REASON_TEXT["frame-sent"],
     });
+    const targetPrefix = parseHostPrefix(snapshot.printer.prefix) ?? 24;
+    const replyIsLocal = isInSubnet(sourceDevice.ip, snapshot.printer.ip, targetPrefix);
+    const replyNextHopIp = replyIsLocal ? sourceDevice.ip : snapshot.printer.gateway;
     addEvent({
       leg: "reply",
       actor: target,
       hop: normalizedSource,
-      packet: packet(targetDevice.ip, sourceDevice.ip, sourceDevice.ip),
+      packet: packet(targetDevice.ip, sourceDevice.ip, replyNextHopIp),
       kind: "target-response",
       outcome: "reply",
       reasonCode: "target-replied",
@@ -529,8 +528,45 @@ export function runHomeNetworkProbe(
     addEvent({
       leg: "reply",
       actor: target,
+      hop: replyIsLocal ? "fixed LAN" : "printer gateway",
+      packet: packet(targetDevice.ip, sourceDevice.ip, replyNextHopIp),
+      kind: "destination-classification",
+      outcome: "pass",
+      reasonCode: replyIsLocal ? "destination-local" : "destination-remote",
+      reason: REASON_TEXT[replyIsLocal ? "destination-local" : "destination-remote"],
+    });
+    if (!replyIsLocal) {
+      const gatewayAddress = parseIpv4(snapshot.printer.gateway);
+      const gatewayResolved =
+        gatewayAddress !== undefined &&
+        snapshot.printer.gateway === snapshot.router.lanIp &&
+        isInSubnet(snapshot.printer.gateway, snapshot.printer.ip, targetPrefix);
+      addEvent({
+        leg: "reply",
+        actor: target,
+        hop: "router gateway",
+        packet: packet(targetDevice.ip, sourceDevice.ip, snapshot.printer.gateway),
+        kind: "arp-next-hop",
+        outcome: gatewayResolved ? "pass" : "fail",
+        reasonCode: gatewayResolved
+          ? "arp-gateway-resolved"
+          : gatewayAddress === undefined
+            ? "invalid-ip"
+            : "gateway-unresolved",
+        reason:
+          gatewayAddress === undefined
+            ? REASON_TEXT["invalid-ip"]
+            : REASON_TEXT[gatewayResolved ? "arp-gateway-resolved" : "gateway-unresolved"],
+      });
+      if (!gatewayResolved) {
+        return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
+      }
+    }
+    addEvent({
+      leg: "reply",
+      actor: target,
       hop: normalizedSource,
-      packet: packet(targetDevice.ip, sourceDevice.ip, sourceDevice.ip),
+      packet: packet(targetDevice.ip, sourceDevice.ip, replyNextHopIp),
       kind: "transmit-reply",
       outcome: "pass",
       reasonCode: "direct-delivery",
@@ -589,11 +625,7 @@ export function runHomeNetworkProbe(
     leg: "request",
     actor: "router",
     hop: internetTarget ? "router WAN" : "printer",
-    packet: packet(
-      sourceDevice.ip,
-      targetDevice.ip,
-      internetTarget ? snapshot.router.wanIp : targetDevice.ip,
-    ),
+    packet: packet(sourceDevice.ip, targetDevice.ip, targetDevice.ip),
     kind: "route-lookup",
     outcome: internetTarget ? "pass" : "fail",
     reasonCode: internetTarget ? "route-to-internet" : "no-route",
@@ -601,7 +633,7 @@ export function runHomeNetworkProbe(
   });
   if (!internetTarget) return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
 
-  const natBefore = packet(sourceDevice.ip, targetDevice.ip, snapshot.router.wanIp);
+  const natBefore = packet(sourceDevice.ip, targetDevice.ip, targetDevice.ip);
   const natAfter = packet(snapshot.router.wanIp, targetDevice.ip, targetDevice.ip);
   addEvent({
     leg: "request",

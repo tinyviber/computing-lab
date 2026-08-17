@@ -23,6 +23,7 @@ describe("home network packet-path contract", () => {
       "arp-next-hop",
       "transmit-request",
       "target-response",
+      "destination-classification",
       "transmit-reply",
       "probe-complete",
     ]);
@@ -32,11 +33,48 @@ describe("home network packet-path contract", () => {
       "arp-target-resolved",
       "frame-sent",
       "target-replied",
+      "destination-local",
       "direct-delivery",
       "probe-complete",
     ]);
     expect(kinds(result)).not.toEqual(expect.arrayContaining(["route-lookup", "nat-request"]));
     expect(reasons(result)).not.toContain("arp-gateway-resolved");
+  });
+
+  it("classifies from the laptop prefix, then lets the printer independently route its reply", () => {
+    const result = run(createNetworkConfig({ printer: { prefix: "30" } }), "printer");
+    const classification = result.events.find(
+      (event) => event.kind === "destination-classification",
+    );
+    const requestEvents = result.events.filter((event) => event.leg === "request");
+
+    expect(classification).toMatchObject({
+      reasonCode: "destination-local",
+      packet: {
+        sourceIp: "192.168.1.10",
+        destinationIp: "192.168.1.30",
+        nextHopIp: "192.168.1.30",
+      },
+    });
+    expect(requestEvents.map((event) => event.kind)).not.toEqual(
+      expect.arrayContaining(["route-lookup", "nat-request"]),
+    );
+    expect(requestEvents.map((event) => event.reasonCode)).not.toContain("arp-gateway-resolved");
+    expect(result.events.at(-1)).toMatchObject({
+      leg: "reply",
+      kind: "arp-next-hop",
+      reasonCode: "gateway-unresolved",
+    });
+    expect(result.events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          leg: "reply",
+          kind: "destination-classification",
+          reasonCode: "destination-remote",
+        }),
+      ]),
+    );
+    expect(result.outcome).toBe("blocked");
   });
 
   it("models remote delivery as gateway ARP, route, NAT, WAN, and reverse NAT", () => {
@@ -70,6 +108,37 @@ describe("home network packet-path contract", () => {
     ]);
   });
 
+  it("routes to the Internet destination and keeps that next hop through source NAT", () => {
+    const result = run(createNetworkConfig(), "internet");
+    const route = result.events.find((event) => event.kind === "route-lookup");
+    const nat = result.events.find((event) => event.kind === "nat-request");
+    const wanTransmit = result.events.find(
+      (event) => event.kind === "transmit-request" && event.hop === "Internet",
+    );
+
+    expect(createNetworkConfig().router).not.toHaveProperty("gateway");
+    expect(route?.packet).toEqual({
+      sourceIp: "192.168.1.10",
+      destinationIp: "203.0.113.10",
+      nextHopIp: "203.0.113.10",
+    });
+    expect(nat).toMatchObject({
+      packet: {
+        sourceIp: "192.168.1.10",
+        destinationIp: "203.0.113.10",
+        nextHopIp: "203.0.113.10",
+      },
+      transformedPacket: {
+        sourceIp: "203.0.113.1",
+        destinationIp: "203.0.113.10",
+        nextHopIp: "203.0.113.10",
+      },
+    });
+    expect(nat?.reason).toMatch(/source NAT|SNAT/i);
+    expect(nat?.reason).not.toMatch(/reverse-NAT/i);
+    expect(wanTransmit?.packet).toEqual(nat?.transformedPacket);
+  });
+
   it("stops a wrong gateway at gateway ARP with gateway-unresolved, not preflight", () => {
     const result = run(createNetworkConfig({ laptop: { gateway: "192.168.1.254" } }), "internet");
 
@@ -78,6 +147,22 @@ describe("home network packet-path contract", () => {
     expect(result.firstFailure?.reasonCode).toBe("gateway-unresolved");
     expect(kinds(result)).not.toContain("preflight");
     expect(result.events.at(-1)?.reasonCode).toBe("gateway-unresolved");
+  });
+
+  it.each([
+    ["router LAN", "192.168.1.1"],
+    ["laptop", "192.168.1.10"],
+  ])("stops a printer duplicate with %s before destination classification", (_label, ip) => {
+    const result = run(createNetworkConfig({ printer: { ip } }), "printer");
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({
+      kind: "address-validation",
+      outcome: "fail",
+      reasonCode: "duplicate-address",
+    });
+    expect(result.events.some((event) => event.kind === "destination-classification")).toBe(false);
+    expect(result.outcome).toBe("blocked");
   });
 
   it("does not resolve a canonical gateway outside the source prefix", () => {
@@ -123,6 +208,18 @@ describe("home network packet-path contract", () => {
     expect(reasons(result)).toEqual(
       expect.arrayContaining(["route-to-internet", "nat-applied", "reverse-nat-applied"]),
     );
+  });
+
+  it("stops a malformed printer target before destination classification", () => {
+    const result = run(createNetworkConfig({ printer: { ip: "not-an-ip" } }), "printer");
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({
+      kind: "address-validation",
+      outcome: "fail",
+      reasonCode: "invalid-ip",
+    });
+    expect(result.events.some((event) => event.kind === "destination-classification")).toBe(false);
   });
 
   it("uses deterministic probe IDs and ends every failed trace at its first stopped event", () => {

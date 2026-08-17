@@ -115,6 +115,40 @@ describe("HomeNetworkPage", () => {
     );
   });
 
+  it("shows router interfaces and connected routes without a router gateway field", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /inspect device|设备/i }),
+      "router",
+    );
+    const inspector = screen.getByRole("complementary", { name: /network device inspector/i });
+
+    expect(within(inspector).queryByLabelText(/default gateway/i)).not.toBeInTheDocument();
+    expect(inspector).toHaveTextContent(/LAN.*192\.168\.1\.1\/24/i);
+    expect(inspector).toHaveTextContent(/WAN.*203\.0\.113\.1\/24/i);
+    expect(inspector).toHaveTextContent(/connected routes/i);
+    expect(inspector).toHaveTextContent(/192\.168\.1\.0\/24/);
+    expect(inspector).toHaveTextContent(/203\.0\.113\.0\/24/);
+  });
+
+  it("does not infer an observed path when target validation stops before classification", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network?scenario=invalid-config");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /optional prediction/i }),
+      "local",
+    );
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
+
+    const feedback = document.querySelector(".probe-prediction-feedback");
+    expect(feedback).toHaveTextContent(/observed:\s*not classified/i);
+    expect(feedback).toHaveTextContent(/validation stopped:.*invalid IPv4/i);
+    expect(feedback?.textContent).not.toMatch(/observed:\s*(local|remote)/i);
+  });
+
   it("does not expose the legacy phase/submit/check surface or shared panel classes", async () => {
     await renderAppAt("/labs/home-network");
 

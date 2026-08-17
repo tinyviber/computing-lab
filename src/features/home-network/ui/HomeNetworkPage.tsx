@@ -7,6 +7,7 @@ import {
   ROUTER_LAN_IP,
   ROUTER_WAN_IP,
   type NetworkDeviceId,
+  type NetworkDevice,
   type ProbeEvent,
   type ProbeTarget,
 } from "../domain/model";
@@ -30,6 +31,10 @@ function outcomeLabel(event: ProbeEvent): string {
 
 function packetLabel(packet: ProbeEvent["packet"]): string {
   return `${packet.sourceIp} → ${packet.destinationIp} · next hop ${packet.nextHopIp || "not selected"}`;
+}
+
+function deviceAddress(device: NetworkDevice | typeof INTERNET_ENDPOINT): string {
+  return device.id === "router" ? device.lanIp : device.ip;
 }
 
 function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
@@ -56,12 +61,21 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   const selectedPrediction = selectedTrace ? lesson.probePredictions[selectedTrace.id] : undefined;
   const selectedPredictionLabel =
     selectedPrediction === "local" ? "local / direct" : "remote / router";
-  const observedPath = selectedTrace?.events.some(
-    (event) => event.reasonCode === "destination-local",
-  )
-    ? "local"
-    : "remote";
-  const observedPathLabel = observedPath === "local" ? "local / direct" : "remote / router";
+  const destinationClassification = selectedTrace?.events.find(
+    (event) => event.kind === "destination-classification",
+  );
+  const observedPath =
+    destinationClassification?.reasonCode === "destination-local"
+      ? "local"
+      : destinationClassification?.reasonCode === "destination-remote"
+        ? "remote"
+        : undefined;
+  const observedPathLabel = observedPath
+    ? observedPath === "local"
+      ? "local / direct"
+      : "remote / router"
+    : "not classified";
+  const validationReason = selectedTrace?.firstFailure?.reason;
 
   const editField = (field: "ip" | "prefix" | "gateway", value: string) => {
     if (lesson.selectedDevice === "laptop" || lesson.selectedDevice === "printer") {
@@ -130,12 +144,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 const selected = lesson.selectedDevice === device.id;
                 return (
                   <g
-                    aria-label={`${device.name}, ${device.ip}`}
+                    aria-label={`${device.name}, ${deviceAddress(device)}`}
                     className={`network-topology-node network-node-${device.kind}${selected ? " is-selected" : ""}`}
                     key={device.id}
                     role="img"
                   >
-                    <title>{`${device.name}, ${device.ip}`}</title>
+                    <title>{`${device.name}, ${deviceAddress(device)}`}</title>
                     <circle
                       cx={position.x}
                       cy={position.y}
@@ -155,7 +169,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                       x={position.x}
                       y={position.y + 15}
                     >
-                      {device.ip}
+                      {deviceAddress(device)}
                     </text>
                   </g>
                 );
@@ -234,65 +248,77 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                     <span className="detail-device-kind">{selectedDevice.kind}</span>
                     <strong>{selectedDevice.name}</strong>
                   </div>
-                  <label className="network-field-label" htmlFor="device-ip">
-                    IPv4 address
-                  </label>
-                  <input
-                    aria-describedby="device-ip-help"
-                    className="network-input"
-                    id="device-ip"
-                    onChange={(event) => editField("ip", event.target.value)}
-                    readOnly={selectedDevice.id !== "laptop" && selectedDevice.id !== "printer"}
-                    type="text"
-                    value={selectedDevice.ip}
-                  />
-                  <p className="network-field-help" id="device-ip-help">
-                    Use four decimal octets.
-                  </p>
-                  <label className="network-field-label" htmlFor="device-prefix">
-                    Prefix length
-                  </label>
-                  <div className="network-prefix-input">
-                    <span aria-hidden="true">/</span>
-                    <input
-                      aria-describedby="device-prefix-help"
-                      className="network-input network-prefix"
-                      id="device-prefix"
-                      onChange={(event) => editField("prefix", event.target.value)}
-                      readOnly={selectedDevice.id !== "laptop" && selectedDevice.id !== "printer"}
-                      type="text"
-                      value={selectedDevice.prefix}
-                    />
-                  </div>
-                  <p className="network-field-help" id="device-prefix-help">
-                    Only integer prefixes /1 through /30 are valid.
-                  </p>
-                  {selectedDevice.id !== "internet" ? (
-                    <>
-                      <label className="network-field-label" htmlFor="device-gateway">
-                        Default gateway
-                      </label>
-                      <input
-                        aria-describedby="device-gateway-help"
-                        className="network-input"
-                        id="device-gateway"
-                        onChange={(event) => editField("gateway", event.target.value)}
-                        readOnly={selectedDevice.id === "router"}
-                        type="text"
-                        value={"gateway" in selectedDevice ? selectedDevice.gateway : ROUTER_LAN_IP}
-                      />
-                      <p className="network-field-help" id="device-gateway-help">
-                        Gateway resolution is checked during ARP, not preflight.
-                      </p>
-                    </>
-                  ) : null}
                   {selectedDevice.id === "router" ? (
                     <div className="fixed-route-list">
+                      <strong>Interfaces</strong>
+                      <span>
+                        LAN · {selectedDevice.lanIp}/{selectedDevice.lanPrefix}
+                      </span>
+                      <span>
+                        WAN · {selectedDevice.wanIp}/{selectedDevice.wanPrefix}
+                      </span>
                       <strong>Connected routes</strong>
-                      <span>192.168.1.0/24 · LAN</span>
-                      <span>203.0.113.0/24 · WAN</span>
+                      {selectedDevice.connectedRoutes.map((route) => (
+                        <span key={route}>{route}</span>
+                      ))}
                     </div>
-                  ) : null}
+                  ) : (
+                    <>
+                      <label className="network-field-label" htmlFor="device-ip">
+                        IPv4 address
+                      </label>
+                      <input
+                        aria-describedby="device-ip-help"
+                        className="network-input"
+                        id="device-ip"
+                        onChange={(event) => editField("ip", event.target.value)}
+                        readOnly={selectedDevice.id !== "laptop" && selectedDevice.id !== "printer"}
+                        type="text"
+                        value={selectedDevice.ip}
+                      />
+                      <p className="network-field-help" id="device-ip-help">
+                        Use four decimal octets.
+                      </p>
+                      <label className="network-field-label" htmlFor="device-prefix">
+                        Prefix length
+                      </label>
+                      <div className="network-prefix-input">
+                        <span aria-hidden="true">/</span>
+                        <input
+                          aria-describedby="device-prefix-help"
+                          className="network-input network-prefix"
+                          id="device-prefix"
+                          onChange={(event) => editField("prefix", event.target.value)}
+                          readOnly={
+                            selectedDevice.id !== "laptop" && selectedDevice.id !== "printer"
+                          }
+                          type="text"
+                          value={selectedDevice.prefix}
+                        />
+                      </div>
+                      <p className="network-field-help" id="device-prefix-help">
+                        Only integer prefixes /1 through /30 are valid.
+                      </p>
+                      {selectedDevice.id !== "internet" ? (
+                        <>
+                          <label className="network-field-label" htmlFor="device-gateway">
+                            Default gateway
+                          </label>
+                          <input
+                            aria-describedby="device-gateway-help"
+                            className="network-input"
+                            id="device-gateway"
+                            onChange={(event) => editField("gateway", event.target.value)}
+                            type="text"
+                            value={selectedDevice.gateway}
+                          />
+                          <p className="network-field-help" id="device-gateway-help">
+                            Gateway resolution is checked during ARP, not preflight.
+                          </p>
+                        </>
+                      ) : null}
+                    </>
+                  )}
                 </>
               ) : (
                 <p>Internet is a fixed probe endpoint at 203.0.113.10/24.</p>
@@ -377,7 +403,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           {selectedTrace && selectedPrediction ? (
             <p className="probe-prediction-feedback" aria-live="polite">
               Prediction: <strong>{selectedPredictionLabel}</strong> · observed: {observedPathLabel}{" "}
-              · {selectedPrediction === observedPath ? "match" : "mismatch"}
+              ·{" "}
+              {observedPath
+                ? selectedPrediction === observedPath
+                  ? "match"
+                  : "mismatch"
+                : `validation stopped: ${validationReason ?? "no destination classification"}`}
             </p>
           ) : null}
         </section>
