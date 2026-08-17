@@ -131,6 +131,7 @@ describe("HomeNetworkPage", () => {
     expect(inspector).toHaveTextContent(/connected routes/i);
     expect(inspector).toHaveTextContent(/192\.168\.1\.0\/24/);
     expect(inspector).toHaveTextContent(/203\.0\.113\.0\/24/);
+    expect(screen.getByRole("button", { name: /家庭路由器.*192\.168\.1\.1/i })).toBeInTheDocument();
   });
 
   it("does not infer an observed path when target validation stops before classification", async () => {

@@ -196,7 +196,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                   <span className="device-summary-dot" aria-hidden="true" />
                   <span>
                     <strong>{device.name}</strong>
-                    <small>{device.ip}</small>
+                    <small>{deviceAddress(device)}</small>
                   </span>
                 </button>
               ))}

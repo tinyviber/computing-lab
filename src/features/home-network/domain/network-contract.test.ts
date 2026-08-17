@@ -87,9 +87,12 @@ describe("home network packet-path contract", () => {
       "transmit-request",
       "route-lookup",
       "nat-request",
+      "arp-next-hop",
       "transmit-request",
       "target-response",
       "reverse-nat",
+      "route-lookup",
+      "arp-next-hop",
       "transmit-reply",
       "probe-complete",
     ]);
@@ -100,9 +103,12 @@ describe("home network packet-path contract", () => {
       "frame-sent",
       "route-to-internet",
       "nat-applied",
+      "arp-target-resolved",
       "wan-frame-sent",
       "target-replied",
       "reverse-nat-applied",
+      "route-to-lan",
+      "arp-target-resolved",
       "reply-delivered",
       "probe-complete",
     ]);
@@ -165,6 +171,22 @@ describe("home network packet-path contract", () => {
     expect(result.outcome).toBe("blocked");
   });
 
+  it.each([
+    ["router LAN", "192.168.1.1"],
+    ["laptop", "192.168.1.10"],
+  ])("stops an Internet probe when printer duplicates %s on the LAN", (_label, ip) => {
+    const result = run(createNetworkConfig({ printer: { ip } }), "internet");
+
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0]).toMatchObject({
+      kind: "address-validation",
+      outcome: "fail",
+      reasonCode: "duplicate-address",
+    });
+    expect(result.events.some((event) => event.kind === "destination-classification")).toBe(false);
+    expect(result.outcome).toBe("blocked");
+  });
+
   it("does not resolve a canonical gateway outside the source prefix", () => {
     const result = run(createNetworkConfig({ laptop: { prefix: "30" } }), "internet");
 
@@ -199,6 +221,61 @@ describe("home network packet-path contract", () => {
     expect(reasons(repaired)).toContain("direct-delivery");
     expect(repaired.outcome).toBe("delivered");
     expect(failed).not.toEqual(repaired);
+  });
+
+  it("forwards a remote printer request through the router's connected LAN route", () => {
+    const result = run(
+      createNetworkConfig({ laptop: { prefix: "28" }, printer: { prefix: "24" } }),
+      "printer",
+    );
+
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-remote",
+      "arp-gateway-resolved",
+      "frame-sent",
+      "route-to-lan",
+      "arp-target-resolved",
+      "frame-sent",
+      "target-replied",
+      "destination-local",
+      "direct-delivery",
+      "probe-complete",
+    ]);
+    expect(result.events.find((event) => event.reasonCode === "route-to-lan")?.packet).toEqual({
+      sourceIp: "192.168.1.10",
+      destinationIp: "192.168.1.30",
+      nextHopIp: "192.168.1.30",
+    });
+    expect(result.outcome).toBe("delivered");
+  });
+
+  it("forwards a remote printer reply through the router after gateway ARP", () => {
+    const result = run(
+      createNetworkConfig({ printer: { ip: "192.168.1.6", prefix: "29" } }),
+      "printer",
+    );
+
+    expect(reasons(result)).toEqual([
+      "address-valid",
+      "destination-local",
+      "arp-target-resolved",
+      "frame-sent",
+      "target-replied",
+      "destination-remote",
+      "arp-gateway-resolved",
+      "frame-sent",
+      "route-to-lan",
+      "arp-target-resolved",
+      "direct-delivery",
+      "probe-complete",
+    ]);
+    expect(result.events.find((event) => event.reasonCode === "route-to-lan")?.packet).toEqual({
+      sourceIp: "192.168.1.6",
+      destinationIp: "192.168.1.10",
+      nextHopIp: "192.168.1.10",
+    });
+    expect(result.outcome).toBe("delivered");
   });
 
   it("does not let an unrelated malformed printer block Internet route and NAT", () => {
