@@ -3,10 +3,18 @@ export type DeviceKind = "router" | "laptop" | "printer" | "internet";
 export type NetworkDeviceId = "router" | "laptop" | "printer" | "internet";
 export type HostDeviceId = "laptop" | "printer";
 export type ProbeTarget = "printer" | "internet";
+export type L2SegmentId = "lan" | "wan";
+
+export type L2Segment = {
+  id: L2SegmentId;
+  name: string;
+  members: readonly NetworkDeviceId[];
+};
 
 export type NetworkLink = {
   from: NetworkDeviceId;
   to: NetworkDeviceId;
+  segment: L2SegmentId;
 };
 
 export type HostConfig = {
@@ -113,9 +121,14 @@ export function createNetworkConfig(
 export const DEFAULT_NETWORK_CONFIG = createNetworkConfig();
 
 export const NETWORK_LINKS: readonly NetworkLink[] = [
-  { from: "router", to: "laptop" },
-  { from: "router", to: "printer" },
-  { from: "router", to: "internet" },
+  { from: "router", to: "laptop", segment: "lan" },
+  { from: "router", to: "printer", segment: "lan" },
+  { from: "router", to: "internet", segment: "wan" },
+];
+
+export const L2_SEGMENTS: readonly L2Segment[] = [
+  { id: "lan", name: "Home LAN", members: ["router", "laptop", "printer"] },
+  { id: "wan", name: "WAN", members: ["router", "internet"] },
 ];
 
 export function cloneNetworkConfig(config: NetworkConfig): NetworkConfig {
@@ -177,6 +190,57 @@ export function isOnFixedLan(ip: string): boolean {
   return isInSubnet(ip, FIXED_LAN_IP, FIXED_LAN_PREFIX);
 }
 
+export type NeighborResolution =
+  | {
+      status: "resolved";
+      segment: L2SegmentId;
+      ip: string;
+      deviceId: NetworkDeviceId;
+    }
+  | {
+      status: "unresolved";
+      segment: L2SegmentId;
+      ip: string;
+      reason: "invalid-ip" | "duplicate-address" | "no-neighbor";
+    };
+
+function segmentInterfaceIp(
+  config: NetworkConfig,
+  segment: L2SegmentId,
+  deviceId: NetworkDeviceId,
+): string | undefined {
+  if (deviceId === "router") {
+    return segment === "lan" ? config.router.lanIp : config.router.wanIp;
+  }
+  if (deviceId === "internet") return segment === "wan" ? INTERNET_ENDPOINT.ip : undefined;
+  return segment === "lan" ? config[deviceId].ip : undefined;
+}
+
+export function resolveNeighbor(
+  config: NetworkConfig,
+  segment: L2SegmentId,
+  ip: string,
+): NeighborResolution {
+  const address = parseIpv4(ip);
+  if (address === undefined) {
+    return { status: "unresolved", segment, ip, reason: "invalid-ip" };
+  }
+  const definition = L2_SEGMENTS.find((candidate) => candidate.id === segment);
+  const matches = (definition?.members ?? []).filter((deviceId) => {
+    const interfaceIp = segmentInterfaceIp(config, segment, deviceId);
+    return interfaceIp !== undefined && parseIpv4(interfaceIp) === address;
+  });
+  if (matches.length === 1) {
+    return { status: "resolved", segment, ip, deviceId: matches[0] };
+  }
+  return {
+    status: "unresolved",
+    segment,
+    ip,
+    reason: matches.length > 1 ? "duplicate-address" : "no-neighbor",
+  };
+}
+
 export function validateNetwork(config: NetworkConfig): NetworkValidation {
   const issues: IssueCode[] = [];
   const devices = [
@@ -212,6 +276,7 @@ export type ProbeReasonCode =
   | "destination-remote"
   | "arp-target-resolved"
   | "arp-gateway-resolved"
+  | "neighbor-unresolved"
   | "gateway-unresolved"
   | "frame-sent"
   | "direct-delivery"
@@ -303,6 +368,7 @@ const REASON_TEXT: Record<ProbeReasonCode, string> = {
   "destination-remote": "The destination is outside the source IP and prefix.",
   "arp-target-resolved": "ARP resolved the selected next hop on the egress segment.",
   "arp-gateway-resolved": "ARP resolved the configured router LAN gateway.",
+  "neighbor-unresolved": "ARP found no unique device with this address on the segment.",
   "gateway-unresolved": "The configured gateway did not resolve to the router LAN address.",
   "frame-sent": "The LAN frame was transmitted.",
   "direct-delivery": "The reply was delivered directly on the fixed LAN.",
@@ -316,6 +382,14 @@ const REASON_TEXT: Record<ProbeReasonCode, string> = {
   "reply-delivered": "The reply reached the laptop.",
   "probe-complete": "The probe completed and the reply reached the source.",
 };
+
+function neighborFailureReasonCode(
+  resolution: Extract<NeighborResolution, { status: "unresolved" }>,
+): "invalid-ip" | "duplicate-address" | "neighbor-unresolved" {
+  if (resolution.reason === "invalid-ip") return "invalid-ip";
+  if (resolution.reason === "duplicate-address") return "duplicate-address";
+  return "neighbor-unresolved";
+}
 
 function participantFor(config: NetworkConfig, id: NetworkDeviceId): ProbeParticipant {
   if (id === "router") {
@@ -403,6 +477,7 @@ type ConnectedRouteMatch = {
   route: string;
   prefix: number;
   network: number;
+  segment: L2SegmentId;
   interfaceLabel: "router LAN" | "router WAN";
   reasonCode: "route-to-lan" | "route-to-internet";
   nextHopIp: string;
@@ -441,6 +516,7 @@ function lookupConnectedRoute(
         return {
           route,
           ...parsed,
+          segment: "lan" as const,
           interfaceLabel: "router LAN" as const,
           reasonCode: "route-to-lan" as const,
           nextHopIp: destinationIp,
@@ -454,6 +530,7 @@ function lookupConnectedRoute(
         return {
           route,
           ...parsed,
+          segment: "wan" as const,
           interfaceLabel: "router WAN" as const,
           reasonCode: "route-to-internet" as const,
           nextHopIp: destinationIp,
@@ -552,16 +629,22 @@ export function runHomeNetworkProbe(
     if (!match) return false;
 
     const transmittedPacket = options.transform?.(routePacket, match) ?? routePacket;
+    const neighbor = resolveNeighbor(snapshot, match.segment, match.nextHopIp);
+    const neighborResolved = neighbor.status === "resolved";
+    const neighborReasonCode = neighborResolved
+      ? "arp-target-resolved"
+      : neighborFailureReasonCode(neighbor);
     addEvent({
       leg: options.leg,
       actor: "router",
-      hop: options.resolutionHop,
+      hop: neighborResolved ? neighbor.deviceId : options.resolutionHop,
       packet: transmittedPacket,
       kind: "arp-next-hop",
-      outcome: "pass",
-      reasonCode: "arp-target-resolved",
-      reason: REASON_TEXT["arp-target-resolved"],
+      outcome: neighborResolved ? "pass" : "fail",
+      reasonCode: neighborReasonCode,
+      reason: REASON_TEXT[neighborReasonCode],
     });
+    if (!neighborResolved) return false;
     addEvent({
       leg: options.leg,
       actor: "router",
@@ -603,8 +686,7 @@ export function runHomeNetworkProbe(
   });
 
   const sourcePrefix = parseHostPrefix(sourceDevice.prefix) ?? 24;
-  const targetIsLocal =
-    target === "printer" && isInSubnet(targetDevice.ip, sourceDevice.ip, sourcePrefix);
+  const targetIsLocal = isInSubnet(targetDevice.ip, sourceDevice.ip, sourcePrefix);
   const nextHopIp = targetIsLocal ? targetDevice.ip : sourceDevice.gateway;
   addEvent({
     leg: "request",
@@ -618,16 +700,24 @@ export function runHomeNetworkProbe(
   });
 
   if (targetIsLocal) {
+    const neighbor = resolveNeighbor(snapshot, "lan", targetDevice.ip);
+    const neighborResolved = neighbor.status === "resolved";
+    const neighborReasonCode = neighborResolved
+      ? "arp-target-resolved"
+      : neighborFailureReasonCode(neighbor);
     addEvent({
       leg: "request",
       actor: normalizedSource,
-      hop: target,
+      hop: neighborResolved ? neighbor.deviceId : target,
       packet: packet(sourceDevice.ip, targetDevice.ip, targetDevice.ip),
       kind: "arp-next-hop",
-      outcome: "pass",
-      reasonCode: "arp-target-resolved",
-      reason: REASON_TEXT["arp-target-resolved"],
+      outcome: neighborResolved ? "pass" : "fail",
+      reasonCode: neighborReasonCode,
+      reason: REASON_TEXT[neighborReasonCode],
     });
+    if (!neighborResolved) {
+      return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
+    }
     addEvent({
       leg: "request",
       actor: normalizedSource,
@@ -663,9 +753,10 @@ export function runHomeNetworkProbe(
     });
     if (!replyIsLocal) {
       const gatewayAddress = parseIpv4(snapshot.printer.gateway);
+      const gatewayNeighbor = resolveNeighbor(snapshot, "lan", snapshot.printer.gateway);
       const gatewayResolved =
-        gatewayAddress !== undefined &&
-        snapshot.printer.gateway === snapshot.router.lanIp &&
+        gatewayNeighbor.status === "resolved" &&
+        gatewayNeighbor.deviceId === "router" &&
         isInSubnet(snapshot.printer.gateway, snapshot.printer.ip, targetPrefix);
       addEvent({
         leg: "reply",
@@ -717,7 +808,7 @@ export function runHomeNetworkProbe(
           resolutionHop: normalizedSource,
           transmitHop: normalizedSource,
           transmitKind: "transmit-reply",
-          transmitReasonCode: "direct-delivery",
+          transmitReasonCode: "reply-delivered",
         },
       );
       if (!replyForwarded) {
@@ -738,9 +829,10 @@ export function runHomeNetworkProbe(
   }
 
   const gatewayAddress = parseIpv4(sourceDevice.gateway);
+  const gatewayNeighbor = resolveNeighbor(snapshot, "lan", sourceDevice.gateway);
   const gatewayResolved =
-    gatewayAddress !== undefined &&
-    sourceDevice.gateway === snapshot.router.lanIp &&
+    gatewayNeighbor.status === "resolved" &&
+    gatewayNeighbor.deviceId === "router" &&
     isInSubnet(sourceDevice.gateway, sourceDevice.ip, sourcePrefix);
   addEvent({
     leg: "request",
@@ -839,9 +931,10 @@ export function runHomeNetworkProbe(
     });
     if (!replyIsLocal) {
       const gatewayAddress = parseIpv4(snapshot.printer.gateway);
+      const gatewayNeighbor = resolveNeighbor(snapshot, "lan", snapshot.printer.gateway);
       const gatewayResolved =
-        gatewayAddress !== undefined &&
-        snapshot.printer.gateway === snapshot.router.lanIp &&
+        gatewayNeighbor.status === "resolved" &&
+        gatewayNeighbor.deviceId === "router" &&
         isInSubnet(snapshot.printer.gateway, snapshot.printer.ip, targetPrefix);
       addEvent({
         leg: "reply",
@@ -880,7 +973,7 @@ export function runHomeNetworkProbe(
           resolutionHop: normalizedSource,
           transmitHop: normalizedSource,
           transmitKind: "transmit-reply",
-          transmitReasonCode: "direct-delivery",
+          transmitReasonCode: "reply-delivered",
         },
       );
       if (!replyForwarded) {
@@ -911,7 +1004,7 @@ export function runHomeNetworkProbe(
     return makeProbeResult(probeId, snapshot, normalizedSource, target, events);
   }
 
-  const replyBefore = packet(targetDevice.ip, snapshot.router.wanIp, snapshot.router.wanIp);
+  const replyBefore = packet(targetDevice.ip, snapshot.router.wanIp, "");
   addEvent({
     leg: "reply",
     actor: "internet",
@@ -922,7 +1015,7 @@ export function runHomeNetworkProbe(
     reasonCode: "target-replied",
     reason: REASON_TEXT["target-replied"],
   });
-  const replyAfter = packet(targetDevice.ip, sourceDevice.ip, sourceDevice.ip);
+  const replyAfter = packet(targetDevice.ip, sourceDevice.ip, "");
   addEvent({
     leg: "reply",
     actor: "router",

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { createNetworkConfig, probeNetwork, type NetworkConfig, type ProbeResult } from "./model";
+import {
+  INTERNET_IP,
+  L2_SEGMENTS,
+  createNetworkConfig,
+  probeNetwork,
+  resolveNeighbor,
+  type NetworkConfig,
+  type ProbeResult,
+} from "./model";
 
 function run(config: NetworkConfig, target: "printer" | "internet"): ProbeResult {
   return probeNetwork(config, target, "laptop");
@@ -14,6 +22,59 @@ function reasons(result: ProbeResult): string[] {
 }
 
 describe("home network packet-path contract", () => {
+  it("models fixed LAN/WAN segments and resolves only actual neighbors", () => {
+    const config = createNetworkConfig();
+
+    expect(L2_SEGMENTS).toEqual([
+      { id: "lan", name: "Home LAN", members: ["router", "laptop", "printer"] },
+      { id: "wan", name: "WAN", members: ["router", "internet"] },
+    ]);
+    expect(resolveNeighbor(config, "lan", config.printer.ip)).toMatchObject({
+      status: "resolved",
+      deviceId: "printer",
+    });
+    expect(resolveNeighbor(config, "wan", INTERNET_IP)).toMatchObject({
+      status: "resolved",
+      deviceId: "internet",
+    });
+    expect(resolveNeighbor(config, "lan", INTERNET_IP)).toMatchObject({
+      status: "unresolved",
+      reason: "no-neighbor",
+    });
+    expect(resolveNeighbor(config, "lan", "192.168.2.30")).toMatchObject({
+      status: "unresolved",
+      reason: "no-neighbor",
+    });
+    expect(
+      resolveNeighbor(
+        createNetworkConfig({ printer: { ip: config.router.lanIp } }),
+        "lan",
+        config.router.lanIp,
+      ),
+    ).toMatchObject({
+      status: "unresolved",
+      reason: "duplicate-address",
+    });
+  });
+
+  it("keeps host locality target-agnostic, then lets the actual LAN decide ARP", () => {
+    const result = run(
+      createNetworkConfig({ laptop: { ip: "203.0.113.20", prefix: "24" } }),
+      "internet",
+    );
+
+    expect(reasons(result)).toEqual(["address-valid", "destination-local", "neighbor-unresolved"]);
+    expect(result.events.at(-1)).toMatchObject({
+      kind: "arp-next-hop",
+      outcome: "fail",
+      packet: {
+        destinationIp: INTERNET_IP,
+        nextHopIp: INTERNET_IP,
+      },
+    });
+    expect(result.outcome).toBe("blocked");
+  });
+
   it("models local delivery without gateway/router/NAT hops", () => {
     const result = run(createNetworkConfig(), "printer");
 
@@ -143,6 +204,14 @@ describe("home network packet-path contract", () => {
     expect(nat?.reason).toMatch(/source NAT|SNAT/i);
     expect(nat?.reason).not.toMatch(/reverse-NAT/i);
     expect(wanTransmit?.packet).toEqual(nat?.transformedPacket);
+
+    const reverseNat = result.events.find((event) => event.kind === "reverse-nat");
+    const replyRoute = result.events.find(
+      (event) => event.leg === "reply" && event.kind === "route-lookup",
+    );
+    expect(reverseNat?.packet.nextHopIp).toBe("");
+    expect(reverseNat?.transformedPacket?.nextHopIp).toBe("");
+    expect(replyRoute?.packet.nextHopIp).toBe("192.168.1.10");
   });
 
   it("stops a wrong gateway at gateway ARP with gateway-unresolved, not preflight", () => {
@@ -267,7 +336,7 @@ describe("home network packet-path contract", () => {
       "frame-sent",
       "route-to-lan",
       "arp-target-resolved",
-      "direct-delivery",
+      "reply-delivered",
       "probe-complete",
     ]);
     expect(result.events.find((event) => event.reasonCode === "route-to-lan")?.packet).toEqual({
