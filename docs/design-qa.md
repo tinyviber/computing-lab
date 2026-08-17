@@ -2,7 +2,7 @@
 
 ## Intent
 
-Computing Lab is a local-first collection of interactive computing lessons. The Image Encoding lesson inspects the relationship between sampling density and palette depth. The UI uses a restrained technical surface: a cool canvas, white panels, hairline borders, tight type hierarchy, and a single blue interaction accent.
+Computing Lab is a local-first collection of interactive computing lessons. Image Encoding exposes the causal chain from a source raster through spatial sampling, indexed color quantization, finite representation, and same-size reconstruction. The UI uses a restrained technical surface: a cool canvas, white panels, hairline borders, tight type hierarchy, and a single blue interaction accent.
 
 The existing `vercel_design.md` reference is preserved as-is. This screen intentionally follows the implementation brief in this task instead of the reference file's marketing-gradient and pill guidance.
 
@@ -22,27 +22,25 @@ The existing `vercel_design.md` reference is preserved as-is. This screen intent
 
 ## Responsive QA matrix
 
-| Viewport    | Expected composition                                                             | Verification                                                                           |
-| ----------- | -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| 1440 × 1024 | 72px header; 280px rail; flexible center; 400px inspector; dynamic 2×2–8×8 cells | No horizontal overflow; rail, preview, and inspector align as three stable regions     |
-| 1024 × 900  | 240px rail; workspace in one column; inspector details below preview             | Inspector uses native `details`; action area becomes a compact two-column row          |
-| 390 × 844   | Single column; mobile rail menu; stacked inspector; sticky safe-area actions     | Escape closes the rail and returns focus to the menu button; controls remain reachable |
+| Viewport    | Expected composition                                    | Verification                                                                       |
+| ----------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1440 × 1024 | 72px header; flexible center; feature-local side column | No horizontal overflow; source/reconstruction and inspector remain legible         |
+| 1024 × 900  | Workspace in one column; controls below evidence        | Canvas pair keeps equal display dimensions; representation remains inspectable     |
+| 390 × 844   | Single column; mobile rail menu; stacked feature cards  | Escape closes the app rail; controls, upload, tabs, and inspector remain reachable |
 
 ## Interaction QA
 
-- The visible teaching loop is four steps: `01 Observe sampling`, `02 Adjust quantization`, `03 Calculate encoded payload`, and `04 Write conclusion`; progress starts at `1 / 4`.
-- Density and bits are constrained to `2..8`; moving either slider enters `editing`.
-- `ready` exposes Run preview; Run preview enters `editing`.
-- `editing` exposes Submit encoding; only `density=4` and `bits=8` produce `success`.
-- Other submitted profiles produce `failure`; Retry retains values and returns to `editing`.
-- Success advances only while `step < 4`; the final-step action stays disabled.
-- Reset returns to `ready` with density `4` and bits `8`, retaining the current workflow step.
-- The pixel field is a read-only dynamic `density×density` grid (2×2 through 8×8) of non-focusable `gridcell` elements; color labels remain available to assistive technology.
-- Pixel labels include row, column, sample index, source color, display color, and bit depth.
+- The course is continuous: source selection/upload, sampling, phase, bit depth, view changes, and pixel inspection update evidence immediately. There is no workflow step, submit, retry, success/failure, or unique target profile.
+- Sampling is constrained to `10..100%`; bit depth is constrained to `1..8`; phase is constrained to `0..0.99`. Per-axis rounded geometry is authoritative: when both axes already match source density, phase canonicalizes to `0` and the control is disabled; when only one axis is full density, the control remains active and identifies the fixed axis.
+- Source and reconstructed canvases retain the same source display dimensions. The reconstructed raster is generated from sampled/quantized cells and is not CSS resizing.
+- Built-in fixtures include a disclosed controlled color scene (not a photograph), gradient, checkerboard, text-edge, and pixel-grid material. Upload decode errors are feature-local alerts; uploaded pixels stay in memory.
+- The representation grid is a read-only dynamic sampled grid with accessible cell labels containing sample index, source color, palette index, and encoded bits.
+- The pixel inspector shows source coordinate, sample cell, sampled value, palette entry/index, exact bit string, and RGB error used by the reconstruction.
+- The error view renders per-pixel RGB difference evidence; raw payload uses `sampledWidth × sampledHeight × bitDepth` and explicitly does not claim browser file size.
 
 ## Visual checks
 
-- Focus-visible rings are visible on buttons, sliders, and the inspector disclosure.
-- Status uses `role="status"`; failure uses `role="alert"`.
-- The page has one `h1`, semantic `header` / `nav` / `main` / `aside` landmarks, and an `aria-current="step"` marker.
-- No remote fonts, APIs, uploads, codecs, backend, or account system are included. Client-side routing, audio representation, and home-network configuration lessons are included; no real microphone, network, or device access is used.
+- Focus-visible rings are visible on buttons, selects, sliders, file input, tabs, and image canvases; focused canvases support arrow-key pixel selection.
+- Upload failures use `role="alert"`; successful local upload notices use `role="status"`.
+- The page has one `h1`, semantic `header` / `main` / `aside` landmarks, and feature-local evidence tabs.
+- No remote fonts, APIs, codecs, backend, account system, or shared lesson workflow are included. Client-side routing, audio representation, and home-network configuration lessons remain separate features.

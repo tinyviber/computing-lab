@@ -74,15 +74,17 @@ source image / source pixels
 
 #### Scenario URL
 
-以下是重做后的 target scenario contract，用于教师分享有意义的教学情境，不保存通用 workflow 状态。它们不是当前 parser 已支持的完整 query contract；当前实现只支持有限的 `scenario`/numeric keys。实现课程时，feature 应先落地各自 parser/serializer，再启用这些 URL。
+重做后的 Image feature 已落地一个可复现、但不保存通用 workflow 状态的 scenario contract。`image` 选择内置材料，`sample` 是每轴空间采样百分比，`phase` 是采样网格相位，`bits` 是 indexed palette index width，`view` 只选择观察证据。`phase` 的 canonical value 由内置 fixture 的 rounded sampled geometry 决定：两轴都已达到 source density 时为 `0`；只有一个轴达到 density 时，另一个轴仍可使用 phase。上传的 bitmap、选中像素、hover/focus 和 decode 错误不进入 URL。
 
 ```text
-/labs/image-encoding?image=checkerboard&sample=8x8&phase=0.5&view=compare
-/labs/image-encoding?image=gradient&palette=4&view=palette
-/labs/image-encoding?image=photo&sample=16x16&bits=2&view=error
-/labs/image-encoding?image=text-edge&budget=1024&compare=spatial-vs-color
-/labs/image-encoding?image=pixel-grid&edit=true&view=representation
+/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=compare
+/labs/image-encoding?image=gradient&sample=50&bits=2&view=quantization
+/labs/image-encoding?image=photo&sample=25&bits=8&view=error
+/labs/image-encoding?image=text-edge&sample=40&phase=0.25&view=sampling
+/labs/image-encoding?image=pixel-grid&sample=100&bits=4&view=representation
 ```
+
+首版不把 `budget`、`palette`、`compare`、`edit` 伪装成已实现的通用状态；预算和 source 编辑保留为后续 feature-local 研究，不引入 universal workflow。
 
 ### 1.2 声音编码
 

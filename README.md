@@ -44,7 +44,7 @@ Routes:
 - `/labs/audio-encoding` — waveform sampling
 - `/labs/home-network` — gateway configuration
 
-All lesson calculations run in the browser. Query scenarios are shareable, for example `/labs/image-encoding?scenario=low-sampling`.
+All lesson calculations run in the browser. Image scenarios are shareable, for example `/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=error`; uploaded image pixels stay local and are not written to the URL.
 
 ## Static host deployment
 

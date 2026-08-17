@@ -200,6 +200,29 @@ describe("architecture boundaries", () => {
     expect(soundModel).not.toMatch(/(?:Date|performance|requestAnimationFrame|AudioContext)/);
   });
 
+  it("keeps Image independent of the legacy shared lesson primitives", () => {
+    const imageUiFile = join(srcRoot, "features/image-encoding/ui/ImageEncodingPage.tsx");
+    const imageStateFile = join(srcRoot, "features/image-encoding/lesson/state.ts");
+    const imageDomainFile = join(srcRoot, "features/image-encoding/domain/model.ts");
+    const imageUi = readFileSync(imageUiFile, "utf8");
+    const imageState = readFileSync(imageStateFile, "utf8");
+    const imageDomain = readFileSync(imageDomainFile, "utf8");
+
+    for (const primitive of [
+      "ExperimentStatus",
+      "ExperimentPhase",
+      "FormulaPanel",
+      "ParameterControl",
+      "VisualizationPanel",
+    ]) {
+      expect(imageUi, `Image UI must not import ${primitive}`).not.toMatch(
+        new RegExp(`import[^;\\n]*\\b${primitive}\\b`),
+      );
+    }
+    expect(imageState).not.toMatch(/(?:ImagePhase|submit|retry|next-step)/);
+    expect(imageDomain).not.toMatch(/(?:React|Canvas|ImageData|document|window)/);
+  });
+
   it("gives LabShell only chrome and children ownership", () => {
     const shellFile = join(srcRoot, "shared/lab/LabShell.tsx");
     const shell = readFileSync(shellFile, "utf8");
