@@ -27,3 +27,23 @@ This development Mac has repeated macOS 14.4.1 kernel panics while `node` is act
 ## Safe handoff
 
 Agents running on the affected host must report the exact command, worker count, and whether it was serial. A passing local test is not permission to increase concurrency. Remote CI and healthy hosts may run their normal safe jobs; this host remains single-worker.
+
+## Incident record: 2026-08-17
+
+Read-only diagnostics after the latest crash found:
+
+- Two same-day kernel panic reports with the panicked task named `node`; one stopped in `vm_page_alloc`, the other in `_lookup`.
+- Bun and Node SIGSEGV reports at 14:58, both launched by the Codex coalition.
+- A Codex resource report showing about 2.1 GB of file-backed writes, plus repeated `apfsd` CPU-resource reports at roughly 85–88% CPU.
+- The machine rebooted; current free memory is healthy, but the data volume was at 91–92% usage with about 83–86 GiB free during inspection.
+
+These reports do not prove that lesson code caused the kernel panics. They do prove that concurrent Node/Bun workloads and repeated filesystem activity must be treated as unsafe on this host.
+
+Additional mandatory precautions:
+
+- Never dispatch multiple local agents that can run shell commands in this repository. Specialist agents may inspect or edit only when their execution is serialized.
+- Never run a test, build, install, dev server, browser run, or repository-wide scan concurrently with another command. One command, then inspect its result.
+- Do not retry a crash, hang, or timeout automatically. Stop, collect the small diagnostic output, and report it.
+- Do not run full gates from individual implementation agents. Reserve one serialized gate for the main agent after focused checks pass.
+- Before every heavy command, check for active `node`, `bun`, `apfsd`, or filesystem pressure. If present, do not add load.
+- After any new panic, reboot, SIGSEGV, sustained freeze, or new resource diagnostic, stop all heavy work immediately.

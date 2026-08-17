@@ -1,90 +1,170 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { renderAppAt } from "../../../test/router-test-helpers";
 
+const button = (name: RegExp) => screen.getByRole("button", { name });
+
 describe("HomeNetworkPage", () => {
-  it("renders device palette and accessible topology links for every fixture edge", async () => {
+  it("renders the Home Network workspace with semantic controls and SVG text evidence", async () => {
     await renderAppAt("/labs/home-network");
 
-    const palette = screen.getByRole("region", { name: /device palette/i });
-    expect(within(palette).getAllByRole("button")).toHaveLength(3);
-    expect(within(palette).getByRole("button", { name: /家庭路由器/i })).toBeInTheDocument();
-    expect(within(palette).getByRole("button", { name: /学习电脑/i })).toBeInTheDocument();
-    expect(within(palette).getByRole("button", { name: /手机/i })).toBeInTheDocument();
-
-    const topology = screen.getByRole("region", { name: /network topology/i });
+    expect(screen.getByRole("main", { name: "家庭网络探针 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /inspect device|设备/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /target|目标|目的地/i })).toBeInTheDocument();
+    expect(screen.getAllByText(/source.*laptop/i).length).toBeGreaterThan(0);
     expect(
-      within(topology).getByRole("img", { name: /家庭路由器.*学习电脑/i }),
+      screen.getByRole("button", { name: /send probe|probe|发送探测|发送探针/i }),
     ).toBeInTheDocument();
-    expect(within(topology).getByRole("img", { name: /家庭路由器.*手机/i })).toBeInTheDocument();
-    expect(document.querySelector(".visualization-panel")).toBeInTheDocument();
-    expect(document.querySelector(".formula-panel")).toBeInTheDocument();
+
+    const svg = document.querySelector("svg");
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveTextContent(/路由器|router/i);
+    expect(svg).toHaveTextContent(/学习电脑|laptop/i);
+    expect(svg?.querySelectorAll("text").length).toBeGreaterThan(0);
   });
 
-  it("renders topology, inspector, device addresses, and status", async () => {
-    await renderAppAt("/labs/home-network");
+  it("exposes inspect, edit, and trace controls with accessible text rather than color-only status", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network?scenario=static-printer&target=printer");
 
-    expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("main", { name: /家庭网络配置 workspace/i })).toBeInTheDocument();
+    const inspector = screen.getByRole("combobox", { name: /inspect device|设备/i });
+    await user.selectOptions(inspector, "printer");
+    expect(inspector).toHaveValue("printer");
+
+    const printerIp = screen.getByRole("textbox", {
+      name: /ipv4 address|ip.*地址/i,
+    });
+    expect(printerIp).toHaveAccessibleName();
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
+
+    const trace = screen.getByRole("region", { name: /事件链|causal trace|trace/i });
+    expect(trace).toHaveTextContent(/arp|route|no-route|gateway|失败|不可达/i);
+    expect(trace.textContent).toMatch(/arp|route|no-route|gateway|失败|不可达/i);
     expect(
-      screen.getByRole("complementary", { name: /network configuration inspector/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /^家庭路由器, 192\.168\.1\.1$/ })).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /^学习电脑, 192\.168\.1\.10$/ })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /default gateway/i })).toHaveValue("192.168.1.1");
-    expect(screen.getByRole("status")).toHaveTextContent(/ready/i);
+      screen.getByRole("region", { name: /first failure|首个失败|no-route/i }),
+    ).toHaveTextContent(/router|route|失败|不可达/i);
   });
 
-  it("keeps the network inspector as a feature-owned labelled aside", async () => {
+  it("supports the printer repair trajectory and preserves both probe history entries", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network?scenario=static-printer&target=printer");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /inspect device|设备/i }),
+      "printer",
+    );
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
+    const trace = () => screen.getByRole("region", { name: /事件链|causal trace|trace/i });
+    const failedTrace = trace().textContent;
+
+    const printerIp = screen.getByRole("textbox", {
+      name: /ipv4 address|ip.*地址/i,
+    });
+    await user.clear(printerIp);
+    await user.type(printerIp, "192.168.1.30");
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
+
+    expect(trace().textContent).not.toBe(failedTrace);
+    expect(trace()).toHaveTextContent(/direct|local|直接|局域网/i);
+
+    const history = screen
+      .getByRole("heading", { name: /probe history comparison|历史/i })
+      .closest("section");
+    expect(history).not.toBeNull();
+    expect(within(history as HTMLElement).getAllByRole("listitem")).toHaveLength(2);
+    expect(within(history as HTMLElement).getAllByRole("listitem")[0]).toHaveTextContent(
+      /blocked/i,
+    );
+    expect(within(history as HTMLElement).getAllByRole("listitem")[1]).toHaveTextContent(
+      /delivered/i,
+    );
+  });
+
+  it("keeps topology readouts live, locks fixed endpoints, and reports prediction feedback", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network?scenario=static-printer");
+
+    expect(document.querySelector("svg")).toHaveTextContent("192.168.2.30");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /inspect device|设备/i }),
+      "printer",
+    );
+    const printerIp = screen.getByRole("textbox", { name: /ipv4 address|ip.*地址/i });
+    await user.clear(printerIp);
+    await user.type(printerIp, "192.168.1.30");
+    expect(document.querySelector("svg")).toHaveTextContent("192.168.1.30");
+    expect(screen.getByRole("button", { name: /打印机.*192\.168\.1\.30/i })).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /optional prediction/i }),
+      "local",
+    );
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
+    expect(document.querySelector(".probe-prediction-feedback")).toHaveTextContent(
+      /Prediction: local \/ direct.*observed: local \/ direct.*match/i,
+    );
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /inspect device|设备/i }),
+      "internet",
+    );
+    expect(screen.getByRole("textbox", { name: /ipv4 address|ip.*地址/i })).toHaveAttribute(
+      "readonly",
+    );
+  });
+
+  it("shows router interfaces and connected routes without a router gateway field", async () => {
+    const user = userEvent.setup();
     await renderAppAt("/labs/home-network");
 
-    const inspector = screen.getByRole("complementary", {
-      name: "Network configuration inspector",
-    });
-    expect(inspector.tagName).toBe("ASIDE");
-    expect(inspector.closest("#lab-navigation")).toBeNull();
-    expect(inspector.closest("main")).toBe(screen.getByRole("main"));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /inspect device|设备/i }),
+      "router",
+    );
+    const inspector = screen.getByRole("complementary", { name: /network device inspector/i });
+
+    expect(within(inspector).queryByLabelText(/default gateway/i)).not.toBeInTheDocument();
+    expect(inspector).toHaveTextContent(/LAN.*192\.168\.1\.1\/24/i);
+    expect(inspector).toHaveTextContent(/WAN.*203\.0\.113\.1\/24/i);
+    expect(inspector).toHaveTextContent(/connected routes/i);
+    expect(inspector).toHaveTextContent(/192\.168\.1\.0\/24/);
+    expect(inspector).toHaveTextContent(/203\.0\.113\.0\/24/);
+    expect(screen.getByRole("button", { name: /家庭路由器.*192\.168\.1\.1/i })).toBeInTheDocument();
   });
 
-  it("reproduces wrong-gateway scenario and exposes alert after check", async () => {
-    await renderAppAt("/labs/home-network?scenario=wrong-gateway");
+  it("does not infer an observed path when target validation stops before classification", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/home-network?scenario=invalid-config");
 
-    const gateway = screen.getByRole("combobox", { name: /default gateway/i });
-    expect(gateway).toHaveValue("192.168.1.254");
-    fireEvent.click(screen.getByRole("button", { name: /check configuration/i }));
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: /optional prediction/i }),
+      "local",
+    );
+    await user.click(button(/send probe|probe|发送探测|发送探针/i));
 
-    expect(document.querySelector(".phase-failure")).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/wrong gateway|router address/i);
+    const feedback = document.querySelector(".probe-prediction-feedback");
+    expect(feedback).toHaveTextContent(/observed:\s*not classified/i);
+    expect(feedback).toHaveTextContent(/validation stopped:.*invalid IPv4/i);
+    expect(feedback?.textContent).not.toMatch(/observed:\s*(local|remote)/i);
   });
 
-  it("maps explicit gateway=wrong query to invalid state and exposes issue code", async () => {
-    await renderAppAt("/labs/home-network?gateway=wrong");
-
-    expect(screen.getByRole("combobox", { name: /default gateway/i })).toHaveValue("192.168.1.254");
-    fireEvent.click(screen.getByRole("button", { name: /check configuration/i }));
-
-    expect(document.querySelector(".phase-failure")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(/failure|wrong gateway/i);
-    expect(screen.getByRole("alert")).toHaveTextContent(/gateway-mismatch|outside-subnet/i);
-  });
-
-  it("allows fixing gateway and reports successful validation", async () => {
+  it("does not expose the legacy phase/submit/check surface or shared panel classes", async () => {
     await renderAppAt("/labs/home-network");
 
-    fireEvent.change(screen.getByRole("combobox", { name: /default gateway/i }), {
-      target: { value: "192.168.1.254" },
-    });
-    fireEvent.change(screen.getByRole("combobox", { name: /default gateway/i }), {
-      target: { value: "192.168.1.1" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: /check configuration/i }));
-
-    expect(screen.getByRole("status")).toHaveTextContent(/success|connected/i);
-    expect(screen.getByRole("status")).not.toHaveAttribute("aria-invalid", "true");
+    expect(screen.queryAllByText(/^(ready|editing|success|failure)$/i)).toHaveLength(0);
     expect(
-      within(
-        screen.getByRole("complementary", { name: /network configuration inspector/i }),
-      ).getByText("192.168.1.0/24"),
-    ).toBeInTheDocument();
+      screen.queryByRole("button", { name: /submit|check configuration|检查配置/i }),
+    ).not.toBeInTheDocument();
+    for (const selector of [
+      ".visualization-panel",
+      ".formula-panel",
+      ".audio-controls",
+      ".lab-visualization",
+      ".lab-controls",
+    ]) {
+      expect(document.querySelector(selector), `${selector} is a legacy shared panel`).toBeNull();
+    }
   });
 });
