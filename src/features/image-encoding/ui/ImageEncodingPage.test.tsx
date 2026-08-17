@@ -78,7 +78,7 @@ describe("ImageEncodingPage", () => {
     expect(screen.getByText("Encoded value").parentElement).toHaveTextContent(/3 bits/);
     expect(
       screen.getByText("Finite color states").closest(".image-card-heading"),
-    ).toHaveTextContent(/used/);
+    ).toHaveTextContent(/available/);
   });
 
   it("switches to an error map without changing the encoded model", async () => {

@@ -57,6 +57,26 @@ describe("image encoding domain model", () => {
     );
   });
 
+  it("keeps every phase-shifted sample live and invertible", () => {
+    const model = deriveImageEncodingModel(getImageFixture("checkerboard"), {
+      samplingPercent: 25,
+      bitDepth: 3,
+      phase: 0.8,
+    });
+    for (const pixel of model.sampled.pixels) {
+      const inspection = inspectPixel(model, pixel.sourceX, pixel.sourceY);
+      expect([inspection.sampleX, inspection.sampleY]).toEqual([pixel.sampleX, pixel.sampleY]);
+    }
+    const ownedCells = new Set<string>();
+    for (let y = 0; y < model.source.height; y += 1) {
+      for (let x = 0; x < model.source.width; x += 1) {
+        const inspection = inspectPixel(model, x, y);
+        ownedCells.add(`${inspection.sampleX},${inspection.sampleY}`);
+      }
+    }
+    expect(ownedCells.size).toBe(model.sampled.width * model.sampled.height);
+  });
+
   it("uses the same phase-aware cell geometry for reconstruction and inspection", () => {
     const model = deriveImageEncodingModel(getImageFixture("checkerboard"), {
       samplingPercent: 25,
@@ -80,6 +100,22 @@ describe("image encoding domain model", () => {
     expect(counts.every((count, index) => index === 0 || count >= counts[index - 1])).toBe(true);
     expect(counts[0]).toBeLessThanOrEqual(2);
     expect(counts.at(-1)).toBeLessThanOrEqual(256);
+  });
+
+  it("never increases quantization error when bit depth adds nested codebook states", () => {
+    for (const fixture of ["gradient", "checkerboard", "text-edge", "pixel-grid"] as const) {
+      const errors = [1, 2, 3, 4, 5, 6, 7, 8].map(
+        (bitDepth) =>
+          deriveImageEncodingModel(getImageFixture(fixture), {
+            samplingPercent: 50,
+            bitDepth,
+            phase: 0.2,
+          }).averageQuantizationError,
+      );
+      expect(
+        errors.every((error, index) => index === 0 || error <= errors[index - 1] + 1e-12),
+      ).toBe(true);
+    }
   });
 
   it("uses the quantized value and exact bit string in reconstruction and inspection", () => {

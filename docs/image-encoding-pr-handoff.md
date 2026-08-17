@@ -30,10 +30,10 @@ The feature keeps source image, sampled representation, quantized representation
 `RasterImage` is decoded in the feature UI/adapter. Pure domain calculations then run:
 
 1. `sampleImage` computes sampled dimensions and representative source coordinates.
-2. `quantizeSampledImage` builds a deterministic finite palette from sampled values only, then maps each sampled value to a nearest palette index.
-3. Each index is formatted as exactly `bitDepth` bits.
+2. `quantizeSampledImage` selects the first `2^bitDepth` entries from a deterministic nested RGB codebook, then maps each sampled value to its nearest available palette index. The codebook is independent of sampling, so changing spatial resolution does not arbitrarily rebuild the color states.
+3. Each index is formatted as exactly `bitDepth` bits; adding a bit only adds codebook entries and cannot increase nearest-color error for the same sampled image.
 4. `reconstructImage` expands each quantized sample cell over the source-sized display raster.
-5. `deriveImageEncodingModel` compares source and reconstruction into an error map and calculates raw payload.
+5. `deriveImageEncodingModel` keeps sampled-RGB quantization error separate from source-to-reconstruction error, compares source and reconstruction into an error map, and calculates raw payload.
 
 ## 4. Upload input
 
@@ -45,7 +45,7 @@ The domain produces a sampled raster with fewer encoded cells but a reconstructe
 
 ## 6. Quantization definition
 
-The first release uses indexed color. A sampled image produces a deterministic palette with at most `2^bitDepth` entries. Each sampled RGB value maps to the nearest palette entry by squared/euclidean RGB distance; ties retain the lower palette index. The index is the encoded value and is padded to exactly `bitDepth` bits. Palette construction uses sampled values, so reconstruction cannot recover information discarded by spatial sampling.
+The first release uses indexed color with a deterministic nested RGB codebook. A bit depth of `b` exposes the first `2^b` codebook entries; each sampled RGB value maps to the nearest available entry by squared/euclidean RGB distance, with ties retaining the lower palette index. The index is the encoded value and is padded to exactly `b` bits. Because the codebook prefixes are nested, increasing bit depth cannot increase quantization error for the same sampled representation, while the sampled values still cannot recover information discarded by spatial sampling.
 
 ## 7. Theoretical raw payload
 

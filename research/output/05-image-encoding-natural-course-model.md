@@ -2,7 +2,7 @@
 
 Implementation freeze: source raster → spatial sampling → sampled representation → color quantization → encoded index bits → reconstruction → visible spatial/color loss.
 
-首版 uses an indexed-color model: bitDepth is index bits per sampled pixel, allowing up to 2^bitDepth palette states. The palette is derived from the sampled representation, never from the full source after sampling, and each displayed index is the value used for reconstruction.
+首版 uses an indexed-color model: bitDepth is index bits per sampled pixel, exposing the first 2^bitDepth entries of a deterministic nested RGB codebook. The codebook is independent of sampling; sampled values choose the nearest available entry, and each displayed index is the value used for reconstruction. Adding a bit can only add candidate colors, so sampled-RGB quantization error cannot increase.
 
 ## Trajectories
 
@@ -24,6 +24,6 @@ First release excludes JPEG/PNG compression/file size, codec black boxes, univer
 
 ## Invariants
 
-Sampling controls encoded dimensions while display dimensions stay source-sized. Reconstruction colors come only from sampled values and the derived palette. Every index is allowed and its bit string is exactly bitDepth bits. Lower bit depth never increases states. Raw payload is explicit and independent of browser file bytes. Pixel inspection equals the value used by reconstruction. Similar payloads can show different loss types.
+Sampling controls encoded dimensions while display dimensions stay source-sized. Reconstruction colors come only from sampled values and the fixed codebook selection. Every index is allowed and its bit string is exactly bitDepth bits. Lower bit depth exposes fewer nested states; higher bit depth cannot increase sampled-RGB quantization error. Raw payload is explicit and independent of browser file bytes. Pixel inspection equals the value used by reconstruction. Similar payloads can show different loss types.
 
 No shared extraction or changes to Sound/Network are part of this implementation.

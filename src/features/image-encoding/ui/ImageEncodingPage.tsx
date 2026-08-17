@@ -424,7 +424,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <b>Spatial loss</b> {model.sampled.width} × {model.sampled.height} encoded samples
                 </span>
                 <span>
-                  <b>Color loss</b> up to {model.quantized.palette.length} palette states
+                  <b>Color loss</b> {model.quantized.palette.length} states · sampled RGB error{" "}
+                  {(model.averageQuantizationError * 100).toFixed(1)}%
                 </span>
                 <span>
                   <b>Changed display pixels</b> {model.changedPixelCount.toLocaleString()}
@@ -582,9 +583,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
                 <div>
                   <dt>Finite palette states</dt>
-                  <dd>
-                    ≤ {2 ** model.quantized.bitDepth} ({model.quantized.palette.length} used)
-                  </dd>
+                  <dd>{model.quantized.palette.length} available indexed states</dd>
                 </div>
                 <div>
                   <dt>Raw payload</dt>
@@ -665,7 +664,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <p className="eyebrow">PALETTE / INDEX</p>
                   <h3 id="palette-heading">Finite color states</h3>
                 </div>
-                <span>{model.quantized.palette.length} used</span>
+                <span>{model.quantized.palette.length} available</span>
               </div>
               <div className="palette-list">
                 {model.quantized.palette.map((entry) => (

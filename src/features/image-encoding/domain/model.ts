@@ -78,6 +78,7 @@ export type ImageEncodingModel = {
   reconstructed: RasterImage;
   errorMap: readonly PixelError[];
   averageError: number;
+  averageQuantizationError: number;
   changedPixelCount: number;
   rawPayload: RawPayload;
 };
@@ -176,8 +177,53 @@ function colorKey(color: RGB): string {
 }
 
 function colorOrder(first: RGB, second: RGB): number {
-  return colorKey(first).localeCompare(colorKey(second));
+  return first.r - second.r || first.g - second.g || first.b - second.b;
 }
+
+const CODEBOOK_CHANNELS = [0, 36, 73, 109, 146, 182, 219, 255] as const;
+const MAX_CODEBOOK_STATES = 2 ** MAX_BIT_DEPTH;
+
+function squaredColorDistance(first: RGB, second: RGB): number {
+  return (first.r - second.r) ** 2 + (first.g - second.g) ** 2 + (first.b - second.b) ** 2;
+}
+
+/**
+ * Build one nested, deterministic codebook. Prefixes are retained as bit depth grows,
+ * so adding an index bit can only add candidate colors and cannot increase nearest-color error.
+ */
+function buildProgressiveCodebook(): PaletteEntry[] {
+  const candidates = CODEBOOK_CHANNELS.flatMap((r) =>
+    CODEBOOK_CHANNELS.flatMap((g) => CODEBOOK_CHANNELS.map((b) => ({ r, g, b }))),
+  );
+  const chosen: RGB[] = [
+    { r: 0, g: 0, b: 0 },
+    { r: 255, g: 255, b: 255 },
+  ];
+  const chosenKeys = new Set(chosen.map(colorKey));
+  while (chosen.length < MAX_CODEBOOK_STATES) {
+    let bestCandidate: RGB | undefined;
+    let bestDistance = -1;
+    for (const candidate of candidates) {
+      if (chosenKeys.has(colorKey(candidate))) continue;
+      const distance = Math.min(...chosen.map((color) => squaredColorDistance(candidate, color)));
+      if (
+        distance > bestDistance ||
+        (distance === bestDistance &&
+          bestCandidate !== undefined &&
+          colorOrder(candidate, bestCandidate) < 0)
+      ) {
+        bestCandidate = candidate;
+        bestDistance = distance;
+      }
+    }
+    if (!bestCandidate) break;
+    chosen.push(bestCandidate);
+    chosenKeys.add(colorKey(bestCandidate));
+  }
+  return chosen.map((color, index) => ({ index, color, hex: rgbToHex(color) }));
+}
+
+const PROGRESSIVE_CODEBOOK = buildProgressiveCodebook();
 
 export function sampledDimensions(
   source: RasterImage,
@@ -206,7 +252,7 @@ function sampleIndexForSourceCoordinate(
   sourceSize: number,
   phase: number,
 ): number {
-  const position = (coordinate / sourceSize) * sampledSize - normalizePhase(phase);
+  const position = ((coordinate + 0.5) / sourceSize) * sampledSize - normalizePhase(phase);
   return Math.min(sampledSize - 1, Math.max(0, Math.floor(position)));
 }
 
@@ -242,26 +288,12 @@ export function sampleImage(
 }
 
 export function buildPalette(
-  sampledPixels: readonly SampledPixel[],
+  _sampledPixels: readonly SampledPixel[],
   bitDepth: number,
 ): PaletteEntry[] {
   const safeBits = normalizeBitDepth(bitDepth);
-  const unique = [
-    ...new Map(
-      sampledPixels.map((pixel) => [colorKey(pixel.sourceColor), pixel.sourceColor]),
-    ).values(),
-  ]
-    .map(normalizeRgb)
-    .sort(colorOrder);
-  const count = Math.max(1, Math.min(2 ** safeBits, unique.length || 1));
-  const colors =
-    count === unique.length
-      ? unique
-      : Array.from(
-          { length: count },
-          (_, index) => unique[Math.round((index * (unique.length - 1)) / Math.max(1, count - 1))],
-        );
-  return colors.map((color, index) => ({ index, color, hex: rgbToHex(color) }));
+  void _sampledPixels;
+  return PROGRESSIVE_CODEBOOK.slice(0, 2 ** safeBits);
 }
 
 export function quantizeColorToPalette(
@@ -363,6 +395,12 @@ export function deriveImageEncodingModel(
   });
   const averageError =
     errorMap.reduce((sum, error) => sum + error.magnitude, 0) / Math.max(1, errorMap.length);
+  const averageQuantizationError =
+    quantized.pixels.reduce(
+      (sum, pixel) =>
+        sum + colorDistance(pixel.sourceColor, pixel.quantizedColor) / Math.sqrt(3 * 255 ** 2),
+      0,
+    ) / Math.max(1, quantized.pixels.length);
   return {
     source,
     sampled,
@@ -370,6 +408,7 @@ export function deriveImageEncodingModel(
     reconstructed,
     errorMap,
     averageError,
+    averageQuantizationError,
     changedPixelCount: errorMap.filter((error) => error.magnitude > 0).length,
     rawPayload: rawPayload(sampled.width, sampled.height, quantized.bitDepth),
   };

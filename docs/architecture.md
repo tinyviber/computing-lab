@@ -50,10 +50,11 @@ Keep `src/shared/lab` as an internal UI layer. It does not own lesson state, for
 schemas, renderers, or action interpreters.
 
 Image uses a source-sized raster model. Spatial sampling derives a smaller sampled representation
-and coordinate mapping; indexed quantization derives a finite palette from sampled values only;
-reconstruction expands those quantized sample cells back to source dimensions. `bitDepth` is the
-index width and the palette contains at most `2^bitDepth` used states. The feature exposes source,
-sampled, quantized, reconstructed, error-map, pixel-inspection, and representation evidence.
+and coordinate mapping; indexed quantization exposes a deterministic nested RGB codebook whose first
+`2^bitDepth` entries are available to sampled values; reconstruction expands those quantized sample
+cells back to source dimensions. `bitDepth` is the index width and adding a bit cannot increase
+nearest-color error for the same sampled representation. The feature exposes source, sampled,
+quantized, reconstructed, error-map, pixel-inspection, and representation evidence.
 
 The image lesson exposes a theoretical raw pixel payload:
 `sampledWidth × sampledHeight × bitDepth` bits and `ceil(bits / 8)` bytes. It excludes palette,
