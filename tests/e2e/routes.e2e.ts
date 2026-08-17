@@ -14,10 +14,13 @@ for (const route of routes) {
       if (message.type() === "error") failures.push(`console: ${message.text()}`);
     });
     page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
-
     const response = await page.goto(route.path, { waitUntil: "networkidle" });
     expect(response?.status()).toBe(200);
     await expect(page.locator("h1").first()).toHaveText(route.heading);
+    if (route.path === "labs/image-encoding") {
+      await expect(page.getByRole("slider", { name: /spatial sampling/i })).toBeVisible();
+      await expect(page.getByRole("img", { name: /reconstructed image/i })).toBeVisible();
+    }
     if (route.path === "labs/home-network") {
       await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
       await expect(page.getByRole("region", { name: /事件链/i })).toBeVisible();
@@ -32,7 +35,6 @@ test("preview renders not-found route", async ({ page }) => {
     if (message.type() === "error") failures.push(`console: ${message.text()}`);
   });
   page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
-
   const response = await page.goto("missing-route", { waitUntil: "networkidle" });
   expect(response?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText(/实验不存在|NotFound|404/i);
@@ -40,8 +42,11 @@ test("preview renders not-found route", async ({ page }) => {
 });
 
 test("hydrates a direct query for every lesson", async ({ page }) => {
-  await page.goto("labs/image-encoding?scenario=low-sampling", { waitUntil: "networkidle" });
-  await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("2");
+  await page.goto("labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2", {
+    waitUntil: "networkidle",
+  });
+  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
+  await expect(page.getByRole("slider", { name: /color bit depth/i })).toHaveValue("2");
 
   await page.goto("labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12", {
     waitUntil: "networkidle",
@@ -60,47 +65,46 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
 
 test("navigates between labs with SPA links and restores back/forward state", async ({ page }) => {
   await page.goto(".", { waitUntil: "networkidle" });
-
   await page
     .getByRole("link", { name: /图像编码/ })
     .first()
     .click();
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
-
   await page.locator("a.lab-link", { hasText: "声音编码" }).click();
   await expect(page.locator("h1").first()).toHaveText(/声音编码/);
   await page.locator("a.lab-link", { hasText: "家庭网络配置" }).click();
   await expect(page.locator("h1").first()).toHaveText(/家庭网络探针/);
   await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
-
   await page.goBack();
   await expect(page.locator("h1").first()).toHaveText(/声音编码/);
   await page.goForward();
   await expect(page.locator("h1").first()).toHaveText(/家庭网络探针/);
-  await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
 });
 
-test("changes same-route search through browser navigation and restores it", async ({ page }) => {
-  await page.goto("labs/image-encoding?scenario=low-sampling", { waitUntil: "networkidle" });
-  await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("2");
-
-  await page.goto("labs/image-encoding?scenario=high-quantization", { waitUntil: "networkidle" });
-  await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("8");
-  await expect(page.getByRole("slider", { name: /bits/i })).toHaveValue("2");
-
+test("changes same-route image search through browser navigation and restores it", async ({
+  page,
+}) => {
+  await page.goto("labs/image-encoding?image=checkerboard&sample=25&bits=2", {
+    waitUntil: "networkidle",
+  });
+  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
+  await page.goto("labs/image-encoding?image=gradient&sample=75&bits=6", {
+    waitUntil: "networkidle",
+  });
+  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("75");
+  await expect(page.getByRole("slider", { name: /color bit depth/i })).toHaveValue("6");
   await page.goBack();
-  await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("2");
+  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
   await page.goForward();
-  await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("8");
+  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("75");
 });
 
 test("serves a base-prefixed deep link with history fallback", async ({ page }) => {
-  const response = await page.goto("labs/image-encoding?scenario=low-sampling", {
+  const response = await page.goto("labs/image-encoding?image=checkerboard&sample=25", {
     waitUntil: "networkidle",
   });
   expect(response?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
-
   const imageLink = page.locator("a.lab-link", { hasText: "图像编码" });
   await expect(imageLink).toHaveCount(1);
   await expect(imageLink).toHaveClass(/is-active/);

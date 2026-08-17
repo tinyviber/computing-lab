@@ -1,36 +1,46 @@
-import type { EncodingOptions } from "../domain/model";
-
-export type ImageScenario = "balanced" | "low-sampling" | "high-quantization";
-
-export type ImageScenarioState = EncodingOptions & {
-  scenario: ImageScenario;
-  sampling: number;
-};
-
-export const DEFAULT_IMAGE_OPTIONS = { density: 4, bits: 8 } as const;
-
-export const IMAGE_SCENARIO_PRESETS: Record<Exclude<ImageScenario, "balanced">, EncodingOptions> = {
-  "low-sampling": { density: 2, bits: 8 },
-  "high-quantization": { density: 8, bits: 2 },
-};
+import { getImageFixture, type ImageFixtureId } from "../domain/fixture";
+import {
+  MAX_BIT_DEPTH,
+  MAX_PHASE,
+  MAX_SAMPLING_PERCENT,
+  MIN_BIT_DEPTH,
+  MIN_PHASE,
+  MIN_SAMPLING_PERCENT,
+  normalizeBitDepth,
+  normalizePhase,
+  normalizeSamplingPercent,
+} from "../domain/model";
+import type { ImageView } from "./state";
 
 export type ImageScenarioSearch = URLSearchParams | string | Record<string, unknown>;
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
+export type ImageScenarioState = {
+  fixture: ImageFixtureId;
+  samplingPercent: number;
+  bitDepth: number;
+  phase: number;
+  view: ImageView;
+};
 
-function firstInteger(params: URLSearchParams, key: string): number | undefined {
-  const value = params.get(key);
-  if (value === null || value.trim() === "") return undefined;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && Number.isInteger(parsed) ? parsed : undefined;
-}
+export const DEFAULT_IMAGE_SCENARIO: ImageScenarioState = {
+  fixture: "photo",
+  samplingPercent: 50,
+  bitDepth: 4,
+  phase: 0,
+  view: "compare",
+};
+
+const IMAGE_VIEWS: readonly ImageView[] = [
+  "compare",
+  "sampling",
+  "quantization",
+  "representation",
+  "error",
+];
 
 function toParams(input: ImageScenarioSearch): URLSearchParams {
   if (input instanceof URLSearchParams) return input;
   if (typeof input === "string") return new URLSearchParams(input.replace(/^\?/, ""));
-
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(input)) {
     const firstValue = Array.isArray(value) ? value[0] : value;
@@ -39,18 +49,82 @@ function toParams(input: ImageScenarioSearch): URLSearchParams {
   return params;
 }
 
-/** Parse shareable lesson state: default → preset → first valid explicit value → clamp. */
+function firstNumber(params: URLSearchParams, keys: readonly string[]): number | undefined {
+  for (const key of keys) {
+    const value = params.get(key);
+    if (value === null || value.trim() === "") continue;
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function firstInteger(params: URLSearchParams, keys: readonly string[]): number | undefined {
+  const value = firstNumber(params, keys);
+  return value !== undefined && Number.isInteger(value) ? value : undefined;
+}
+
+function fixtureFromParams(params: URLSearchParams): ImageFixtureId {
+  const requested = params.get("image") ?? params.get("fixture");
+  if (
+    requested === "gradient" ||
+    requested === "checkerboard" ||
+    requested === "text-edge" ||
+    requested === "pixel-grid" ||
+    requested === "photo"
+  )
+    return requested;
+  const legacy = params.get("scenario");
+  if (legacy === "low-sampling") return "checkerboard";
+  if (legacy === "high-quantization") return "gradient";
+  return DEFAULT_IMAGE_SCENARIO.fixture;
+}
+
+function viewFromParams(params: URLSearchParams): ImageView {
+  const requested = params.get("view");
+  return IMAGE_VIEWS.includes(requested as ImageView)
+    ? (requested as ImageView)
+    : DEFAULT_IMAGE_SCENARIO.view;
+}
+
 export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageScenarioState {
   const params = toParams(input);
-  const requested = params.get("scenario");
-  const scenario: ImageScenario =
-    requested === "low-sampling" || requested === "high-quantization" ? requested : "balanced";
-  const preset = scenario === "balanced" ? DEFAULT_IMAGE_OPTIONS : IMAGE_SCENARIO_PRESETS[scenario];
-  const explicitSampling = firstInteger(params, "sampling");
-  const explicitDensity = firstInteger(params, "density");
-  const explicitBits = firstInteger(params, "bits");
-  const density = clamp(explicitSampling ?? explicitDensity ?? preset.density, 2, 8);
-  const bits = clamp(explicitBits ?? preset.bits, 2, 8);
-
-  return { scenario, density, sampling: density, bits };
+  const fixture = fixtureFromParams(params);
+  const legacy = params.get("scenario");
+  const legacySampling =
+    legacy === "low-sampling" ? 25 : legacy === "high-quantization" ? 75 : undefined;
+  const samplingPercent = normalizeSamplingPercent(
+    firstInteger(params, ["sample", "sampling"]) ??
+      legacySampling ??
+      DEFAULT_IMAGE_SCENARIO.samplingPercent,
+  );
+  const bitDepth = normalizeBitDepth(
+    firstInteger(params, ["bits", "bitDepth"]) ??
+      (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
+  );
+  const phase = normalizePhase(firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase);
+  return { fixture, samplingPercent, bitDepth, phase, view: viewFromParams(params) };
 }
+
+export function serializeImageEncodingScenario(state: ImageScenarioState): string {
+  const params = new URLSearchParams();
+  params.set("image", state.fixture);
+  params.set("sample", String(normalizeSamplingPercent(state.samplingPercent)));
+  params.set("phase", normalizePhase(state.phase).toFixed(2));
+  params.set("bits", String(normalizeBitDepth(state.bitDepth)));
+  params.set("view", state.view);
+  return params.toString();
+}
+
+export function scenarioSource(state: ImageScenarioState) {
+  return getImageFixture(state.fixture);
+}
+
+export const IMAGE_SCENARIO_LIMITS = {
+  minSampling: MIN_SAMPLING_PERCENT,
+  maxSampling: MAX_SAMPLING_PERCENT,
+  minBits: MIN_BIT_DEPTH,
+  maxBits: MAX_BIT_DEPTH,
+  minPhase: MIN_PHASE,
+  maxPhase: MAX_PHASE,
+};

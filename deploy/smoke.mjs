@@ -58,7 +58,7 @@ const server = Bun.serve({
 try {
   const origin = `http://${server.hostname}:${server.port}`;
   const rootPath = base === "/" ? "/" : `${base}/`;
-  const deepPath = `${rootPath}labs/image-encoding?scenario=low-sampling`;
+  const deepPath = `${rootPath}labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=error`;
   const index = await (await fetch(`${origin}${rootPath}`)).text();
   if (!index.includes('id="root"')) throw new Error("smoke: root did not return index.html");
   const deepResponse = await fetch(`${origin}${deepPath}`);

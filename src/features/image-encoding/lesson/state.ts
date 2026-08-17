@@ -1,31 +1,44 @@
+import { getImageFixture } from "../domain/fixture";
+import type { RasterImage } from "../domain/model";
+import {
+  normalizeBitDepth,
+  normalizeImage,
+  normalizePhase,
+  normalizeSamplingPercent,
+} from "../domain/model";
 import type { ImageScenarioState } from "./scenario";
 
-export type ImagePhase = "ready" | "editing" | "success" | "failure";
+export type ImageView = "compare" | "sampling" | "quantization" | "representation" | "error";
 
 export type ImageLessonState = ImageScenarioState & {
-  initialDensity: number;
-  initialBits: number;
-  phase: ImagePhase;
-  step: number;
+  source: RasterImage;
+  initialScenario: ImageScenarioState;
+  selectedCoordinate: { x: number; y: number };
+  decodeError?: string;
 };
 
 export type ImageLessonAction =
   | { type: "load-scenario"; scenario: ImageScenarioState }
-  | { type: "set-density"; density: number }
-  | { type: "set-bits"; bits: number }
-  | { type: "run-preview" }
-  | { type: "submit" }
-  | { type: "retry" }
-  | { type: "next-step" }
+  | { type: "set-sampling"; samplingPercent: number }
+  | { type: "set-bit-depth"; bitDepth: number }
+  | { type: "set-phase"; phase: number }
+  | { type: "set-view"; view: ImageView }
+  | { type: "select-pixel"; x: number; y: number }
+  | { type: "load-source"; source: RasterImage }
+  | { type: "decode-error"; message: string }
   | { type: "reset" };
 
+function initialCoordinate(source: RasterImage): { x: number; y: number } {
+  return { x: Math.floor(source.width / 2), y: Math.floor(source.height / 2) };
+}
+
 export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
+  const source = getImageFixture(scenario.fixture);
   return {
     ...scenario,
-    initialDensity: scenario.density,
-    initialBits: scenario.bits,
-    phase: "ready",
-    step: 1,
+    source,
+    initialScenario: { ...scenario },
+    selectedCoordinate: initialCoordinate(source),
   };
 }
 
@@ -36,29 +49,34 @@ export function transitionImageLesson(
   switch (action.type) {
     case "load-scenario":
       return createImageLessonState(action.scenario);
-    case "set-density":
-      return { ...state, density: action.density, sampling: action.density, phase: "editing" };
-    case "set-bits":
-      return { ...state, bits: action.bits, phase: "editing" };
-    case "run-preview":
-      return state.phase === "ready" ? { ...state, phase: "editing" } : state;
-    case "submit":
-      return state.phase !== "editing"
-        ? state
-        : { ...state, phase: state.density === 4 && state.bits === 8 ? "success" : "failure" };
-    case "retry":
-      return state.phase === "failure" ? { ...state, phase: "editing" } : state;
-    case "next-step":
-      return state.phase === "success" && state.step < 4
-        ? { ...state, phase: "ready", step: state.step + 1 }
-        : state;
-    case "reset":
+    case "set-sampling":
+      return { ...state, samplingPercent: normalizeSamplingPercent(action.samplingPercent) };
+    case "set-bit-depth":
+      return { ...state, bitDepth: normalizeBitDepth(action.bitDepth) };
+    case "set-phase":
+      return { ...state, phase: normalizePhase(action.phase) };
+    case "set-view":
+      return { ...state, view: action.view };
+    case "select-pixel":
       return {
         ...state,
-        density: state.initialDensity,
-        sampling: state.initialDensity,
-        bits: state.initialBits,
-        phase: "ready",
+        selectedCoordinate: {
+          x: Math.max(0, Math.min(state.source.width - 1, Math.floor(action.x))),
+          y: Math.max(0, Math.min(state.source.height - 1, Math.floor(action.y))),
+        },
       };
+    case "load-source": {
+      const source = normalizeImage(action.source);
+      return {
+        ...state,
+        source,
+        decodeError: undefined,
+        selectedCoordinate: initialCoordinate(source),
+      };
+    }
+    case "decode-error":
+      return { ...state, decodeError: action.message };
+    case "reset":
+      return createImageLessonState(state.initialScenario);
   }
 }

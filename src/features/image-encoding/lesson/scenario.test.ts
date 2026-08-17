@@ -1,41 +1,57 @@
 import { describe, expect, it } from "vitest";
-import { parseImageEncodingScenario } from "./scenario";
+import { parseImageEncodingScenario, serializeImageEncodingScenario } from "./scenario";
 
 describe("image lesson scenario", () => {
-  it("applies default, preset, explicit-first, then clamp precedence", () => {
-    expect(parseImageEncodingScenario(new URLSearchParams())).toMatchObject({
-      density: 4,
-      bits: 8,
-    });
-    expect(parseImageEncodingScenario(new URLSearchParams("scenario=low-sampling"))).toMatchObject({
-      density: 2,
-      bits: 8,
-    });
+  it("parses canonical shareable source and configuration keys", () => {
     expect(
-      parseImageEncodingScenario(new URLSearchParams("scenario=low-sampling&sampling=8&bits=2")),
-    ).toMatchObject({ density: 8, bits: 2 });
-    expect(parseImageEncodingScenario(new URLSearchParams("sampling=999&bits=-1"))).toMatchObject({
-      density: 8,
-      bits: 2,
+      parseImageEncodingScenario("image=checkerboard&sample=25&phase=0.5&bits=2&view=error"),
+    ).toEqual({
+      fixture: "checkerboard",
+      samplingPercent: 25,
+      phase: 0.5,
+      bitDepth: 2,
+      view: "error",
     });
   });
 
-  it("fails closed for unknown, malformed, and missing values; first duplicate wins", () => {
-    expect(parseImageEncodingScenario(new URLSearchParams("scenario=nope"))).toMatchObject({
-      density: 4,
-      bits: 8,
-    });
-    expect(parseImageEncodingScenario(new URLSearchParams("sampling=abc&bits=1.5"))).toMatchObject({
-      density: 4,
-      bits: 8,
-    });
+  it("defaults and clamps malformed values without accepting a workflow state", () => {
     expect(
-      parseImageEncodingScenario(new URLSearchParams("sampling=2&sampling=8&bits=8&bits=2")),
-    ).toMatchObject({ density: 2, bits: 8 });
+      parseImageEncodingScenario("image=nope&sample=999&phase=-2&bits=99&view=submit"),
+    ).toMatchObject({
+      fixture: "photo",
+      samplingPercent: 100,
+      phase: 0,
+      bitDepth: 8,
+      view: "compare",
+    });
+    expect(parseImageEncodingScenario("sample=abc&bits=2.5")).toMatchObject({
+      samplingPercent: 50,
+      bitDepth: 4,
+    });
   });
 
-  it("is deterministic for the same URL state", () => {
-    const search = new URLSearchParams("scenario=high-quantization&density=3&bits=7");
-    expect(parseImageEncodingScenario(search)).toEqual(parseImageEncodingScenario(search));
+  it("uses first duplicate values and keeps legacy scenario links readable", () => {
+    expect(parseImageEncodingScenario("sample=25&sample=80&bits=2&bits=8")).toMatchObject({
+      samplingPercent: 25,
+      bitDepth: 2,
+    });
+    expect(parseImageEncodingScenario("scenario=low-sampling")).toMatchObject({
+      fixture: "checkerboard",
+      samplingPercent: 25,
+    });
+  });
+
+  it("serializes only reproducible configuration", () => {
+    const state = {
+      fixture: "gradient" as const,
+      samplingPercent: 40,
+      phase: 0.25,
+      bitDepth: 3,
+      view: "representation" as const,
+    };
+    expect(serializeImageEncodingScenario(state)).toBe(
+      "image=gradient&sample=40&phase=0.25&bits=3&view=representation",
+    );
+    expect(parseImageEncodingScenario(serializeImageEncodingScenario(state))).toEqual(state);
   });
 });
