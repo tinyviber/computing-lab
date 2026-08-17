@@ -153,6 +153,10 @@ describe("Sound reference UI", () => {
       "compare",
     );
     expect(screen.getByTestId("sound-compare-evidence")).toBeInTheDocument();
+    expect(screen.queryByText(/folded frequency/i)).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/moves sampling timestamps; source x\(t\) stays unchanged/i),
+    ).toBeInTheDocument();
 
     await user.click(button(/^aliasing$/i));
     expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(

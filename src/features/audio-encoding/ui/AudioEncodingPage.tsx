@@ -68,9 +68,28 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const showOriginal = selectedView === "compare" || selectedView === "samples";
   const showReconstructed = selectedView !== "error";
   const plotError = selectedView === "error";
-  const sampleStride = Math.max(1, Math.ceil(model.samples.length / 160));
-  const visibleSamples = model.samples.filter((_, index) => index % sampleStride === 0);
-  const levelPreview = model.quantization.levelValues.slice(0, 24);
+  const aliasedComponentCount = useMemo(
+    () =>
+      model.aliasingEvidence.components.filter(
+        (component) => component.classification === "aliased",
+      ).length,
+    [model],
+  );
+  const { levelPreview, plotLines, visibleSamples } = useMemo(() => {
+    const sampleStride = Math.max(1, Math.ceil(model.samples.length / 160));
+    return {
+      levelPreview: model.quantization.levelValues.slice(0, 24),
+      plotLines: {
+        error: plotPoints(
+          model.plot.map((point) => point.error),
+          4,
+        ),
+        original: plotPoints(model.plot.map((point) => point.original)),
+        reconstructed: plotPoints(model.plot.map((point) => point.reconstructed)),
+      },
+      visibleSamples: model.samples.filter((_, index) => index % sampleStride === 0),
+    };
+  }, [model]);
   const playbackRequest: AudioPlaybackRequest = useMemo(
     () => ({
       source: state.source,
@@ -183,25 +202,13 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <svg className="sound-plot" viewBox="0 0 100 100" preserveAspectRatio="none">
                 <line className="sound-axis" x1="0" x2="100" y1="50" y2="50" />
                 {showOriginal ? (
-                  <polyline
-                    className="sound-original-line"
-                    points={plotPoints(model.plot.map((point) => point.original))}
-                  />
+                  <polyline className="sound-original-line" points={plotLines.original} />
                 ) : null}
                 {showReconstructed ? (
-                  <polyline
-                    className="sound-reconstructed-line"
-                    points={plotPoints(model.plot.map((point) => point.reconstructed))}
-                  />
+                  <polyline className="sound-reconstructed-line" points={plotLines.reconstructed} />
                 ) : null}
                 {plotError ? (
-                  <polyline
-                    className="sound-error-line"
-                    points={plotPoints(
-                      model.plot.map((point) => point.error),
-                      4,
-                    )}
-                  />
+                  <polyline className="sound-error-line" points={plotLines.error} />
                 ) : null}
                 {selectedView === "samples"
                   ? visibleSamples.map((sample) => (
@@ -314,8 +321,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <strong>{formatNumber(model.nyquistHz, 0)} Hz</strong>
             </div>
             <div>
-              <span>Folded frequency</span>
-              <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz fundamental</strong>
+              {fixture.components.length === 1 ? (
+                <>
+                  <span>Folded frequency</span>
+                  <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz</strong>
+                </>
+              ) : (
+                <>
+                  <span>Component aliasing</span>
+                  <strong>
+                    {aliasedComponentCount} / {model.aliasingEvidence.components.length} above
+                    Nyquist
+                  </strong>
+                </>
+              )}
             </div>
             <div>
               <span>RMS error</span>
@@ -458,7 +477,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.phase}
             />
             <p className="sound-control-description" id="sound-phase-description">
-              A deterministic phase offset for the fixture.
+              Moves sampling timestamps; source x(t) stays unchanged.
             </p>
           </div>
 
