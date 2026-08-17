@@ -1,6 +1,6 @@
 # Computing Lab Course Model Reset
 
-状态：已冻结课程模型与 minimal framework extraction；本 PR 只记录模型，不实现课程或重写 UI。
+状态：课程模型与 minimal framework 已冻结；PR #9 已在 children-only shell 下实现 Sound reference implementation。本文件记录教学模型与边界，不规定 shared lesson UI。
 
 ## 结论先行
 
@@ -14,9 +14,9 @@
 - 三课没有共同的 lesson workflow。没有共同的 phase、step、submit、clock、status、formula、panel 或 action union。
 - app 仍需要 route chrome、catalog navigation、accessibility、route error isolation，以及不解释 feature 语义的 opaque URL transport。
 - lesson runtime 与全部课程布局归 feature。`LabShell` 若保留，只保留 app shell；其 workspace API 应收敛为 opaque `children`。
-- 下一阶段先重做声音编码，作为 framework boundary test；家庭网络随后验证事件驱动诊断；图像编码最后重做，因为当前实现受人工 workflow 污染最深。
+- 本轮先实现声音编码作为 framework boundary test；家庭网络随后验证事件驱动诊断；图像编码最后重做，因为当前实现受人工 workflow 污染最深。
 
-本结论由三份彼此独立的课程设计、一次 framework extraction、两轮 adversarial rework 与删除/反施加测试得出；本 PR 末尾记录实现检查与文档 review 结果。
+本结论由三份彼此独立的课程设计、一次 framework extraction、两轮 adversarial rework 与删除/反施加测试得出；PR #9 进一步用 Sound 的真实 playback、scrub、A/B、sampling 与 quantization 行为验证了边界。
 
 ## 1. 三门课模型
 
@@ -133,14 +133,14 @@ submit 只在局部 checkpoint 有意义，例如“预测降低 sample rate 会
 
 #### Scenario URL
 
-以下是重做后的 target scenario contract，用于教师分享有意义的声音情境。它们不是当前 parser 已支持的完整 query contract；当前实现只支持有限的 `scenario`/numeric keys。`source`、`mode`、`loop`、`view` 等语义需在 Sound 重做时由 feature parser 明确定义。
+以下是重做后的 target scenario contract，用于教师分享有意义的声音情境。Sound reference implementation 已落地这组 canonical keys；parser 的完整边界与 legacy 兼容规则在 `src/features/audio-encoding/lesson/scenario.ts` 及其测试中定义。loop 使用 `off`、`on` 或 `startMs,endMs`，view 使用 `compare`、`samples`、`levels`、`error`。
 
 ```text
 /labs/audio-encoding?source=pure440&sampleRate=2000&bitDepth=16&mode=compare
 /labs/audio-encoding?source=high-pulse&sampleRate=8000&bitDepth=16&mode=aliasing
 /labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=3&mode=quantization
-/labs/audio-encoding?source=sawtooth&sampleRate=44100&bitDepth=2&loop=local
-/labs/audio-encoding?source=440&sampleRate=8000&bitDepth=8&phase=0.37&view=zoom
+/labs/audio-encoding?source=sawtooth&sampleRate=44100&bitDepth=2&loop=on
+/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&phase=0.37&view=error
 ```
 
 不要使用 `step=3&status=active` 这类无法表达声音场景的 URL。
@@ -390,7 +390,7 @@ Feature children 内部可自由拥有 canvas、split view、overlay、timeline�
 
 ## 7. Reference implementation decision
 
-下一阶段先重做 **声音编码**。
+本轮先实现 **声音编码**。
 
 原因不是声音与其他课 UI 更像，而是它最能暴露错误 framework：
 
@@ -402,7 +402,7 @@ Feature children 内部可自由拥有 canvas、split view、overlay、timeline�
 - 可有 checkpoint，但不能成为全局 workflow；
 - app shell 不应提供 clock、transport、status phase 或固定 controls/visualization regions。
 
-若 Sound 能在 children-only app shell 中自然成立，framework 才没有偷偷复活 image-style inspector workflow。随后用 Home Network 验证 lease/ARP/probe/fault/recovery 事件与多合法配置。Image 最后迁移，因为它当前 `step`/`submit`/`success/failure` 污染最大。
+Sound 已在 children-only app shell 中以 feature-owned playback、time window、scrub、A/B audition、component aliasing 与 quantization evidence 成立，未复活 image-style inspector workflow。下一步用 Home Network 验证 lease/ARP/probe/fault/recovery 事件与多合法配置。Image 最后迁移，因为它当前 `step`/`submit`/`success/failure` 污染最大。
 
 ## 8. Open questions（不阻塞本轮冻结）
 
@@ -412,6 +412,6 @@ Feature children 内部可自由拥有 canvas、split view、overlay、timeline�
 - reset 对 Sound 的 playback position、对 Network 的 lease/cache/fault 到底意味着什么？由各 feature 定义。
 - prediction/diagnosis checkpoint 如何表达多个合法答案？不能复用 binary success/failure。
 - scenario URL 是否需要 versioning？若 schema 演化，再由 feature serializer 处理。
-- Sound 首版使用 deterministic local simulation 还是真实 media effect？不影响 framework boundary。
+- Sound 当前使用 deterministic local domain model 加 feature-owned Web Audio effect；后续课程仍需分别定义自己的 media/simulation 边界。
 
-这些问题会影响下一阶段课程实现，但不会改变本轮 minimal envelope。
+这些问题会影响 Home Network 与 Image 的后续课程实现，但不会改变本轮 minimal envelope。

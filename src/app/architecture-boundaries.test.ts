@@ -174,4 +174,49 @@ describe("architecture boundaries", () => {
 
     expect(boundaryViolations(imageUi, audioDomain)).toContain("cross-feature import");
   });
+
+  it("keeps Sound independent of the legacy shared lesson primitives", () => {
+    const soundUiFile = join(srcRoot, "features/audio-encoding/ui/AudioEncodingPage.tsx");
+    const soundStateFile = join(srcRoot, "features/audio-encoding/lesson/state.ts");
+    const soundModelFile = join(srcRoot, "features/audio-encoding/domain/model.ts");
+    const soundUi = readFileSync(soundUiFile, "utf8");
+    const soundState = readFileSync(soundStateFile, "utf8");
+    const soundModel = readFileSync(soundModelFile, "utf8");
+
+    for (const primitive of [
+      "ExperimentStatus",
+      "ExperimentPhase",
+      "FormulaPanel",
+      "ParameterControl",
+      "VisualizationPanel",
+    ]) {
+      expect(soundUi, `Sound UI must not import ${primitive}`).not.toMatch(
+        new RegExp(`import[^;\\n]*\\b${primitive}\\b`),
+      );
+    }
+    expect(soundState).not.toMatch(/(?:AudioPhase|SoundPhase)/);
+    expect(soundUi).not.toMatch(/(?:AudioPhase|SoundPhase)/);
+    expect(soundState).not.toMatch(/(?:Date|performance|requestAnimationFrame|AudioContext)/);
+    expect(soundModel).not.toMatch(/(?:Date|performance|requestAnimationFrame|AudioContext)/);
+  });
+
+  it("gives LabShell only chrome and children ownership", () => {
+    const shellFile = join(srcRoot, "shared/lab/LabShell.tsx");
+    const shell = readFileSync(shellFile, "utf8");
+
+    expect(shell).toMatch(/children\??:\s*ReactNode/);
+    expect(shell).toMatch(/<main[\s\S]*children/);
+    for (const legacyProp of [
+      "controlsLabel",
+      "navigation?: ReactNode",
+      "visualization?: ReactNode",
+      "controls?: ReactNode",
+      "explanation?: ReactNode",
+      "actions?: ReactNode",
+      "hasSlots",
+      "lab-shell-workspace",
+    ]) {
+      expect(shell, `LabShell still owns legacy slot ${legacyProp}`).not.toContain(legacyProp);
+    }
+  });
 });

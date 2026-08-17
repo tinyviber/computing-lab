@@ -35,6 +35,17 @@ describe("HomeNetworkPage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/ready/i);
   });
 
+  it("keeps the network inspector as a feature-owned labelled aside", async () => {
+    await renderAppAt("/labs/home-network");
+
+    const inspector = screen.getByRole("complementary", {
+      name: "Network configuration inspector",
+    });
+    expect(inspector.tagName).toBe("ASIDE");
+    expect(inspector.closest("#lab-navigation")).toBeNull();
+    expect(inspector.closest("main")).toBe(screen.getByRole("main"));
+  });
+
   it("reproduces wrong-gateway scenario and exposes alert after check", async () => {
     await renderAppAt("/labs/home-network?scenario=wrong-gateway");
 

@@ -16,13 +16,20 @@ workflow state, and validation transitions. `ui` contains React composition and 
 `src/shared/lab` contains only cross-feature UI primitives. It receives catalog-shaped navigation
 items through `LabNavigationProvider`; it does not import `src/app` or any feature.
 
+`LabShell` owns app chrome only: the catalog rail, mobile menu/scrim, focus return, inert state,
+and the landmark `<main>`. Its public boundary is `eyebrow`, `title`, `subtitle`, and `children`.
+Each feature owns the layout inside that main landmark. Image owns its workflow navigation outside
+`#lab-navigation`; Network owns its `Network configuration inspector` aside; Sound owns its
+configuration, source, transport, audition, analysis mode, view, cursor, and loop state.
+
 Global CSS is split by ownership: `src/design` owns tokens and base rules, `shared/lab/lab.css`
 owns shell/primitives, each feature owns its UI stylesheet, and `app/pages/home.css` owns catalog
 and error pages.
 
-## PR8 evaluation
+## Historical PR8 snapshot
 
-Three lessons now consume the same structural needs:
+The PR8 review captured the shared surface at that point in the refactor. It is a historical
+snapshot, not the current ownership model:
 
 | Consumer       | Actual shared consumers                                                                  | Lesson-owned pieces                            |
 | -------------- | ---------------------------------------------------------------------------------------- | ---------------------------------------------- |
@@ -30,9 +37,15 @@ Three lessons now consume the same structural needs:
 | Audio Encoding | `LabShell`, `ParameterControl`, `ExperimentStatus`, `VisualizationPanel`, `FormulaPanel` | waveform, sample-rate formula, amplitude model |
 | Home Network   | `LabShell`, `ExperimentStatus`, `VisualizationPanel`, `FormulaPanel`                     | device palette, topology, gateway validation   |
 
-## Decision
+## Current decision
 
-Keep `src/shared/lab` as an internal UI layer. It owns slots, layout, controls, status, and accessibility behavior. It does not own lesson state, formulas, scenario schemas, renderers, or action interpreters.
+`LabShell` is a children-only app-chrome component. It owns the catalog rail, mobile menu and
+scrim, focus return, inert state, and the landmark `<main>`. Each feature owns the layout inside
+that landmark and all lesson semantics. The remaining shared primitive files are retained only for
+legacy Image and Network consumers; Sound does not consume those primitives.
+
+Keep `src/shared/lab` as an internal UI layer. It does not own lesson state, formulas, scenario
+schemas, renderers, or action interpreters.
 
 Image palettes are derived from the unique 8×8 source colors, sorted deterministically,
 and quantized by nearest RGB squared distance. The index width remains `2..8` bits per

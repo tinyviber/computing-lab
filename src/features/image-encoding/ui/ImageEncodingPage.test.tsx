@@ -78,6 +78,18 @@ describe("ImageEncodingPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps the image workflow navigation feature-owned outside the global lab rail", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    const workflow = screen.getByRole("navigation", { name: "Workflow steps" });
+    expect(workflow.closest("#lab-navigation")).toBeNull();
+    expect(workflow.closest("main")).toBe(screen.getByRole("main"));
+
+    const inspector = screen.getByRole("complementary", { name: "Encoding inspector" });
+    expect(inspector.closest("#lab-navigation")).toBeNull();
+    expect(inspector.closest("main")).toBe(screen.getByRole("main"));
+  });
+
   it("updates exact formula metrics and pixel count", async () => {
     await renderAppAt("/labs/image-encoding");
     setSlider(slider(/density/i), 5);

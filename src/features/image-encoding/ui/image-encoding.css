@@ -1,3 +1,43 @@
+.image-lab-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-width: 0;
+}
+
+.image-workflow {
+  display: block;
+  min-height: calc(100vh - 72px);
+  padding: 28px 20px 20px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.image-feature-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  min-width: 0;
+}
+
+.image-visualization,
+.image-inspector {
+  min-width: 0;
+}
+
+.image-inspector {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+.image-inspector > .formula-panel {
+  margin: 0 24px;
+}
+
+.image-inspector .inspector-actions {
+  margin-top: auto;
+}
+
 .workflow-progress {
   color: var(--muted);
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -115,7 +155,41 @@
   width: 100%;
 }
 
+@media (max-width: 1120px) {
+  .image-feature-content {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .image-inspector {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+}
+
 @media (max-width: 767px) {
+  .image-lab-layout {
+    display: block;
+  }
+
+  .image-workflow {
+    min-height: 0;
+    padding: 24px 16px 0;
+    border-right: 0;
+  }
+
+  .image-feature-content {
+    display: block;
+  }
+
+  .image-inspector {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .image-inspector > .formula-panel {
+    margin: 0 16px;
+  }
+
   .pixel-stage {
     min-height: 286px;
     padding: 20px;

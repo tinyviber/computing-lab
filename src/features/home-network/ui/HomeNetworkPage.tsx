@@ -35,13 +35,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
     : `Issue codes: ${validation.issues.join(", ")}`;
 
   return (
-    <LabShell
-      controlsLabel="Network configuration inspector"
-      eyebrow="NETWORK / 01"
-      title="家庭网络配置"
-      subtitle="Devices and routing"
-      visualization={
-        <section className="lesson-section" aria-labelledby="network-heading">
+    <LabShell eyebrow="NETWORK / 01" title="家庭网络配置" subtitle="Devices and routing">
+      <div className="network-feature-layout">
+        <section className="lesson-section network-visualization" aria-labelledby="network-heading">
           <div className="section-heading">
             <div>
               <p className="eyebrow">TOPOLOGY</p>
@@ -157,85 +153,81 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             </section>
           </VisualizationPanel>
         </section>
-      }
-      controls={
-        <div className="inspector-panel audio-controls">
-          <div className="inspector-heading">
-            <p className="eyebrow">INSPECTOR</p>
-            <strong>Gateway configuration</strong>
+        <aside aria-label="Network configuration inspector" className="network-inspector">
+          <div className="inspector-panel audio-controls">
+            <div className="inspector-heading">
+              <p className="eyebrow">INSPECTOR</p>
+              <strong>Gateway configuration</strong>
+            </div>
+            <label className="select-label" htmlFor="gateway">
+              Default gateway
+            </label>
+            <input
+              aria-label="Default gateway"
+              aria-describedby="gateway-description"
+              className="network-input"
+              id="gateway"
+              onChange={(event) => {
+                dispatch({ type: "set-gateway", gateway: event.target.value });
+              }}
+              role="combobox"
+              type="text"
+              value={gateway}
+            />
+            <p className="control-description network-input-description" id="gateway-description">
+              Enter an IPv4 gateway. Query values are shareable and first value wins.
+            </p>
+            <div className="calculation-card">
+              <div className="calculation-row">
+                <span>Network</span>
+                <code>{NETWORK_FIXTURE.cidr}</code>
+              </div>
+              <div className="calculation-row">
+                <span>Devices</span>
+                <code>{NETWORK_DEVICES.length}</code>
+              </div>
+              <div className="calculation-row">
+                <span>Scenario</span>
+                <code>{scenario.scenario}</code>
+              </div>
+            </div>
           </div>
-          <label className="select-label" htmlFor="gateway">
-            Default gateway
-          </label>
-          <input
-            aria-label="Default gateway"
-            aria-describedby="gateway-description"
-            className="network-input"
-            id="gateway"
-            onChange={(event) => {
-              dispatch({ type: "set-gateway", gateway: event.target.value });
-            }}
-            role="combobox"
-            type="text"
-            value={gateway}
+          <FormulaPanel
+            title="NETWORK VALIDATION"
+            rows={[
+              { label: "Gateway", value: gateway },
+              { label: "Status", value: validation.valid ? "valid" : "invalid" },
+              { label: "Issue codes", value: validation.issues.join(", ") || "none" },
+            ]}
           />
-          <p className="control-description network-input-description" id="gateway-description">
-            Enter an IPv4 gateway. Query values are shareable and first value wins.
-          </p>
-          <div className="calculation-card">
-            <div className="calculation-row">
-              <span>Network</span>
-              <code>{NETWORK_FIXTURE.cidr}</code>
-            </div>
-            <div className="calculation-row">
-              <span>Devices</span>
-              <code>{NETWORK_DEVICES.length}</code>
-            </div>
-            <div className="calculation-row">
-              <span>Scenario</span>
-              <code>{scenario.scenario}</code>
-            </div>
+          <div className="inspector-actions">
+            <button className="button button-primary" onClick={submit} type="button">
+              Check configuration <span aria-hidden="true">→</span>
+            </button>
+            <ExperimentStatus
+              phase={phase}
+              title={
+                phase === "success" ? "Connected" : phase === "failure" ? "Wrong gateway" : "Ready"
+              }
+              detail={
+                phase === "ready"
+                  ? "Select a gateway, then check the configuration."
+                  : phase === "failure"
+                    ? `Wrong gateway. ${statusDetail}`
+                    : statusDetail
+              }
+            />
+            <button
+              className="button button-secondary"
+              onClick={() => dispatch({ type: "reset" })}
+              type="button"
+            >
+              Reset
+            </button>
           </div>
-        </div>
-      }
-      explanation={
-        <FormulaPanel
-          title="NETWORK VALIDATION"
-          rows={[
-            { label: "Gateway", value: gateway },
-            { label: "Status", value: validation.valid ? "valid" : "invalid" },
-            { label: "Issue codes", value: validation.issues.join(", ") || "none" },
-          ]}
-        />
-      }
-      actions={
-        <div className="inspector-actions">
-          <button className="button button-primary" onClick={submit} type="button">
-            Check configuration <span aria-hidden="true">→</span>
-          </button>
-          <ExperimentStatus
-            phase={phase}
-            title={
-              phase === "success" ? "Connected" : phase === "failure" ? "Wrong gateway" : "Ready"
-            }
-            detail={
-              phase === "ready"
-                ? "Select a gateway, then check the configuration."
-                : phase === "failure"
-                  ? `Wrong gateway. ${statusDetail}`
-                  : statusDetail
-            }
-          />
-          <button
-            className="button button-secondary"
-            onClick={() => dispatch({ type: "reset" })}
-            type="button"
-          >
-            Reset
-          </button>
-        </div>
-      }
-    />
+        </aside>
+      </div>
+    </LabShell>
   );
 }
 

@@ -23,6 +23,17 @@ describe("LabShell", () => {
     );
   });
 
+  it("renders feature children directly in the shell-owned main without legacy slot wrappers", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    const main = screen.getByRole("main", { name: /图像编码 workspace/i });
+    expect(main).toContainElement(screen.getByRole("grid"));
+    expect(main.querySelector("#lab-navigation")).toBeNull();
+    expect(main.querySelector(".lab-visualization")).toBeNull();
+    expect(main.querySelector(".lab-controls")).toBeNull();
+    expect(document.querySelector("#lab-navigation")).not.toBe(main);
+  });
+
   it("returns focus to menu button after Escape closes mobile rail", async () => {
     const user = userEvent.setup();
     const matchMedia = vi.fn().mockImplementation((query: string) => ({

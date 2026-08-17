@@ -7,19 +7,12 @@ type LabShellProps = {
   eyebrow: string;
   title: string;
   subtitle: string;
-  controlsLabel?: string;
-  navigation?: ReactNode;
-  visualization?: ReactNode;
-  controls?: ReactNode;
-  explanation?: ReactNode;
-  actions?: ReactNode;
-  children?: ReactNode;
+  children: ReactNode;
 };
 
 type LabNavigationProps = {
   labNavigationItems: ReturnType<typeof useLabNavigationItems>;
   isMobile: boolean;
-  navigation?: ReactNode;
   pathname: string;
   railOpen: boolean;
   setRailOpen: (open: boolean) => void;
@@ -28,7 +21,6 @@ type LabNavigationProps = {
 function LabNavigation({
   labNavigationItems,
   isMobile,
-  navigation,
   pathname,
   railOpen,
   setRailOpen,
@@ -68,7 +60,6 @@ function LabNavigation({
           ))}
         </ul>
       </nav>
-      {navigation}
       <div className="rail-footer">
         <span className="local-dot" aria-hidden="true" />
         <div>
@@ -85,23 +76,11 @@ function RoutedLabNavigation(props: Omit<LabNavigationProps, "pathname">) {
   return <LabNavigation {...props} pathname={pathname} />;
 }
 
-export function LabShell({
-  eyebrow,
-  title,
-  subtitle,
-  controlsLabel,
-  navigation,
-  visualization,
-  controls,
-  explanation,
-  actions,
-  children,
-}: LabShellProps) {
+export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) {
   const labNavigationItems = useLabNavigationItems();
   const [railOpen, setRailOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
-  const hasSlots = visualization || controls || explanation || actions;
 
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return undefined;
@@ -171,33 +150,12 @@ export function LabShell({
         <RoutedLabNavigation
           labNavigationItems={labNavigationItems}
           isMobile={isMobile}
-          navigation={navigation}
           railOpen={railOpen}
           setRailOpen={setRailOpen}
         />
 
-        <main
-          className={`workspace${hasSlots ? " lab-shell-workspace" : ""}`}
-          aria-label={`${title} workspace`}
-        >
-          {hasSlots ? (
-            <>
-              {visualization ? (
-                <section className="lab-visualization">{visualization}</section>
-              ) : null}
-              {controls || explanation || actions ? (
-                <aside className="lab-controls" aria-label={controlsLabel ?? `${title} controls`}>
-                  {controls}
-                  {explanation ? (
-                    <section className="lab-explanation">{explanation}</section>
-                  ) : null}
-                  {actions ? <div className="lab-actions">{actions}</div> : null}
-                </aside>
-              ) : null}
-            </>
-          ) : (
-            children
-          )}
+        <main className="workspace" aria-label={`${title} workspace`}>
+          {children}
         </main>
       </div>
     </div>

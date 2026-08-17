@@ -39,8 +39,11 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
   await page.goto("labs/image-encoding?scenario=low-sampling", { waitUntil: "networkidle" });
   await expect(page.getByRole("slider", { name: /density/i })).toHaveValue("2");
 
-  await page.goto("labs/audio-encoding?scenario=low-frequency", { waitUntil: "networkidle" });
-  await expect(page.getByRole("slider", { name: /sampling rate/i })).toHaveValue("8");
+  await page.goto("labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12", {
+    waitUntil: "networkidle",
+  });
+  await expect(page.getByLabel(/sample rate/i)).toHaveValue("16000");
+  await expect(page.getByLabel(/bit depth/i)).toHaveValue("12");
 
   await page.goto("labs/home-network?scenario=wrong-gateway", { waitUntil: "networkidle" });
   await expect(page.getByRole("combobox", { name: /default gateway/i })).toHaveValue(
