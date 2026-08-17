@@ -7,7 +7,7 @@ import {
   MIN_PHASE,
   MIN_SAMPLING_PERCENT,
   normalizeBitDepth,
-  normalizePhase,
+  normalizePhaseForSampling,
   normalizeSamplingPercent,
 } from "../domain/model";
 import type { ImageView } from "./state";
@@ -102,15 +102,19 @@ export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageSce
     firstInteger(params, ["bits", "bitDepth"]) ??
       (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
   );
-  const phase = normalizePhase(firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase);
+  const phase = normalizePhaseForSampling(
+    samplingPercent,
+    firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase,
+  );
   return { fixture, samplingPercent, bitDepth, phase, view: viewFromParams(params) };
 }
 
 export function serializeImageEncodingScenario(state: ImageScenarioState): string {
   const params = new URLSearchParams();
   params.set("image", state.fixture);
-  params.set("sample", String(normalizeSamplingPercent(state.samplingPercent)));
-  params.set("phase", normalizePhase(state.phase).toFixed(2));
+  const samplingPercent = normalizeSamplingPercent(state.samplingPercent);
+  params.set("sample", String(samplingPercent));
+  params.set("phase", normalizePhaseForSampling(samplingPercent, state.phase).toFixed(2));
   params.set("bits", String(normalizeBitDepth(state.bitDepth)));
   params.set("view", state.view);
   return params.toString();

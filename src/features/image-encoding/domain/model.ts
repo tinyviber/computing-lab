@@ -123,6 +123,12 @@ export function normalizePhase(value: number): number {
   return clamp(finiteOr(value, 0), MIN_PHASE, MAX_PHASE);
 }
 
+export function normalizePhaseForSampling(samplingPercent: number, phase: number): number {
+  return normalizeSamplingPercent(samplingPercent) >= MAX_SAMPLING_PERCENT
+    ? MIN_PHASE
+    : normalizePhase(phase);
+}
+
 export function normalizeImage(source: RasterImage): RasterImage {
   const width = Math.max(1, Math.floor(finiteOr(source.width, 1)));
   const height = Math.max(1, Math.floor(finiteOr(source.height, 1)));
@@ -210,7 +216,8 @@ export function sampleImage(
 ): SampledRepresentation {
   const source = normalizeImage(sourceInput);
   const { width, height } = sampledDimensions(source, options.samplingPercent);
-  const phase = normalizePhase(options.phase);
+  const samplingPercent = normalizeSamplingPercent(options.samplingPercent);
+  const phase = normalizePhaseForSampling(samplingPercent, options.phase);
   const pixels = Array.from({ length: width * height }, (_, index) => {
     const sampleY = Math.floor(index / width);
     const sampleX = index % width;
@@ -229,7 +236,7 @@ export function sampleImage(
     width,
     height,
     pixels,
-    samplingPercent: normalizeSamplingPercent(options.samplingPercent),
+    samplingPercent,
     phase,
   };
 }

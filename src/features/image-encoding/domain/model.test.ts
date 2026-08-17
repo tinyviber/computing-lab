@@ -46,6 +46,17 @@ describe("image encoding domain model", () => {
     );
   });
 
+  it("keeps full-density sampling identity regardless of requested phase", () => {
+    const source = getImageFixture("pixel-grid");
+    const sampled = sampleImage(source, { samplingPercent: 100, phase: 0.8 });
+    expect(sampled.phase).toBe(0);
+    expect(sampled.width).toBe(source.width);
+    expect(sampled.height).toBe(source.height);
+    expect(sampled.pixels.map((pixel) => [pixel.sourceX, pixel.sourceY])).toEqual(
+      source.pixels.map((_, index) => [index % source.width, Math.floor(index / source.width)]),
+    );
+  });
+
   it("uses the same phase-aware cell geometry for reconstruction and inspection", () => {
     const model = deriveImageEncodingModel(getImageFixture("checkerboard"), {
       samplingPercent: 25,

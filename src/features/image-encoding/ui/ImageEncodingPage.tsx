@@ -198,6 +198,7 @@ function RangeField({
   step,
   unit,
   description,
+  disabled = false,
   onChange,
 }: {
   id: string;
@@ -208,6 +209,7 @@ function RangeField({
   step: number;
   unit: string;
   description: string;
+  disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
@@ -221,6 +223,7 @@ function RangeField({
       </div>
       <input
         aria-describedby={`${id}-help`}
+        disabled={disabled}
         id={id}
         max={max}
         min={min}
@@ -531,7 +534,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={lesson.samplingPercent}
               />
               <RangeField
-                description="Move the sampling grid within one cell to expose phase-sensitive patterns."
+                description="Move the sampling grid within one cell to expose phase-sensitive patterns. At 100% sampling, this is fixed at 0 so every source pixel is retained once."
+                disabled={lesson.samplingPercent >= MAX_SAMPLING_PERCENT}
                 id="sampling-phase"
                 label="Sampling grid phase"
                 max={MAX_PHASE}

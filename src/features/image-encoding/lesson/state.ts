@@ -4,6 +4,7 @@ import {
   normalizeBitDepth,
   normalizeImage,
   normalizePhase,
+  normalizePhaseForSampling,
   normalizeSamplingPercent,
 } from "../domain/model";
 import type { ImageScenarioState } from "./scenario";
@@ -32,12 +33,23 @@ function initialCoordinate(source: RasterImage): { x: number; y: number } {
   return { x: Math.floor(source.width / 2), y: Math.floor(source.height / 2) };
 }
 
-export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
-  const source = getImageFixture(scenario.fixture);
+function normalizeScenario(scenario: ImageScenarioState): ImageScenarioState {
+  const samplingPercent = normalizeSamplingPercent(scenario.samplingPercent);
   return {
     ...scenario,
+    samplingPercent,
+    bitDepth: normalizeBitDepth(scenario.bitDepth),
+    phase: normalizePhaseForSampling(samplingPercent, scenario.phase),
+  };
+}
+
+export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
+  const normalizedScenario = normalizeScenario(scenario);
+  const source = getImageFixture(normalizedScenario.fixture);
+  return {
+    ...normalizedScenario,
     source,
-    initialScenario: { ...scenario },
+    initialScenario: { ...normalizedScenario },
     selectedCoordinate: initialCoordinate(source),
   };
 }
@@ -49,12 +61,21 @@ export function transitionImageLesson(
   switch (action.type) {
     case "load-scenario":
       return createImageLessonState(action.scenario);
-    case "set-sampling":
-      return { ...state, samplingPercent: normalizeSamplingPercent(action.samplingPercent) };
+    case "set-sampling": {
+      const samplingPercent = normalizeSamplingPercent(action.samplingPercent);
+      return {
+        ...state,
+        samplingPercent,
+        phase: normalizePhaseForSampling(samplingPercent, state.phase),
+      };
+    }
     case "set-bit-depth":
       return { ...state, bitDepth: normalizeBitDepth(action.bitDepth) };
     case "set-phase":
-      return { ...state, phase: normalizePhase(action.phase) };
+      return {
+        ...state,
+        phase: normalizePhaseForSampling(state.samplingPercent, normalizePhase(action.phase)),
+      };
     case "set-view":
       return { ...state, view: action.view };
     case "select-pixel":

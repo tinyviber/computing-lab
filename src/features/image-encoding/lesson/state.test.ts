@@ -20,6 +20,15 @@ describe("image lesson state", () => {
     expect("submit" in state).toBe(false);
   });
 
+  it("keeps full-density scenarios at zero phase", () => {
+    const state = createImageLessonState(
+      parseImageEncodingScenario("image=pixel-grid&sample=100&phase=0.8"),
+    );
+    expect(state.samplingPercent).toBe(100);
+    expect(state.phase).toBe(0);
+    expect(transitionImageLesson(state, { type: "set-phase", phase: 0.8 }).phase).toBe(0);
+  });
+
   it("selects a bounded source coordinate and keeps uploaded pixels transient", () => {
     const state = createImageLessonState(parseImageEncodingScenario(""));
     const uploaded = {
