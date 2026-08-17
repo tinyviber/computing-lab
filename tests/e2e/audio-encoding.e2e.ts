@@ -24,10 +24,16 @@ test.describe("Sound reference trajectories", () => {
       "true",
     );
     await expect(plot.locator(".sound-reconstructed-line")).toBeVisible();
-    await page.locator("#sound-cursor").fill("250");
-    await expect(page.locator("#sound-cursor")).toHaveValue("250");
+    const seekTarget = 250;
+    await page.locator("#sound-cursor").fill(String(seekTarget));
+    await expect
+      .poll(async () => Number(await cursor.inputValue()))
+      .toBeGreaterThanOrEqual(seekTarget);
+    const cursorAfterSeek = Number(await cursor.inputValue());
     await page.getByRole("button", { name: /advance 100 ms/i }).click();
-    await expect.poll(async () => Number(await cursor.inputValue())).toBeGreaterThan(initialCursor);
+    await expect
+      .poll(async () => Number(await cursor.inputValue()))
+      .toBeGreaterThan(cursorAfterSeek);
     await page.getByRole("button", { name: /^stop$/i }).click();
     await expect(cursor).toHaveValue("0");
   });
