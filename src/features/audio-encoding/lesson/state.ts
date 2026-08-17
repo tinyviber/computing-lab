@@ -37,6 +37,7 @@ export type SoundLessonAction =
   | { type: "set-mode"; mode: SoundMode }
   | { type: "set-view"; view: SoundView }
   | { type: "set-cursor"; cursor: number }
+  | { type: "seek"; cursor: number }
   | { type: "set-loop"; loop: SoundLoop }
   | { type: "tick"; deltaMs: number }
   | { type: "reset" }
@@ -169,6 +170,7 @@ export function transitionSoundLesson(
     case "set-view":
       return { ...state, view: action.view };
     case "set-cursor":
+    case "seek":
       return {
         ...state,
         cursor: Number.isFinite(action.cursor)

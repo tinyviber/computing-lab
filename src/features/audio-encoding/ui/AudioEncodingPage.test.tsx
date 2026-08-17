@@ -197,4 +197,115 @@ describe("Sound reference UI", () => {
       "true",
     );
   });
+
+  it("keeps an arbitrary URL sample rate visible until a precise ladder stop is chosen", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=840");
+
+    const sampleRate = control(/sample rate/i);
+    expect(sampleRate.tagName).toBe("SELECT");
+    expect(sampleRate).toHaveValue("840");
+    expect(
+      within(sampleRate).getByRole("option", { name: /840 hz \(scenario\)/i }),
+    ).toBeInTheDocument();
+    expect(within(sampleRate).getByRole("option", { name: /^880 hz$/i })).toBeInTheDocument();
+    const optionValues = within(sampleRate)
+      .getAllByRole("option")
+      .map((option) => Number((option as HTMLOptionElement).value));
+    expect(optionValues).toEqual(
+      expect.arrayContaining([800, 880, 960, 3600, 3960, 4320, 12000, 24000]),
+    );
+
+    await user.selectOptions(sampleRate, "880");
+    expect(sampleRate).toHaveValue("880");
+  });
+
+  it("changes an explicit plot time window without increasing the bounded plot", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=8000&bitDepth=8");
+
+    const plot = screen.getByRole("img", { name: /plot/i });
+    const initialEnd = plot.getAttribute("data-time-window-end");
+    const initialPoints = plot.querySelectorAll(".sound-original-line circle").length;
+
+    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
+    expect(plot.getAttribute("data-time-window-end")).not.toBe(initialEnd);
+    expect(plot.querySelectorAll(".sound-original-line circle").length).toBeLessThanOrEqual(360);
+    expect(initialPoints).toBeLessThanOrEqual(360);
+  });
+
+  it("shows real full-range quantization codes in a bounded preview", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=16");
+    await user.click(button(/^quantization$/i));
+    await user.click(button(/^levels$/i));
+
+    const evidence = screen.getByTestId("sound-quantization-evidence");
+    const levels = evidence.querySelectorAll("[data-level-code]");
+    expect(levels.length).toBeGreaterThanOrEqual(2);
+    expect(levels.length).toBeLessThanOrEqual(24);
+    expect(levels[0]).toHaveAttribute("data-level-code", "0");
+    expect(levels[0]).toHaveAttribute("data-level-value", "-1");
+    expect(levels[levels.length - 1]).toHaveAttribute("data-level-code", "65535");
+    expect(levels[levels.length - 1]).toHaveAttribute("data-level-value", "1");
+    expect(evidence).toHaveTextContent(/65536 (?:total levels|complete level values)/i);
+  });
+
+  it("keeps sample markers inside the selected plot window and aligned to local time", async () => {
+    const user = userEvent.setup();
+    await renderAppAt(
+      "/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&view=samples",
+    );
+
+    const plot = screen.getByRole("img", { name: /samples plot/i });
+    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
+
+    const startMs = Number(plot.getAttribute("data-time-window-start"));
+    const endMs = Number(plot.getAttribute("data-time-window-end"));
+    expect(endMs).toBeGreaterThan(startMs);
+
+    const markers = [...plot.querySelectorAll<SVGCircleElement>(".sound-sample-marker")];
+    expect(markers.length).toBeGreaterThan(0);
+    for (const marker of markers) {
+      const timestampMs = Number(marker.getAttribute("data-sample-timestamp-ms"));
+      const cx = Number(marker.getAttribute("cx"));
+      const expectedCx = ((timestampMs - startMs) / (endMs - startMs)) * 100;
+
+      expect(timestampMs).toBeGreaterThanOrEqual(startMs);
+      expect(timestampMs).toBeLessThanOrEqual(endMs);
+      expect(cx).toBeGreaterThanOrEqual(0);
+      expect(cx).toBeLessThanOrEqual(100);
+      expect(cx).toBeCloseTo(expectedCx, 5);
+    }
+  });
+
+  it("uses plot-local cursor coordinates and does not place an out-of-window cursor in the middle", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
+
+    const plot = screen.getByRole("img", { name: /plot/i });
+    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
+    const startMs = Number(plot.getAttribute("data-time-window-start"));
+    const endMs = Number(plot.getAttribute("data-time-window-end"));
+    const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
+    expect(cursorInput).not.toBeNull();
+
+    const insideCursorMs = Math.round(startMs + (endMs - startMs) / 2);
+    fireEvent.change(cursorInput, { target: { value: String(insideCursorMs) } });
+    const actualInsideCursorMs = Number((cursorInput as HTMLInputElement).value);
+    const cursorLine = () => plot.querySelector<SVGLineElement>(".sound-cursor-line");
+    const insideLine = cursorLine();
+    expect(insideLine).not.toBeNull();
+    expect(Number(insideLine?.getAttribute("x1"))).toBeCloseTo(
+      ((actualInsideCursorMs - startMs) / (endMs - startMs)) * 100,
+      5,
+    );
+
+    fireEvent.change(cursorInput, { target: { value: "750" } });
+    const outsideLine = cursorLine();
+    if (outsideLine) {
+      const outsideX = Number(outsideLine.getAttribute("x1"));
+      expect(outsideX === 0 || outsideX === 100).toBe(true);
+    }
+  });
 });

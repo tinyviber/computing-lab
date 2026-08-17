@@ -64,6 +64,32 @@ describe("Sound orthogonal reducer", () => {
     expect(overshoot.transport).toBe("stopped");
   });
 
+  it("keeps reducer clock ticks distinct from explicit user seeks", () => {
+    let state = transition(initial(), { type: "play" });
+    state = transition(state, { type: "tick", deltaMs: 100 });
+    expect(state).toMatchObject({ cursor: 100, transport: "playing" });
+
+    const sought = transition(state, { type: "seek", cursor: 250 });
+    expect(sought).toMatchObject({ cursor: 250, transport: "playing" });
+
+    const tickedAgain = transition(sought, { type: "tick", deltaMs: 50 });
+    expect(tickedAgain).toMatchObject({ cursor: 300, transport: "playing" });
+    expect(transition(sought, { type: "tick", deltaMs: 0 })).toEqual(sought);
+  });
+
+  it("updates a paused seek without starting or stopping transport", () => {
+    let state = transition(initial(), { type: "set-transport", transport: "paused" });
+    const sought = transition(state, { type: "seek", cursor: 250 });
+
+    expect(state.transport).toBe("stopped");
+    expect(sought).toMatchObject({ cursor: 250, transport: "stopped" });
+    state = transition(transition(initial(), { type: "play" }), { type: "pause" });
+    expect(transition(state, { type: "seek", cursor: 250 })).toMatchObject({
+      cursor: 250,
+      transport: "paused",
+    });
+  });
+
   it("makes invalid, negative, zero, and non-finite ticks no-ops", () => {
     let state = transition(transition(initial(), { type: "set-transport", transport: "playing" }), {
       type: "tick",

@@ -208,6 +208,51 @@ describe("Sound audioPlayback boundary", () => {
     expect(context.sources[0].stopCalls).toBeGreaterThan(0);
   });
 
+  it("restarts the active audition at the user seek offset without duplicating reducer ticks", async () => {
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
+    fireEvent.click(screen.getByRole("button", { name: /^reconstructed$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+
+    const context = audioContext();
+    const firstSource = context.sources[0];
+    const cursor = document.querySelector("#sound-cursor") as HTMLInputElement;
+    fireEvent.change(cursor, { target: { value: "250" } });
+
+    expect(cursor).toHaveValue("250");
+    expect(firstSource.stopCalls).toBeGreaterThan(0);
+    expect(context.sources).toHaveLength(2);
+    const seekSource = context.sources[1];
+    expect(seekSource.buffer).toBe(context.createBufferCalls[1]);
+    expect(seekSource.startCalls[0]?.[1]).toBeCloseTo(0.25, 6);
+    expect(screen.getByRole("button", { name: /^reconstructed$/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+
+    const sourceCountAfterSeek = context.sources.length;
+    await waitFor(() => expect(rafCallbacks.size).toBeGreaterThan(0));
+    runAnimationFrame(1000);
+    runAnimationFrame(1100);
+    expect(context.sources).toHaveLength(sourceCountAfterSeek);
+    expect(seekSource.startCalls).toHaveLength(1);
+  });
+
+  it("keeps paused seeks visual-only until the next Play uses the new offset", async () => {
+    await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
+    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    const context = audioContext();
+    fireEvent.click(screen.getByRole("button", { name: /^pause$/i }));
+    const sourceCount = context.sources.length;
+
+    fireEvent.change(document.querySelector("#sound-cursor")!, { target: { value: "250" } });
+    expect(cursorValue()).toBe(250);
+    expect(context.sources).toHaveLength(sourceCount);
+
+    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    expect(context.sources).toHaveLength(sourceCount + 1);
+    expect(context.sources.at(-1)?.startCalls[0]?.[1]).toBeCloseTo(0.25, 6);
+  });
+
   it("uses the reducer clock as the visual authority and keeps RAF deterministic", async () => {
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
     fireEvent.click(screen.getByRole("button", { name: /^play$/i }));

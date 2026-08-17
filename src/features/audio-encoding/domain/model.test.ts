@@ -80,6 +80,50 @@ function numberField(value: DerivedModel, ...names: string[]): number {
   throw new Error(`Expected one of ${names.join(", ")} to be a number`);
 }
 
+function derivePlot(
+  source: SoundConfig["source"],
+  config: Omit<SoundConfig, "source">,
+  startMs: number,
+  endMs: number,
+): Array<{ timeMs: number; original: number }> {
+  expect(modelExports.deriveSoundModel, "Sound model builder is not exported").toEqual(
+    expect.any(Function),
+  );
+  return (modelExports.deriveSoundModel as Function)(source, config, 0, { startMs, endMs })
+    .plot as Array<{
+    timeMs: number;
+    original: number;
+  }>;
+}
+
+function estimatePositiveZeroCrossingFrequency(
+  plot: readonly { timeMs: number; original: number }[],
+): number {
+  const crossings: number[] = [];
+  const firstTimeMs = plot[0]?.timeMs ?? 0;
+  const lastTimeMs = plot.at(-1)?.timeMs ?? 0;
+  const boundaryEpsilonMs = 1e-9;
+  for (let index = 1; index < plot.length; index += 1) {
+    const before = plot[index - 1];
+    const after = plot[index];
+    if (before.original < 0 && after.original >= 0) {
+      const fraction = before.original / (before.original - after.original);
+      const crossingTimeMs = before.timeMs + fraction * (after.timeMs - before.timeMs);
+      if (
+        crossingTimeMs > firstTimeMs + boundaryEpsilonMs &&
+        crossingTimeMs < lastTimeMs - boundaryEpsilonMs
+      ) {
+        crossings.push(crossingTimeMs);
+      }
+    }
+  }
+  if (crossings.length < 2) return 0;
+  const intervalsMs = crossings.slice(1).map((timeMs, index) => timeMs - crossings[index]);
+  const meanIntervalMs =
+    intervalsMs.reduce((sum, intervalMs) => sum + intervalMs, 0) / intervalsMs.length;
+  return meanIntervalMs > 0 ? 1000 / meanIntervalMs : 0;
+}
+
 describe("Sound reference model", () => {
   it("is deterministic and exposes the complete pure derived model", () => {
     const config: SoundConfig = { source: "pure440", sampleRate: 8000, bitDepth: 8, phase: 0 };
@@ -353,5 +397,131 @@ describe("Sound reference model", () => {
       classification: "at",
       foldedFrequencyHz: 440,
     });
+  });
+
+  it("renders a source-faithful bounded plot inside an explicit time window", () => {
+    const plot = derivePlot("pure440", { sampleRate: 8000, bitDepth: 8, phase: 0 }, 100, 150);
+
+    expect(plot.length).toBeGreaterThan(2);
+    expect(plot.length).toBeLessThanOrEqual(360);
+    expect(plot[0].timeMs).toBeGreaterThanOrEqual(100);
+    expect(plot.at(-1)?.timeMs).toBeLessThanOrEqual(150);
+    for (const point of plot) {
+      expect(point.original).toBeCloseTo(sampleSoundFixture("pure440", point.timeMs), 12);
+    }
+  });
+
+  it("samples each plot window densely enough for the highest declared harmonic", () => {
+    for (const source of ["sawtooth", "high-pulse"] as const) {
+      const fixture = getSoundFixture(source);
+      const highestHz = Math.max(...fixture.components.map((component) => component.frequencyHz));
+      for (const periods of [1, 2, 4]) {
+        const endMs = (periods * 1000) / highestHz;
+        const plot = derivePlot(source, { sampleRate: 8000, bitDepth: 8, phase: 0 }, 0, endMs);
+        const maxDeltaMs = 1000 / (highestHz * 12);
+
+        expect(plot.length).toBeGreaterThan(2);
+        expect(plot.length).toBeLessThanOrEqual(360);
+        expect(
+          Math.max(...plot.slice(1).map((point, index) => point.timeMs - plot[index].timeMs)),
+        ).toBeLessThanOrEqual(maxDeltaMs + 1e-9);
+        expect(
+          plot.every((point) => point.original === sampleSoundFixture(source, point.timeMs)),
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("preserves pure 440 Hz frequency evidence in a zoomed plot", () => {
+    const plot = derivePlot(
+      "pure440",
+      { sampleRate: 8000, bitDepth: 8, phase: 0 },
+      0,
+      (5 / 440) * 1000,
+    );
+    expect(estimatePositiveZeroCrossingFrequency(plot)).toBeCloseTo(440, 0);
+  });
+
+  it("makes sawtooth waveform exactly equal to its declared linear harmonic sum", () => {
+    const fixture = getSoundFixture("sawtooth");
+    for (const timeMs of [0, 0.25, 1, 7.5, 37.25, 250.75, 999.999]) {
+      const expected = fixture.components.reduce(
+        (sum, component) =>
+          sum +
+          component.amplitude * Math.sin((2 * Math.PI * component.frequencyHz * timeMs) / 1000),
+        0,
+      );
+      expect(fixture.sampleAt(timeMs)).toBeCloseTo(expected, 12);
+      expect(sampleSoundFixture("sawtooth", timeMs)).toBeCloseTo(expected, 12);
+    }
+  });
+
+  it("decimates real quantization codes across the complete amplitude range", () => {
+    const decimate = modelExports.decimateQuantizationLevels;
+    expect(decimate, "Quantization level decimator is not exported").toEqual(expect.any(Function));
+    for (const bitDepth of [2, 4, 16]) {
+      const result = derive({
+        source: "pure440",
+        sampleRate: 8000,
+        bitDepth,
+        phase: 0,
+      }) as DerivedSoundContract;
+      const preview = (decimate as Function)(result.quantization.levelValues, 24) as Array<{
+        value: number;
+        code: number;
+      }>;
+      expect(preview.length).toBeLessThanOrEqual(24);
+      expect(preview[0]).toMatchObject({ value: -1, code: 0 });
+      expect(preview.at(-1)).toMatchObject({ value: 1, code: 2 ** bitDepth - 1 });
+      expect(
+        preview.every((entry) => result.quantization.levelValues[entry.code] === entry.value),
+      ).toBe(true);
+    }
+  });
+
+  it("keeps discrete sample-rate teaching stops aligned with Nyquist crossings", () => {
+    const teachingStops = [800, 880, 960, 3600, 3960, 4320, 8000, 12000, 24000];
+    expect(teachingStops).toEqual(expect.arrayContaining([800, 880, 960, 3960, 12000, 24000]));
+
+    const pureBelow = derive({
+      source: "pure440",
+      sampleRate: 960,
+      bitDepth: 8,
+      phase: 0,
+    }) as DerivedSoundContract;
+    const pureAt = derive({
+      source: "pure440",
+      sampleRate: 880,
+      bitDepth: 8,
+      phase: 0,
+    }) as DerivedSoundContract;
+    const pureAliased = derive({
+      source: "pure440",
+      sampleRate: 800,
+      bitDepth: 8,
+      phase: 0,
+    }) as DerivedSoundContract;
+    expect(pureBelow.aliasingEvidence.components[0].classification).toBe("below");
+    expect(pureAt.aliasingEvidence.components[0].classification).toBe("at");
+    expect(pureAliased.aliasingEvidence.components[0].classification).toBe("aliased");
+
+    const harmonicAt = derive({
+      source: "sawtooth",
+      sampleRate: 3960,
+      bitDepth: 8,
+      phase: 0,
+    }) as DerivedSoundContract;
+    expect(
+      harmonicAt.aliasingEvidence.components.some((component) => component.classification === "at"),
+    ).toBe(true);
+    const pulseAt = derive({
+      source: "high-pulse",
+      sampleRate: 12000,
+      bitDepth: 8,
+      phase: 0,
+    }) as DerivedSoundContract;
+    expect(
+      pulseAt.aliasingEvidence.components.some((component) => component.classification === "at"),
+    ).toBe(true);
   });
 });

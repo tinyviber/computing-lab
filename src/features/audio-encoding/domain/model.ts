@@ -12,7 +12,15 @@ export const SOUND_MIN_BIT_DEPTH = 2;
 export const SOUND_MAX_BIT_DEPTH = 16;
 export const SOUND_MIN_PHASE = 0;
 export const SOUND_MAX_PHASE = 1;
-export const SOUND_PLOT_POINT_LIMIT = 360;
+export const SOUND_PLOT_POINT_LIMIT = 720;
+export const SOUND_PLOT_HARMONIC_DENSITY = 12;
+
+export type SoundPlotWindow = {
+  startMs: number;
+  endMs: number;
+};
+
+export type QuantizationPreviewPoint = { code: number; value: number };
 
 export type SoundConfig = {
   sampleRate: number;
@@ -25,6 +33,7 @@ export type Quantization = {
   levels: number;
   levelValues: readonly number[];
   reconstructed: readonly number[];
+  preview: readonly QuantizationPreviewPoint[];
 };
 
 export type SoundSample = {
@@ -96,6 +105,7 @@ export type SoundModel = {
     bytesPerSecond: number;
   };
   cursor: SoundCursorReadout;
+  plotWindow: SoundPlotWindow;
   plot: readonly SoundPlotPoint[];
   reconstructAt: (timeMs: number) => number;
 };
@@ -120,8 +130,15 @@ export function normalizeSoundConfig(config: SoundConfig): SoundConfig {
       SOUND_MIN_BIT_DEPTH,
       SOUND_MAX_BIT_DEPTH,
     ),
-    phase: clamp(finiteOr(config.phase, 0), SOUND_MIN_PHASE, SOUND_MAX_PHASE),
+    phase: normalizePhase(config.phase),
   };
+}
+
+export function normalizePhase(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  const wrapped = value % 1;
+  return wrapped;
 }
 
 function quantize(value: number, levels: number): number {
@@ -143,6 +160,19 @@ function getQuantizationLevels(levels: number): readonly number[] {
   );
   quantizationLevelCache.set(levels, values);
   return values;
+}
+
+export function decimateQuantizationLevels(
+  levelValues: readonly number[],
+  maxPoints = 24,
+): QuantizationPreviewPoint[] {
+  if (levelValues.length === 0) return [];
+  const count = Math.min(levelValues.length, Math.max(2, Math.floor(maxPoints)));
+  if (count === 1) return [{ code: 0, value: levelValues[0] }];
+  return Array.from({ length: count }, (_, index) => {
+    const code = Math.round((index * (levelValues.length - 1)) / (count - 1));
+    return { code, value: levelValues[code] };
+  });
 }
 
 export function foldedFrequency(frequencyHz: number, sampleRate: number): number {
@@ -186,15 +216,39 @@ export function reconstructAt(
   return reconstruction[Math.max(0, index)] ?? 0;
 }
 
+function normalizePlotWindow(
+  source: SoundSource,
+  durationMs: number,
+  plotWindow?: SoundPlotWindow,
+): SoundPlotWindow {
+  const fixture = getSoundFixture(source);
+  const defaultWindowMs = Math.min(durationMs, 4000 / Math.max(fixture.frequencyHz, 1));
+  const maxStartMs = Math.max(0, durationMs - 0.001);
+  const startMs = clamp(finiteOr(plotWindow?.startMs ?? 0, 0), 0, maxStartMs);
+  const requestedEnd = finiteOr(plotWindow?.endMs ?? defaultWindowMs, defaultWindowMs);
+  const endMs = clamp(Math.max(requestedEnd, startMs + 0.001), startMs + 0.001, durationMs);
+  return { startMs, endMs };
+}
+
 function buildPlot(
   source: SoundSource,
   timestamps: readonly number[],
   reconstruction: readonly number[],
   durationMs: number,
+  plotWindow: SoundPlotWindow,
 ): SoundPlotPoint[] {
-  const count = Math.min(SOUND_PLOT_POINT_LIMIT, Math.max(2, Math.ceil(durationMs / 4)));
+  const fixture = getSoundFixture(source);
+  const highestFrequency = Math.max(
+    ...fixture.components.map((component) => component.frequencyHz),
+  );
+  const { startMs, endMs } = plotWindow;
+  const windowMs = endMs - startMs;
+  const requiredIntervals = Math.ceil(
+    (windowMs * highestFrequency * SOUND_PLOT_HARMONIC_DENSITY) / 1000,
+  );
+  const count = Math.min(SOUND_PLOT_POINT_LIMIT, Math.max(2, requiredIntervals + 1));
   return Array.from({ length: count }, (_, index) => {
-    const timeMs = (index / (count - 1)) * durationMs;
+    const timeMs = startMs + (index / (count - 1)) * windowMs;
     const sampleIndex = sampleIndexAt(timeMs, timestamps, durationMs);
     const originalValue = sampleSoundFixture(source, timeMs);
     return {
@@ -235,6 +289,7 @@ export function deriveSoundModel(
   source: SoundSource,
   config: SoundConfig,
   cursorMs = 0,
+  plotWindow?: SoundPlotWindow,
 ): SoundModel {
   const safeConfig = normalizeSoundConfig(config);
   const fixture = getSoundFixture(source);
@@ -266,6 +321,7 @@ export function deriveSoundModel(
   );
   const aliasingEvidence = { anyAliasing, components: aliasingComponents };
   const totalBits = sampleCount * safeConfig.bitDepth;
+  const normalizedPlotWindow = normalizePlotWindow(source, durationMs, plotWindow);
   const cursor = cursorReadout(
     source,
     cursorMs,
@@ -292,7 +348,13 @@ export function deriveSoundModel(
     original,
     timestamps,
     samples,
-    quantization: { codes, levels, levelValues, reconstructed: reconstruction },
+    quantization: {
+      codes,
+      levels,
+      levelValues,
+      preview: decimateQuantizationLevels(levelValues),
+      reconstructed: reconstruction,
+    },
     reconstruction,
     sampleHold: reconstruction,
     errors,
@@ -314,7 +376,8 @@ export function deriveSoundModel(
       bytesPerSecond: Math.ceil((safeConfig.sampleRate * safeConfig.bitDepth) / 8),
     },
     cursor,
-    plot: buildPlot(source, timestamps, reconstruction, durationMs),
+    plotWindow: normalizedPlotWindow,
+    plot: buildPlot(source, timestamps, reconstruction, durationMs, normalizedPlotWindow),
     reconstructAt: (timeMs: number) =>
       reconstructAt(timeMs, timestamps, reconstruction, durationMs),
     cursorAt: (timeMs: number) =>

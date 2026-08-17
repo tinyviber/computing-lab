@@ -99,6 +99,7 @@ function defaultAudioContextFactory(): AudioContextLike | null {
 
 export type AudioPlaybackRuntime = {
   sync: (request: AudioPlaybackRequest) => void;
+  seek: (request: AudioPlaybackRequest) => void;
   play: (request: AudioPlaybackRequest) => AudioPlaybackResult;
   pause: () => void;
   stop: () => void;
@@ -187,6 +188,11 @@ export function createAudioPlaybackRuntime(
       currentRequest = request;
       if (!playing || !previous || configKey(previous) === configKey(request)) return;
       startNode(request, request.cursorMs);
+    },
+
+    seek(request) {
+      currentRequest = request;
+      if (playing) startNode(request, request.cursorMs);
     },
 
     play(request) {

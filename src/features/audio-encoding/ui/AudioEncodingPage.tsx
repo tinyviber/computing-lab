@@ -5,11 +5,8 @@ import { SOUND_FIXTURES, type SoundSource } from "../domain/fixtures";
 import {
   deriveSoundModel,
   SOUND_MAX_BIT_DEPTH,
-  SOUND_MAX_PHASE,
-  SOUND_MAX_SAMPLE_RATE,
   SOUND_MIN_BIT_DEPTH,
   SOUND_MIN_PHASE,
-  SOUND_MIN_SAMPLE_RATE,
 } from "../domain/model";
 import { parseSoundScenario, type SoundMode, type SoundView } from "../lesson/scenario";
 import { createSoundLessonState, transitionSoundLesson } from "../lesson/state";
@@ -52,15 +49,27 @@ function classificationLabel(classification: "below" | "at" | "aliased"): string
   return "below Nyquist";
 }
 
+const SAMPLE_RATE_STOPS = [
+  800, 880, 960, 3600, 3960, 4320, 8000, 10800, 12000, 13200, 16000, 21600, 24000, 26400, 44100,
+];
+
 function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseSoundScenario(search), [search]);
   const [state, dispatch] = useReducer(transitionSoundLesson, scenario, createSoundLessonState);
+  const [plotPeriods, setPlotPeriods] = useState(4);
   const [audioStatus, setAudioStatus] = useState("Audio is ready when Play is pressed.");
   const playback = useMemo(() => createAudioPlaybackRuntime(), []);
-  const model = useMemo(
-    () => deriveSoundModel(state.source, state.config),
-    [state.config, state.source],
-  );
+  const model = useMemo(() => {
+    const fixture = SOUND_FIXTURES[state.source];
+    const windowMs = Math.min(
+      fixture.durationMs,
+      (1000 * plotPeriods) / Math.max(fixture.frequencyHz, 1),
+    );
+    return deriveSoundModel(state.source, state.config, 0, {
+      startMs: 0,
+      endMs: windowMs,
+    });
+  }, [plotPeriods, state.config, state.source]);
   const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
   const fixture = SOUND_FIXTURES[state.source];
   const isLooping = state.loop !== "off";
@@ -77,8 +86,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   );
   const { levelPreview, plotLines, visibleSamples } = useMemo(() => {
     const sampleStride = Math.max(1, Math.ceil(model.samples.length / 160));
+    const { startMs, endMs } = model.plotWindow;
+    const samplesInWindow = model.samples.filter(
+      (sample) => sample.timestampMs >= startMs && sample.timestampMs <= endMs,
+    );
     return {
-      levelPreview: model.quantization.levelValues.slice(0, 24),
+      levelPreview: model.quantization.preview,
       plotLines: {
         error: plotPoints(
           model.plot.map((point) => point.error),
@@ -87,7 +100,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
         original: plotPoints(model.plot.map((point) => point.original)),
         reconstructed: plotPoints(model.plot.map((point) => point.reconstructed)),
       },
-      visibleSamples: model.samples.filter((_, index) => index % sampleStride === 0),
+      visibleSamples: samplesInWindow.filter((sample) => sample.index % sampleStride === 0),
     };
   }, [model]);
   const playbackRequest: AudioPlaybackRequest = useMemo(
@@ -167,6 +180,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     dispatch({ type: "play" });
   };
 
+  const seek = (cursorMs: number) => {
+    const nextRequest = { ...playbackRequest, cursorMs };
+    if (state.transport === "playing") playback.seek(nextRequest);
+    dispatch({ type: "seek", cursor: cursorMs });
+  };
+
   return (
     <LabShell eyebrow="AUDIO / 01" title="声音编码" subtitle="Sampling and quantization">
       <div className="sound-feature-layout">
@@ -187,7 +206,9 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <div className="sound-panel-header">
               <span>BOUNDED PLOT</span>
               <code>
-                {model.plot.length} points / {model.sampleCount} samples
+                {model.plot.length} points ·{" "}
+                {formatNumber(model.plot[model.plot.length - 1]?.timeMs ?? 0, 1)} ms window /{" "}
+                {model.sampleCount} samples
               </code>
             </div>
             <div
@@ -197,6 +218,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               data-evidence={selectedView === "error" ? "error-waveform" : selectedView}
               data-sound-mode={state.mode}
               data-sound-view={selectedView}
+              data-time-window-start={model.plotWindow.startMs}
+              data-time-window-end={model.plotWindow.endMs}
               role="img"
             >
               <svg className="sound-plot" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -214,7 +237,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                   ? visibleSamples.map((sample) => (
                       <circle
                         className="sound-sample-marker"
-                        cx={(sample.timestampMs / model.durationMs) * 100}
+                        cx={
+                          ((sample.timestampMs - model.plotWindow.startMs) /
+                            (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                          100
+                        }
                         cy={50 - sample.original * 40}
                         data-sample-marker="true"
                         data-sample-index={sample.index}
@@ -229,21 +256,32 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <line
                         className="sound-level-line"
                         data-bounded-line="true"
-                        key={level}
+                        key={level.code}
                         x1="0"
                         x2="100"
-                        y1={50 - level * 40}
-                        y2={50 - level * 40}
+                        y1={50 - level.value * 40}
+                        y2={50 - level.value * 40}
                       />
                     ))
                   : null}
-                <line
-                  className="sound-cursor-line"
-                  x1={(state.cursor / model.durationMs) * 100}
-                  x2={(state.cursor / model.durationMs) * 100}
-                  y1="0"
-                  y2="100"
-                />
+                {state.cursor >= model.plotWindow.startMs &&
+                state.cursor <= model.plotWindow.endMs ? (
+                  <line
+                    className="sound-cursor-line"
+                    x1={
+                      ((state.cursor - model.plotWindow.startMs) /
+                        (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                      100
+                    }
+                    x2={
+                      ((state.cursor - model.plotWindow.startMs) /
+                        (model.plotWindow.endMs - model.plotWindow.startMs)) *
+                      100
+                    }
+                    y1="0"
+                    y2="100"
+                  />
+                ) : null}
               </svg>
             </div>
             <div className="sound-panel-footer">
@@ -298,16 +336,21 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <div data-testid="sound-quantization-evidence">
                 <p className="eyebrow">QUANTIZATION EVIDENCE</p>
                 <p>
-                  {model.quantization.levelValues.length} complete level values; showing a bounded
-                  preview of {levelPreview.length}.
+                  {model.quantization.levelValues.length} total levels; showing bounded preview of{" "}
+                  {levelPreview.length}.
                 </p>
                 <div
                   className="sound-level-preview"
                   data-level-count={model.quantization.levelValues.length}
                 >
-                  {levelPreview.map((level, index) => (
-                    <span data-level-value={level} key={level} title={`Level ${index}`}>
-                      {formatNumber(level)}
+                  {levelPreview.map((level) => (
+                    <span
+                      data-level-code={level.code}
+                      data-level-value={level.value}
+                      key={level.code}
+                      title={`Code ${level.code}`}
+                    >
+                      {level.code}: {formatNumber(level.value)}
                     </span>
                   ))}
                 </div>
@@ -428,20 +471,27 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <label className="sound-label" htmlFor="sound-rate">
               Sample rate <span>{state.config.sampleRate} Hz</span>
             </label>
-            <input
+            <select
               aria-describedby="sound-rate-description"
               id="sound-rate"
-              max={SOUND_MAX_SAMPLE_RATE}
-              min={SOUND_MIN_SAMPLE_RATE}
               onChange={(event) =>
                 dispatch({ type: "set-sample-rate", sampleRate: Number(event.target.value) })
               }
-              step={1}
-              type="range"
               value={state.config.sampleRate}
-            />
+            >
+              {!SAMPLE_RATE_STOPS.includes(state.config.sampleRate) ? (
+                <option value={state.config.sampleRate}>
+                  {state.config.sampleRate} Hz (scenario)
+                </option>
+              ) : null}
+              {SAMPLE_RATE_STOPS.map((rate) => (
+                <option key={rate} value={rate}>
+                  {rate} Hz
+                </option>
+              ))}
+            </select>
             <p className="sound-control-description" id="sound-rate-description">
-              Samples captured per second.
+              Choose a teaching stop near a Nyquist crossing, or keep the exact scenario value.
             </p>
             <label className="sound-label" htmlFor="sound-bits">
               Bit depth <span>{state.config.bitDepth} bit</span>
@@ -467,7 +517,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               aria-label="Phase"
               aria-describedby="sound-phase-description"
               id="sound-phase"
-              max={SOUND_MAX_PHASE}
+              max="0.99"
               min={SOUND_MIN_PHASE}
               onChange={(event) =>
                 dispatch({ type: "set-phase", phase: Number(event.target.value) })
@@ -479,6 +529,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <p className="sound-control-description" id="sound-phase-description">
               Moves sampling timestamps; source x(t) stays unchanged.
             </p>
+            <label className="sound-label" htmlFor="sound-plot-periods">
+              Plot window <span>{plotPeriods} source periods</span>
+            </label>
+            <select
+              id="sound-plot-periods"
+              onChange={(event) => setPlotPeriods(Number(event.target.value))}
+              value={plotPeriods}
+            >
+              {[0.5, 1, 2, 4].map((periods) => (
+                <option key={periods} value={periods}>
+                  {periods} periods
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="sound-inspector-section">
@@ -525,9 +589,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               id="sound-cursor"
               max={model.durationMs}
               min="0"
-              onChange={(event) =>
-                dispatch({ type: "set-cursor", cursor: Number(event.target.value) })
-              }
+              onChange={(event) => seek(Number(event.target.value))}
               step="1"
               type="range"
               value={state.cursor}

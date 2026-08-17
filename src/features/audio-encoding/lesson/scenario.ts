@@ -1,10 +1,9 @@
 import {
   SOUND_MAX_BIT_DEPTH,
-  SOUND_MAX_PHASE,
   SOUND_MAX_SAMPLE_RATE,
   SOUND_MIN_BIT_DEPTH,
-  SOUND_MIN_PHASE,
   SOUND_MIN_SAMPLE_RATE,
+  normalizePhase,
   type SoundConfig,
 } from "../domain/model";
 import { SOUND_FIXTURES, type SoundSource } from "../domain/fixtures";
@@ -119,12 +118,7 @@ export function parseSoundScenario(input: SoundScenarioSearch): SoundScenario {
       SOUND_MAX_BIT_DEPTH,
       true,
     ),
-    phase: bounded(
-      phaseKeyPresent ? firstFinite(params, "phase") : undefined,
-      DEFAULT_SOUND_SCENARIO.phase,
-      SOUND_MIN_PHASE,
-      SOUND_MAX_PHASE,
-    ),
+    phase: normalizePhase(phaseKeyPresent ? (firstFinite(params, "phase") ?? 0) : 0),
     mode: modeKeyPresent
       ? (firstEnum(params, "mode", MODES) ?? DEFAULT_SOUND_SCENARIO.mode)
       : DEFAULT_SOUND_SCENARIO.mode,
@@ -143,6 +137,7 @@ function loopValue(loop: SoundLoop): string {
 
 export function serializeSoundScenario(scenario: SoundScenario): string {
   const params = new URLSearchParams();
+  const phase = normalizePhase(scenario.phase);
   if (scenario.source !== DEFAULT_SOUND_SCENARIO.source) params.set("source", scenario.source);
   if (scenario.sampleRate !== DEFAULT_SOUND_SCENARIO.sampleRate) {
     params.set("sampleRate", String(scenario.sampleRate));
@@ -150,7 +145,7 @@ export function serializeSoundScenario(scenario: SoundScenario): string {
   if (scenario.bitDepth !== DEFAULT_SOUND_SCENARIO.bitDepth) {
     params.set("bitDepth", String(scenario.bitDepth));
   }
-  if (scenario.phase !== DEFAULT_SOUND_SCENARIO.phase) params.set("phase", String(scenario.phase));
+  if (phase !== DEFAULT_SOUND_SCENARIO.phase) params.set("phase", String(phase));
   if (scenario.mode !== DEFAULT_SOUND_SCENARIO.mode) params.set("mode", scenario.mode);
   if (scenario.loop !== DEFAULT_SOUND_SCENARIO.loop) params.set("loop", loopValue(scenario.loop));
   if (scenario.view !== DEFAULT_SOUND_SCENARIO.view) params.set("view", scenario.view);

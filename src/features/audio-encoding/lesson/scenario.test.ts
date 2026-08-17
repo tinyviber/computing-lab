@@ -88,6 +88,23 @@ describe("Sound URL scenario", () => {
     expect(Number.isFinite(malformed.phase)).toBe(true);
   });
 
+  it("canonicalizes sampling phase to the half-open interval [0, 1)", () => {
+    expect(parseScenario("phase=1").phase).toBe(0);
+    expect(parseScenario("phase=2.25").phase).toBeCloseTo(0.25, 12);
+    expect(parseScenario("phase=-0.25").phase).toBe(0);
+    expect(parseScenario("phase=NaN").phase).toBe(0);
+
+    const canonical = parseScenario("phase=1");
+    expect(serializeScenario(canonical)).toBe("");
+    expect(parseScenario(serializeScenario({ ...canonical, phase: 0.75 })).phase).toBe(0.75);
+  });
+
+  it("preserves arbitrary scenario sample rates until the user chooses a teaching stop", () => {
+    const arbitrary = parseScenario("sampleRate=840");
+    expect(arbitrary.sampleRate).toBe(840);
+    expect(parseScenario(serializeScenario(arbitrary)).sampleRate).toBe(840);
+  });
+
   it("serializes in canonical order, omits defaults, and round-trips without history concerns", () => {
     const defaults: SoundScenario = {
       source: "pure440",

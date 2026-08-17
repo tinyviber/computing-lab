@@ -59,14 +59,18 @@ const SAWTOOTH_COMPONENTS: readonly SoundComponent[] = Array.from({ length: 9 },
   };
 });
 
+const SAWTOOTH_NORMALIZATION =
+  1 / SAWTOOTH_COMPONENTS.reduce((sum, component) => sum + Math.abs(component.amplitude), 0);
+const NORMALIZED_SAWTOOTH_COMPONENTS: readonly SoundComponent[] = SAWTOOTH_COMPONENTS.map(
+  (component) => ({ ...component, amplitude: component.amplitude * SAWTOOTH_NORMALIZATION }),
+);
+
 function sawtooth(timeMs: number): number {
   const seconds = timeMs / 1000;
-  return clampUnit(
-    SAWTOOTH_COMPONENTS.reduce(
-      (sum, component) =>
-        sum + component.amplitude * Math.sin(TWO_PI * component.frequencyHz * seconds),
-      0,
-    ),
+  return NORMALIZED_SAWTOOTH_COMPONENTS.reduce(
+    (sum, component) =>
+      sum + component.amplitude * Math.sin(TWO_PI * component.frequencyHz * seconds),
+    0,
   );
 }
 
@@ -108,7 +112,7 @@ export const SOUND_FIXTURES: Readonly<Record<SoundSource, SoundFixture>> = {
     description: "A harmonic-rich ramp that reveals quantization steps.",
     frequencyHz: 220,
     durationMs: 1000,
-    components: SAWTOOTH_COMPONENTS,
+    components: NORMALIZED_SAWTOOTH_COMPONENTS,
     sampleAt: sawtooth,
   },
 };
@@ -122,5 +126,5 @@ export function sampleSoundFixture(
   timeMs: number,
   _ignoredPhaseTurns?: number,
 ): number {
-  return clampUnit(getSoundFixture(source).sampleAt(timeMs));
+  return getSoundFixture(source).sampleAt(timeMs);
 }
