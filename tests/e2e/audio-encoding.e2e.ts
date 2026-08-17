@@ -8,7 +8,6 @@ test.describe("Sound reference trajectories", () => {
 
     const plot = page.getByRole("img", { name: /plot/i });
     const cursor = page.locator("#sound-cursor");
-    const initialCursor = Number(await cursor.inputValue());
     await expect(page.getByRole("button", { name: /^original$/i })).toHaveAttribute(
       "aria-pressed",
       "true",
