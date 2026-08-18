@@ -17,6 +17,7 @@ This directory keeps durable, decision-level research summaries for Computing La
 - `output/10-monte-carlo-evidence.md` — Monte Carlo π course implementation evidence and seeded-random-stream hypothesis update.
 - `output/11-relational-data-evidence.md` — Relational Data course implementation evidence and provenance/constraint hypothesis update.
 - `output/12-byte-edit-evidence.md` — Byte Edit course implementation evidence and editable-finite-representation hypothesis update.
+- `output/13-mission-deliverable.md` — final mission deliverable: dependency graph, branches/commits, primitive matrix, extraction decisions, cleanup, and architecture assessment.
 
 These are research records, not current architecture authority. Current product and boundary decisions live in `docs/`, especially `docs/architecture.md`, `docs/course-model-reset.md`, and `docs/primitive-extraction-review.md`.
 
