@@ -4,7 +4,7 @@ import "./home.css";
 export function LabErrorPage({ error, reset }: ErrorComponentProps) {
   return (
     <div className="not-found" role="alert">
-      <p className="eyebrow">LAB / RECOVERABLE ERROR</p>
+      <p className="eyebrow">实验 / 可以重试的错误</p>
       <h1>实验暂时无法显示</h1>
       <p>{error instanceof Error ? error.message : "实验遇到未知错误。"}</p>
       <div className="error-actions">

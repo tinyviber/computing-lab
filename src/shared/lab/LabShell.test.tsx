@@ -13,7 +13,7 @@ describe("LabShell", () => {
 
     expect(screen.getByRole("heading", { level: 1, name: "图像编码" })).toBeInTheDocument();
     expect(screen.getByRole("main", { name: /图像编码 workspace/i })).toBeInTheDocument();
-    expect(screen.getByRole("navigation", { name: /available labs/i })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /可用实验/ })).toBeInTheDocument();
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
       expect.arrayContaining([
         "/labs/image-encoding",
@@ -50,18 +50,18 @@ describe("LabShell", () => {
     await renderAppAt("/labs/image-encoding");
 
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: /open lab menu/i })).toBeInTheDocument(),
+      expect(screen.getByRole("button", { name: /打开实验菜单/ })).toBeInTheDocument(),
     );
-    const menu = screen.getByRole("button", { name: /open lab menu/i });
+    const menu = screen.getByRole("button", { name: /打开实验菜单/ });
     await user.click(menu);
-    expect(screen.getAllByRole("button", { name: /close lab menu/i })[0]).toHaveAttribute(
+    expect(screen.getAllByRole("button", { name: /关闭实验菜单/ })[0]).toHaveAttribute(
       "aria-expanded",
       "true",
     );
 
     await user.keyboard("{Escape}");
-    expect(screen.getByRole("button", { name: /open lab menu/i })).toHaveFocus();
-    expect(screen.getByRole("button", { name: /open lab menu/i })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /打开实验菜单/ })).toHaveFocus();
+    expect(screen.getByRole("button", { name: /打开实验菜单/ })).toHaveAttribute(
       "aria-expanded",
       "false",
     );
@@ -79,7 +79,7 @@ describe("LabShell", () => {
     );
     await renderAppAt("/labs/image-encoding");
 
-    const open = screen.getByRole("button", { name: /open lab menu/i });
+    const open = screen.getByRole("button", { name: /打开实验菜单/ });
     const rail = document.querySelector<HTMLElement>("#lab-navigation")!;
     expect(rail).toHaveAttribute("aria-hidden", "true");
     expect(rail).toHaveAttribute("inert");

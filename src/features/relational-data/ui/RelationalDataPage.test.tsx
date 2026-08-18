@@ -11,66 +11,63 @@ describe("RelationalDataPage", () => {
 
     expect(screen.getByRole("main", { name: "关系数据 workspace" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "关系数据" })).toBeInTheDocument();
-    expect(screen.getByRole("spinbutton", { name: /row count/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /relational fixture/i })).toHaveValue("catalog");
-    expect(screen.getByRole("button", { name: "Step" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Run to end" })).toBeEnabled();
-    expect(
-      screen.getByRole("table", { name: /constraint checks over the catalog/i }),
-    ).toHaveTextContent(/FAIL.*99/i);
+    expect(screen.getByRole("spinbutton", { name: /行数/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /关系数据情境/ })).toHaveValue("catalog");
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
+    await userEvent.setup().click(button("执行一步"));
+    expect(screen.getByRole("table", { name: /固定目录上的约束检查/ })).toHaveTextContent(
+      /失败.*99/,
+    );
     const borrowers = screen.getByRole("table", {
-      name: /borrower source rows: NULL versus empty string/i,
+      name: /借阅人源行：NULL 与空字符串的对照/,
     });
     expect(within(borrowers).getByText("NULL")).toBeInTheDocument();
     expect(within(borrowers).getByText('""')).toBeInTheDocument();
-    expect(screen.getByText(/IS NOT NULL.*rejects only NULL/i)).toBeInTheDocument();
+    expect(screen.getByText(/borrowers\.name 不是 NULL/)).toBeInTheDocument();
   });
 
   it("supports prediction, query provenance, and the broken loan lesson", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/relational-data");
 
-    const rowCount = screen.getByRole("spinbutton", { name: /row count/i });
+    const rowCount = screen.getByRole("spinbutton", { name: /行数/ });
     await user.clear(rowCount);
     await user.type(rowCount, "4");
-    await user.click(button("Record prediction"));
-    expect(
-      screen.getByText(/prediction recorded: the next query returns 4 rows/i),
-    ).toBeInTheDocument();
+    await user.click(button("记录预测"));
+    expect(screen.getByText(/已记录预测：下一条查询将返回 4 行/)).toBeInTheDocument();
 
-    await user.click(button("Run to end"));
-    expect(screen.getByRole("region", { name: /selected relational evidence/i })).toHaveTextContent(
-      /Loans per borrower/,
+    await user.click(button("运行到结束"));
+    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
+      /按借阅人统计借阅数/,
     );
-    expect(screen.getByRole("region", { name: /selected relational evidence/i })).toHaveTextContent(
-      /Derived cells: loans is computed/i,
+    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
+      /派生单元格：loans 是计算得到的/,
     );
     const provenance = screen.getByRole("table", {
-      name: /provenance: which source rows produced each result/i,
+      name: /来源追踪：哪些源行产生了每条结果/,
     });
     expect(provenance).toHaveTextContent(/loan-1/);
     expect(provenance).toHaveTextContent(/loan-2/);
     expect(provenance).toHaveTextContent(/loan-1, person-1, book-3/);
     expect(provenance).toHaveTextContent(/loan-4, person-3, book-1/);
-    expect(screen.getByRole("region", { name: /predicted versus actual/i })).toHaveTextContent(
-      /All books\s*44/i,
-    );
+    expect(screen.getByRole("region", { name: /预测与实际/ })).toHaveTextContent(/全部图书\s*44/);
   });
 
   it("selects frames with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/relational-data");
-    await user.click(button("Run to end"));
+    await user.click(button("运行到结束"));
 
-    const first = screen.getByRole("button", { name: /Query 1, All books, 4 rows/i });
-    const second = screen.getByRole("button", { name: /Query 2, Available books, 2 rows/i });
+    const first = screen.getByRole("button", { name: /查询 1：全部图书，4 行/ });
+    const second = screen.getByRole("button", { name: /查询 2：可借图书，2 行/ });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /selected relational evidence/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
       /The Left Hand of Darkness/,
     );
 
@@ -85,9 +82,9 @@ describe("RelationalDataPage", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });
     try {
       await renderAppAt("/labs/relational-data");
-      await userEvent.setup().click(button("Step"));
-      expect(screen.getByRole("table", { name: /query result rows/i })).toBeVisible();
-      expect(screen.getByRole("region", { name: /relational constraints/i })).toBeVisible();
+      await userEvent.setup().click(button("执行一步"));
+      expect(screen.getByRole("table", { name: /查询结果行/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /关系数据约束/ })).toBeVisible();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -101,8 +98,20 @@ describe("RelationalDataPage", () => {
     }
     expect(
       within(screen.getByRole("main", { name: /关系数据 workspace/i })).getByText(
-        /How does a fixed set of rows answer a query/i,
+        /固定的一组行如何回答查询/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the first render exploratory instead of revealing the relational answer", async () => {
+    await renderAppAt("/labs/relational-data");
+
+    const firstRender = document.body.textContent ?? "";
+    expect(firstRender).not.toMatch(/NULL means absent value; an empty string is present text/i);
+    expect(firstRender).not.toMatch(/How does a fixed set of rows answer a query/i);
+    expect(firstRender).not.toMatch(/broken loan.*disappears from the joined aggregate/i);
+    expect(firstRender).not.toMatch(/NULL 表示缺失值，空字符串仍是存在的文本/);
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
   });
 });

@@ -23,14 +23,70 @@ const NODE_POSITIONS: Record<NetworkDeviceId, { x: number; y: number }> = {
 };
 
 function outcomeLabel(event: ProbeEvent): string {
-  if (event.outcome === "fail") return "stopped";
-  if (event.outcome === "reply") return "reply";
-  if (event.outcome === "complete") return "complete";
-  return "pass";
+  if (event.outcome === "fail") return "已停止";
+  if (event.outcome === "reply") return "已回复";
+  if (event.outcome === "complete") return "已完成";
+  return "通过";
+}
+
+const EVENT_KIND_LABELS: Record<string, string> = {
+  "route-lookup": "路由查询",
+  "arp-next-hop": "ARP 查找下一跳",
+  "address-validation": "地址校验",
+  "destination-classification": "目标分类",
+  "transmit-request": "发送请求",
+  "transmit-reply": "发送回复",
+  "target-response": "目标响应",
+  "probe-complete": "探针完成",
+  "nat-request": "NAT 请求",
+  "reverse-nat": "反向 NAT",
+};
+
+const REASON_LABELS: Record<string, string> = {
+  "address-valid": "地址有效。",
+  "invalid-ip": "IP 地址格式无效。",
+  "invalid-prefix": "前缀长度无效。",
+  "network-address": "地址是网络地址，不能作为主机地址。",
+  "broadcast-address": "地址是广播地址，不能作为主机地址。",
+  "duplicate-address": "检测到重复地址。",
+  "route-to-lan": "目标位于局域网，选择直接路径。",
+  "route-to-internet": "目标位于外部网络，选择路由器路径。",
+  "destination-local": "目标与源在同一局域网。",
+  "destination-remote": "目标不在源的局域网。",
+  "gateway-unresolved": "无法解析默认网关。",
+  "wrong-endpoint": "当前端点不是目标。",
+  "frame-sent": "链路层帧已发送。",
+  "direct-delivery": "请求直接送达目标。",
+  "target-replied": "目标返回了响应。",
+  "probe-complete": "探针完成。",
+  "nat-applied": "路由器应用了网络地址转换。",
+  "reverse-nat-applied": "路由器应用了反向网络地址转换。",
+};
+
+function eventKindLabel(kind: string): string {
+  return EVENT_KIND_LABELS[kind] ?? kind;
+}
+
+function reasonLabel(reasonCode: string): string {
+  return REASON_LABELS[reasonCode] ?? "事件证据已记录。";
+}
+
+function deviceName(name: string): string {
+  return name === "Internet" ? "互联网" : name;
+}
+
+function deviceKindLabel(kind: string): string {
+  return (
+    { laptop: "学习电脑", printer: "打印机", router: "路由器", internet: "互联网" }[kind] ?? kind
+  );
+}
+
+function probeTargetLabel(target: string): string {
+  return target === "printer" ? "打印机" : "互联网";
 }
 
 function packetLabel(packet: ProbeEvent["packet"]): string {
-  return `${packet.sourceIp} → ${packet.destinationIp} · next hop ${packet.nextHopIp || "not selected"}`;
+  return `${packet.sourceIp} → ${packet.destinationIp} · 下一跳 ${packet.nextHopIp || "未选择"}`;
 }
 
 function deviceAddress(device: NetworkDevice | typeof INTERNET_ENDPOINT): string {
@@ -57,10 +113,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   const latestProbe = lesson.probeHistory[lesson.probeHistory.length - 1];
   const comparisonTrace =
     selectedTrace && latestProbe && selectedTrace.id !== latestProbe.id ? selectedTrace : undefined;
-  const selectedTraceTargetLabel = selectedTrace?.target === "printer" ? "打印机" : "Internet";
+  const selectedTraceTargetLabel = selectedTrace?.target === "printer" ? "打印机" : "互联网";
   const selectedPrediction = selectedTrace ? lesson.probePredictions[selectedTrace.id] : undefined;
-  const selectedPredictionLabel =
-    selectedPrediction === "local" ? "local / direct" : "remote / router";
+  const selectedPredictionLabel = selectedPrediction === "local" ? "本地 / 直接" : "远程 / 路由器";
   const destinationClassification = selectedTrace?.events.find(
     (event) => event.kind === "destination-classification",
   );
@@ -72,10 +127,10 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
         : undefined;
   const observedPathLabel = observedPath
     ? observedPath === "local"
-      ? "local / direct"
-      : "remote / router"
-    : "not classified";
-  const validationReason = selectedTrace?.firstFailure?.reason;
+      ? "本地 / 直接"
+      : "远程 / 路由器"
+    : "未分类";
+  const validationReasonCode = selectedTrace?.firstFailure?.reasonCode;
 
   const editField = (field: "ip" | "prefix" | "gateway", value: string) => {
     if (lesson.selectedDevice === "laptop" || lesson.selectedDevice === "printer") {
@@ -84,23 +139,19 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   };
 
   return (
-    <LabShell
-      eyebrow="NETWORK / 01"
-      title="家庭网络探针"
-      subtitle="Addressing, ARP, routing and NAT"
-    >
+    <LabShell eyebrow="NETWORK / 01" title="家庭网络探针" subtitle="地址、ARP、路由与 NAT">
       <div className="home-network-page">
         <header className="network-lesson-intro">
           <div>
-            <p className="eyebrow">HOME NETWORK / PROBE LAB</p>
+            <p className="eyebrow">家庭网络 / 探针实验</p>
             <h2>追踪一个数据包的第一处阻塞</h2>
             <p>
               固定的家庭局域网使用
               192.168.1.0/24。编辑设备配置，选择探针目标，然后观察每一跳的因果证据。
             </p>
           </div>
-          <div className="scenario-chip" aria-label={`Preset scenario ${lesson.scenario}`}>
-            <span>PRESET</span>
+          <div className="scenario-chip" aria-label={`预设情境 ${lesson.scenario}`}>
+            <span>预设</span>
             <strong>{lesson.scenario}</strong>
           </div>
         </header>
@@ -109,7 +160,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           <section className="network-canvas-card" aria-labelledby="topology-heading">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">FIXED TOPOLOGY</p>
+                <p className="eyebrow">固定拓扑</p>
                 <h3 id="topology-heading">家庭网络路径</h3>
               </div>
               <span className="network-metric">LAN 192.168.1.0/24</span>
@@ -120,10 +171,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               role="img"
               viewBox="0 0 510 300"
             >
-              <title id="home-network-graph-title">Fixed home network topology</title>
+              <title id="home-network-graph-title">固定家庭网络拓扑</title>
               <desc id="home-network-graph-description">
-                A router is connected by fixed links to a laptop, printer, and Internet endpoint.
-                Links cannot be edited.
+                路由器通过固定链路连接学习电脑、打印机和互联网端点；链路不能编辑。
               </desc>
               {NETWORK_LINKS.map((link) => {
                 const from = NODE_POSITIONS[link.from];
@@ -144,12 +194,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 const selected = lesson.selectedDevice === device.id;
                 return (
                   <g
-                    aria-label={`${device.name}, ${deviceAddress(device)}`}
+                    aria-label={`${deviceName(device.name)}，${deviceAddress(device)}`}
                     className={`network-topology-node network-node-${device.kind}${selected ? " is-selected" : ""}`}
                     key={device.id}
                     role="img"
                   >
-                    <title>{`${device.name}, ${deviceAddress(device)}`}</title>
+                    <title>{`${deviceName(device.name)}，${deviceAddress(device)}`}</title>
                     <circle
                       cx={position.x}
                       cy={position.y}
@@ -182,9 +232,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               <span>
                 <b>WAN</b> {ROUTER_WAN_IP}/24
               </span>
-              <span>Fixed links · no topology editor</span>
+              <span>链路固定 · 不提供拓扑编辑器</span>
             </div>
-            <div className="network-device-list" aria-label="Fixed network devices">
+            <div className="network-device-list" aria-label="固定网络设备">
               {networkDevices.map((device) => (
                 <button
                   aria-pressed={lesson.selectedDevice === device.id}
@@ -195,7 +245,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 >
                   <span className="device-summary-dot" aria-hidden="true" />
                   <span>
-                    <strong>{device.name}</strong>
+                    <strong>{deviceName(device.name)}</strong>
                     <small>{deviceAddress(device)}</small>
                   </span>
                 </button>
@@ -208,23 +258,23 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               >
                 <span className="device-summary-dot" aria-hidden="true" />
                 <span>
-                  <strong>Internet</strong>
+                  <strong>互联网</strong>
                   <small>{INTERNET_ENDPOINT.ip}/24</small>
                 </span>
               </button>
             </div>
           </section>
 
-          <aside aria-label="Network device inspector" className="network-inspector-card">
+          <aside aria-label="网络设备检查器" className="network-inspector-card">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">INSPECTOR</p>
+                <p className="eyebrow">检查器</p>
                 <h3>设备配置</h3>
               </div>
-              <span className="inspector-lock">FIXED SOURCE: LAPTOP</span>
+              <span className="inspector-lock">固定源：学习电脑</span>
             </div>
             <label className="network-field-label" htmlFor="device-inspector">
-              Inspect device
+              检查设备
             </label>
             <select
               className="network-select"
@@ -237,7 +287,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               <option value="laptop">学习电脑</option>
               <option value="printer">打印机</option>
               <option value="router">家庭路由器</option>
-              <option value="internet">Internet</option>
+              <option value="internet">互联网</option>
             </select>
             <p className="network-field-help">设备检查选择独立于探针目标。</p>
 
@@ -245,19 +295,21 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               {selectedDevice ? (
                 <>
                   <div className="device-detail-heading">
-                    <span className="detail-device-kind">{selectedDevice.kind}</span>
-                    <strong>{selectedDevice.name}</strong>
+                    <span className="detail-device-kind">
+                      {deviceKindLabel(selectedDevice.kind)}
+                    </span>
+                    <strong>{deviceName(selectedDevice.name)}</strong>
                   </div>
                   {selectedDevice.id === "router" ? (
                     <div className="fixed-route-list">
-                      <strong>Interfaces</strong>
+                      <strong>接口</strong>
                       <span>
                         LAN · {selectedDevice.lanIp}/{selectedDevice.lanPrefix}
                       </span>
                       <span>
                         WAN · {selectedDevice.wanIp}/{selectedDevice.wanPrefix}
                       </span>
-                      <strong>Connected routes</strong>
+                      <strong>已连接路由</strong>
                       {selectedDevice.connectedRoutes.map((route) => (
                         <span key={route}>{route}</span>
                       ))}
@@ -265,7 +317,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                   ) : (
                     <>
                       <label className="network-field-label" htmlFor="device-ip">
-                        IPv4 address
+                        IPv4 地址
                       </label>
                       <input
                         aria-describedby="device-ip-help"
@@ -277,10 +329,10 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                         value={selectedDevice.ip}
                       />
                       <p className="network-field-help" id="device-ip-help">
-                        Use four decimal octets.
+                        使用四段十进制八位组。
                       </p>
                       <label className="network-field-label" htmlFor="device-prefix">
-                        Prefix length
+                        前缀长度
                       </label>
                       <div className="network-prefix-input">
                         <span aria-hidden="true">/</span>
@@ -297,12 +349,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                         />
                       </div>
                       <p className="network-field-help" id="device-prefix-help">
-                        Only integer prefixes /1 through /30 are valid.
+                        只有 /1 到 /30 的整数前缀有效。
                       </p>
                       {selectedDevice.id !== "internet" ? (
                         <>
                           <label className="network-field-label" htmlFor="device-gateway">
-                            Default gateway
+                            默认网关
                           </label>
                           <input
                             aria-describedby="device-gateway-help"
@@ -313,7 +365,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                             value={selectedDevice.gateway}
                           />
                           <p className="network-field-help" id="device-gateway-help">
-                            Gateway resolution is checked during ARP, not preflight.
+                            网关解析会在 ARP 阶段检查，而不是在预检阶段检查。
                           </p>
                         </>
                       ) : null}
@@ -321,7 +373,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                   )}
                 </>
               ) : (
-                <p>Internet is a fixed probe endpoint at 203.0.113.10/24.</p>
+                <p>互联网是固定探针端点：203.0.113.10/24。</p>
               )}
             </div>
           </aside>
@@ -330,15 +382,15 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
         <section aria-labelledby="probe-heading" className="probe-control-card">
           <div className="network-card-heading">
             <div>
-              <p className="eyebrow">SEND A PROBE</p>
+              <p className="eyebrow">发送探针</p>
               <h3 id="probe-heading">选择目标并预测路径</h3>
             </div>
-            <span className="source-chip">Source · laptop · {lesson.config.laptop.ip}</span>
+            <span className="source-chip">源 · 学习电脑 · {lesson.config.laptop.ip}</span>
           </div>
           <div className="probe-control-grid">
             <div>
               <label className="network-field-label" htmlFor="probe-target">
-                Probe target
+                探针目标
               </label>
               <select
                 className="network-select network-select-wide"
@@ -349,12 +401,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 value={lesson.target}
               >
                 <option value="printer">打印机 · {lesson.config.printer.ip}</option>
-                <option value="internet">Internet · {INTERNET_ENDPOINT.ip}</option>
+                <option value="internet">互联网 · {INTERNET_ENDPOINT.ip}</option>
               </select>
             </div>
             <div>
               <label className="network-field-label" htmlFor="probe-prediction">
-                Optional prediction
+                可选预测
               </label>
               <select
                 className="network-select network-select-wide"
@@ -370,9 +422,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 }
                 value={lesson.prediction ?? ""}
               >
-                <option value="">No prediction</option>
-                <option value="local">Local / direct</option>
-                <option value="remote">Remote / router</option>
+                <option value="">不预测</option>
+                <option value="local">本地 / 直接</option>
+                <option value="remote">远程 / 路由器</option>
               </select>
             </div>
             <div className="probe-actions">
@@ -381,14 +433,14 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 onClick={() => dispatch({ type: "send-probe" })}
                 type="button"
               >
-                Send probe <span aria-hidden="true">→</span>
+                发送探针 <span aria-hidden="true">→</span>
               </button>
               <button
                 className="network-button network-button-secondary"
                 onClick={() => dispatch({ type: "reset" })}
                 type="button"
               >
-                Reset runtime
+                恢复运行状态
               </button>
             </div>
           </div>
@@ -397,18 +449,17 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             className={`probe-outcome probe-outcome-${selectedTrace?.outcome ?? "idle"}`}
           >
             {selectedTrace
-              ? `${selectedTrace.outcome === "delivered" ? "Delivered" : "Stopped"} · ${selectedTraceTargetLabel} · ${selectedTrace.events.length} events`
-              : "No probe sent yet. Configuration edits do not create history."}
+              ? `${selectedTrace.outcome === "delivered" ? "已送达" : "已停止"} · ${selectedTraceTargetLabel} · ${selectedTrace.events.length} 个事件`
+              : "尚未发送探针。配置编辑不会创建历史记录。"}
           </p>
           {selectedTrace && selectedPrediction ? (
             <p className="probe-prediction-feedback" aria-live="polite">
-              Prediction: <strong>{selectedPredictionLabel}</strong> · observed: {observedPathLabel}{" "}
-              ·{" "}
+              预测：<strong>{selectedPredictionLabel}</strong> · 观察：{observedPathLabel} ·{" "}
               {observedPath
                 ? selectedPrediction === observedPath
-                  ? "match"
-                  : "mismatch"
-                : `validation stopped: ${validationReason ?? "no destination classification"}`}
+                  ? "一致"
+                  : "不一致"
+                : `校验停止：${validationReasonCode ? reasonLabel(validationReasonCode) : "没有目标分类"}`}
             </p>
           ) : null}
         </section>
@@ -417,7 +468,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           <section aria-labelledby="trace-heading" className="trace-card">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">CAUSAL TRACE</p>
+                <p className="eyebrow">因果记录</p>
                 <h3 id="trace-heading">事件链</h3>
               </div>
               {selectedTrace ? <span className="trace-id">{selectedTrace.id}</span> : null}
@@ -436,51 +487,51 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                         {event.sequence.toString().padStart(2, "0")}
                       </span>
                       <span className="trace-event-copy">
-                        <strong>{event.kind}</strong>
+                        <strong>{eventKindLabel(event.kind)}</strong>
                         <span>
-                          {event.actor} → {event.hop}
+                          {deviceName(event.actor)} → {deviceName(event.hop)}
                         </span>
                       </span>
                       <span className="trace-event-outcome">{outcomeLabel(event)}</span>
                     </button>
                     <p>
-                      {event.reasonCode} · {event.reason}
+                      {event.reasonCode} · {reasonLabel(event.reasonCode)}
                     </p>
                   </li>
                 ))}
               </ol>
             ) : (
-              <p className="empty-evidence">Send a probe to render its ordered causal chain.</p>
+              <p className="empty-evidence">发送探针后，这里会显示按顺序排列的因果链。</p>
             )}
           </section>
 
-          <aside aria-label="Probe evidence" className="probe-evidence-card">
+          <aside aria-label="探针证据" className="probe-evidence-card">
             <section className="failure-panel" aria-labelledby="failure-heading">
-              <p className="eyebrow">FIRST FAILURE</p>
+              <p className="eyebrow">第一个失败</p>
               <h3 id="failure-heading">
-                {selectedFailure ? selectedFailure.reasonCode : "No stopped event"}
+                {selectedFailure ? selectedFailure.reasonCode : "没有停止事件"}
               </h3>
               <p>
                 {selectedFailure
-                  ? `Event ${selectedFailure.sequence}: ${selectedFailure.reason}`
-                  : "A delivered trace has no first failure."}
+                  ? `事件 ${selectedFailure.sequence}：${reasonLabel(selectedFailure.reasonCode)}`
+                  : "已送达的记录没有第一个失败。"}
               </p>
             </section>
             <section className="selected-event-panel" aria-labelledby="selected-event-heading">
-              <p className="eyebrow">SELECTED EVENT</p>
-              <h3 id="selected-event-heading">{lesson.selectedEvent?.kind ?? "Choose an event"}</h3>
+              <p className="eyebrow">选中事件</p>
+              <h3 id="selected-event-heading">
+                {lesson.selectedEvent ? eventKindLabel(lesson.selectedEvent.kind) : "请选择事件"}
+              </h3>
               {lesson.selectedEvent ? (
                 <div className="packet-details">
                   <span>{lesson.selectedEvent.reasonCode}</span>
                   <code>{packetLabel(lesson.selectedEvent.packet)}</code>
                   {lesson.selectedEvent.transformedPacket ? (
-                    <code>
-                      after headers · {packetLabel(lesson.selectedEvent.transformedPacket)}
-                    </code>
+                    <code>变换后首部 · {packetLabel(lesson.selectedEvent.transformedPacket)}</code>
                   ) : null}
                 </div>
               ) : (
-                <p>Event packet details appear here.</p>
+                <p>事件数据包详情会显示在这里。</p>
               )}
             </section>
           </aside>
@@ -489,12 +540,10 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
         <section aria-labelledby="history-heading" className="history-card">
           <div className="network-card-heading">
             <div>
-              <p className="eyebrow">IMMUTABLE HISTORY</p>
-              <h3 id="history-heading">Probe history comparison</h3>
+              <p className="eyebrow">不可变历史</p>
+              <h3 id="history-heading">探针历史比较</h3>
             </div>
-            <span>
-              {lesson.probeHistory.length} probe{lesson.probeHistory.length === 1 ? "" : "s"}
-            </span>
+            <span>{lesson.probeHistory.length} 个探针</span>
           </div>
           {lesson.probeHistory.length ? (
             <div className="history-layout">
@@ -507,21 +556,21 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                       type="button"
                     >
                       <span>#{index + 1}</span>
-                      <strong>{probe.target}</strong>
-                      <span>{probe.outcome}</span>
-                      <small>{probe.events.length} events</small>
+                      <strong>{probeTargetLabel(probe.target)}</strong>
+                      <span>{probe.outcome === "delivered" ? "已送达" : "已停止"}</span>
+                      <small>{probe.events.length} 个事件</small>
                     </button>
                   </li>
                 ))}
               </ol>
-              <div className="history-comparison" aria-label="Selected probe snapshot comparison">
+              <div className="history-comparison" aria-label="选中探针快照比较">
                 {comparisonTrace ? (
                   <>
-                    <p className="eyebrow">SELECTED SNAPSHOT</p>
-                    <p>Comparing {comparisonTrace.id} with the current editable configuration.</p>
+                    <p className="eyebrow">选中快照</p>
+                    <p>比较 {comparisonTrace.id} 与当前可编辑配置。</p>
                     <dl>
                       <div>
-                        <dt>Laptop</dt>
+                        <dt>学习电脑</dt>
                         <dd>
                           {comparisonTrace.configSnapshot.laptop.ip}/
                           {comparisonTrace.configSnapshot.laptop.prefix} · gw{" "}
@@ -529,7 +578,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                         </dd>
                       </div>
                       <div>
-                        <dt>Printer</dt>
+                        <dt>打印机</dt>
                         <dd>
                           {comparisonTrace.configSnapshot.printer.ip}/
                           {comparisonTrace.configSnapshot.printer.prefix} · gw{" "}
@@ -539,14 +588,12 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                     </dl>
                   </>
                 ) : (
-                  <p>Select an earlier probe to compare its deep-cloned configuration snapshot.</p>
+                  <p>选择更早的探针，比较它保存的配置快照。</p>
                 )}
               </div>
             </div>
           ) : (
-            <p className="empty-evidence">
-              History is immutable and will appear after the first Send probe action.
-            </p>
+            <p className="empty-evidence">历史记录不可变；第一次发送探针后会显示在这里。</p>
           )}
         </section>
       </div>

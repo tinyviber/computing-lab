@@ -11,109 +11,95 @@ describe("ProgramExecutionPage", () => {
 
     expect(screen.getByRole("main", { name: "程序执行 workspace" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "程序执行" })).toBeInTheDocument();
-    expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
-    expect(screen.getByRole("table", { name: /initial variables/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Step" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Inspect variable change" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Inspect loop stop" })).toBeDisabled();
-    expect(
-      screen.getByRole("button", { name: "Inspect variable change" }),
-    ).toHaveAccessibleDescription(/guided inspection becomes available/i);
-    expect(screen.getByRole("status", { name: /program output/i })).toHaveTextContent("—");
+    expect(screen.getByRole("list", { name: "程序源代码" })).toBeInTheDocument();
+    expect(screen.getByRole("table", { name: /初始变量/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "检查变量变化" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "检查循环停止" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "检查变量变化" })).toHaveAccessibleDescription(
+      /对应证据帧出现后/,
+    );
+    expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("—");
   });
 
   it("supports the prediction → variable-change → loop-stop → output trajectory", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/program-execution");
 
-    await user.type(screen.getByRole("spinbutton", { name: /predicted output/i }), "6");
-    await user.click(button("Record prediction"));
-    expect(screen.getByText(/prediction recorded/i)).toBeInTheDocument();
+    await user.type(screen.getByRole("spinbutton", { name: /预测输出值/ }), "6");
+    await user.click(button("记录预测"));
+    expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
-    for (let index = 0; index < 5; index += 1) await user.click(button("Step"));
-    expect(button("Inspect variable change")).toBeEnabled();
-    await user.click(button("Inspect variable change"));
+    for (let index = 0; index < 5; index += 1) await user.click(button("执行一步"));
+    expect(button("检查变量变化")).toBeEnabled();
+    await user.click(button("检查变量变化"));
 
-    const evidence = screen.getByRole("region", { name: /selected frame evidence/i });
-    expect(evidence).toHaveTextContent(/total: 0.*1/i);
-    expect(
-      screen.getByRole("button", { name: /Frame 5.*line 5.*assignment/i }),
-    ).toBeInTheDocument();
+    const evidence = screen.getByRole("region", { name: /选中帧证据/ });
+    expect(evidence).toHaveTextContent(/total:\s*0.*1/);
+    expect(screen.getByRole("button", { name: /第 5 帧.*第 5 行.*赋值/ })).toBeInTheDocument();
 
-    await user.click(button("Run to end"));
-    expect(button("Inspect loop stop")).toBeEnabled();
-    await user.click(button("Inspect loop stop"));
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /4 <= 3 → false/i,
+    await user.click(button("运行到结束"));
+    expect(button("检查循环停止")).toBeEnabled();
+    await user.click(button("检查循环停止"));
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(/4 <= 3 → 假/);
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(
+      /这次检查跳过循环体/,
     );
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /loop body is skipped/i,
-    );
-    expect(screen.getByRole("status", { name: /program output/i })).toHaveTextContent("6");
-    expect(screen.getByText(/prediction: 6; observed: 6/i)).toBeInTheDocument();
-    expect(screen.getByText(/completed normally/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("6");
+    expect(screen.getByText(/预测：6；观察值：6/)).toBeInTheDocument();
+    expect(screen.getByText(/程序已完成/)).toBeInTheDocument();
   });
 
   it("selects trace frames with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/program-execution");
-    await user.click(button("Run to end"));
+    await user.click(button("运行到结束"));
 
-    const firstFrame = screen.getByRole("button", { name: /Frame 1, line 1, assignment/i });
-    const secondFrame = screen.getByRole("button", { name: /Frame 2, line 2, assignment/i });
+    const firstFrame = screen.getByRole("button", { name: /第 1 帧.*第 1 行.*赋值/ });
+    const secondFrame = screen.getByRole("button", { name: /第 2 帧.*第 2 行.*赋值/ });
     firstFrame.focus();
     await user.tab();
     expect(secondFrame).toHaveFocus();
     firstFrame.focus();
     await user.keyboard("{Enter}");
     expect(firstFrame).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /total becomes 0/i,
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(
+      /total:\s*(?:—|0)/,
     );
 
-    const finalFrame = screen.getByRole("button", { name: /Frame 13, line 7, print/i });
+    const finalFrame = screen.getByRole("button", { name: /第 13 帧.*第 7 行.*输出/ });
     finalFrame.focus();
     await user.keyboard(" ");
     expect(finalFrame).toHaveAttribute("aria-current", "true");
     expect(firstFrame).not.toHaveAttribute("aria-current");
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /output 6/i,
-    );
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(/产生 6/);
   });
 
   it("shows zero-iteration evidence and clears transient state on fixture switch/reset", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/program-execution?fixture=off-by-one");
-    await user.click(button("Run to end"));
-    expect(screen.getByRole("status", { name: /program output/i })).toHaveTextContent("3");
-    await user.click(button("Inspect loop stop"));
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /3 < 3 → false/i,
-    );
+    await user.click(button("运行到结束"));
+    expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("3");
+    await user.click(button("检查循环停止"));
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(/3 < 3 → 假/);
 
-    await user.click(button(/^Zero iterations/));
-    expect(
-      screen.getByText(/Press Step to create the first assignment frame/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("status", { name: /program output/i })).toHaveTextContent("—");
-    expect(button("Inspect variable change")).toBeDisabled();
+    await user.click(button(/^零次循环/));
+    expect(screen.getByText(/点击“执行一步”，创建第一个赋值帧/)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("—");
+    expect(button("检查变量变化")).toBeDisabled();
 
-    await user.click(button("Run to end"));
-    await user.click(button("Inspect loop stop"));
-    expect(screen.getByRole("region", { name: /selected frame evidence/i })).toHaveTextContent(
-      /4 <= 3 → false/i,
-    );
-    expect(screen.getByRole("status", { name: /program output/i })).toHaveTextContent("10");
+    await user.click(button("运行到结束"));
+    await user.click(button("检查循环停止"));
+    expect(screen.getByRole("region", { name: /选中帧证据/ })).toHaveTextContent(/4 <= 3 → 假/);
+    expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("10");
 
-    await user.click(button("Reset to URL scenario"));
-    expect(screen.getByRole("button", { name: /Off-by-one boundary/i })).toHaveAttribute(
+    await user.click(button("恢复初始情境"));
+    expect(screen.getByRole("button", { name: /边界比较/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    expect(
-      screen.getByText(/Press Step to create the first assignment frame/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/点击“执行一步”，创建第一个赋值帧/)).toBeInTheDocument();
   });
 
   it("keeps semantic evidence available at a narrow viewport", async () => {
@@ -121,10 +107,10 @@ describe("ProgramExecutionPage", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });
     try {
       await renderAppAt("/labs/program-execution");
-      expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "Step" })).toBeVisible();
-      expect(screen.getByRole("button", { name: "Run to end" })).toBeVisible();
-      expect(screen.getByRole("table", { name: /initial variables/i })).toBeVisible();
+      expect(screen.getByRole("list", { name: "程序源代码" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "执行一步" })).toBeVisible();
+      expect(screen.getByRole("button", { name: "运行到结束" })).toBeVisible();
+      expect(screen.getByRole("table", { name: /初始变量/i })).toBeVisible();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }

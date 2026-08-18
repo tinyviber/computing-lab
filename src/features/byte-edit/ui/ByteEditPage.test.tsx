@@ -11,12 +11,12 @@ describe("ByteEditPage", () => {
 
     expect(screen.getByRole("main", { name: "字节编辑 workspace" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "字节编辑" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /validity/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /byte index/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("mixed");
-    expect(screen.getByRole("button", { name: "Apply edit" })).toBeInTheDocument();
-    expect(screen.getByRole("region", { name: /current byte sequence/i })).toHaveTextContent(
-      /Valid UTF-8 → “Aé猫🙂”/i,
+    expect(screen.getByRole("combobox", { name: /有效性/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /字节索引/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("mixed");
+    expect(screen.getByRole("button", { name: "应用编辑" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(
+      /有效 UTF-8 → “Aé猫🙂”/,
     );
   });
 
@@ -24,45 +24,43 @@ describe("ByteEditPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/byte-edit");
 
-    await user.selectOptions(screen.getByRole("combobox", { name: /validity/i }), "invalid");
-    await user.click(button("Record prediction"));
-    expect(
-      screen.getByText(/prediction recorded: the edited sequence stays invalid/i),
-    ).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: /有效性/ }), "invalid");
+    await user.click(button("记录预测"));
+    expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
-    await user.selectOptions(screen.getByRole("combobox", { name: /byte index/i }), "2");
-    const value = screen.getByRole("spinbutton", { name: /new value/i });
+    await user.selectOptions(screen.getByRole("combobox", { name: /字节索引/ }), "2");
+    const value = screen.getByRole("spinbutton", { name: /新值/ });
     await user.clear(value);
     await user.type(value, "65");
-    await user.click(button("Apply edit"));
+    await user.click(button("应用编辑"));
 
-    expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
-      /Byte 2 → 65/,
+    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+      /第 2 个字节 → 65/,
     );
-    expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
-      /Invalid at byte 2: invalid continuation byte \(offending byte 0x41\)/i,
+    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+      /第 2 个字节被拒绝.*无效延续字节.*问题字节 0x41/,
     );
-    expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
-      /Predicted invalid; observed invalid/i,
+    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+      /预测：无效；观察：无效/,
     );
   });
 
   it("selects frames with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/byte-edit");
-    await user.click(button("Truncated"));
-    await user.click(button("Original"));
+    await user.click(button(/截断/));
+    await user.click(button(/原始/));
 
-    const first = screen.getByRole("button", { name: /Edit 1, truncated, invalid/i });
-    const second = screen.getByRole("button", { name: /Edit 2, original, valid/i });
+    const first = screen.getByRole("button", { name: /第 1 次编辑.*截断.*无效/ });
+    const second = screen.getByRole("button", { name: /第 2 次编辑.*原始.*有效/ });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
-      /missing continuation byte/,
+    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+      /缺少后续字节/,
     );
 
     second.focus();
@@ -74,17 +72,13 @@ describe("ByteEditPage", () => {
   it("loads presets and resets to the original URL scenario", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/byte-edit?scenario=emoji");
-    expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("emoji");
+    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("emoji");
 
-    await user.click(button("Overlong A"));
-    expect(screen.getByRole("region", { name: /current byte sequence/i })).toHaveTextContent(
-      /overlong encoding/i,
-    );
-    await user.click(button("Reset to URL scenario"));
-    expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("emoji");
-    expect(screen.getByRole("region", { name: /current byte sequence/i })).toHaveTextContent(
-      /Valid UTF-8/i,
-    );
+    await user.click(button("过长编码 A"));
+    expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/过长编码/);
+    await user.click(button("恢复初始情境"));
+    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("emoji");
+    expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/有效 UTF-8/);
   });
 
   it("keeps semantic evidence available at a narrow viewport", async () => {
@@ -92,11 +86,9 @@ describe("ByteEditPage", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });
     try {
       await renderAppAt("/labs/byte-edit");
-      await userEvent.setup().click(button("Surrogate"));
-      expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toBeVisible();
-      expect(screen.getByRole("region", { name: /current byte sequence/i })).toHaveTextContent(
-        /surrogate code point/i,
-      );
+      await userEvent.setup().click(button("代理项"));
+      expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/代理码点/);
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -110,7 +102,7 @@ describe("ByteEditPage", () => {
     }
     expect(
       within(screen.getByRole("main", { name: /字节编辑 workspace/i })).getByText(
-        /What happens when you edit one byte/i,
+        /编辑一个字节时会发生什么/,
       ),
     ).toBeInTheDocument();
   });

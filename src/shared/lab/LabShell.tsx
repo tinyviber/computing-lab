@@ -27,7 +27,7 @@ function LabNavigation({
 }: LabNavigationProps) {
   return (
     <aside
-      aria-label="Lab navigation"
+      aria-label="实验导航"
       aria-hidden={isMobile && !railOpen}
       className={`workflow-rail lab-navigation${railOpen ? " is-open" : ""}`}
       id="lab-navigation"
@@ -35,12 +35,12 @@ function LabNavigation({
     >
       <div className="rail-heading">
         <div>
-          <p className="eyebrow">COMPUTING LAB</p>
-          <h2>Experiments</h2>
+          <p className="eyebrow">计算实验室</p>
+          <h2>实验</h2>
         </div>
         <span className="rail-count">{labNavigationItems.length.toString().padStart(2, "0")}</span>
       </div>
-      <nav aria-label="Available labs">
+      <nav aria-label="可用实验">
         <ul className="lab-list">
           {labNavigationItems.map((lab) => (
             <li key={lab.id}>
@@ -63,8 +63,8 @@ function LabNavigation({
       <div className="rail-footer">
         <span className="local-dot" aria-hidden="true" />
         <div>
-          <strong>Local workspace</strong>
-          <span>No account or network needed</span>
+          <strong>本地学习空间</strong>
+          <span>无需账号，也不需要联网</span>
         </div>
       </div>
     </aside>
@@ -115,7 +115,7 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
           <button
             aria-controls="lab-navigation"
             aria-expanded={railOpen}
-            aria-label={railOpen ? "Close lab menu" : "Open lab menu"}
+            aria-label={railOpen ? "关闭实验菜单" : "打开实验菜单"}
             className="mobile-menu-button"
             onClick={() => setRailOpen((open) => !open)}
             ref={menuButtonRef}
@@ -123,23 +123,23 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
           >
             {railOpen ? "×" : "☰"}
           </button>
-          <Link className="brand-mark" to="/" aria-label="Computing Lab home">
+          <Link className="brand-mark" to="/" aria-label="计算实验室首页">
             CL
           </Link>
           <div>
             <h1>{title}</h1>
-            <p>Computing Lab · {subtitle}</p>
+            <p>计算实验室 · {subtitle}</p>
           </div>
         </div>
         <div className="topbar-context">
-          <span className="context-label">LAB</span>
+          <span className="context-label">实验</span>
           <span className="context-value">{eyebrow}</span>
         </div>
       </header>
 
       {isMobile && railOpen ? (
         <button
-          aria-label="Close lab menu"
+          aria-label="关闭实验菜单"
           className="rail-scrim"
           onClick={closeRail}
           type="button"

@@ -6,6 +6,8 @@ import {
   getRelationalScenario,
   validateRelational,
   type RelationalFrame,
+  type RelationalConstraintId,
+  type RelationalQueryId,
   type RelationalQueryResult,
   type RelationalValue,
 } from "../domain";
@@ -17,6 +19,92 @@ import {
 } from "../lesson/state";
 import "./relational-data.css";
 
+const QUERY_LABELS: Record<RelationalQueryId, string> = {
+  "all-books": "全部图书",
+  "available-books": "可借图书",
+  "overdue-loans": "逾期借阅",
+  "borrower-counts": "按借阅人统计借阅数",
+};
+
+const QUERY_EXPLANATIONS: Record<RelationalQueryId, string> = {
+  "all-books": "投影 books 的每一行和全部列；没有应用筛选条件。",
+  "available-books": "只有 available = true 的行通过筛选；来源记录会标出每本匹配的书。",
+  "overdue-loans": "每笔逾期借阅都会与对应的 borrower 和 book 连接；来源记录会列出三类源行。",
+  "borrower-counts":
+    "在完整连接结果上按 borrower 分组；请结合来源行检查缺失书籍与 NULL 姓名如何影响聚合。",
+};
+
+const PROVENANCE_NOTES: Record<string, string> = {
+  project: "投影",
+  "filter available": "按 available 过滤",
+  join: "连接",
+  "aggregate over join; stable union of participating loan, borrower, and book rows":
+    "连接后聚合；合并参与的 loan、borrower、book 源行",
+};
+
+const CONSTRAINT_LABELS: Record<RelationalConstraintId, string> = {
+  "unique-books-id": "books.id 唯一",
+  "books-year-range": "books.year ≥ 1900",
+  "borrowers-name-not-null": "borrowers.name 不是 NULL",
+  "loans-borrower-fk": "loans.borrower_id 引用 borrowers.id",
+  "loans-book-fk": "loans.book_id 引用 books.id",
+};
+
+const CONSTRAINT_PASS_DETAILS: Record<RelationalConstraintId, string> = {
+  "unique-books-id": "所有图书 id 都唯一。",
+  "books-year-range": "所有图书年份都不早于 1900。",
+  "borrowers-name-not-null": '每个借阅人姓名都不是 NULL；"" 仍是存在的文本值。',
+  "loans-borrower-fk": "每笔 loan 都引用已有 borrower；NULL 可为空，也不会参与连接。",
+  "loans-book-fk": "每笔 loan 都引用已有 book；NULL 可为空，也不会参与连接。",
+};
+
+function queryTitle(queryId: RelationalQueryId): string {
+  return QUERY_LABELS[queryId];
+}
+
+function queryExplanation(result: RelationalQueryResult): string {
+  return QUERY_EXPLANATIONS[result.id];
+}
+
+function provenanceNote(note: string): string {
+  return PROVENANCE_NOTES[note] ?? note;
+}
+
+function constraintDetail(constraint: ReturnType<typeof validateRelational>[number]): string {
+  if (constraint.passed) return CONSTRAINT_PASS_DETAILS[constraint.id];
+  return constraint.detail
+    .replace("books.id is missing.", "books.id 缺失。")
+    .replace(/book (\S+) has NULL id\./, "图书 $1 的 id 为 NULL。")
+    .replace(/duplicate id (\S+)\./, "出现重复 id：$1。")
+    .replace(/book (\S+) has year (\S+)\./, "图书 $1 的年份为 $2。")
+    .replace(/borrower (\S+) has NULL name\./, "借阅人 $1 的姓名为 NULL。")
+    .replace(
+      /loan (\S+) references missing borrower (\S+)\./,
+      "loan $1 引用了不存在的 borrower $2。",
+    )
+    .replace(/loan (\S+) references missing book (\S+)\./, "loan $1 引用了不存在的 book $2。");
+}
+
+function predictionMessage(message: string | undefined): string | undefined {
+  if (!message) return undefined;
+  const recorded = message.match(/Prediction recorded: the next query returns (\d+) row/);
+  return recorded
+    ? `已记录预测：下一条查询将返回 ${recorded[1]} 行。`
+    : "请输入 0 到 100 之间的整数行数。";
+}
+
+function statusLabel(status: "running" | "complete"): string {
+  return status === "complete" ? "已完成" : "进行中";
+}
+
+function tableLabel(name: string): string {
+  return name === "books"
+    ? "图书（books）"
+    : name === "borrowers"
+      ? "借阅人（borrowers）"
+      : "借阅记录（loans）";
+}
+
 function formatRelationalValue(value: RelationalValue | undefined): string {
   if (value === null) return "NULL";
   if (value === undefined) return "MISSING";
@@ -27,7 +115,7 @@ function formatRelationalValue(value: RelationalValue | undefined): string {
 function ResultTable({ result }: { result: RelationalQueryResult }) {
   return (
     <table className="rd-table">
-      <caption>Query result rows</caption>
+      <caption>查询结果行</caption>
       <thead>
         <tr>
           {result.columns.map((column) => (
@@ -40,7 +128,7 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
       <tbody>
         {result.rows.length === 0 ? (
           <tr>
-            <td colSpan={result.columns.length}>No rows.</td>
+            <td colSpan={result.columns.length}>没有结果行。</td>
           </tr>
         ) : (
           result.rows.map((row) => (
@@ -59,25 +147,25 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
 function ProvenanceTable({ result }: { result: RelationalQueryResult }) {
   return (
     <table className="rd-table">
-      <caption>Provenance: which source rows produced each result</caption>
+      <caption>来源追踪：哪些源行产生了每条结果</caption>
       <thead>
         <tr>
-          <th scope="col">Result row</th>
-          <th scope="col">Source rows</th>
-          <th scope="col">Operation</th>
+          <th scope="col">结果行</th>
+          <th scope="col">源行</th>
+          <th scope="col">操作</th>
         </tr>
       </thead>
       <tbody>
         {result.provenance.length === 0 ? (
           <tr>
-            <td colSpan={3}>No provenance.</td>
+            <td colSpan={3}>没有来源记录。</td>
           </tr>
         ) : (
           result.provenance.map((entry) => (
             <tr key={entry.resultRowId}>
               <th scope="row">{entry.resultRowId}</th>
               <td>{entry.sourceIds.join(", ") || "—"}</td>
-              <td>{entry.note}</td>
+              <td>{provenanceNote(entry.note)}</td>
             </tr>
           ))
         )}
@@ -96,32 +184,32 @@ function FrameTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="rd-card" aria-label="Relational query trace">
+    <section className="rd-card" aria-label="关系查询轨迹">
       <div className="rd-card-heading">
         <div>
-          <p className="eyebrow">QUERY TRACE</p>
-          <h3>One query per frame</h3>
+          <p className="eyebrow">查询轨迹</p>
+          <h3>每个帧执行一条查询</h3>
         </div>
-        <span>{frames.length} frames</span>
+        <span>{frames.length} 个帧</span>
       </div>
       {frames.length === 0 ? (
-        <p>Press Step to run the first query over the fixed catalog.</p>
+        <p>按“执行一步”，在固定目录上运行第一条查询。</p>
       ) : (
         <ol className="rd-trace-list">
           {frames.map((frame) => (
             <li key={frame.index}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`Query ${frame.index + 1}, ${frame.result.title}, ${frame.result.rows.length} rows`}
+                aria-label={`查询 ${frame.index + 1}：${queryTitle(frame.queryId)}，${frame.result.rows.length} 行`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
               >
-                <strong>Query {frame.index + 1}</strong>
-                <span>{frame.result.title}</span>
+                <strong>查询 {frame.index + 1}</strong>
+                <span>{queryTitle(frame.queryId)}</span>
                 <small>
-                  {frame.predictedRows !== undefined ? `predicted ${frame.predictedRows} · ` : ""}
-                  {frame.result.rows.length} row{frame.result.rows.length === 1 ? "" : "s"}
+                  {frame.predictedRows !== undefined ? `预测 ${frame.predictedRows} 行 · ` : ""}
+                  {frame.result.rows.length} 行
                 </small>
               </button>
             </li>
@@ -135,33 +223,32 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
   if (!frame) {
     return (
-      <section className="rd-card" aria-label="Selected relational evidence">
-        <p className="eyebrow">SELECTED EVIDENCE</p>
-        <h3>Step once to run a query</h3>
-        <p>The selected query will show its result rows, provenance, and derived cells.</p>
+      <section className="rd-card" aria-label="当前关系数据证据">
+        <p className="eyebrow">当前证据</p>
+        <h3>执行一步来运行查询</h3>
+        <p>选中的查询会显示结果行、来源追踪和派生单元格。</p>
       </section>
     );
   }
   const derivedColumns = frame.queryId === "borrower-counts" ? (["loans"] as const) : ([] as const);
   return (
-    <section className="rd-card" aria-label="Selected relational evidence">
+    <section className="rd-card" aria-label="当前关系数据证据">
       <div className="rd-card-heading">
         <div>
-          <p className="eyebrow">SELECTED EVIDENCE</p>
-          <h3>{frame.result.title}</h3>
+          <p className="eyebrow">当前证据</p>
+          <h3>{queryTitle(frame.queryId)}</h3>
         </div>
-        <span className="rd-mono">{frame.result.description}</span>
+        <span className="rd-mono">{queryExplanation(frame.result)}</span>
       </div>
-      <p>{frame.result.explanation}</p>
+      <p>{queryExplanation(frame.result)}</p>
       {frame.predictedRows !== undefined ? (
         <p role="status">
-          Predicted {frame.predictedRows} row{frame.predictedRows === 1 ? "" : "s"}; observed{" "}
-          {frame.result.rows.length}.
+          预测 {frame.predictedRows} 行；实际观察到 {frame.result.rows.length} 行。
         </p>
       ) : null}
       {derivedColumns.length > 0 ? (
         <p className="rd-derived-note">
-          Derived cells: {derivedColumns.join(", ")} is computed, not stored.
+          派生单元格：{derivedColumns.join(", ")} 是计算得到的，不是存储值。
         </p>
       ) : null}
       <ResultTable result={frame.result} />
@@ -174,43 +261,43 @@ function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelatio
   const constraints = useMemo(() => validateRelational(scenario), [scenario]);
   const borrowers = scenario.tables.find((table) => table.name === "borrowers")!;
   return (
-    <section className="rd-card" aria-label="Relational constraints">
-      <p className="eyebrow">CONSTRAINTS</p>
-      <h3>What the data promises</h3>
+    <section className="rd-card" aria-label="关系数据约束">
+      <p className="eyebrow">约束</p>
+      <h3>数据声明的规则</h3>
       <table className="rd-table">
-        <caption>Constraint checks over the catalog</caption>
+        <caption>固定目录上的约束检查</caption>
         <thead>
           <tr>
-            <th scope="col">Constraint</th>
-            <th scope="col">Table</th>
-            <th scope="col">Result</th>
-            <th scope="col">Detail</th>
+            <th scope="col">约束</th>
+            <th scope="col">表</th>
+            <th scope="col">结果</th>
+            <th scope="col">细节</th>
           </tr>
         </thead>
         <tbody>
           {constraints.map((constraint) => (
             <tr key={constraint.id}>
-              <th scope="row">{constraint.description}</th>
-              <td>{constraint.table}</td>
-              <td>{constraint.passed ? "pass" : "FAIL"}</td>
-              <td>{constraint.detail}</td>
+              <th scope="row">{CONSTRAINT_LABELS[constraint.id]}</th>
+              <td>{tableLabel(constraint.table)}</td>
+              <td>{constraint.passed ? "通过" : "失败"}</td>
+              <td>{constraintDetail(constraint)}</td>
             </tr>
           ))}
         </tbody>
       </table>
       <p className="rd-claim">
-        NULL means absent value; an empty string is present text. `borrowers.name IS NOT NULL`
-        rejects only NULL, while the broken loan (book 99) fails its foreign-key check and
-        disappears from the joined aggregate.
+        先观察上面的约束检查和下面的源行，再用查询结果核对：NULL
+        表示缺失值，空字符串仍是存在的文本；
+        连接与聚合时，外键能否找到对应书籍会影响哪些行进入结果。
       </p>
       <table className="rd-table">
-        <caption>Borrower source rows: NULL versus empty string</caption>
+        <caption>借阅人源行：NULL 与空字符串的对照</caption>
         <thead>
           <tr>
-            <th scope="col">Row</th>
+            <th scope="col">行</th>
             <th scope="col">id</th>
             <th scope="col">name</th>
-            <th scope="col">Value meaning</th>
+            <th scope="col">值的含义</th>
           </tr>
         </thead>
         <tbody>
@@ -221,10 +308,10 @@ function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelatio
               <td>{formatRelationalValue(row.values.name)}</td>
               <td>
                 {row.values.name === null
-                  ? "NULL (absent)"
+                  ? "NULL（缺失）"
                   : row.values.name === ""
-                    ? "empty string (present)"
-                    : "text value"}
+                    ? "空字符串（存在）"
+                    : "文本值"}
               </td>
             </tr>
           ))}
@@ -249,16 +336,16 @@ function RelationalContent({
     <div className="rd-page">
       <header className="rd-hero">
         <div>
-          <p className="eyebrow">RELATIONAL DATA · FIXED CATALOG</p>
-          <h2>How does a fixed set of rows answer a query?</h2>
+          <p className="eyebrow">关系数据 · 固定目录</p>
+          <h2>固定的一组行如何回答查询？</h2>
           <p>
-            Run four fixed queries over books, borrowers, and loans; inspect result rows,
-            provenance, derived counts, and the one broken foreign key.
+            在 books、borrowers、loans
+            上运行四条固定查询；观察结果行、来源追踪、派生计数，以及约束检查中标出的外键问题。
           </p>
         </div>
-        <div className="rd-fixture-card" aria-label="Relational fixture">
-          <span>FIXTURE</span>
-          <strong>{scenario.title}</strong>
+        <div className="rd-fixture-card" aria-label="关系数据情境">
+          <span>情境</span>
+          <strong>图书目录</strong>
           <small>
             {scenario.tables.map((table) => `${table.name} (${table.rows.length})`).join(" · ")}
           </small>
@@ -266,11 +353,11 @@ function RelationalContent({
       </header>
 
       <div className="rd-layout">
-        <aside className="rd-controls" aria-label="Relational experiment controls">
+        <aside className="rd-controls" aria-label="关系数据实验控制">
           <section className="rd-card">
-            <p className="eyebrow">PREDICT</p>
-            <h3>How many rows will the next query return?</h3>
-            <label htmlFor="rd-prediction">Row count</label>
+            <p className="eyebrow">预测</p>
+            <h3>下一条查询会返回多少行？</h3>
+            <label htmlFor="rd-prediction">行数</label>
             <input
               id="rd-prediction"
               min={0}
@@ -278,21 +365,23 @@ function RelationalContent({
               type="number"
               value={lesson.predictionDraft}
             />
-            <p id="rd-prediction-help">Prediction is optional and never blocks Step or Run.</p>
+            <p id="rd-prediction-help">预测是可选的，不会阻止“执行一步”或“运行到结束”。</p>
             <button
               className="rd-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
               type="button"
             >
-              Record prediction
+              记录预测
             </button>
-            {lesson.predictionMessage ? <p role="status">{lesson.predictionMessage}</p> : null}
+            {lesson.predictionMessage ? (
+              <p role="status">{predictionMessage(lesson.predictionMessage)}</p>
+            ) : null}
           </section>
 
           <section className="rd-card">
-            <p className="eyebrow">FIXTURE</p>
-            <h3>Catalog fixture</h3>
-            <label htmlFor="rd-scenario">Relational fixture</label>
+            <p className="eyebrow">情境</p>
+            <h3>目录情境</h3>
+            <label htmlFor="rd-scenario">关系数据情境</label>
             <select
               id="rd-scenario"
               onChange={(event) =>
@@ -303,17 +392,15 @@ function RelationalContent({
               }
               value={lesson.scenario}
             >
-              <option value="catalog">Library catalog</option>
+              <option value="catalog">图书目录</option>
             </select>
-            <p>One fixed scenario with a reference date of 2026-01-15.</p>
+            <p>一个固定情境，参考日期为 2026-01-15。</p>
           </section>
 
           <section className="rd-card">
-            <p className="eyebrow">INTERVENE</p>
-            <h3>Advance the queries</h3>
-            {nextQueryId ? (
-              <p className="rd-next">Next: {nextQueryId.replace(/-/g, " ")}.</p>
-            ) : null}
+            <p className="eyebrow">推进</p>
+            <h3>推进查询执行</h3>
+            {nextQueryId ? <p className="rd-next">下一条：{queryTitle(nextQueryId)}。</p> : null}
             <div className="rd-action-row">
               <button
                 className="rd-primary-button"
@@ -321,7 +408,7 @@ function RelationalContent({
                 onClick={() => dispatch({ type: "step" })}
                 type="button"
               >
-                Step
+                执行一步
               </button>
               <button
                 className="rd-secondary-button"
@@ -329,7 +416,7 @@ function RelationalContent({
                 onClick={() => dispatch({ type: "run-all" })}
                 type="button"
               >
-                Run to end
+                运行到结束
               </button>
             </div>
             <button
@@ -337,28 +424,28 @@ function RelationalContent({
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
-              Reset to URL scenario
+              恢复 URL 情境
             </button>
           </section>
         </aside>
 
         <div className="rd-main-column">
-          <section className="rd-card rd-status-card" aria-label="Relational query status">
+          <section className="rd-card rd-status-card" aria-label="关系查询状态">
             <div>
-              <p className="eyebrow">CURRENT QUERIES</p>
-              <strong>{lesson.machine.status}</strong>
+              <p className="eyebrow">当前查询</p>
+              <strong>{statusLabel(lesson.machine.status)}</strong>
             </div>
             <dl>
               <div>
-                <dt>Queries run</dt>
+                <dt>已运行查询</dt>
                 <dd>{lesson.machine.results.length}</dd>
               </div>
               <div>
-                <dt>Queries total</dt>
+                <dt>查询总数</dt>
                 <dd>{RELATIONAL_QUERY_SEQUENCE.length}</dd>
               </div>
               <div>
-                <dt>Total result rows</dt>
+                <dt>结果行总数</dt>
                 <dd>
                   {lesson.machine.results.reduce((total, result) => total + result.rows.length, 0)}
                 </dd>
@@ -371,28 +458,28 @@ function RelationalContent({
             selectedFrameIndex={lesson.selectedFrameIndex}
           />
           <SelectedEvidence frame={selectedFrame} />
-          <ConstraintsPanel scenario={scenario} />
-          <section className="rd-card" aria-label="Predicted versus actual">
-            <p className="eyebrow">COMPARE</p>
-            <h3>Predicted vs actual row counts</h3>
+          {lesson.frames.length > 0 ? <ConstraintsPanel scenario={scenario} /> : null}
+          <section className="rd-card" aria-label="预测与实际对照">
+            <p className="eyebrow">对照</p>
+            <h3>预测行数与实际行数</h3>
             <table className="rd-table">
-              <caption>Prediction comparison</caption>
+              <caption>预测对照</caption>
               <thead>
                 <tr>
-                  <th scope="col">Query</th>
-                  <th scope="col">Predicted</th>
-                  <th scope="col">Actual</th>
+                  <th scope="col">查询</th>
+                  <th scope="col">预测</th>
+                  <th scope="col">实际</th>
                 </tr>
               </thead>
               <tbody>
                 {lesson.frames.length === 0 ? (
                   <tr>
-                    <td colSpan={3}>Run the queries to compare predictions.</td>
+                    <td colSpan={3}>运行查询后即可对照预测。</td>
                   </tr>
                 ) : (
                   lesson.frames.map((frame) => (
                     <tr key={frame.index}>
-                      <th scope="row">{frame.result.title}</th>
+                      <th scope="row">{queryTitle(frame.queryId)}</th>
                       <td>{frame.predictedRows ?? "—"}</td>
                       <td>{frame.result.rows.length}</td>
                     </tr>
@@ -421,7 +508,11 @@ export function RelationalDataPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell eyebrow="Relational Data" title="关系数据" subtitle="tables answer queries">
+    <LabShell
+      eyebrow="关系数据"
+      title="关系数据"
+      subtitle="表如何回答查询（tables answer queries）"
+    >
       <RelationalContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

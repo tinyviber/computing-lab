@@ -12,18 +12,18 @@ import "./program-execution.css";
 const fixtureOptions: readonly { value: ProgramId; label: string; description: string }[] = [
   {
     value: "sum-1-to-3",
-    label: "Sum 1 to 3",
-    description: "Three loop passes and a final false check.",
+    label: "从 1 加到 3",
+    description: "观察一段带有条件检查和输出的短程序。",
   },
   {
     value: "zero-iterations",
-    label: "Zero iterations",
-    description: "The first condition is already false.",
+    label: "零次循环",
+    description: "观察另一种初始状态下的执行记录。",
   },
   {
     value: "off-by-one",
-    label: "Off-by-one boundary",
-    description: "Compare < with the loop boundary.",
+    label: "边界比较",
+    description: "比较循环条件与边界值的执行记录。",
   },
 ];
 
@@ -34,17 +34,44 @@ function valueText(value: number | undefined): string {
 function frameOutcome(frame: ExecutionFrame): string {
   if (frame.condition) {
     return `${frame.condition.leftValue} ${frame.condition.operator} ${frame.condition.rightValue} → ${
-      frame.condition.result ? "true" : "false"
+      frame.condition.result ? "真" : "假"
     }`;
   }
-  if (frame.assignment) return `${frame.assignment.variable} becomes ${frame.assignment.value}`;
-  if (frame.print) return `output ${frame.print.value}`;
-  if (frame.runtimeError) return frame.runtimeError.message;
-  return frame.terminal?.message ?? frame.explanation;
+  if (frame.assignment) return `${frame.assignment.variable} 变为 ${frame.assignment.value}`;
+  if (frame.print) return `输出 ${frame.print.value}`;
+  if (frame.runtimeError) return "执行时发生错误。";
+  return frame.terminal ? "程序到达结束状态。" : "状态已更新。";
+}
+
+function eventKindLabel(kind: ExecutionFrame["eventKind"]): string {
+  return {
+    assignment: "赋值",
+    "while-condition": "while 条件",
+    print: "输出",
+    terminal: "结束",
+    "runtime-error": "运行错误",
+  }[kind];
+}
+
+function frameExplanation(frame: ExecutionFrame): string {
+  if (frame.condition) {
+    return frame.condition.enteredBody
+      ? "条件为真，下一帧进入循环体。"
+      : "条件为假，循环体在这次检查中被跳过。";
+  }
+  if (frame.assignment) {
+    return `执行 ${frame.assignment.variable} = ${frame.assignment.expressionText}，记录变量变化。`;
+  }
+  if (frame.print) return `执行输出语句，产生 ${frame.print.value}。`;
+  return frame.runtimeError ? "程序执行遇到运行错误。" : "程序状态到达一个可观察的结束点。";
+}
+
+function terminalMessage(reason: string): string {
+  return reason === "program-complete" ? "程序已完成。" : "程序执行结束。";
 }
 
 function frameAccessibleName(frame: ExecutionFrame): string {
-  return `Frame ${frame.index + 1}, line ${frame.sourceLine}, ${frame.eventKind}: ${frameOutcome(frame)}`;
+  return `第 ${frame.index + 1} 帧，第 ${frame.sourceLine} 行，${eventKindLabel(frame.eventKind)}：${frameOutcome(frame)}`;
 }
 
 function EnvironmentTable({
@@ -61,8 +88,8 @@ function EnvironmentTable({
       <caption>{caption}</caption>
       <thead>
         <tr>
-          <th scope="col">Variable</th>
-          <th scope="col">Value</th>
+          <th scope="col">变量</th>
+          <th scope="col">数值</th>
         </tr>
       </thead>
       <tbody>
@@ -86,13 +113,13 @@ function BeforeAfterTable({
 }) {
   return (
     <table className="program-environment-table program-before-after-table">
-      <caption>Variables before and after frame {frame.index + 1}</caption>
+      <caption>第 {frame.index + 1} 帧前后的变量</caption>
       <thead>
         <tr>
-          <th scope="col">Variable</th>
-          <th scope="col">Before</th>
-          <th scope="col">After</th>
-          <th scope="col">Change</th>
+          <th scope="col">变量</th>
+          <th scope="col">之前</th>
+          <th scope="col">之后</th>
+          <th scope="col">变化</th>
         </tr>
       </thead>
       <tbody>
@@ -104,9 +131,7 @@ function BeforeAfterTable({
               <th scope="row">{variable}</th>
               <td>{valueText(before)}</td>
               <td>{valueText(after)}</td>
-              <td>
-                {before === after ? "unchanged" : `${valueText(before)} → ${valueText(after)}`}
-              </td>
+              <td>{before === after ? "未变化" : `${valueText(before)} → ${valueText(after)}`}</td>
             </tr>
           );
         })}
@@ -123,15 +148,15 @@ function ProgramSource({
   activeLine?: number;
 }) {
   return (
-    <section className="program-card" aria-label="Program source">
+    <section className="program-card" aria-label="程序源代码">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">LAB PSEUDO-CODE</p>
-          <h3>One statement or condition per step</h3>
+          <p className="eyebrow">实验伪代码</p>
+          <h3>每一步执行一条语句或一次条件检查</h3>
         </div>
-        <span className="program-source-note">No free-form editor</span>
+        <span className="program-source-note">不提供自由编辑器</span>
       </div>
-      <ol aria-label="Program source" className="program-source-list">
+      <ol aria-label="程序源代码" className="program-source-list">
         {lines.map((sourceLine) => (
           <li className={sourceLine.line === activeLine ? "is-active" : ""} key={sourceLine.line}>
             <span className="program-line-number">{sourceLine.line}</span>
@@ -153,16 +178,16 @@ function ExecutionTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="program-card program-trace-card" aria-label="Execution trace">
+    <section className="program-card program-trace-card" aria-label="执行记录">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">IMMUTABLE LOCAL TRACE</p>
-          <h3>Inspect each causal event</h3>
+          <p className="eyebrow">不可变本地记录</p>
+          <h3>检查每一个因果事件</h3>
         </div>
-        <span className="program-trace-count">{frames.length} frames</span>
+        <span className="program-trace-count">{frames.length} 帧</span>
       </div>
       {frames.length === 0 ? (
-        <p className="program-empty-trace">Press Step to create the first assignment frame.</p>
+        <p className="program-empty-trace">点击“执行一步”，创建第一个赋值帧。</p>
       ) : (
         <ol className="program-trace-list">
           {frames.map((frame) => (
@@ -177,7 +202,7 @@ function ExecutionTrace({
                 <span className="program-trace-index">{frame.index + 1}</span>
                 <span className="program-trace-copy">
                   <strong>
-                    line {frame.sourceLine} · {frame.eventKind}
+                    第 {frame.sourceLine} 行 · {eventKindLabel(frame.eventKind)}
                   </strong>
                   <span>{frameOutcome(frame)}</span>
                 </span>
@@ -199,46 +224,41 @@ function FrameEvidence({
 }) {
   if (!frame) {
     return (
-      <section className="program-card" aria-label="Selected frame evidence">
-        <p className="eyebrow">EVIDENCE</p>
-        <h3>Step once to inspect before and after state</h3>
-        <p>
-          A selected frame will show the statement, variable changes, condition values, output, and
-          the reason the loop continues or stops.
-        </p>
+      <section className="program-card" aria-label="选中帧证据">
+        <p className="eyebrow">证据</p>
+        <h3>执行一步，检查执行前后的状态</h3>
+        <p>选中的帧会显示语句、变量变化、条件值、输出，以及循环继续或停止的原因。</p>
       </section>
     );
   }
 
   return (
-    <section className="program-card program-evidence-card" aria-label="Selected frame evidence">
+    <section className="program-card program-evidence-card" aria-label="选中帧证据">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">SELECTED EVIDENCE</p>
+          <p className="eyebrow">选中证据</p>
           <h3>
-            Frame {frame.index + 1}, line {frame.sourceLine}
+            第 {frame.index + 1} 帧，第 {frame.sourceLine} 行
           </h3>
         </div>
-        <span className="program-event-chip">{frame.eventKind}</span>
+        <span className="program-event-chip">{eventKindLabel(frame.eventKind)}</span>
       </div>
-      <p className="program-explanation">{frame.explanation}</p>
+      <p className="program-explanation">{frameExplanation(frame)}</p>
       {frame.condition ? (
         <div className="program-condition-evidence" role="note">
-          <strong>Condition evidence</strong>
+          <strong>条件证据</strong>
           <span>
             {frame.condition.leftValue} {frame.condition.operator} {frame.condition.rightValue} →{" "}
-            {frame.condition.result ? "true" : "false"}
+            {frame.condition.result ? "真" : "假"}
           </span>
           <small>
-            {frame.condition.enteredBody
-              ? "The next frame enters the loop body."
-              : "The loop body is skipped at this check."}
+            {frame.condition.enteredBody ? "下一帧进入循环体。" : "这次检查跳过循环体。"}
           </small>
         </div>
       ) : null}
       {frame.assignment ? (
         <div className="program-assignment-evidence" role="note">
-          <strong>Assignment evidence</strong>
+          <strong>赋值证据</strong>
           <span>
             {frame.assignment.variable}: {valueText(frame.assignment.previousValue)} →{" "}
             {frame.assignment.value}
@@ -250,16 +270,14 @@ function FrameEvidence({
       ) : null}
       {frame.print ? (
         <div className="program-output-evidence" role="note">
-          <strong>Output evidence</strong>
+          <strong>输出证据</strong>
           <span>
-            {frame.print.expressionText} emitted {frame.print.value}
+            {frame.print.expressionText} 产生 {frame.print.value}
           </span>
         </div>
       ) : null}
-      {frame.loopExit ? <p className="program-loop-exit">{frame.loopExit.message}</p> : null}
-      {frame.runtimeError ? (
-        <p className="program-runtime-error">{frame.runtimeError.message}</p>
-      ) : null}
+      {frame.loopExit ? <p className="program-loop-exit">循环在此处结束。</p> : null}
+      {frame.runtimeError ? <p className="program-runtime-error">程序执行遇到运行错误。</p> : null}
       <BeforeAfterTable frame={frame} variables={variables} />
     </section>
   );
@@ -291,23 +309,23 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
   const observedOutput = lesson.machine.output[0];
 
   return (
-    <LabShell eyebrow="PROGRAMMING / 01" subtitle="Loop and variable tracing" title="程序执行">
+    <LabShell eyebrow="程序设计 / 01" subtitle="循环与变量追踪" title="程序执行">
       <div className="program-course">
         <header className="program-intro">
-          <p className="eyebrow">REFERENCE COURSE</p>
+          <p className="eyebrow">参考课程</p>
           <h2>为什么这个循环最终会输出这个值？</h2>
           <p>
             这是一段受限的实验伪代码。每一步只执行一条赋值、一次 while
-            条件检查或一次输出；你可以观察 变量如何改变，以及最后一次 false 条件为什么跳过循环体。
+            条件检查或一次输出；你可以观察变量如何改变，以及循环何时停止。
           </p>
         </header>
 
         <div className="program-layout">
-          <aside className="program-controls" aria-label="Program controls">
+          <aside className="program-controls" aria-label="程序控制">
             <section className="program-card">
-              <p className="eyebrow">FIXTURE</p>
-              <h3>Choose a small program</h3>
-              <div className="program-fixture-list" role="group" aria-label="Program fixture">
+              <p className="eyebrow">样例</p>
+              <h3>选择一段短程序</h3>
+              <div className="program-fixture-list" role="group" aria-label="程序样例">
                 {fixtureOptions.map((option) => (
                   <button
                     aria-pressed={lesson.fixture === option.value}
@@ -326,15 +344,15 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 onClick={() => dispatch({ type: "reset" })}
                 type="button"
               >
-                Reset to URL scenario
+                恢复初始情境
               </button>
             </section>
 
             <section className="program-card">
-              <p className="eyebrow">PREDICT</p>
-              <h3>What will be printed?</h3>
+              <p className="eyebrow">预测</p>
+              <h3>会输出什么？</h3>
               <label className="program-field-label" htmlFor="program-prediction">
-                Predicted output value
+                预测输出值
               </label>
               <div className="program-prediction-row">
                 <input
@@ -347,32 +365,30 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                   value={lesson.predictionDraft}
                 />
                 <button onClick={() => dispatch({ type: "record-prediction" })} type="button">
-                  Record prediction
+                  记录预测
                 </button>
               </div>
-              <p className="program-help-text">
-                Prediction is optional and never blocks Step or Run.
-              </p>
+              <p className="program-help-text">预测可选，也不会阻止执行。</p>
               {lesson.predictionMessage ? (
                 <p aria-live="polite" className="program-prediction-message">
-                  {lesson.predictionMessage}
+                  预测已记录；你仍可继续执行。
                 </p>
               ) : null}
             </section>
 
             <section className="program-card">
-              <p className="eyebrow">INTERVENE</p>
-              <h3>Advance the machine</h3>
+              <p className="eyebrow">推进</p>
+              <h3>推进机器</h3>
               <div className="program-action-row">
                 <button onClick={() => dispatch({ type: "step" })} type="button">
-                  Step
+                  执行一步
                 </button>
                 <button onClick={() => dispatch({ type: "run-all" })} type="button">
-                  Run to end
+                  运行到结束
                 </button>
               </div>
               <p className="program-help-text">
-                Step and Run use the same local pure transition. Selecting a frame is read-only.
+                “执行一步”和“运行到结束”使用同一个本地纯转换；选中帧只读，不会改变状态。
               </p>
               <div className="program-guided-actions">
                 <button
@@ -381,7 +397,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                   onClick={() => dispatch({ type: "inspect-focus", focus: "variable-change" })}
                   type="button"
                 >
-                  Inspect variable change
+                  检查变量变化
                 </button>
                 <button
                   aria-describedby="program-guided-help"
@@ -389,73 +405,75 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                   onClick={() => dispatch({ type: "inspect-focus", focus: "loop-stop" })}
                   type="button"
                 >
-                  Inspect loop stop
+                  检查循环停止
                 </button>
               </div>
               <p className="program-help-text" id="program-guided-help">
-                Guided inspection becomes available after its evidence frame exists.
+                对应证据帧出现后，才能使用引导检查。
               </p>
             </section>
           </aside>
 
-          <div className="program-main" aria-label="Program execution workspace" role="region">
+          <div className="program-main" aria-label="程序执行工作区" role="region">
             <ProgramSource activeLine={selectedFrame?.sourceLine} lines={program.sourceLines} />
 
-            <section className="program-observation-grid" aria-label="Current machine observation">
+            <section className="program-observation-grid" aria-label="当前机器观察">
               <div className="program-card">
                 <div className="program-card-heading">
                   <div>
-                    <p className="eyebrow">CURRENT ENVIRONMENT</p>
-                    <h3>After the selected frame</h3>
+                    <p className="eyebrow">当前环境</p>
+                    <h3>选中帧之后</h3>
                   </div>
                   <span className="program-control-chip">
-                    {displaySnapshot.status === "running" ? "running" : displaySnapshot.status}
+                    {displaySnapshot.status === "running"
+                      ? "运行中"
+                      : displaySnapshot.status === "completed"
+                        ? "已完成"
+                        : "运行错误"}
                   </span>
                 </div>
                 <EnvironmentTable
                   caption={
-                    selectedFrame
-                      ? `Variables after frame ${selectedFrame.index + 1}`
-                      : "Initial variables"
+                    selectedFrame ? `第 ${selectedFrame.index + 1} 帧之后的变量` : "初始变量"
                   }
                   snapshot={displaySnapshot}
                   variables={program.variables}
                 />
                 <dl className="program-summary-list">
                   <div>
-                    <dt>condition checks</dt>
+                    <dt>条件检查次数</dt>
                     <dd>{displaySnapshot.conditionChecks}</dd>
                   </div>
                   <div>
-                    <dt>loop body entries</dt>
+                    <dt>进入循环体次数</dt>
                     <dd>{displaySnapshot.iterationCount}</dd>
                   </div>
                   <div>
-                    <dt>steps</dt>
+                    <dt>步数</dt>
                     <dd>{displaySnapshot.stepCount}</dd>
                   </div>
                 </dl>
               </div>
 
               <div className="program-card program-output-card">
-                <p className="eyebrow">FINAL PROGRAM RESULT</p>
-                <h3>Final program output and status</h3>
-                <output aria-label="Program output">
+                <p className="eyebrow">最终程序结果</p>
+                <h3>最终输出与状态</h3>
+                <output aria-label="程序输出">
                   {lesson.machine.output.length === 0 ? "—" : lesson.machine.output.join(", ")}
                 </output>
                 {terminal?.reason === "program-complete" ? (
-                  <p className="program-complete-message">{terminal.message}</p>
+                  <p className="program-complete-message">{terminalMessage(terminal.reason)}</p>
                 ) : terminal ? (
-                  <p className="program-terminal-message">{terminal.message}</p>
+                  <p className="program-terminal-message">{terminalMessage(terminal.reason)}</p>
                 ) : (
-                  <p className="program-help-text">The program is still running.</p>
+                  <p className="program-help-text">程序仍在运行。</p>
                 )}
                 {lesson.prediction !== undefined && lesson.machine.status === "completed" ? (
                   <p className="program-prediction-result">
-                    Prediction: {lesson.prediction}; observed: {observedOutput}.{" "}
+                    预测：{lesson.prediction}；观察值：{observedOutput}。{" "}
                     {lesson.prediction === observedOutput
-                      ? "Your prediction matches."
-                      : "Compare the selected evidence to find the first divergence."}
+                      ? "预测与观察一致。"
+                      : "比较选中证据，找到第一次分歧。"}
                   </p>
                 ) : null}
               </div>

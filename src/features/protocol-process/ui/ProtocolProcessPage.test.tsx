@@ -9,66 +9,61 @@ describe("ProtocolProcessPage", () => {
   it("renders semantic controls, queue evidence, and disabled guided actions", async () => {
     await renderAppAt("/labs/protocol-process");
 
-    expect(screen.getByRole("main", { name: "Protocol Process workspace" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Protocol Process" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /your prediction/i })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /message scenario/i })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Step" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Run to completion" })).toBeEnabled();
-    expect(button("Inspect first fault")).toBeDisabled();
-    expect(button("Inspect retry")).toBeDisabled();
-    expect(button("Inspect first fault")).toHaveAccessibleDescription(
-      /these controls select evidence/i,
-    );
-    await userEvent.setup().click(button("Step"));
-    expect(screen.getByRole("table", { name: /protocol counters/i })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "可靠送达 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "可靠送达" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /你的预测/i })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /消息情境/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
+    expect(button("检查第一个故障")).toBeDisabled();
+    expect(button("检查重试")).toBeDisabled();
+    expect(button("检查第一个故障")).toHaveAccessibleDescription(/这些按钮只会选中已经存在的证据/i);
+    await userEvent.setup().click(button("执行一步"));
+    expect(screen.getByRole("table", { name: /选中事件后的协议计数/i })).toBeInTheDocument();
   });
 
   it("supports prediction, fault inspection, retry inspection, and final delivery evidence", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/protocol-process");
 
+    await user.selectOptions(screen.getByRole("combobox", { name: /你的预测/i }), "delivered");
+    await user.selectOptions(screen.getByRole("combobox", { name: /请求次数/i }), "2");
     await user.selectOptions(
-      screen.getByRole("combobox", { name: /your prediction/i }),
-      "delivered",
-    );
-    await user.selectOptions(screen.getByRole("combobox", { name: /request attempts/i }), "2");
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /at timeout, the sender knows/i }),
+      screen.getByRole("combobox", { name: /超时时，发送方知道/i }),
       "status-unknown",
     );
-    await user.click(button("Record prediction"));
-    expect(screen.getByText(/prediction recorded: delivered in 2 attempts/i)).toBeInTheDocument();
+    await user.click(button("记录预测"));
+    expect(screen.getByText(/预测已记录；事件记录仍可继续检查/)).toBeInTheDocument();
 
-    await user.click(button("Run to completion"));
-    expect(button("Inspect first fault")).toBeEnabled();
-    expect(button("Inspect retry")).toBeEnabled();
+    await user.click(button("运行到结束"));
+    expect(button("检查第一个故障")).toBeEnabled();
+    expect(button("检查重试")).toBeEnabled();
 
-    await user.click(button("Inspect first fault"));
-    const evidence = screen.getByRole("region", { name: /selected event evidence/i });
-    expect(evidence).toHaveTextContent(/tick 5/i);
-    expect(evidence).toHaveTextContent(/dropped/i);
-    expect(evidence).toHaveTextContent(/acknowledgment 1 was dropped/i);
+    await user.click(button("检查第一个故障"));
+    const evidence = screen.getByRole("region", { name: /选中事件证据/i });
+    expect(evidence).toHaveTextContent(/时刻 5/);
+    expect(evidence).toHaveTextContent(/已丢失/);
+    expect(evidence).toHaveTextContent(/确认在发送方观察到之前丢失/);
 
-    await user.click(button("Inspect retry"));
-    expect(screen.getByRole("region", { name: /selected event evidence/i })).toHaveTextContent(
-      /retry attempt 2/i,
+    await user.click(button("检查重试"));
+    expect(screen.getByRole("region", { name: /选中事件证据/i })).toHaveTextContent(
+      /第 2 次请求重试/,
     );
-    expect(screen.getByRole("region", { name: /final protocol result/i })).toHaveTextContent(
-      /status: delivered.*attempts: 2.*accepted: 1.*duplicates suppressed: 1/i,
+    expect(screen.getByRole("region", { name: /最终协议结果/i })).toHaveTextContent(
+      /状态：已送达.*尝试次数：2.*接受次数：1.*重复抑制：1/,
     );
-    expect(screen.getByRole("region", { name: /final protocol result/i })).toHaveTextContent(
-      /prediction: delivered in 2 attempts; observed: delivered.*timeout claim: status unknown/i,
+    expect(screen.getByRole("region", { name: /最终协议结果/i })).toHaveTextContent(
+      /预测：会送达.*预计 2 次.*观察结果：\s*已送达.*超时判断：状态未知/i,
     );
   });
 
   it("selects event frames with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/protocol-process?scenario=no-loss");
-    await user.click(button("Run to completion"));
+    await user.click(button("运行到结束"));
 
-    const first = screen.getByRole("button", { name: /Frame 1, tick 0, send-request/i });
-    const second = screen.getByRole("button", { name: /Frame 2, tick 2, deliver-request/i });
+    const first = screen.getByRole("button", { name: /第 1 帧，时刻 0，发送请求/i });
+    const second = screen.getByRole("button", { name: /第 2 帧，时刻 2，送达请求/i });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
@@ -76,7 +71,7 @@ describe("ProtocolProcessPage", () => {
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
 
-    const final = screen.getByRole("button", { name: /Frame 4, tick 5, deliver-ack/i });
+    const final = screen.getByRole("button", { name: /第 4 帧，时刻 5，送达确认/i });
     final.focus();
     await user.keyboard(" ");
     expect(final).toHaveAttribute("aria-current", "true");
@@ -86,18 +81,15 @@ describe("ProtocolProcessPage", () => {
   it("switches scenarios and resets to the original URL scenario", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/protocol-process?scenario=request-loss");
-    await user.click(button("Run to completion"));
-    expect(screen.getByRole("region", { name: /final protocol result/i })).toHaveTextContent(
-      /attempts: 2.*duplicates suppressed: 0/i,
+    await user.click(button("运行到结束"));
+    expect(screen.getByRole("region", { name: /最终协议结果/i })).toHaveTextContent(
+      /尝试次数：2.*重复抑制：0/,
     );
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /message scenario/i }),
-      "no-loss",
-    );
-    expect(screen.getByText(/Press Step to process the first request event/i)).toBeInTheDocument();
-    await user.click(button("Reset to URL scenario"));
-    expect(screen.getByRole("combobox", { name: /message scenario/i })).toHaveValue("request-loss");
+    await user.selectOptions(screen.getByRole("combobox", { name: /消息情境/i }), "no-loss");
+    expect(screen.getByText(/点击“执行一步”，处理第一个请求事件/)).toBeInTheDocument();
+    await user.click(button("恢复初始情境"));
+    expect(screen.getByRole("combobox", { name: /消息情境/i })).toHaveValue("request-loss");
   });
 
   it("keeps semantic evidence available at a narrow viewport", async () => {
@@ -105,10 +97,10 @@ describe("ProtocolProcessPage", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });
     try {
       await renderAppAt("/labs/protocol-process");
-      expect(screen.getByRole("button", { name: "Step" })).toBeVisible();
-      await userEvent.setup().click(button("Step"));
-      expect(screen.getByRole("table", { name: /protocol counters/i })).toBeVisible();
-      expect(screen.getByRole("region", { name: /final protocol result/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "执行一步" })).toBeVisible();
+      await userEvent.setup().click(button("执行一步"));
+      expect(screen.getByRole("table", { name: /选中事件后的协议计数/i })).toBeVisible();
+      expect(screen.getByRole("region", { name: /最终协议结果/i })).toBeInTheDocument();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -123,9 +115,21 @@ describe("ProtocolProcessPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /Protocol Process workspace/i })).getByText(
-        /simulated and every queue change is inspectable/i,
+      within(screen.getByRole("main", { name: /可靠送达 workspace/i })).getByText(
+        /时钟是模拟的，\s*每次队列变化都可以检查/,
       ),
     ).toBeInTheDocument();
+  });
+
+  it("keeps the first render exploratory instead of revealing the protocol answer", async () => {
+    await renderAppAt("/labs/protocol-process");
+
+    const firstRender = document.body.textContent ?? "";
+    expect(firstRender).not.toMatch(/A timeout alone does not prove receiver failure/i);
+    expect(firstRender).not.toMatch(/Receiver accepts once, then suppresses the retry duplicate/i);
+    expect(firstRender).not.toMatch(/超时本身不等于接收方失败/);
+    expect(firstRender).not.toMatch(/接收方已经接受过.*重复请求没有再次生效/);
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "检查第一个故障" })).toBeDisabled();
   });
 });

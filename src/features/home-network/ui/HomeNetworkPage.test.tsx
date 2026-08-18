@@ -13,7 +13,7 @@ describe("HomeNetworkPage", () => {
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /inspect device|设备/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /target|目标|目的地/i })).toBeInTheDocument();
-    expect(screen.getAllByText(/source.*laptop/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/源设备|学习电脑/).length).toBeGreaterThan(0);
     expect(
       screen.getByRole("button", { name: /send probe|probe|发送探测|发送探针/i }),
     ).toBeInTheDocument();
@@ -74,12 +74,8 @@ describe("HomeNetworkPage", () => {
       .closest("section");
     expect(history).not.toBeNull();
     expect(within(history as HTMLElement).getAllByRole("listitem")).toHaveLength(2);
-    expect(within(history as HTMLElement).getAllByRole("listitem")[0]).toHaveTextContent(
-      /blocked/i,
-    );
-    expect(within(history as HTMLElement).getAllByRole("listitem")[1]).toHaveTextContent(
-      /delivered/i,
-    );
+    expect(within(history as HTMLElement).getAllByRole("listitem")[0]).toHaveTextContent(/已停止/);
+    expect(within(history as HTMLElement).getAllByRole("listitem")[1]).toHaveTextContent(/送达/);
   });
 
   it("keeps topology readouts live, locks fixed endpoints, and reports prediction feedback", async () => {
@@ -97,13 +93,10 @@ describe("HomeNetworkPage", () => {
     expect(document.querySelector("svg")).toHaveTextContent("192.168.1.30");
     expect(screen.getByRole("button", { name: /打印机.*192\.168\.1\.30/i })).toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /optional prediction/i }),
-      "local",
-    );
+    await user.selectOptions(screen.getByRole("combobox", { name: /可选预测/ }), "local");
     await user.click(button(/send probe|probe|发送探测|发送探针/i));
     expect(document.querySelector(".probe-prediction-feedback")).toHaveTextContent(
-      /Prediction: local \/ direct.*observed: local \/ direct.*match/i,
+      /预测：.*本地 \/ 直接.*观察：本地 \/ 直接.*一致/,
     );
 
     await user.selectOptions(
@@ -123,12 +116,12 @@ describe("HomeNetworkPage", () => {
       screen.getByRole("combobox", { name: /inspect device|设备/i }),
       "router",
     );
-    const inspector = screen.getByRole("complementary", { name: /network device inspector/i });
+    const inspector = screen.getByRole("complementary", { name: /网络设备检查器/ });
 
-    expect(within(inspector).queryByLabelText(/default gateway/i)).not.toBeInTheDocument();
+    expect(within(inspector).queryByLabelText(/默认网关/)).not.toBeInTheDocument();
     expect(inspector).toHaveTextContent(/LAN.*192\.168\.1\.1\/24/i);
     expect(inspector).toHaveTextContent(/WAN.*203\.0\.113\.1\/24/i);
-    expect(inspector).toHaveTextContent(/connected routes/i);
+    expect(inspector).toHaveTextContent(/已连接路由/);
     expect(inspector).toHaveTextContent(/192\.168\.1\.0\/24/);
     expect(inspector).toHaveTextContent(/203\.0\.113\.0\/24/);
     expect(screen.getByRole("button", { name: /家庭路由器.*192\.168\.1\.1/i })).toBeInTheDocument();
@@ -138,15 +131,12 @@ describe("HomeNetworkPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/home-network?scenario=invalid-config");
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /optional prediction/i }),
-      "local",
-    );
+    await user.selectOptions(screen.getByRole("combobox", { name: /可选预测/ }), "local");
     await user.click(button(/send probe|probe|发送探测|发送探针/i));
 
     const feedback = document.querySelector(".probe-prediction-feedback");
-    expect(feedback).toHaveTextContent(/observed:\s*not classified/i);
-    expect(feedback).toHaveTextContent(/validation stopped:.*invalid IPv4/i);
+    expect(feedback).toHaveTextContent(/观察：未分类/);
+    expect(feedback).toHaveTextContent(/校验停止：.*IP 地址格式无效/);
     expect(feedback?.textContent).not.toMatch(/observed:\s*(local|remote)/i);
   });
 

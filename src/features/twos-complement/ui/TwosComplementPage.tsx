@@ -19,6 +19,20 @@ function signedNumber(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);
 }
 
+function readingLabel(reading: Reading): string {
+  return reading === "signed" ? "有符号（signed）" : "无符号（unsigned）";
+}
+
+function exampleDescription(id: string): string {
+  return (
+    {
+      "signed-boundary": "在有符号上界附近观察结果。",
+      "carry-only": "把最高位进位与有符号溢出分开观察。",
+      "negative-overflow": "在有符号下界附近观察结果。",
+    }[id] ?? "观察固定宽度下的逐列加法。"
+  );
+}
+
 function WordBits({
   name,
   pattern,
@@ -37,29 +51,29 @@ function WordBits({
   const unsigned = interpretUnsigned(pattern);
 
   return (
-    <section className="twos-word" aria-label={`Operand ${name}`}>
+    <section className="twos-word" aria-label={`操作数 ${name}`}>
       <div className="twos-word-heading">
         <div>
-          <p className="eyebrow">OPERAND {name}</p>
-          <h3>Editable {width}-bit word</h3>
+          <p className="eyebrow">操作数 {name}</p>
+          <h3>可编辑的 {width} 位字</h3>
         </div>
         <code>{pattern}</code>
       </div>
       <div
-        aria-label={`${name} bits, most significant bit first`}
+        aria-label={`${name} 位，从最高有效位开始`}
         className={`twos-bit-row twos-bit-row-${width}`}
       >
         {[...pattern].map((bit, index) => {
           const position = width - index - 1;
           return (
             <button
-              aria-label={`${name}, bit ${position}, ${bit}`}
+              aria-label={`${name}，第 ${position} 位，${bit}`}
               className="twos-bit-button"
               key={`${name}-${position}`}
               onClick={() => onToggle(index)}
               type="button"
             >
-              <span className="twos-bit-position">bit {position}</span>
+              <span className="twos-bit-position">第 {position} 位</span>
               <strong>{bit}</strong>
               <span className="twos-bit-weight">{weights[index]}</span>
             </button>
@@ -68,11 +82,11 @@ function WordBits({
       </div>
       <dl className="twos-word-readings">
         <div>
-          <dt>unsigned</dt>
+          <dt>无符号（unsigned）</dt>
           <dd>{unsigned}</dd>
         </div>
         <div>
-          <dt>two&apos;s-complement</dt>
+          <dt>二进制补码（two&apos;s-complement）</dt>
           <dd>{signedNumber(signed)}</dd>
         </div>
       </dl>
@@ -128,65 +142,63 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
   }, [scenario.left, scenario.reading, scenario.right, scenario.width]);
 
   const active = lesson.reading === "signed" ? model.signed : model.unsigned;
-  const activeReadingName = lesson.reading === "signed" ? "two's-complement" : "unsigned";
   const carryDifference = model.signCarriesDiffer;
   const negativeOnePattern = "1".repeat(lesson.width);
   const examples = getTwosComplementExamples(lesson.width);
 
   return (
     <LabShell
-      eyebrow="INTEGER / 01"
-      subtitle="Fixed-width words and ripple carry"
+      eyebrow="整数 / 01"
+      subtitle="固定宽度字与逐位进位（ripple carry）"
       title="二进制补码"
     >
       <div className="twos-course">
         <header className="twos-intro">
-          <p className="eyebrow">REFERENCE COURSE</p>
+          <p className="eyebrow">参考课程</p>
           <h2>
             为什么 <code>0111 + 0001</code> 会变成 <code>1000</code>？
           </h2>
           <p>
             这台机器只存 {lesson.width} 个 bit。改变 A 或 B 的任一位，所有读数都由同一条逐列
-            ripple-carry 计算重新得出；没有提交、关卡或答案状态。
+            ripple-carry 计算重新得出；没有提交或答案状态。
           </p>
         </header>
 
         <div className="twos-layout">
-          <aside className="twos-controls" aria-label="Machine controls">
+          <aside className="twos-controls" aria-label="机器控制">
             <section className="twos-card">
-              <p className="eyebrow">MACHINE</p>
-              <h3>Choose the fixed word</h3>
+              <p className="eyebrow">机器</p>
+              <h3>选择固定宽度</h3>
               <SegmentControl<WordWidth>
-                label="Word width"
+                label="字宽"
                 onChange={(width) => dispatch({ type: "set-width", width })}
                 options={[
-                  { value: 4, label: "4 bit" },
-                  { value: 8, label: "8 bit" },
+                  { value: 4, label: "4 位" },
+                  { value: 8, label: "8 位" },
                 ]}
                 value={lesson.width}
               />
               <SegmentControl<Reading>
-                label="Primary reading"
+                label="主要读法"
                 onChange={(reading) => dispatch({ type: "set-reading", reading })}
                 options={[
-                  { value: "signed", label: "Signed" },
-                  { value: "unsigned", label: "Unsigned" },
+                  { value: "signed", label: "有符号" },
+                  { value: "unsigned", label: "无符号" },
                 ]}
                 value={lesson.reading}
               />
               <p className="twos-resize-note">
-                On expansion, signed words sign-extend and unsigned words zero-extend; when
-                shrinking, the low bits are kept and higher bits are truncated.
+                扩展时，有符号字进行符号扩展，无符号字补零；缩小时保留低位并截去高位。
               </p>
               <dl className="twos-ranges">
                 <div>
-                  <dt>unsigned range</dt>
+                  <dt>无符号范围</dt>
                   <dd>
                     {model.unsigned.range[0]}…{model.unsigned.range[1]}
                   </dd>
                 </div>
                 <div>
-                  <dt>signed range</dt>
+                  <dt>有符号范围</dt>
                   <dd>
                     {signedNumber(model.signed.range[0])}…{signedNumber(model.signed.range[1])}
                   </dd>
@@ -195,8 +207,8 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
             </section>
 
             <section className="twos-card">
-              <p className="eyebrow">GUIDED EXAMPLES</p>
-              <h3>Change the words, not the rules</h3>
+              <p className="eyebrow">引导示例</p>
+              <h3>改变字，不改变规则</h3>
               <div className="twos-example-list">
                 {examples.map((example) => (
                   <button
@@ -205,7 +217,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                     type="button"
                   >
                     <strong>{example.label}</strong>
-                    <span>{example.description}</span>
+                    <span>{exampleDescription(example.id)}</span>
                   </button>
                 ))}
               </div>
@@ -214,7 +226,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 onClick={() => dispatch({ type: "reset" })}
                 type="button"
               >
-                Reset to URL scenario
+                恢复初始情境
               </button>
             </section>
           </aside>
@@ -223,10 +235,10 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
             <section className="twos-card twos-words-card" aria-labelledby="words-heading">
               <div className="twos-card-heading">
                 <div>
-                  <p className="eyebrow">WORD REPRESENTATION</p>
-                  <h3 id="words-heading">Same bits; selectable primary reading</h3>
+                  <p className="eyebrow">字表示</p>
+                  <h3 id="words-heading">同样的位，可选择主要读法</h3>
                 </div>
-                <span className="twos-reading-chip">primary: {activeReadingName}</span>
+                <span className="twos-reading-chip">主要读法：{readingLabel(lesson.reading)}</span>
               </div>
               <div className="twos-words-grid">
                 <WordBits
@@ -252,44 +264,41 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 />
               </div>
               <p className="twos-negation-note">
-                In this word model, <code>{negativeOnePattern}</code> reads as −1; a
-                two&apos;s-complement negation inverts every bit and adds one within the fixed
-                width.
+                在这个字模型中，<code>{negativeOnePattern}</code> 读作 −1；二进制补码取反会在固定
+                宽度内翻转每一位并加一。
               </p>
             </section>
 
             <section className="twos-card" aria-labelledby="ripple-heading">
               <div className="twos-card-heading">
                 <div>
-                  <p className="eyebrow">RIPPLE ADDITION</p>
-                  <h3 id="ripple-heading">Each column consumes A, B, and carry-in</h3>
+                  <p className="eyebrow">逐位加法</p>
+                  <h3 id="ripple-heading">每一列都处理 A、B 和输入进位</h3>
                 </div>
-                <span className="twos-direction">
-                  visual order: MSB → LSB · carry ripples LSB → MSB
-                </span>
+                <span className="twos-direction">视觉顺序：MSB → LSB · 进位方向：LSB → MSB</span>
               </div>
               <div className="twos-trace-wrap">
                 <div
-                  aria-label="Ripple carry column trace"
+                  aria-label="逐位进位列记录"
                   className={`twos-trace twos-trace-${lesson.width}`}
                   role="group"
                 >
                   <div className="twos-trace-labels">
-                    <span>position</span>
-                    <span>carry in</span>
+                    <span>位置</span>
+                    <span>输入进位</span>
                     <span>A</span>
                     <span>B</span>
-                    <span>result</span>
-                    <span>carry out</span>
+                    <span>结果</span>
+                    <span>输出进位</span>
                   </div>
                   <div className="twos-carry-out" data-carry-out={model.carryOut} role="note">
-                    <span>outside the {lesson.width}-bit word</span>
-                    <strong>carry-out = {model.carryOut}</strong>
-                    <small>from the MSB; not stored in result</small>
+                    <span>在 {lesson.width} 位字之外</span>
+                    <strong>输出进位 = {model.carryOut}</strong>
+                    <small>来自最高有效位；不会存入结果</small>
                   </div>
                   {model.columns.map((column) => (
                     <div className="twos-trace-column" key={column.bitPosition}>
-                      <span>bit {column.bitPosition}</span>
+                      <span>第 {column.bitPosition} 位</span>
                       <strong>{column.carryIn}</strong>
                       <strong>{column.left}</strong>
                       <strong>{column.right}</strong>
@@ -301,40 +310,40 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               </div>
             </section>
 
-            <section className="twos-evidence-grid" aria-label="Result and mathematical evidence">
+            <section className="twos-evidence-grid" aria-label="结果与数学证据">
               <article className="twos-card twos-result-card">
-                <p className="eyebrow">STORED RESULT</p>
+                <p className="eyebrow">存储结果</p>
                 <code>{model.result}</code>
                 <p>
-                  Exact {lesson.width}-bit word: low {lesson.width} result bits only.
+                  精确的 {lesson.width} 位字：只保留结果的低 {lesson.width} 位。
                 </p>
                 <dl>
                   <div>
-                    <dt>unsigned</dt>
+                    <dt>无符号</dt>
                     <dd>{model.unsigned.result}</dd>
                   </div>
                   <div>
-                    <dt>two&apos;s-complement</dt>
+                    <dt>二进制补码</dt>
                     <dd>{signedNumber(model.signed.result)}</dd>
                   </div>
                 </dl>
                 <strong className="twos-primary-sentence">
-                  As {activeReadingName}: {signedNumber(active.left)} + {signedNumber(active.right)}{" "}
-                  stores {signedNumber(active.result)}.
+                  按{readingLabel(lesson.reading)}解释：{signedNumber(active.left)} +{" "}
+                  {signedNumber(active.right)} 存储为 {signedNumber(active.result)}。
                 </strong>
               </article>
 
               <article className="twos-card twos-evidence-card" data-carry-out={model.carryOut}>
-                <p className="eyebrow">UNSIGNED EVIDENCE</p>
-                <h3>Carry-out: {model.carryOut ? "yes" : "no"}</h3>
+                <p className="eyebrow">无符号证据</p>
+                <h3>输出进位：{model.carryOut ? "有" : "无"}</h3>
                 <p>
-                  {model.unsigned.left} + {model.unsigned.right} = {model.unsigned.mathematicalSum};
-                  finite unsigned range is {model.unsigned.range[0]}…{model.unsigned.range[1]}.
+                  {model.unsigned.left} + {model.unsigned.right} = {model.unsigned.mathematicalSum}
+                  ； 有限无符号范围是 {model.unsigned.range[0]}…{model.unsigned.range[1]}。
                 </p>
                 <strong>
                   {model.unsigned.overflow
-                    ? "The unsigned sum exceeds the word range; the extra carry is outside the stored word."
-                    : "The unsigned sum remains in range; no extra carry leaves the word."}
+                    ? "无符号和超出字范围；额外进位位于存储字之外。"
+                    : "无符号和仍在范围内；没有额外进位离开这个字。"}
                 </strong>
               </article>
 
@@ -342,19 +351,19 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 className="twos-card twos-evidence-card"
                 data-signed-overflow={model.signed.overflow}
               >
-                <p className="eyebrow">SIGNED EVIDENCE</p>
-                <h3>Signed overflow: {model.signed.overflow ? "yes" : "no"}</h3>
+                <p className="eyebrow">有符号证据</p>
+                <h3>有符号溢出：{model.signed.overflow ? "有" : "无"}</h3>
                 <p>
                   {signedNumber(model.signed.left)} + {signedNumber(model.signed.right)} ={" "}
-                  {signedNumber(model.signed.mathematicalSum)}; signed range is{" "}
-                  {signedNumber(model.signed.range[0])}…{signedNumber(model.signed.range[1])}.
+                  {signedNumber(model.signed.mathematicalSum)}；有符号范围是{" "}
+                  {signedNumber(model.signed.range[0])}…{signedNumber(model.signed.range[1])}。
                 </p>
                 <strong>
-                  sign-bit carry-in {model.carryIntoSign} {carryDifference ? "≠" : "="} carry-out{" "}
+                  符号位输入进位 {model.carryIntoSign} {carryDifference ? "≠" : "="} 输出进位{" "}
                   {model.carryOut}.{" "}
                   {model.signed.overflow
-                    ? "Same-sign inputs produced a result with the other sign."
-                    : "The sign-bit carries agree, so the signed result did not overflow."}
+                    ? "同号输入产生了相反符号的结果。"
+                    : "符号位的输入和输出进位一致，因此有符号结果没有溢出。"}
                 </strong>
               </article>
             </section>
