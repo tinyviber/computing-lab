@@ -235,12 +235,30 @@ describe("protocol process domain", () => {
       queue: [],
       terminal: { reason: "delivered" as const, at: 0, message: "wrong" },
     };
+    const mismatchedTimeout = {
+      ...createProtocolMachine(scenario),
+      attemptsSent: 2,
+      queue: [{ kind: "timeout" as const, dueAt: 5, sequence: 1, attempt: 1 }],
+      nextSequence: 2,
+    };
+    const duplicateTimeout = {
+      ...createProtocolMachine(scenario),
+      attemptsSent: 1,
+      queue: [
+        { kind: "timeout" as const, dueAt: 5, sequence: 1, attempt: 1 },
+        { kind: "timeout" as const, dueAt: 6, sequence: 2, attempt: 1 },
+      ],
+      nextSequence: 3,
+    };
+    const tooManyAttempts = { ...scenario, maxAttempts: 21 };
 
     expect(() => stepProtocol(unknownEvent, scenario)).toThrow(/unknown protocol event/i);
     expect(() => assertProtocolMachine(pastEvent, scenario)).toThrow(/due time/i);
     expect(() => assertProtocolMachine(unsorted, scenario)).toThrow(/sorted/i);
     expect(() => assertProtocolMachine(impossibleSequence, scenario)).toThrow(/sequence/i);
     expect(() => assertProtocolMachine(mismatchedTerminal, scenario)).toThrow(/terminal reason/i);
+    expect(() => assertProtocolMachine(mismatchedTimeout, scenario)).toThrow(/current attempt/i);
+    expect(() => assertProtocolMachine(duplicateTimeout, scenario)).toThrow(/duplicate timeout/i);
     expect(() =>
       assertProtocolMachine(createProtocolMachine(malformedScenario), malformedScenario),
     ).toThrow(/unknown protocol fault/i);
@@ -248,6 +266,20 @@ describe("protocol process domain", () => {
       assertProtocolMachine(createProtocolMachine(unknownScenario), unknownScenario),
     ).toThrow(/unknown protocol scenario/i);
     expect(() => assertProtocolScenario(tooShortTimeout)).toThrow(/round trip/i);
+    expect(() => assertProtocolScenario(tooManyAttempts)).toThrow(/cannot exceed/i);
+  });
+
+  it("terminates the bounded maximum-attempt scenario without obsolete outcomes", () => {
+    const scenario: ProtocolScenario = {
+      ...getProtocolScenario("receiver-silent"),
+      maxAttempts: 20,
+    };
+    const result = runProtocol(scenario);
+
+    expect(result.machine.status).toBe("failed");
+    expect(result.machine.attemptsSent).toBe(20);
+    expect(result.frames).toHaveLength(60);
+    expect(result.frames.every((frame) => frame.event.outcome !== undefined)).toBe(true);
   });
 
   it("supports an explicit attempt-limit failure boundary", () => {

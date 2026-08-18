@@ -22,7 +22,7 @@ The experiment uses one instructor-authored message:
 - acknowledgment delay: `3` ticks;
 - timeout: `5` ticks;
 - maximum request attempts: `2`;
-- author validation requires timeout to cover one request plus acknowledgment round trip, preventing stale timers from invalidating a valid delayed response.
+- author validation requires timeout to cover one request plus acknowledgment round trip, so every legal timeout is consumed before a retry can become current.
 
 There is no real network, socket, IP address, route, ARP, NAT, arbitrary message editor, randomness, wall-clock timer, or learner-editable protocol language.
 
@@ -107,7 +107,7 @@ For equal due times, event priority is deterministic:
 
 This makes `ack-loss` causal: the first acknowledgment is delivered at time `5` before the timeout, then the explicit fault drops it; the timeout observes that no acknowledgment arrived and schedules retry.
 
-A timeout event is tagged with its request attempt. If a timeout is ever dequeued after a later attempt is current, it produces explicit `stale-timeout` evidence and cannot retry or fail the exchange. Scenario validation also rejects a timeout shorter than one request plus acknowledgment round trip.
+A timeout event is tagged with its request attempt. Under this lesson's legal timing contract, a queued timeout always belongs to the current attempt: delivery wins equal-time ties, and the timeout is consumed before a retry is scheduled. Machine validation rejects fabricated queues with a timeout from another attempt, duplicate timeout events, or a request that is not the next attempt. Scenario validation also rejects a timeout shorter than one request plus acknowledgment round trip and caps attempts at twenty so the fixed experiment has a finite step budget.
 
 A step:
 
@@ -201,7 +201,7 @@ Required domain tests:
 - duplicate suppression and ACK-on-duplicate behavior;
 - timeout retry and maximum-attempt failure boundary;
 - terminal idempotence;
-- unknown/stale timeout cannot retry after successful completion;
+- fabricated timeout/attempt mismatches and duplicate timeout events are rejected;
 - runtime-free deterministic replay and no mutation of input or returned snapshots;
 - scenario validation and malformed event/config rejection.
 
@@ -227,6 +227,6 @@ The final review must explicitly answer:
 
 ## Architectural experiment conclusion
 
-A Protocol step is one scheduled protocol event, not a statement, expression, iteration, or clock tick. Simulated time can jump from tick `2` to tick `5` without invisible frames, and equal-time delivery/timeout ordering is semantic evidence. Queue snapshots are essential in this course because they explain what is in flight, why a retry exists, and which stale work is cleared at terminal completion.
+A Protocol step is one scheduled protocol event, not a statement, expression, iteration, or clock tick. Simulated time can jump from tick `2` to tick `5` without invisible frames, and equal-time delivery/timeout ordering is semantic evidence. Queue snapshots are essential in this course because they explain what is in flight, why a retry exists, and which queued work is cleared at terminal completion.
 
 Protocol therefore **falsifies a universal Stepper and shared semantic trace runtime** while strengthening a narrower hypothesis: independent features can author immutable, inspectable causal items with before/after snapshots. The structural resemblance is not an extraction trigger because Program steps are language control events, Protocol steps are scheduled queue events, Network entries are probe histories, and Two's Complement entries are static ripple columns. Fault policy, simulated time, queue ordering, and duplicate suppression remain feature-local.

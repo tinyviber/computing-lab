@@ -55,7 +55,6 @@ export type ProtocolEventOutcome =
   | "receiver-unavailable"
   | "dropped"
   | "retry-scheduled"
-  | "stale-timeout"
   | "completed"
   | "failed";
 
@@ -83,6 +82,7 @@ export type ProtocolStepResult = {
 
 export const MESSAGE_ID = "M42" as const;
 export const MESSAGE_TEXT = "MEET AT 3" as const;
+export const MAX_PROTOCOL_ATTEMPTS = 20 as const;
 
 const SCENARIO_FAULTS: Readonly<Record<ProtocolScenarioId, ProtocolFault>> = {
   "no-loss": "none",
@@ -195,6 +195,9 @@ export function assertProtocolScenario(scenario: ProtocolScenario): void {
   if (!Number.isSafeInteger(scenario.maxAttempts) || scenario.maxAttempts < 1) {
     throw new Error("Maximum attempts must be a positive safe integer.");
   }
+  if (scenario.maxAttempts > MAX_PROTOCOL_ATTEMPTS) {
+    throw new Error(`Maximum attempts cannot exceed ${MAX_PROTOCOL_ATTEMPTS}.`);
+  }
   if (
     !(["none", "drop-first-ack", "drop-first-request", "silent-receiver"] as string[]).includes(
       scenario.fault,
@@ -241,7 +244,14 @@ export function assertProtocolMachine(machine: ProtocolMachine, scenario: Protoc
   if (typeof machine.faultConsumed !== "boolean")
     throw new Error("Protocol fault state must be boolean.");
   if (!Array.isArray(machine.queue)) throw new Error("Protocol queue must be an array.");
+  if (machine.attemptsSent > scenario.maxAttempts) {
+    throw new Error("Protocol attempts cannot exceed the scenario maximum.");
+  }
+  if (machine.status === "running" && machine.queue.length === 0) {
+    throw new Error("A running protocol must have queued work.");
+  }
   const sequences = new Set<number>();
+  const timeoutAttempts = new Set<number>();
   const expectedQueue = sortedQueue(machine.queue);
   machine.queue.forEach((event, index) => {
     if (!isProtocolEventKind(event.kind)) throw new Error(`Unknown protocol event: ${event.kind}`);
@@ -258,6 +268,22 @@ export function assertProtocolMachine(machine: ProtocolMachine, scenario: Protoc
     }
     if (!Number.isSafeInteger(event.attempt) || event.attempt < 1) {
       throw new Error("Protocol event attempts must be positive safe integers.");
+    }
+    if (event.attempt > scenario.maxAttempts) {
+      throw new Error("Protocol event attempt exceeds the scenario maximum.");
+    }
+    if (event.kind === "send-request") {
+      if (event.attempt !== machine.attemptsSent + 1) {
+        throw new Error("A queued request must be the next protocol attempt.");
+      }
+    } else if (event.attempt !== machine.attemptsSent) {
+      throw new Error("Queued protocol work must use the current attempt.");
+    }
+    if (event.kind === "timeout") {
+      if (timeoutAttempts.has(event.attempt)) {
+        throw new Error("A protocol attempt cannot have duplicate timeout events.");
+      }
+      timeoutAttempts.add(event.attempt);
     }
     sequences.add(event.sequence);
     if (expectedQueue[index].sequence !== event.sequence) {
@@ -331,9 +357,6 @@ function eventExplanation(event: ScheduledProtocolEvent, outcome: ProtocolEventO
     return outcome === "dropped"
       ? `Acknowledgment ${event.attempt} was dropped before the sender could observe it.`
       : `Sender observed acknowledgment ${event.attempt} for ${MESSAGE_ID}.`;
-  }
-  if (outcome === "stale-timeout") {
-    return `Timeout for attempt ${event.attempt} was stale after a later attempt became current.`;
   }
   return outcome === "retry-scheduled"
     ? `No acknowledgment arrived; retry attempt ${event.attempt + 1} was scheduled.`
@@ -413,9 +436,7 @@ export function stepProtocol(
       next = finish(next, "delivered", scenario.maxAttempts);
     }
   } else {
-    if (nextEvent.attempt !== next.attemptsSent) {
-      outcome = "stale-timeout";
-    } else if (next.attemptsSent < scenario.maxAttempts) {
+    if (next.attemptsSent < scenario.maxAttempts) {
       outcome = "retry-scheduled";
       next = schedule(next, {
         kind: "send-request",
@@ -453,12 +474,15 @@ export function runProtocol(scenario: ProtocolScenario): {
 } {
   let machine = createProtocolMachine(scenario);
   const frames: ProtocolFrame[] = [];
-  for (let index = 0; index < 100 && machine.status === "running"; index += 1) {
+  const stepBudget = scenario.maxAttempts * 5;
+  for (let index = 0; index < stepBudget && machine.status === "running"; index += 1) {
     const result = stepProtocol(machine, scenario);
     if (!result.frame) throw new Error("A running protocol step must produce a frame.");
     frames.push({ ...result.frame, index });
     machine = result.machine;
   }
-  if (machine.status === "running") throw new Error("Protocol did not terminate within 100 steps.");
+  if (machine.status === "running") {
+    throw new Error(`Protocol did not terminate within ${stepBudget} steps.`);
+  }
   return { machine, frames };
 }

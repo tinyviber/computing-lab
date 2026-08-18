@@ -4,7 +4,7 @@
 
 **Branch:** `feat/protocol-process-reference-course`
 
-**Review status:** design gate initially REWORK; revised design/implementation passed independent final review after queue validation, receiver-silent teaching evidence, stale-timeout handling, and complete per-fixture attempt/sequence assertions were added.
+**Review status:** design gate initially REWORK; this mission reworked the model after proving that an obsolete timeout outcome was unreachable under the legal timing contract. Queue validation, receiver-silent teaching evidence, and complete per-fixture attempt/sequence assertions remain explicit.
 
 **Implementation status:** feature-local course complete. No shared runtime, trace, queue, clock, or fault-injection primitive extracted.
 
@@ -45,7 +45,7 @@ The feature owns all protocol semantics under `src/features/protocol-process/dom
 - delayed request and ACK events;
 - first-request loss, first-ACK loss, and silent receiver policies;
 - duplicate suppression and ACK-on-duplicate behavior;
-- attempt-tagged timeout events and explicit `stale-timeout` evidence;
+- attempt-tagged timeout events with validation that rejects cross-attempt or duplicate timeout state;
 - terminal queue clearing and identity-preserving terminal no-op;
 - complete before/after snapshots including queue, time, counters, sequence, and terminal state.
 
@@ -74,7 +74,7 @@ Coverage includes:
 - duplicate suppression and ACK counts;
 - attempt-limit failure;
 - malformed scenarios, event kinds, due times, queue order, sequence bounds, terminal reasons, and too-short timeout configs;
-- explicit stale-timeout protection;
+- explicit legal-timeout and queue-invariant protection;
 - deterministic replay and nested queue/terminal snapshot independence;
 - identity-preserving post-terminal stepping.
 
@@ -99,23 +99,23 @@ The UI does not run the protocol, sort the queue, compute retries, or reconstruc
 
 ## 5. What Protocol does to primitive hypotheses
 
-| Hypothesis | Result | Evidence | Decision |
-| --- | --- | --- | --- |
-| immutable causal evidence | STRONGER, but still local | Queue/time/counter snapshots make a selected event explainable without replay | Keep feature-local; no generic Trace export |
-| pure discrete step | SPLIT / narrowed | Pure stepping remains valuable, but Protocol step means scheduled event with queue/time semantics, not Program statement semantics | Reject universal Stepper |
-| linear trace/history | FALSIFIED as universal | Queue scheduling, equal-time priority, delayed messages, retries, stale timers, and terminal queue clearing are not a linear statement trace | No shared trace runtime |
-| deterministic simulation time | STRONGER | Time jumps are explicit and testable; no wall-clock APIs | Keep protocol clock local |
-| event queue | STRONGER, not extraction-ready | Queue snapshots and monotonic insertion order are central to this protocol | No shared queue primitive |
-| fault injection | STRONGER, not extraction-ready | First request/ACK loss and silent receiver are causal scenario policies | Keep domain-owned |
-| before/after comparison | STRONGER | Selected queue and counter tables explain one event's effect | Do not create generic comparator |
-| prediction → intervention → observation → evidence | STRONGER | Status, attempts, and timeout-meaning predictions lead to fixed scenario intervention and observed counters | Keep authoring convention local |
-| seeded random stream | UNCHANGED | All outcomes remain deterministic and authored | Monte Carlo remains the direct test |
-| representation transformation path | UNCHANGED | Protocol carries a fixed message but does not encode it | UTF-8 remains the direct test |
-| editable finite representation | UNCHANGED | No user-edited bytes/fields | UTF-8 remains the direct test |
-| tables/derived cells | STRONGER locally | Queue/counter/comparison tables are useful but have protocol-specific provenance and lifecycle | No generic table lesson primitive |
-| provenance/lineage | STRONGER locally | Event attempt → queue delivery → ACK/retry causal chain is explicit | Compare later with Relational Data; no extraction |
-| deterministic simulation clock | STRONGER | Protocol directly requires an authored clock and scheduler | Reject shared global clock |
-| graph/node-edge | UNCHANGED | No topology graph; Home Network remains its own model | Keep local |
+| Hypothesis                                         | Result                         | Evidence                                                                                                                                          | Decision                                          |
+| -------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| immutable causal evidence                          | STRONGER, but still local      | Queue/time/counter snapshots make a selected event explainable without replay                                                                     | Keep feature-local; no generic Trace export       |
+| pure discrete step                                 | SPLIT / narrowed               | Pure stepping remains valuable, but Protocol step means scheduled event with queue/time semantics, not Program statement semantics                | Reject universal Stepper                          |
+| linear trace/history                               | FALSIFIED as universal         | Queue scheduling, equal-time priority, delayed messages, retries, timer consumption, and terminal queue clearing are not a linear statement trace | No shared trace runtime                           |
+| deterministic simulation time                      | STRONGER                       | Time jumps are explicit and testable; no wall-clock APIs                                                                                          | Keep protocol clock local                         |
+| event queue                                        | STRONGER, not extraction-ready | Queue snapshots and monotonic insertion order are central to this protocol                                                                        | No shared queue primitive                         |
+| fault injection                                    | STRONGER, not extraction-ready | First request/ACK loss and silent receiver are causal scenario policies                                                                           | Keep domain-owned                                 |
+| before/after comparison                            | STRONGER                       | Selected queue and counter tables explain one event's effect                                                                                      | Do not create generic comparator                  |
+| prediction → intervention → observation → evidence | STRONGER                       | Status, attempts, and timeout-meaning predictions lead to fixed scenario intervention and observed counters                                       | Keep authoring convention local                   |
+| seeded random stream                               | UNCHANGED                      | All outcomes remain deterministic and authored                                                                                                    | Monte Carlo remains the direct test               |
+| representation transformation path                 | UNCHANGED                      | Protocol carries a fixed message but does not encode it                                                                                           | UTF-8 remains the direct test                     |
+| editable finite representation                     | UNCHANGED                      | No user-edited bytes/fields                                                                                                                       | UTF-8 remains the direct test                     |
+| tables/derived cells                               | STRONGER locally               | Queue/counter/comparison tables are useful but have protocol-specific provenance and lifecycle                                                    | No generic table lesson primitive                 |
+| provenance/lineage                                 | STRONGER locally               | Event attempt → queue delivery → ACK/retry causal chain is explicit                                                                               | Compare later with Relational Data; no extraction |
+| deterministic simulation clock                     | STRONGER                       | Protocol directly requires an authored clock and scheduler                                                                                        | Reject shared global clock                        |
+| graph/node-edge                                    | UNCHANGED                      | No topology graph; Home Network remains its own model                                                                                             | Keep local                                        |
 
 ## 6. Trace comparison after Protocol
 
@@ -128,7 +128,7 @@ Both use pure transitions, independent before/after snapshots, and terminal no-o
 - Program control is a source-location cursor;
 - Protocol control is queue ordering plus simulated time;
 - Program has no hidden scheduler or delayed work;
-- Protocol must show queued future work, equal-time priority, retry attempts, and stale timeout policy.
+- Protocol must show queued future work, equal-time priority, retry attempts, and timeout ownership policy.
 
 The shared structural shape is not an extraction trigger. The semantic contract, event vocabulary, lifecycle, and evidence fields diverge immediately.
 

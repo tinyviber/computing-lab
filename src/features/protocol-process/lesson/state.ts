@@ -73,7 +73,8 @@ function advance(state: ProtocolLessonState): ProtocolLessonState {
 
 function runAll(state: ProtocolLessonState): ProtocolLessonState {
   let current = state;
-  for (let index = 0; index < 100 && current.machine.status === "running"; index += 1) {
+  const stepBudget = getProtocolScenario(current.scenario).maxAttempts * 5;
+  for (let index = 0; index < stepBudget && current.machine.status === "running"; index += 1) {
     const next = advance(current);
     if (next === current) break;
     current = next;
