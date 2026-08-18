@@ -6,7 +6,7 @@ This mission tested whether heterogeneous courses justify shared lesson primitiv
 
 ## 1. Live PR chain
 
-The chain was inspected against GitHub after rework. Heads below are the production heads validated before this documentation-only revision of PR #18:
+The chain was inspected against GitHub after the lineage rework. Heads below are the current branch heads at this report refresh:
 
 | PR  | Course                     | Base                                              | Head                                                | CI result                       |
 | --- | -------------------------- | ------------------------------------------------- | --------------------------------------------------- | ------------------------------- |
@@ -14,10 +14,10 @@ The chain was inspected against GitHub after rework. Heads below are the product
 | #14 | Protocol Process           | #13 `ac7cfd2`                                     | `feat/protocol-process-reference-course` `32d1c9c`  | `checks` + `e2e-base-path` pass |
 | #15 | UTF-8                      | #14 `32d1c9c`                                     | `feat/utf8-reference-course` `2587490`              | `checks` + `e2e-base-path` pass |
 | #16 | Monte Carlo π              | #15 `2587490`                                     | `feat/monte-carlo-reference-course` `d22664e`       | `checks` + `e2e-base-path` pass |
-| #17 | Relational Data            | #16 `d22664e`                                     | `feat/relational-data-reference-course` `330984f`   | `checks` + `e2e-base-path` pass |
-| #18 | Byte Edit + mission report | #17 `330984f`                                     | `feat/byte-edit-reference-course` `2d66f66`         | `checks` + `e2e-base-path` pass |
+| #17 | Relational Data            | #16 `d22664e`                                     | `feat/relational-data-reference-course` `17a4ee8`   | pending on new head             |
+| #18 | Byte Edit + mission report | #17 `17a4ee8`                                     | `feat/byte-edit-reference-course` `6f12da8`         | pending on rebased head         |
 
-All six are open draft PRs. Final validation run IDs for the listed heads: #13 `32131820278`, #14 `32144927977`, #15 `32145097369`, #16 `32146042142`, #17 `32146575204`, and #18 `32147500998`.
+All six are open draft PRs. #13–#16 retain their green validation runs; #17 and #18 require fresh exact-head CI after the lineage fix and rebase.
 
 The original live failures were repaired at their owning branches: #14 failed Prettier on `research/output/08-protocol-process-evidence.md`; #15 failed Prettier on `research/output/09-utf8-evidence.md`. The descendants were rebased so each PR owns only its feature evidence and later branches do not reintroduce those parent-file failures.
 
@@ -40,6 +40,7 @@ The original live failures were repaired at their owning branches: #14 failed Pr
 
 - `null` is a real relational value distinct from `""`; typed equality rejects coercive matches and null never joins.
 - A nullable null foreign key passes the FK check but contributes no join row; a separate NOT NULL constraint governs required values. `NOT NULL` rejects only `null`, so an empty string remains present and valid.
+- Aggregate provenance now carries a stable union of every participating loan, borrower, and book row, including `loan-4, person-3, book-1` for the NULL borrower result; it no longer claims lineage from loan rows alone.
 - Fixtures, source-row evidence, aggregate results, UI formatting, docs, and tests now show the null-versus-empty distinction. Malformed rows are rejected for unknown/missing columns and declared-type mismatches.
 
 ### Byte Edit (#18)
@@ -89,7 +90,7 @@ The extraction decision is therefore **no production semantic primitive is extra
 
 ## 5. Validation record
 
-Local validation on the final production head before this report revision:
+Local validation after the lineage fix and rebase:
 
 - `bun install --frozen-lockfile` — PASS
 - `bun run format:check` — PASS
@@ -100,7 +101,7 @@ Local validation on the final production head before this report revision:
 - `bun run build` — PASS
 - `bun run test:e2e` — environment-blocked locally: all 26 tests stopped at Playwright launch because Chromium is absent from the configured cache. No E2E assertion ran locally.
 
-GitHub CI downloaded Chromium and passed both `checks` and `e2e-base-path` for all six listed PR heads, including #18 run `32147500998`.
+GitHub CI for #17 and #18 is intentionally re-running on the exact new heads above; the final run IDs will be recorded in the PR bodies after completion.
 
 The pre-existing unrelated untracked file `research/output/06-primitive-foundation-research.md` was preserved and is not part of this chain.
 
