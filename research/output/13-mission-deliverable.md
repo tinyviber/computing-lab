@@ -1,127 +1,109 @@
-# Mission deliverable: heterogeneous course experiments and primitive extraction decision
+# Mission deliverable: heterogeneous course experiments
 
-**Branch:** `feat/byte-edit-reference-course` (final); six feature branches, one commit each.
+**Status:** implementation complete; six-PR stacked chain remains open and draft. No merge was performed.
 
-**Objective restated:** use heterogeneous courses as architectural experiments; extract shared primitives only when at least two compatible feature-local consumers remain and the design/skeptic/prototype/evaluation gates pass; every implemented course must strengthen, shrink, falsify, or leave unchanged one or more primitive hypotheses with explicit evidence.
+This mission tested whether heterogeneous courses justify shared lesson primitives. The result is a thin application shell plus feature-owned `{domain, lesson, ui}` modules. No new shared semantic runtime was introduced.
 
-## 1. Implemented courses and status
+## 1. Live PR chain
 
-| #   | Course                 | Branch                                    | Commit     | Status            |
-| --- | ---------------------- | ----------------------------------------- | ---------- | ----------------- |
-| 1   | Audio Encoding (Sound) | pre-existing `main` history               | `0053478`+ | implemented, PASS |
-| 2   | Image Encoding         | pre-existing `main` history (PR #11)      | `58cbba5`  | implemented, PASS |
-| 3   | Home Network           | pre-existing `main` history (PR #10)      | `8ae2aa2`  | implemented, PASS |
-| 4   | Two's Complement       | `feat/twos-complement-reference-course`   | `1b8e8c3`  | implemented, PASS |
-| 5   | Program Execution      | `feat/program-execution-reference-course` | `ac7cfd2`  | implemented, PASS |
-| 6   | Protocol Process       | `feat/protocol-process-reference-course`  | `1f622ef`  | implemented, PASS |
-| 7   | UTF-8                  | `feat/utf8-reference-course`              | `f8a5d57`  | implemented, PASS |
-| 8   | Monte Carlo π          | `feat/monte-carlo-reference-course`       | `21ee54e`  | implemented, PASS |
-| 9   | Relational Data        | `feat/relational-data-reference-course`   | `b360c29`  | implemented, PASS |
-| 10  | Byte Edit              | `feat/byte-edit-reference-course`         | `21b406c`  | implemented, PASS |
+The chain was inspected against GitHub after rework. Heads below are the production heads validated before this documentation-only revision of PR #18:
 
-Deferred courses: broad SQL/relational DBMS, general text editor, general-purpose simulation toolkit, full networking simulator, audio production tools, and any course that would require a shared lesson runtime. These remain out of scope by design, not by failure.
+| PR  | Course                     | Base                                              | Head                                                | CI result                       |
+| --- | -------------------------- | ------------------------------------------------- | --------------------------------------------------- | ------------------------------- |
+| #13 | Program Execution          | `feat/twos-complement-reference-course` `1b8e8c3` | `feat/program-execution-reference-course` `ac7cfd2` | `checks` + `e2e-base-path` pass |
+| #14 | Protocol Process           | #13 `ac7cfd2`                                     | `feat/protocol-process-reference-course` `32d1c9c`  | `checks` + `e2e-base-path` pass |
+| #15 | UTF-8                      | #14 `32d1c9c`                                     | `feat/utf8-reference-course` `2587490`              | `checks` + `e2e-base-path` pass |
+| #16 | Monte Carlo π              | #15 `2587490`                                     | `feat/monte-carlo-reference-course` `d22664e`       | `checks` + `e2e-base-path` pass |
+| #17 | Relational Data            | #16 `d22664e`                                     | `feat/relational-data-reference-course` `330984f`   | `checks` + `e2e-base-path` pass |
+| #18 | Byte Edit + mission report | #17 `330984f`                                     | `feat/byte-edit-reference-course` `2d66f66`         | `checks` + `e2e-base-path` pass |
 
-No PRs were opened this session: the four pre-existing courses shipped via PRs #9–#11 on `main`; the six new courses are committed on local feature branches. The next step is to open PRs per branch or push and merge each feature branch (see §9).
+All six are open draft PRs. Final validation run IDs for the listed heads: #13 `32131820278`, #14 `32144927977`, #15 `32145097369`, #16 `32146042142`, #17 `32146575204`, and #18 `32147500998`.
 
-## 2. Architecture under test
+The original live failures were repaired at their owning branches: #14 failed Prettier on `research/output/08-protocol-process-evidence.md`; #15 failed Prettier on `research/output/09-utf8-evidence.md`. The descendants were rebased so each PR owns only its feature evidence and later branches do not reintroduce those parent-file failures.
 
-- `src/app` owns routing and catalog only.
-- `src/features/<lab>/{domain,lesson,ui}` owns each course's semantics: pure domain, URL-scenario parsing, and a reducer-driven UI.
-- `src/shared/lab` owns app chrome (LabShell) and interaction primitives only; it has no lesson semantics.
-- Intended dependency direction `ui → lesson → domain` is enforced by `src/app/architecture-boundaries.test.ts` and per-feature UI architecture tests (no `BitGrid`, `ExperimentStatus`, `ParameterControl`, `FormulaPanel`, `VisualizationPanel`, `submit`/`check answer`/`score` surface).
-- Domains are pure and free of React/router/browser APIs; `Math.random`, `setTimeout`, and `TextEncoder` appear only where a feature genuinely needs them, and are never in the step semantics.
+## 2. Required semantic fixes
 
-## 3. Dependency graph
+### Protocol Process (#14)
+
+- Removed the obsolete timeout outcome and its unreachable branch, documentation, tests, and UI references.
+- The legal event model now requires a non-empty running queue, exact attempt progression, queued send requests at `attemptsSent + 1`, delivery/ACK events on the current attempt, at most one live timeout per attempt, and `attemptsSent <= maxAttempts`.
+- Scenario attempts are bounded at 20. Receiver-silent runs therefore terminate through the bounded budget rather than relying on an unreachable stale-event case.
+- Queue order and hand-authored event outcomes remain feature-owned; no shared clock or scheduler was added.
+
+### Monte Carlo π (#16)
+
+- Added a feature-local SVG geometry view derived from the same deterministic LCG stream as the estimate: unit square, quarter-circle boundary, inside/outside marks, axes, and textual counts.
+- Each point carries a global zero-based `sampleIndex`, coordinates, and one domain-owned `inside` classification. The frame also carries the full-batch inside count.
+- The selected frame displays the first `min(128, batchSize)` points, so the DOM remains bounded while full-batch and cumulative counts stay visible. No `Math.random`, UI RNG, second oracle, or generic chart primitive is used.
+
+### Relational Data (#17)
+
+- `null` is a real relational value distinct from `""`; typed equality rejects coercive matches and null never joins.
+- A nullable null foreign key passes the FK check but contributes no join row; a separate NOT NULL constraint governs required values. `NOT NULL` rejects only `null`, so an empty string remains present and valid.
+- Fixtures, source-row evidence, aggregate results, UI formatting, docs, and tests now show the null-versus-empty distinction. Malformed rows are rejected for unknown/missing columns and declared-type mismatches.
+
+### Byte Edit (#18)
+
+- The decoder distinguishes missing continuation bytes from present-but-invalid continuation bytes.
+- Invalid results include the exact offending byte whenever one exists; examples include `C3 41` → invalid continuation at byte 1, offending `41`, and truncated `C3` → missing continuation at byte 1.
+- Raw non-integer and out-of-range byte inputs are rejected deterministically before decoding. No `TextDecoder` is used. `TextEncoder` is used only at the authoring-validation boundary that checks fixture text against its declared bytes.
+- The corrupt preset, UI evidence, tests, E2E spec, design doc, and research output all use the corrected taxonomy. Byte Edit has no terminal “done” lifecycle: each step is an applied edit intervention.
+
+## 3. Ownership and architecture audit
+
+The stacked diffs were checked at every boundary:
+
+- #14 owns Protocol Process plus `research/output/08-protocol-process-evidence.md`.
+- #15 owns UTF-8 plus `research/output/09-utf8-evidence.md`; its diff does not include the parent Protocol evidence.
+- #16 owns Monte Carlo plus `research/output/10-monte-carlo-evidence.md`; its diff does not include parent Protocol or UTF-8 evidence.
+- #17 owns Relational Data plus `research/output/11-relational-data-evidence.md`; its diff does not include earlier feature evidence.
+- #18 owns Byte Edit plus `research/output/12-byte-edit-evidence.md` and this mission report; its diff does not include earlier feature evidence.
+
+The surviving dependency graph is:
 
 ```text
-src/app
-  └─ router.tsx ──────────────┐  (routes /labs/*)
-  └─ catalog/labs.ts ─────────┤  (registry, categories)
-src/shared/lab
-  └─ LabShell (app chrome, no semantics)
-src/features
-  ├─ audio-encoding   {domain → lesson → ui}
-  ├─ image-encoding   {domain → lesson → ui}
-  ├─ home-network     {domain → lesson → ui}
-  ├─ twos-complement  {domain → lesson → ui}
-  ├─ program-execution{domain → lesson → ui}
-  ├─ protocol-process {domain → lesson → ui}
-  ├─ utf8             {domain → lesson → ui}
-  ├─ monte-carlo      {domain → lesson → ui}
-  ├─ relational-data  {domain → lesson → ui}
-  └─ byte-edit        {domain → lesson → ui}
+src/app: router + catalog
+        ↓
+src/shared/lab: LabShell and app chrome
+        ↓
+src/features/<lab>/{domain,lesson,ui}: feature-owned semantics
 ```
 
-There are no edges between features. Every feature imports only `src/shared/lab` (chrome), React, and TanStack Router. `src/shared/lab` imports no feature. This graph is the observable architecture: 10 isolated course models under one shell.
+No feature imports another feature. Domains contain deterministic course rules and authoring validation; UI projects domain results and owns feature-specific visualization. No shared `Stepper`, `TraceRuntime`, `PredictionGate`, `DataTable`, `Validator`, `Comparator`, `ScenarioCodec`, `ParameterPanel`, `BitGrid`, `ExperimentEngine`, or `LessonRuntime` was added.
 
-## 4. Pedagogy, domain, and review results per course
+## 4. Primitive evidence matrix
 
-| Course            | Pedagogy                              | Domain contract                                                       | Review result                                                                          |
-| ----------------- | ------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| Program Execution | predict → trace variables/loop/print  | pure statement machine, before/after snapshots                        | PASS (reworked once: stopping-cause semantics added)                                   |
-| Protocol Process  | predict → step scheduled queue events | queue/time machine, fault fixtures, timeout round-trip, stale-timeout | PASS (reworked twice: receiver-silent, validation, stale-timeout, per-fixture oracles) |
-| UTF-8             | predict → step one code point         | scalar encoder, branch/template evidence                              | PASS (reworked once: boundary tests, frame contract, narrowed editability claim)       |
-| Monte Carlo π     | predict above/below π → step batches  | feature-local LCG, estimate/error, comparison rows                    | PASS (reworked once: precise LCG, honest convergence claim)                            |
-| Relational Data   | predict row count → step queries      | projection/filter/join/aggregate with provenance, 5 constraints       | PASS (one deliberate FK failure)                                                       |
-| Byte Edit         | predict valid/invalid → apply edit    | full-sequence decoder, presets, edit machine                          | PASS (no run-all by design)                                                            |
+| Hypothesis                                         | Result                                                                                                  | Decision                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| App shell composition                              | 10 labs use the same chrome while keeping semantic models isolated                                      | Keep `LabShell`; strengthen shell-only ownership    |
+| Pure deterministic step                            | Useful locally, but six courses step statements, queue events, code points, batches, queries, and edits | Keep feature-local; reject a universal Stepper      |
+| Shared linear trace/history                        | Evidence shapes and lifecycles diverge                                                                  | Falsified as a universal runtime                    |
+| Shared clock/event bus                             | Only Protocol needs queue/time semantics                                                                | Reject                                              |
+| Generic Validator / Comparator / DataTable         | Constraint, decode, and result-table rules use different vocabularies                                   | Reject                                              |
+| Shared RNG/chart engine                            | Monte Carlo uses one feature-local seeded stream and one feature-local SVG evidence view                | Reject                                              |
+| Editable finite representation                     | Byte Edit is useful as a feature-local experiment                                                       | Strengthened, not extraction-ready                  |
+| Immutable causal evidence                          | Helpful in every course, but fields and lifecycles differ                                               | Keep feature-local                                  |
+| Prediction → intervention → observation → evidence | Repeats as an authoring convention                                                                      | Keep convention; do not encode a workflow primitive |
 
-Every course has: hand-authored domain oracles that never derive expected values from the production runner; scenario/authoring validation; URL-scenario hydration with fallback; semantic keyboard/ARIA evidence with `aria-current`; a narrow-viewport evidence test; and a Playwright trajectory spec.
+The extraction decision is therefore **no production semantic primitive is extraction-ready**. Shared app chrome is the only demonstrated cross-course reuse. The course series narrowed the hypotheses by implementing divergent consumers first.
 
-## 5. Primitive evidence matrix (final)
+## 5. Validation record
 
-| Hypothesis                                                                                                   | Evidence across courses                                                                                          | Decision                                                                                  |
-| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| app-shell composition                                                                                        | LabShell hosts 10 independent workspaces                                                                         | STRENGTHENED — keep `src/shared/lab` chrome-only                                          |
-| opaque scenario transport                                                                                    | all 10 courses hydrate a canonical URL                                                                           | STRENGTHENED — keep as authoring convention                                               |
-| feature-owned deterministic model boundaries                                                                 | 10 pure domains with enforced `ui → lesson → domain`                                                             | STRENGTHENED — proven                                                                     |
-| immutable causal evidence                                                                                    | Program frames, Protocol queue snapshots, UTF-8 frames, Monte Carlo batches, Relational results, Byte Edit edits | STRENGTHENED but local — no extraction                                                    |
-| pure deterministic transitions                                                                               | step functions in 6 new courses                                                                                  | SPLIT/narrowed — step semantics differ (statement, event, code point, batch, query, edit) |
-| linear trace / shared history                                                                                | 6 distinct trace shapes; none compatible                                                                         | FALSIFIED as universal                                                                    |
-| universal `Stepper`/`LessonRuntime`                                                                          | 6 distinct step meanings, 4 more distinct models                                                                 | FALSIFIED                                                                                 |
-| shared event bus / global clock                                                                              | Protocol owns queue/time; no other course needs it                                                               | REJECTED                                                                                  |
-| `ExperimentEngine` / `VisualizationFramework` / `ScenarioCodec` / `ParameterPanel` / `BitGrid` / `LessonDSL` | no two compatible consumers                                                                                      | REJECTED                                                                                  |
-| generic `Validator` / `Comparator` / `DataTable`                                                             | Relational constraints, Byte Edit decoder, result/comparison tables are all feature-specific                     | REJECTED                                                                                  |
-| seeded random stream                                                                                         | Monte Carlo LCG is deterministic and feature-local                                                               | STRENGTHENED, not extraction-ready                                                        |
-| representation transformation path                                                                           | UTF-8 scalar→bytes; Image/Audio reconstruction                                                                   | STRENGTHENED, not extraction-ready                                                        |
-| editable finite representation                                                                               | Byte Edit edits one byte with explicit validity rules                                                            | STRENGTHENED, not extraction-ready                                                        |
-| provenance/lineage                                                                                           | Relational provenance rows name source ids                                                                       | STRENGTHENED, not extraction-ready                                                        |
-| before/after snapshots                                                                                       | useful everywhere, never universal                                                                               | KEEP feature-local                                                                        |
-| prediction → intervention → observation → evidence                                                           | present in 6 new courses as a local convention                                                                   | STRENGTHENED as convention, not a workflow primitive                                      |
+Local validation on the final production head before this report revision:
 
-## 6. Extraction decision
-
-**No production primitive is extraction-ready.** No two features share a compatible vocabulary, lifecycle, or evidence schema for any candidate primitive. The six new courses each falsified at least one earlier primitive hypothesis (universal step/trace/runtime, generic validator/table/comparator, shared RNG/clock/queue) while strengthening narrow feature-local hypotheses. A tiny immutable evidence-item data shape remains a research hypothesis only.
-
-## 7. Cleanup recommendation
-
-`docs/legacy-shared-cleanup-recommendation.md` already lists the unused legacy shared lesson components (`ExperimentStatus`, `ParameterControl`, `FormulaPanel`, `VisualizationPanel`) in `src/shared/lab`. Recommendation: remove them in one dedicated cleanup PR that touches no feature code; the feature architecture tests already prove no feature references them. Do not remove `LabShell` or other in-use chrome.
-
-## 8. CI / local validation
-
-On each feature branch, with constrained Vitest workers (`--maxWorkers=1 --minWorkers=1`) to respect the low-process-fan-out constraint:
-
+- `bun install --frozen-lockfile` — PASS
 - `bun run format:check` — PASS
 - `bun run lint` — PASS
 - `bun run typecheck` — PASS
-- `bun run test:run -- --maxWorkers=1 --minWorkers=1` — final run **56 test files, 329 tests passed**
+- `bun run test:run -- --maxWorkers=1 --minWorkers=1` — PASS, 56 files / 331 tests
+- `bun run test:deploy` — PASS
 - `bun run build` — PASS
+- `bun run test:e2e` — environment-blocked locally: all 26 tests stopped at Playwright launch because Chromium is absent from the configured cache. No E2E assertion ran locally.
 
-Final repo-wide suite on the last branch: 329 tests across 56 files, all green.
+GitHub CI downloaded Chromium and passed both `checks` and `e2e-base-path` for all six listed PR heads, including #18 run `32147500998`.
 
-## 9. Next courses and next engineering steps
+The pre-existing unrelated untracked file `research/output/06-primitive-foundation-research.md` was preserved and is not part of this chain.
 
-Course experiment series is complete. Next courses (from the research candidate pool) would extend breadth without new hypotheses: Recursion/Stack, Sorting, Boolean Logic, Relational SQL extensions, and a Markov chain course reusing the Monte Carlo generator pattern. Before those, the immediate engineering steps are:
+## 6. Recommendation
 
-1. Push the six feature branches and open one PR each (or merge sequentially) — no PRs exist yet.
-2. Perform the §7 cleanup PR.
-3. Install Playwright Chromium (`npx playwright install chromium`) in a CI environment and run `bun run test:e2e` — blocked locally (see below).
-4. Re-run the final approval gate with the independent reviewer tooling once it is available, to convert the self-review gate results on UTF-8/Byte Edit (and the mid-session Monte Carlo/Relational reviews) into tooled PASS records.
-
-## 10. Blockers
-
-- **Playwright E2E cannot run locally**: Chromium is missing at the configured cache path. Every E2E test (existing and new) fails at `browserType.launch` with `Executable doesn't exist`. Environment-only; the E2E specs are written and the pre-existing suite fails identically, so this is not a product regression.
-- **Independent reviewer subagent infrastructure failed repeatedly** during Monte Carlo, Relational Data, and Byte Edit gates; those gates used the same strict checklist as self-review. Re-run with tooling once available (§9.4).
-
-## 11. Final architecture assessment
-
-The course-first, primitives-later strategy succeeded: 10 heterogeneous courses now coexist under one shell with zero shared lesson semantics, and the primitive hypotheses that motivated the experiment have been tested against real, diverging step models rather than speculation. The architecture that survived is deliberately thin: `src/app` routing/registry, `src/shared/lab` chrome, and per-feature `{domain, lesson, ui}` ownership with an enforced dependency direction. Every extraction candidate that was rejected was rejected because the evidence showed incompatible vocabularies and lifecycles — not because extraction was too hard. The final state is a catalog of 10 independent reference courses, six of them added in this mission, each with design docs, evidence reports, oracles, accessibility, and validation records.
+Keep the current thin architecture. A separate cleanup PR may remove unused legacy shared lesson components listed in `docs/legacy-shared-cleanup-recommendation.md`; it should not change feature semantics or remove `LabShell`. Defer broad SQL/DBMS, general text-editor, general simulation, and full networking-toolkit work until a concrete second compatible consumer appears.
