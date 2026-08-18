@@ -15,6 +15,7 @@ This directory keeps durable, decision-level research summaries for Computing La
 - `output/08-protocol-process-evidence.md` — Protocol Process course implementation evidence and scheduler/trace hypothesis update.
 - `output/09-utf8-evidence.md` — UTF-8 course implementation evidence and representation-path hypothesis update.
 - `output/10-monte-carlo-evidence.md` — Monte Carlo π course implementation evidence and seeded-random-stream hypothesis update.
+- `output/11-relational-data-evidence.md` — Relational Data course implementation evidence and provenance/constraint hypothesis update.
 
 These are research records, not current architecture authority. Current product and boundary decisions live in `docs/`, especially `docs/architecture.md`, `docs/course-model-reset.md`, and `docs/primitive-extraction-review.md`.
 
