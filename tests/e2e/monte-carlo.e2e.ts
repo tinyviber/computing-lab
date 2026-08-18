@@ -18,6 +18,10 @@ test("traces deterministic Monte Carlo convergence for pi", async ({ page }) => 
   await page.keyboard.press("Enter");
   await expect(batch2).toHaveAttribute("aria-current", "true");
   await expect(page.getByRole("table", { name: "Fixture comparison" })).toContainText(/3\.1448/);
+  const geometry = page.getByRole("region", { name: /Monte Carlo geometry evidence/i });
+  await expect(geometry).toContainText(/Showing 128 of 250 points/i);
+  await expect(geometry).toContainText(/quarter-circle area \/ square area = π \/ 4/i);
+  await expect(geometry.locator("[data-monte-carlo-point]")).toHaveCount(128);
 });
 
 test.describe("responsive evidence", () => {
@@ -29,6 +33,9 @@ test.describe("responsive evidence", () => {
     await expect(page.getByRole("table", { name: /convergence by batch/i })).toBeVisible();
     await expect(
       page.getByRole("region", { name: /selected Monte Carlo evidence/i }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: /Monte Carlo geometry evidence/i }),
     ).toBeVisible();
   });
 });

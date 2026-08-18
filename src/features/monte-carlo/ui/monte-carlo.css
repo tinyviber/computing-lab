@@ -247,6 +247,89 @@
   background: var(--surface-raised);
 }
 
+.mc-geometry-card {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.mc-geometry {
+  width: min(100%, 28rem);
+  margin: 0 auto;
+  overflow: visible;
+  border: 1px solid var(--line);
+  background: var(--surface-raised);
+}
+
+.mc-geometry-square {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1;
+}
+
+.mc-geometry-axis {
+  stroke: var(--ink-muted);
+  stroke-width: 1.5;
+}
+
+.mc-geometry-boundary {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.mc-geometry-point-inside {
+  fill: #2563eb;
+  stroke: #0f3d9e;
+  stroke-width: 0.8;
+}
+
+.mc-geometry-point-outside {
+  fill: #c2410c;
+  stroke: #7c2d12;
+  stroke-width: 0.8;
+}
+
+.mc-geometry-summary {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.mc-geometry-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+}
+
+.mc-geometry-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.mc-legend-mark {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1px solid currentColor;
+}
+
+.mc-legend-inside {
+  border-radius: 50%;
+  background: #2563eb;
+  color: #0f3d9e;
+}
+
+.mc-legend-outside {
+  background: #c2410c;
+  color: #7c2d12;
+  transform: rotate(45deg) scale(0.75);
+}
+
 .mc-table-scroll {
   max-height: 22rem;
   overflow: auto;

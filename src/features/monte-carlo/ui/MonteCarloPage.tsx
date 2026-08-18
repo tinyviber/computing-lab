@@ -13,6 +13,7 @@ import {
   transitionMonteCarloLesson,
   type MonteCarloLessonState,
 } from "../lesson/state";
+import { MonteCarloGeometry } from "./MonteCarloGeometry";
 import "./monte-carlo.css";
 
 const scenarioOptions: readonly {
@@ -157,6 +158,10 @@ function SelectedEvidence({ frame }: { frame?: MonteCarloFrame }) {
         <div>
           <dt>Inside count after batch</dt>
           <dd>{frame.insideCount}</dd>
+        </div>
+        <div>
+          <dt>Inside points in full batch</dt>
+          <dd>{frame.batchInsideCount}</dd>
         </div>
         <div>
           <dt>Running estimate</dt>
@@ -319,6 +324,7 @@ function MonteCarloContent({
             selectedFrameIndex={lesson.selectedFrameIndex}
           />
           <SelectedEvidence frame={selectedFrame} />
+          {selectedFrame ? <MonteCarloGeometry frame={selectedFrame} /> : null}
           <section className="mc-card" aria-label="Convergence table">
             <p className="eyebrow">CONVERGENCE</p>
             <h3>Estimate by batch</h3>

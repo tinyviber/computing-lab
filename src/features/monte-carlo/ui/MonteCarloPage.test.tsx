@@ -41,6 +41,19 @@ describe("MonteCarloPage", () => {
     expect(
       screen.getByRole("region", { name: /selected Monte Carlo evidence/i }),
     ).toHaveTextContent(/Batch 4 of 1000 samples/i);
+    const geometry = screen.getByRole("region", { name: /Monte Carlo geometry evidence/i });
+    expect(geometry).toHaveTextContent(/Showing 128 of 250 points/i);
+    expect(geometry).toHaveTextContent(/Full batch: 198 inside and 52 outside/i);
+    expect(geometry).toHaveTextContent(/quarter-circle area \/ square area = π \/ 4/i);
+    expect(geometry.querySelectorAll("[data-monte-carlo-point]")).toHaveLength(128);
+    expect(geometry.querySelector("[data-monte-carlo-boundary]")).toBeInTheDocument();
+    expect(geometry.querySelectorAll("[data-monte-carlo-axis]")).toHaveLength(2);
+    expect(geometry.querySelectorAll('[data-monte-carlo-point="inside"]').length).toBeGreaterThan(
+      0,
+    );
+    expect(geometry.querySelectorAll('[data-monte-carlo-point="outside"]').length).toBeGreaterThan(
+      0,
+    );
     expect(screen.getByRole("region", { name: /convergence table/i })).toHaveTextContent(
       /2\.944.*3\.0507/i,
     );
@@ -92,6 +105,7 @@ describe("MonteCarloPage", () => {
       expect(screen.getByRole("table", { name: /convergence by batch/i })).toBeVisible();
       expect(screen.queryByLabelText("Final Monte Carlo estimate")).not.toBeInTheDocument();
       expect(screen.getByRole("region", { name: /selected Monte Carlo evidence/i })).toBeVisible();
+      expect(screen.getByRole("region", { name: /Monte Carlo geometry evidence/i })).toBeVisible();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -108,5 +122,6 @@ describe("MonteCarloPage", () => {
         /How many random points does it take to find π/i,
       ),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/Math\.random/i)).not.toBeInTheDocument();
   });
 });

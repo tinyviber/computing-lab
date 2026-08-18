@@ -70,9 +70,9 @@ export type MonteCarloMachine = {
 - a random value is `(state >>> 16) / 65536` after advancing (so the low-bit weakness of LCG output is never used);
 - the first advance after seeding produces the first `x`; the second advance produces the first `y`; samples are drawn as consecutive `x, y` pairs from one continuous stream.
 
-The constants are documented so the test oracle can hand-author the first points and final estimate for `seed 42` without calling the production runner.
+The state is normalized to an unsigned 32-bit value. The constants are documented so the test oracle can hand-author the first points and final estimate for `seed 42` without calling the production runner.
 
-`stepMonteCarlo(machine, scenario)` draws exactly `batchSize` samples, counts points with `x² + y² ≤ 1`, updates the machine, and returns fresh before/after snapshots plus estimate and error. `runMonteCarlo` folds the same step. A complete machine is an identity-preserving no-op.
+`stepMonteCarlo(machine, scenario)` draws exactly `batchSize` samples, classifies points with `x² + y² ≤ 1`, updates the machine, and returns fresh before/after snapshots plus estimate, error, the full `batchInsideCount`, and the first `min(128, batchSize)` points from the same global zero-based stream. `runMonteCarlo` folds the same step. A complete machine is an identity-preserving no-op.
 
 Scenario validation rejects unknown IDs, empty titles, non-integer seeds, non-positive sample counts, and batch sizes that do not evenly divide the sample count.
 
@@ -80,18 +80,19 @@ Scenario validation rejects unknown IDs, empty titles, non-integer seeds, non-po
 
 The selected frame must make convergence inspectable without replay:
 
-- batch index, cumulative samples drawn, and inside count;
+- batch index, cumulative samples drawn, cumulative inside count, and full-batch inside count;
+- the bounded first 128 point coordinates, global sample indices, and domain-owned inside/outside classification;
 - running estimate (`4 × inside / samples`) and running error (`|estimate − π|`);
 - before/after cumulative counts;
 - final estimate, final error, and a textual convergence claim.
 
 The convergence claim is honest about observed evidence: comparing the three seed fixtures at their final steps, the observed final error shrinks as samples grow (`1000 → 0.0616`, `10_000 → 0.0032`, `100_000 → 0.0015` with the chosen seeds). The design explicitly does not claim error decreases monotonically per batch: the frame table shows the per-batch wobble, and `same-n-different-seed` shows that a different seed at the same sample count lands elsewhere (`3.1328` vs `3.1448`).
 
-The UI renders a semantic convergence table (batch, cumulative samples, inside, estimate, error), a running status line, and textual evidence. Each stored frame is a native keyboard-focusable trace button; exactly the selected frame has `aria-current="true"`, Enter/Space select it, and Step/Run become disabled only at completion. The selected-frame region is labeled separately from the final result. It does not use a generic charting or visualization framework.
+The UI renders a feature-local SVG for the selected frame: unit square, axes, quarter-circle boundary, and at most 128 domain-classified points. Circles and diamonds distinguish inside/outside without relying on color alone. Text states shown-point counts, full-batch counts, cumulative counts, and `inside / total ≈ quarter-circle area / square area = π / 4`. It also renders a semantic convergence table (batch, cumulative samples, inside, estimate, error), a running status line, and textual evidence. Each stored frame is a native keyboard-focusable trace button; exactly the selected frame has `aria-current="true"`, Enter/Space select it, and Step/Run become disabled only at completion. The selected-frame region is labeled separately from the final result. It does not use a generic charting or visualization framework, UI RNG, or `Math.random`.
 
 ## Independent test oracle and review gate
 
-Tests hand-author the exact sample stream for `seed 42`, including the first few `[x, y]` points, a mid-stream batch boundary, and the final estimate and inside count, without deriving expected values from the production runner. They separately test estimate/error formulas, scenario validation, scenario fallback, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
+Tests hand-author the exact sample stream for `seed 42`, including the first few `[x, y]` points, global index boundaries, point classifications, a mid-stream batch boundary, and the final estimate and inside count, without deriving expected values from the production runner. They separately test the 128-point cap, full versus shown counts, SVG geometry/accessibility, estimate/error formulas, scenario validation, scenario fallback, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
 
 The design must explicitly answer:
 

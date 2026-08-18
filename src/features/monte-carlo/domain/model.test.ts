@@ -18,16 +18,16 @@ describe("Monte Carlo domain", () => {
     const third = nextSample(second.state);
 
     expect(first).toEqual({
-      state: -1031181384,
+      state: 3263785912,
       x: 0.7911529541015625,
       y: 0.7599029541015625,
     });
     expect(second).toEqual({
-      state: -478808842,
+      state: 3816158454,
       x: 0.7329864501953125,
       y: 0.8885040283203125,
     });
-    expect(third.state).toBe(-2075817116);
+    expect(third.state).toBe(2219150180);
     expect(third.x).toBe(0.71142578125);
     expect(third.y).toBe(0.5166778564453125);
   });
@@ -40,6 +40,16 @@ describe("Monte Carlo domain", () => {
     expect(result.frames.map((frame) => frame.batch)).toEqual([1, 2, 3, 4]);
     expect(result.frames.map((frame) => frame.sampleCount)).toEqual([250, 500, 750, 1000]);
     expect(result.frames.map((frame) => frame.insideCount)).toEqual([184, 375, 572, 770]);
+    expect(result.frames.map((frame) => frame.batchInsideCount)).toEqual([184, 191, 197, 198]);
+    expect(result.frames[0].points).toHaveLength(128);
+    expect(result.frames[0].points[0]).toMatchObject({ sampleIndex: 0, inside: false });
+    expect(result.frames[1].points[0].sampleIndex).toBe(250);
+    expect(result.frames[1].points.at(-1)?.sampleIndex).toBe(377);
+    expect(
+      result.frames.every((frame) =>
+        frame.points.every((point) => point.inside === point.x * point.x + point.y * point.y <= 1),
+      ),
+    ).toBe(true);
     expect(result.frames.map((frame) => frame.estimate)).toEqual([
       2.944, 3, 3.050666666666667, 3.08,
     ]);
@@ -74,6 +84,8 @@ describe("Monte Carlo domain", () => {
     const scenario = getMonteCarloScenario("small");
     expect(() => runMonteCarlo({ ...scenario, seed: -1 })).toThrow(/seed/i);
     expect(() => runMonteCarlo({ ...scenario, seed: 1.5 })).toThrow(/seed/i);
+    expect(() => runMonteCarlo({ ...scenario, seed: 0x1_0000_0000 })).toThrow(/seed/i);
+    expect(() => runMonteCarlo({ ...scenario, id: "unknown" as never })).toThrow(/unknown/i);
     expect(() => runMonteCarlo({ ...scenario, samples: 0 })).toThrow(/sample/i);
     expect(() => runMonteCarlo({ ...scenario, samples: 1001 })).toThrow(/batch/i);
     expect(() => runMonteCarlo({ ...scenario, batchSize: 0 })).toThrow(/batch/i);

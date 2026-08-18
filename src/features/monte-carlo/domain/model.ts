@@ -10,6 +10,14 @@ export type MonteCarloScenario = {
 
 export type MonteCarloStatus = "running" | "complete";
 
+export type MonteCarloPoint = {
+  /** Zero-based index in the fixture's single continuous point stream. */
+  sampleIndex: number;
+  x: number;
+  y: number;
+  inside: boolean;
+};
+
 export type MonteCarloMachine = {
   state: number;
   samplesDrawn: number;
@@ -26,6 +34,9 @@ export type MonteCarloFrame = {
   batch: number;
   sampleCount: number;
   insideCount: number;
+  /** Full batch count; points is a bounded evidence sample. */
+  batchInsideCount: number;
+  points: readonly MonteCarloPoint[];
   estimate: number;
   error: number;
 };
@@ -45,11 +56,17 @@ export type MonteCarloComparisonRow = {
   error: number;
 };
 
-const STATE_MASK = 0xffffffff;
 const SCALE = 65536;
+const MAX_EVIDENCE_POINTS = 128;
+const SCENARIO_IDS: readonly MonteCarloScenarioId[] = [
+  "small",
+  "medium",
+  "large",
+  "same-n-different-seed",
+];
 
 function nextState(state: number): number {
-  return (Math.imul(state, 1103515245) + 12345) & STATE_MASK;
+  return (Math.imul(state, 1103515245) + 12345) >>> 0;
 }
 
 function unitValue(state: number): number {
@@ -65,8 +82,10 @@ export function nextSample(state: number): { state: number; x: number; y: number
 }
 
 export function assertMonteCarloScenario(scenario: MonteCarloScenario): void {
+  if (!SCENARIO_IDS.includes(scenario.id))
+    throw new Error(`Unknown Monte Carlo scenario: ${scenario.id}.`);
   if (!scenario.title.trim()) throw new Error("Monte Carlo scenarios need a title.");
-  if (!Number.isSafeInteger(scenario.seed) || scenario.seed < 0) {
+  if (!Number.isSafeInteger(scenario.seed) || scenario.seed < 0 || scenario.seed > 0xffffffff) {
     throw new Error(`Invalid Monte Carlo seed: ${scenario.seed}.`);
   }
   if (!Number.isSafeInteger(scenario.samples) || scenario.samples <= 0) {
@@ -102,10 +121,20 @@ export function stepMonteCarlo(
 
   let state = machine.state;
   let batchInside = 0;
+  const points: MonteCarloPoint[] = [];
   for (let index = 0; index < scenario.batchSize; index += 1) {
     const sample = nextSample(state);
     state = sample.state;
-    if (sample.x * sample.x + sample.y * sample.y <= 1) batchInside += 1;
+    const inside = sample.x * sample.x + sample.y * sample.y <= 1;
+    if (inside) batchInside += 1;
+    if (index < MAX_EVIDENCE_POINTS) {
+      points.push({
+        sampleIndex: machine.samplesDrawn + index,
+        x: sample.x,
+        y: sample.y,
+        inside,
+      });
+    }
   }
 
   const samplesDrawn = machine.samplesDrawn + scenario.batchSize;
@@ -129,6 +158,8 @@ export function stepMonteCarlo(
       batch: samplesDrawn / scenario.batchSize,
       sampleCount: samplesDrawn,
       insideCount: inside,
+      batchInsideCount: batchInside,
+      points,
       estimate,
       error: Math.abs(estimate - Math.PI),
     },

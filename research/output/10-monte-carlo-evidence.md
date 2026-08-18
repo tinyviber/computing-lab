@@ -4,7 +4,7 @@
 
 **Branch:** `feat/monte-carlo-reference-course`
 
-**Review status:** design gate passed after the LCG contract was made precise, the accessibility contract was completed, and the convergence claim was made honest about observed wobble; implementation passed focused review with a hand-authored stream/batch oracle.
+**Review status:** design gate passed after the LCG contract was made precise, the accessibility contract was completed, and the convergence claim was made honest about observed wobble. This mission added domain-owned point evidence after review found that numeric counts alone hid the geometric mechanism.
 
 **Implementation status:** feature-local course complete. No shared RNG, sweep, convergence, or charting primitive extracted.
 
@@ -36,9 +36,9 @@ Fixtures:
 
 The feature owns a pure deterministic generator and a feature-local Monte Carlo machine under `src/features/monte-carlo/domain/**`:
 
-- a fixed 32-bit LCG with documented constants (`state = (state * 1103515245 + 12345) & 0xFFFFFFFF`; values are `(state >>> 16) / 65536`, so the generator's weak low bits are never used);
+- a fixed unsigned 32-bit LCG with documented constants (`state = (state * 1103515245 + 12345) >>> 0`; values are `(state >>> 16) / 65536`, so the generator's weak low bits are never used);
 - `nextSample(state)` draws consecutive `[x, y]` pairs from one continuous stream;
-- `stepMonteCarlo` draws exactly `batchSize` samples, counts points with `x² + y² ≤ 1`, and returns fresh before/after snapshots plus `estimate = 4 × inside ÷ samples` and `error = |estimate − π|`;
+- `stepMonteCarlo` draws exactly `batchSize` samples, classifies points with `x² + y² ≤ 1`, and returns fresh before/after snapshots plus full `batchInsideCount`, the first 128 global zero-based points, `estimate = 4 × inside ÷ samples`, and `error = |estimate − π|`;
 - `runMonteCarlo` folds the same step; a complete machine is an identity-preserving no-op;
 - `monteCarloComparison` runs all fixtures and returns a seed/samples/estimate/error comparison sorted by sample count;
 - scenario validation rejects unknown IDs, empty titles, non-safe-integer or negative seeds, non-positive sample counts, and sample counts that are not a whole number of batches.
@@ -53,6 +53,7 @@ Coverage includes:
 
 - exact first-sample stream for `seed 42`;
 - batch boundary, estimate, and error formulas;
+- exact point coordinates/classifications, global sample-index boundaries, and the 128-point evidence cap;
 - final estimates: `medium 3.1448`, `same-n-different-seed 3.1328`, `large 3.14012`;
 - error ordering `small > medium > large` with observed values (`0.0616 → 0.0032 → 0.0015`);
 - seed/sample-count validation and batch-divisibility rejection;
@@ -70,6 +71,8 @@ The page exposes:
 - `aria-current` on exactly the selected batch with Enter/Space activation;
 - selected-batch evidence with before/after sample and inside counts, running estimate, and running error;
 - a semantic convergence table (batch, cumulative samples, inside, estimate, error) with caption;
+- a feature-local SVG with the unit square, axes, quarter-circle boundary, and selected-batch inside/outside points;
+- textual shown/full/cumulative counts and `inside / total ≈ quarter-circle area / square area = π / 4`; the SVG never renders more than 128 point nodes;
 - a domain-computed fixture comparison table (fixture, seed, samples, final estimate, final error) with caption;
 - labeled final estimate output separate from the selected-batch region;
 - an honest textual claim: observed final error shrinks with more samples for these fixtures, the batch table shows per-batch wobble, and the same-count pair shows seed dependence;
@@ -85,7 +88,7 @@ The UI never calls `Math.random`, never runs the generator, and never computes e
 | deterministic sweep/convergence                    | STRONGER locally          | Batch evidence and error ordering are explicit but tied to this generator and formula                                                         | No shared sweep primitive                   |
 | convergence/estimation                             | STRONGER locally          | Estimate and error are derived cells over feature state                                                                                       | No generic estimator                        |
 | immutable causal evidence                          | STRONGER, but still local | Immutable batch snapshots explain one batch without replay                                                                                    | Keep feature-local; no generic Trace export |
-| pure discrete step                                 | SPLIT / narrowed          | Monte Carlo step is one batch of samples, distinct from code points, queue events, statements, and probes                                     | Reject universal Stepper                    |
+| pure discrete step                                 | SPLIT / narrowed          | Monte Carlo step is one batch of samples plus bounded point evidence, distinct from code points, queue events, statements, and probes         | Reject universal Stepper                    |
 | linear trace                                       | FALSIFIED as universal    | Batch traces are neither queue schedules nor statement traces                                                                                 | No shared trace runtime                     |
 | prediction → intervention → observation → evidence | STRONGER                  | Above/below-π prediction precedes fixed-fixture intervention and observed estimates                                                           | Keep authoring convention local             |
 | before/after comparison                            | STRONGER locally          | Before/after counts explain one batch's effect                                                                                                | Do not create generic comparator            |
