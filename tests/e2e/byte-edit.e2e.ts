@@ -9,7 +9,7 @@ test("edits one byte and reads the exact validity rule", async ({ page }) => {
   await page.getByRole("button", { name: "Apply edit" }).click();
 
   await expect(page.getByRole("region", { name: /selected byte edit evidence/i })).toContainText(
-    /Invalid at byte 2: missing continuation byte/,
+    /Invalid at byte 2: invalid continuation byte \(offending byte 0x41\)/,
   );
 
   await page.getByRole("button", { name: "Surrogate" }).click();

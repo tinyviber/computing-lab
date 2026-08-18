@@ -57,7 +57,7 @@ export const BYTE_EDIT_PRESETS: Readonly<Record<ByteEditPresetId, ByteEditPreset
     id: "corrupt-continuation",
     label: "Corrupt continuation",
     bytes: [...MIXED_BYTES.slice(0, 2), 0x41, ...MIXED_BYTES.slice(3)],
-    note: "Replace the second byte A9 with ASCII 41, breaking the two-byte sequence.",
+    note: "C3 41 has a byte at the continuation position, but 41 is not 10xxxxxx: invalid continuation.",
   },
 };
 

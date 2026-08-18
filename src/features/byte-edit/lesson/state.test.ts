@@ -34,7 +34,9 @@ describe("Byte Edit lesson state", () => {
     expect(edited.frames[0].predictedValid).toBe(false);
     expect(edited.frames[0].decode).toMatchObject({
       valid: false,
-      reason: "missing continuation byte",
+      reason: "invalid continuation byte",
+      at: 2,
+      offendingByte: 0x41,
     });
     expect(edited.selectedFrameIndex).toBe(0);
   });

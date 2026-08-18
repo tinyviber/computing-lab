@@ -40,7 +40,7 @@ describe("ByteEditPage", () => {
       /Byte 2 → 65/,
     );
     expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
-      /Invalid at byte 2: missing continuation byte/i,
+      /Invalid at byte 2: invalid continuation byte \(offending byte 0x41\)/i,
     );
     expect(screen.getByRole("region", { name: /selected byte edit evidence/i })).toHaveTextContent(
       /Predicted invalid; observed invalid/i,

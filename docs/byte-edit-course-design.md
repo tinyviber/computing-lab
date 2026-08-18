@@ -22,14 +22,14 @@ The same five text fixtures as UTF-8, so the encoded bytes are already known:
 
 Six fixed edit presets over the mixed bytes demonstrate the validity rules:
 
-| Preset                 | Bytes                                  | Decode result                            |
-| ---------------------- | -------------------------------------- | ---------------------------------------- |
-| `original`             | `41 C3 A9 E7 8C AB F0 9F 99 82`        | valid, `Aé猫🙂`                          |
-| `truncated`            | last byte removed                      | invalid, missing continuation at the end |
-| `overlong`             | `41` replaced by `C1 81`               | invalid, overlong encoding               |
-| `surrogate`            | first `é` bytes replaced by `ED A0 80` | invalid, surrogate code point            |
-| `out-of-range`         | emoji bytes replaced by `F4 90 80 80`  | invalid, code point above `U+10FFFF`     |
-| `corrupt-continuation` | second byte `A9` changed to `41`       | invalid, expected continuation byte      |
+| Preset                 | Bytes                                  | Decode result                                         |
+| ---------------------- | -------------------------------------- | ----------------------------------------------------- |
+| `original`             | `41 C3 A9 E7 8C AB F0 9F 99 82`        | valid, `Aé猫🙂`                                       |
+| `truncated`            | last byte removed                      | invalid, missing continuation at the end              |
+| `overlong`             | `41` replaced by `C1 81`               | invalid, overlong encoding                            |
+| `surrogate`            | first `é` bytes replaced by `ED A0 80` | invalid, surrogate code point at byte 2 (`A0`)        |
+| `out-of-range`         | emoji bytes replaced by `F4 90 80 80`  | invalid, code point above `U+10FFFF` at byte 7 (`90`) |
+| `corrupt-continuation` | second byte `A9` changed to `41`       | invalid continuation at byte 2; offending byte `41`   |
 
 ## Learner trajectory
 
@@ -55,7 +55,7 @@ export type ByteEditScenario = {
 
 export type DecodeResult =
   | { valid: true; characters: string; codePoints: readonly number[] }
-  | { valid: false; reason: string; at: number };
+  | { valid: false; reason: string; at: number; offendingByte?: number };
 
 export type ByteEditMachine = { bytes: readonly number[] };
 
@@ -69,7 +69,7 @@ export type ByteEditFrame = {
 };
 ```
 
-`decodeUtf8(bytes)` is a pure full-sequence validator covering: ASCII bytes, two/three/four-byte leads, continuation-byte positions, overlong rejection (`C0/C1`, `E0` with low continuation, `F0` with low continuation), surrogate rejection (`ED A0..BF`), range rejection (`F4` above `U+10FFFF`, leads above `F4`), unexpected/missing continuation bytes, and truncated sequences. It returns either decoded characters plus code points, or the exact rule name and offending byte index.
+`decodeUtf8(bytes)` is a deterministic, feature-local full-sequence validator covering: ASCII bytes, two/three/four-byte leads, continuation-byte positions, overlong rejection (`C0/C1`, `E0` with low continuation, `F0` with low continuation), surrogate rejection (`ED A0..BF`), range rejection (`F4` above `U+10FFFF`, leads above `F4`), unexpected continuation bytes, missing continuation bytes, and truncated sequences. It returns either decoded characters plus code points, or the exact rule name, offending byte index, and offending byte whenever a byte exists. Raw non-integer or out-of-range input is rejected deterministically before decoding. The domain uses `TextEncoder` only when validating author-provided scenario text against its fixture bytes; the decoder itself uses no `TextDecoder`.
 
 `stepByteEdit(machine, scenario, edit)` applies one byte change (validating bounds and value range) or loads one preset, then validates and decodes the resulting sequence and returns fresh before/after snapshots plus a frame. There is deliberately no run-all: every edit is an intervention, so one step is exactly one applied edit. Preset load is validated against the known preset table.
 
@@ -81,14 +81,14 @@ The selected frame must make the edit's effect explainable without replay:
 
 - edit detail (byte index, old value, new value) or preset name;
 - before/after full byte sequences;
-- decode evidence: characters and code points when valid, or rule name plus offending byte index when invalid;
+- decode evidence: characters and code points when valid, or rule name, offending byte index, and exact offending byte when invalid;
 - predicted-valid flag when recorded.
 
 The UI renders a semantic edit trace, selected-edit evidence, a live current-decoding status, preset buttons, and textual rule evidence. It does not use a shared BitGrid or hex-editor component.
 
 ## Independent test oracle and review gate
 
-Tests hand-author the exact decode results for the valid mixed sequence and for each invalid rule (`truncated`, `overlong`, `surrogate`, `out-of-range`, `corrupt-continuation`, `unexpected continuation`, `invalid lead byte`), plus edit bounds and scenario validation. They separately test preset loading, prediction handling, keyboard frame selection, and narrow viewport evidence.
+Tests hand-author the exact decode results for the valid mixed sequence and for each invalid rule (`truncated`, `overlong`, `surrogate`, `out-of-range`, `corrupt-continuation`, `unexpected continuation`, `invalid lead byte`), including the distinction between missing and invalid continuation bytes and exact offending-byte evidence. They also cover raw byte preconditions, edit bounds, and scenario validation. They separately test preset loading, prediction handling, keyboard frame selection, and narrow viewport evidence.
 
 The design must explicitly answer:
 

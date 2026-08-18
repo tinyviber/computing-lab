@@ -14,14 +14,14 @@
 
 Byte Edit is not a text editor and not a general hex editor. It reuses the five known UTF-8 fixtures so the encoded bytes are already familiar, and the learner edits one byte at a time or loads one of six presets:
 
-| Preset                 | Bytes                          | Decode result                         |
-| ---------------------- | ------------------------------ | ------------------------------------- |
-| `original`             | the fixture's own bytes        | valid                                 |
-| `truncated`            | last byte removed              | missing continuation at byte 9        |
-| `overlong`             | `C1 81` in place of `41`       | overlong encoding at byte 0           |
-| `surrogate`            | `ED A0 80` in place of `C3 A9` | surrogate code point at byte 1        |
-| `out-of-range`         | `F4 90 80 80` for the emoji    | code point above `U+10FFFF` at byte 6 |
-| `corrupt-continuation` | second byte `A9` → `41`        | missing continuation at byte 2        |
+| Preset                 | Bytes                          | Decode result                                         |
+| ---------------------- | ------------------------------ | ----------------------------------------------------- |
+| `original`             | the fixture's own bytes        | valid                                                 |
+| `truncated`            | last byte removed              | missing continuation at byte 9                        |
+| `overlong`             | `C1 81` in place of `41`       | overlong encoding at byte 0                           |
+| `surrogate`            | `ED A0 80` in place of `C3 A9` | surrogate code point at byte 2; offending `A0`        |
+| `out-of-range`         | `F4 90 80 80` for the emoji    | code point above `U+10FFFF` at byte 7; offending `90` |
+| `corrupt-continuation` | second byte `A9` → `41`        | invalid continuation at byte 2; offending byte `41`   |
 
 The course trajectory is:
 
@@ -36,7 +36,8 @@ predict whether the next edit stays valid
 
 The feature owns a pure full-sequence UTF-8 decoder and a feature-local edit machine under `src/features/byte-edit/domain/**`:
 
-- `decodeUtf8(bytes)` covers ASCII bytes, two/three/four-byte leads, continuation positions, overlong rejection (`C0/C1`, `E0` with low continuation, `F0` with low continuation), surrogate rejection (`ED A0..BF`), range rejection (`F4` above `U+10FFFF`, leads above `F4`), unexpected/missing continuation bytes, and truncated sequences, returning decoded characters and code points when valid or the exact rule name plus offending byte index when invalid;
+- `decodeUtf8(bytes)` covers ASCII bytes, two/three/four-byte leads, continuation positions, overlong rejection (`C0/C1`, `E0` with low continuation, `F0` with low continuation), surrogate rejection (`ED A0..BF`), range rejection (`F4` above `U+10FFFF`, leads above `F4`), unexpected continuation bytes, missing continuation bytes, and truncated sequences, returning decoded characters and code points when valid or the exact rule name, offending byte index, and offending byte whenever one exists;
+- raw non-integer or out-of-range input is rejected deterministically as `byte value out of range`; the corrupt preset is an invalid continuation (`C3 41`), not a missing continuation;
 - `stepByteEdit(machine, scenario, edit, presets, predictedValid?)` applies one byte change (validating index bounds and `0..255` value range) or loads one preset, then validates and decodes the resulting sequence with fresh before/after snapshots;
 - there is deliberately no run-all: every edit is an intervention, so one step is exactly one applied edit;
 - `original` preset restores the current fixture's own bytes, so resetting after edits is a first-class operation;
@@ -47,8 +48,8 @@ The feature owns a pure full-sequence UTF-8 decoder and a feature-local edit mac
 The domain oracle hand-authors, without deriving from the production runner:
 
 - the exact valid decode of the mixed sequence (`Aé猫🙂`, code points `41 E9 732B 1F642`);
-- the exact invalid decode for every preset, including rule name and offending byte index;
-- standalone rule cases: `80` (unexpected continuation), `FF` (invalid lead), `C2` alone (missing continuation), `E0 80 80` and `F0 80 80 80` (overlong), and the empty sequence;
+- the exact invalid decode for every preset, including rule name, offending byte index, and exact offending byte when present;
+- standalone rule cases: `80` (unexpected continuation), `FF` (invalid lead), `C2` alone (missing continuation), `C3 41` (invalid continuation with offending `41`), `E0 80 80` and `F0 80 80 80` (overlong), raw invalid values, and the empty sequence;
 - edit bounds and value-range rejection, unknown-preset rejection, byte-edit frame evidence, preset loading, and original-restore;
 - malformed scenario rejection (byte/text mismatch, empty title).
 
@@ -68,7 +69,7 @@ The page exposes:
 - selected-edit evidence with before/after bytes, predicted-vs-observed status, decode rule, and preset note;
 - a real Playwright `520×900` responsive test specification.
 
-The UI never decodes bytes itself (it only projects the domain `decodeUtf8` result) and contains no `TextEncoder`/`TextDecoder` usage.
+The UI never decodes bytes itself (it only projects the domain `decodeUtf8` result) and contains no `TextEncoder`/`TextDecoder` usage. The domain uses `TextEncoder` at the authoring-validation boundary to verify fixture bytes; this does not make the decoder a browser text-decoding wrapper.
 
 ## 5. What Byte Edit does to primitive hypotheses
 

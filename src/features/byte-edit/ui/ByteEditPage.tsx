@@ -38,7 +38,11 @@ function DecodeEvidence({ decode }: { decode: ReturnType<typeof decodeUtf8> }) {
     </p>
   ) : (
     <p className="be-invalid" role="status">
-      Invalid at byte {decode.at}: {decode.reason}.
+      Invalid at byte {decode.at}: {decode.reason}
+      {decode.offendingByte !== undefined
+        ? ` (offending byte 0x${decode.offendingByte.toString(16).padStart(2, "0").toUpperCase()})`
+        : ""}
+      .
     </p>
   );
 }

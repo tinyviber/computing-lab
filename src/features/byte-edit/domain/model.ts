@@ -9,7 +9,7 @@ export type ByteEditScenario = {
 
 export type DecodeResult =
   | { valid: true; characters: string; codePoints: readonly number[] }
-  | { valid: false; reason: string; at: number };
+  | { valid: false; reason: string; at: number; offendingByte?: number };
 
 export type ByteEditPresetId =
   "original" | "truncated" | "overlong" | "surrogate" | "out-of-range" | "corrupt-continuation";
@@ -56,52 +56,110 @@ export function decodeUtf8(bytes: readonly number[]): DecodeResult {
   const result: number[] = [];
   let index = 0;
   const length = bytes.length;
-  const continuation = (position: number): number => {
-    if (position >= length) return -1;
+  const invalidInput = (position: number, value: unknown): DecodeResult => ({
+    valid: false,
+    reason: "byte value out of range",
+    at: position,
+    ...(typeof value === "number" && Number.isFinite(value) ? { offendingByte: value } : {}),
+  });
+  const continuation = (
+    position: number,
+  ):
+    { kind: "missing" } | { kind: "valid"; value: number } | { kind: "invalid"; value: number } => {
+    if (position >= length) return { kind: "missing" };
     const value = bytes[position];
-    return value >= 0x80 && value <= 0xbf ? value : -1;
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      return { kind: "invalid", value };
+    }
+    return value >= 0x80 && value <= 0xbf ? { kind: "valid", value } : { kind: "invalid", value };
   };
+  const continuationError = (
+    position: number,
+    read: ReturnType<typeof continuation>,
+  ): DecodeResult | undefined => {
+    if (read.kind === "missing")
+      return { valid: false, reason: "missing continuation byte", at: position };
+    if (read.kind === "invalid") {
+      return {
+        valid: false,
+        reason: "invalid continuation byte",
+        at: position,
+        offendingByte: read.value,
+      };
+    }
+    return undefined;
+  };
+
+  for (const [position, value] of bytes.entries()) {
+    if (!Number.isInteger(value) || value < 0 || value > 255) {
+      return invalidInput(position, value);
+    }
+  }
+
   while (index < length) {
     const lead = bytes[index];
+    if (!Number.isInteger(lead) || lead < 0 || lead > 255) return invalidInput(index, lead);
     if (lead < 0x80) {
       result.push(lead);
       index += 1;
       continue;
     }
     if (lead >= 0xc2 && lead <= 0xdf) {
-      const c1 = continuation(index + 1);
-      if (c1 < 0) return { valid: false, reason: "missing continuation byte", at: index + 1 };
+      const read = continuation(index + 1);
+      const error = continuationError(index + 1, read);
+      if (error) return error;
+      const c1 = read.value;
       result.push(((lead & 0x1f) << 6) | (c1 & 0x3f));
       index += 2;
       continue;
     }
     if (lead === 0xc0 || lead === 0xc1) {
-      return { valid: false, reason: "overlong encoding", at: index };
+      return { valid: false, reason: "overlong encoding", at: index, offendingByte: lead };
     }
     if (lead >= 0xe0 && lead <= 0xef) {
-      const c1 = continuation(index + 1);
-      const c2 = continuation(index + 2);
-      if (c1 < 0) return { valid: false, reason: "missing continuation byte", at: index + 1 };
-      if (c2 < 0) return { valid: false, reason: "missing continuation byte", at: index + 2 };
+      const first = continuation(index + 1);
+      const firstError = continuationError(index + 1, first);
+      if (firstError) return firstError;
+      const second = continuation(index + 2);
+      const secondError = continuationError(index + 2, second);
+      if (secondError) return secondError;
+      const c1 = first.value;
+      const c2 = second.value;
       if (lead === 0xe0 && c1 < 0xa0)
-        return { valid: false, reason: "overlong encoding", at: index };
+        return { valid: false, reason: "overlong encoding", at: index + 1, offendingByte: c1 };
       if (lead === 0xed && c1 >= 0xa0)
-        return { valid: false, reason: "surrogate code point", at: index };
+        return {
+          valid: false,
+          reason: "surrogate code point",
+          at: index + 1,
+          offendingByte: c1,
+        };
       result.push(((lead & 0x0f) << 12) | ((c1 & 0x3f) << 6) | (c2 & 0x3f));
       index += 3;
       continue;
     }
     if (lead >= 0xf0 && lead <= 0xf4) {
-      const c1 = continuation(index + 1);
-      const c2 = continuation(index + 2);
-      const c3 = continuation(index + 3);
-      if (c1 < 0) return { valid: false, reason: "missing continuation byte", at: index + 1 };
-      if (c2 < 0) return { valid: false, reason: "missing continuation byte", at: index + 2 };
-      if (c3 < 0) return { valid: false, reason: "missing continuation byte", at: index + 3 };
+      const first = continuation(index + 1);
+      const firstError = continuationError(index + 1, first);
+      if (firstError) return firstError;
+      const second = continuation(index + 2);
+      const secondError = continuationError(index + 2, second);
+      if (secondError) return secondError;
+      const third = continuation(index + 3);
+      const thirdError = continuationError(index + 3, third);
+      if (thirdError) return thirdError;
+      const c1 = first.value;
+      const c2 = second.value;
+      const c3 = third.value;
       if (lead === 0xf0 && c1 < 0x90)
-        return { valid: false, reason: "overlong encoding", at: index };
+        return { valid: false, reason: "overlong encoding", at: index + 1, offendingByte: c1 };
       if (lead === 0xf4 && c1 > 0x8f)
-        return { valid: false, reason: "code point above U+10FFFF", at: index };
+        return {
+          valid: false,
+          reason: "code point above U+10FFFF",
+          at: index + 1,
+          offendingByte: c1,
+        };
       result.push(((lead & 0x07) << 18) | ((c1 & 0x3f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f));
       index += 4;
       continue;
@@ -110,6 +168,7 @@ export function decodeUtf8(bytes: readonly number[]): DecodeResult {
       valid: false,
       reason: lead >= 0x80 && lead <= 0xbf ? "unexpected continuation byte" : "invalid lead byte",
       at: index,
+      offendingByte: lead,
     };
   }
   return { valid: true, characters: String.fromCodePoint(...result), codePoints: result };

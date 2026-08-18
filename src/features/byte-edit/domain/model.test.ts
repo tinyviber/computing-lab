@@ -29,31 +29,67 @@ describe("Byte Edit domain", () => {
     expect(decodeUtf8(BYTE_EDIT_PRESETS.surrogate.bytes)).toMatchObject({
       valid: false,
       reason: "surrogate code point",
-      at: 1,
+      at: 2,
+      offendingByte: 0xa0,
     });
     expect(decodeUtf8(BYTE_EDIT_PRESETS["out-of-range"].bytes)).toMatchObject({
       valid: false,
       reason: "code point above U+10FFFF",
-      at: 6,
+      at: 7,
+      offendingByte: 0x90,
     });
     expect(decodeUtf8(BYTE_EDIT_PRESETS["corrupt-continuation"].bytes)).toMatchObject({
       valid: false,
-      reason: "missing continuation byte",
+      reason: "invalid continuation byte",
       at: 2,
+      offendingByte: 0x41,
     });
     expect(decodeUtf8([0x80])).toMatchObject({
       valid: false,
       reason: "unexpected continuation byte",
+      at: 0,
+      offendingByte: 0x80,
     });
-    expect(decodeUtf8([0xff])).toMatchObject({ valid: false, reason: "invalid lead byte" });
-    expect(decodeUtf8([0xc2])).toMatchObject({ valid: false, reason: "missing continuation byte" });
+    expect(decodeUtf8([0xff])).toMatchObject({
+      valid: false,
+      reason: "invalid lead byte",
+      at: 0,
+      offendingByte: 0xff,
+    });
+    expect(decodeUtf8([0xc2])).toMatchObject({
+      valid: false,
+      reason: "missing continuation byte",
+      at: 1,
+    });
+    expect(decodeUtf8([0xc3, 0x41])).toEqual({
+      valid: false,
+      reason: "invalid continuation byte",
+      at: 1,
+      offendingByte: 0x41,
+    });
     expect(decodeUtf8([0xe0, 0x80, 0x80])).toMatchObject({
       valid: false,
       reason: "overlong encoding",
+      at: 1,
+      offendingByte: 0x80,
     });
     expect(decodeUtf8([0xf0, 0x80, 0x80, 0x80])).toMatchObject({
       valid: false,
       reason: "overlong encoding",
+      at: 1,
+      offendingByte: 0x80,
+    });
+    expect(decodeUtf8([0xed, 0xa0, 0x80])).toMatchObject({
+      valid: false,
+      reason: "surrogate code point",
+      at: 1,
+      offendingByte: 0xa0,
+    });
+    expect(decodeUtf8([0xf4, 0x90, 0x80, 0x80])).toMatchObject({
+      valid: false,
+      reason: "code point above U+10FFFF",
+      at: 1,
+      offendingByte: 0x90,
     });
   });
 
@@ -71,8 +107,9 @@ describe("Byte Edit domain", () => {
     expect(result.frame.after.bytes[2]).toBe(0x41);
     expect(result.frame.decode).toMatchObject({
       valid: false,
-      reason: "missing continuation byte",
+      reason: "invalid continuation byte",
       at: 2,
+      offendingByte: 0x41,
     });
 
     expect(() =>
@@ -126,6 +163,30 @@ describe("Byte Edit domain", () => {
 
   it("rejects malformed scenarios", () => {
     expect(decodeUtf8([])).toEqual({ valid: true, characters: "", codePoints: [] });
+    expect(decodeUtf8([-1])).toEqual({
+      valid: false,
+      reason: "byte value out of range",
+      at: 0,
+      offendingByte: -1,
+    });
+    expect(decodeUtf8([1.5])).toEqual({
+      valid: false,
+      reason: "byte value out of range",
+      at: 0,
+      offendingByte: 1.5,
+    });
+    expect(decodeUtf8([256])).toEqual({
+      valid: false,
+      reason: "byte value out of range",
+      at: 0,
+      offendingByte: 256,
+    });
+    expect(decodeUtf8([0xc3, 256])).toEqual({
+      valid: false,
+      reason: "byte value out of range",
+      at: 1,
+      offendingByte: 256,
+    });
     const scenario = getByteEditScenario("mixed");
     expect(() => createByteEditMachine({ ...scenario, bytes: [0x41, 0xc3] })).toThrow(/encoding/i);
     expect(() => createByteEditMachine({ ...scenario, title: "" })).toThrow(/title/i);
