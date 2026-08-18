@@ -33,6 +33,12 @@ describe("application router integration", () => {
       /二进制补码 workspace/i,
       /Signed overflow: yes/i,
     ],
+    [
+      "program execution lesson",
+      "/labs/program-execution?fixture=zero-iterations",
+      /程序执行 workspace/i,
+      /Step|Program source/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -44,6 +50,9 @@ describe("application router integration", () => {
       expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
+    } else if (_name === "program execution lesson") {
+      expect(screen.getByRole("button", { name: "Step" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
