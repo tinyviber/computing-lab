@@ -301,3 +301,67 @@ A fourth course remains free to implement its own domain, lesson state, URL sche
 ### Recommended next action
 
 Provision the Playwright Chromium executable and rerun the blocked E2E suite. With that environment prerequisite met, submit this as a **documentation-only boundary decision**. Do not start a fourth course or a refactor in the same PR. When a future course independently duplicates a candidate, reopen this matrix, compare the real transition/runtime contracts, write a two-consumer primitive test first, and extract only the smallest invariant that still passes this gate.
+
+## 9. Fourth reference course update: Two's Complement
+
+**Status:** course implemented feature-local; **no extraction.**
+
+The subsequent `twos-complement` reference course was deliberately designed as a continuous 5–10
+minute exploration before any framework discussion. Its core question is why a 4-bit machine stores
+`1000` for `0111 + 0001`, while the same stored word can be unsigned `8` and signed two's-complement
+`−8`. The implementation remains within `src/features/twos-complement/**`; app changes are only the
+public entry, catalog record, and opaque-search route registration. `LabShell`, shared lesson code,
+and the three existing course implementations remain unchanged.
+
+### 9.1 Actual course contract
+
+- **Input and interaction:** the learner chooses 4 or 8 bits, selects a primary signed/unsigned
+  reading, and clicks the individual bits of operands A and B. Local examples provide a positive
+  signed boundary, an unsigned carry case, and a negative signed-overflow case. There is no step,
+  reveal, submit, prediction, status, progress, transport, or generic lesson workflow.
+- **Derived evidence:** the feature-local pure model stores exact-width bit strings and derives both
+  readings, per-column ripple carry, the discarded carry-out, ranges, result word, and the separate
+  signed-overflow predicate. The UI does not calculate a second answer.
+- **New domain invariants:** every stored word has exactly its selected width; addition retains only
+  low word bits; carry-out describes only unsigned range escape; signed overflow is same-sign inputs
+  producing the other sign and agrees with `carryIntoSign !== carryOut`; signed widening sign-extends
+  while unsigned widening zero-extends. Negation is model-tested as invert-plus-one, but is not a
+  second UI workflow.
+- **Scenario contract:** `width`, `a`, `b`, and `reading` are feature-local reproducible **initial**
+  URL state. Parse/serialize canonicalizes the finite schema. Local interactions intentionally do not
+  write browser history; this matches the course's initial-scenario/reset contract rather than adding
+  a scenario-sync runtime.
+
+### 9.2 Four-course comparison
+
+| Concern          | Sound                                             | Home Network                                     | Image                                                    | Two's Complement                                                                   | Extraction evidence                                                               |
+| ---------------- | ------------------------------------------------- | ------------------------------------------------ | -------------------------------------------------------- | ---------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Main interaction | media parameters, transport, seek, A/B audition   | raw config edits then immutable probe commitment | sampling/quantization controls and coordinate inspection | direct one-dimensional bit toggles, width/reading changes, live ripple addition    | Only native-control appearance overlaps; transitions and invariants conflict.     |
+| Derived evidence | waveform, sample codes, aliasing, payload         | causal route/ARP/NAT trace and frozen history    | raster reconstruction, palette/index, coordinate mapping | word interpretations, column carries, discarded carry, two distinct overflow facts | Evidence cards/inspectors look alike only.                                        |
+| State lifecycle  | clock, Web Audio resource lifecycle, cursor/loop  | synchronous committed snapshots/history          | static recalculation plus upload/canvas lifecycle        | static recalculation from editable finite words                                    | No compatible transport, trace, reset, or runtime.                                |
+| Scenario         | source/rate/bits/phase/mode/loop; omits transport | named preset and target only                     | raster fixture/sample/bits/geometry-dependent phase      | exact word width, A/B bits, reading; initial state only                            | Fourth local schema reinforces that `ScenarioCodec<T>` would be policy callbacks. |
+| Domain invariant | time/sample/quantization                          | causal path and snapshot identity                | 2D sample/palette/reconstruction geometry                | exact finite word, ripple carry, signed interpretation/overflow                    | New invariant with no compatible existing consumer.                               |
+
+### 9.3 Reassessing the prior hypotheses
+
+| Candidate / apparent similarity                        | Fourth-course evidence                                                                                                                                                                                                | Decision now                                                                                               |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `BitGrid`                                              | Image has a read-only 2D encoded sample grid with coordinate-to-palette mapping. Two's Complement has editable 1D operand buttons plus a directional carry table. Editing, geometry, selection, and semantics differ. | **Still reject.** This is a second visual shape, not a compatible interaction/state/mathematical contract. |
+| `Stepper` / `Transport`                                | Carry columns are a derived proof displayed all at once; there is no temporal advance, playback, history cursor, or sequence state.                                                                                   | **Still reject / one real transport consumer only.**                                                       |
+| `ParameterPanel` / individual fields                   | Width and reading use local segmented buttons; Sound fields can reset media, Image fields change sampling geometry, and Network preserves malformed strings.                                                          | **Still wait.** Native controls reach only appearance/limited interaction similarity.                      |
+| `Comparator`                                           | Two numeric interpretations of the _same word_ are explanatory readings, not two synchronized artifacts such as Sound audio, Image rasters, or Network snapshots.                                                     | **Still reject.**                                                                                          |
+| `ScenarioCodec<T>` / search helper                     | A fourth parser confirms parsing is feature-local: exact-length words and width-dependent defaults differ from audio aliases/loops, Network presets, and Image geometry canonicalization.                             | **Still reject.** A tiny helper remains a cost-gated hypothesis, not an approved item.                     |
+| Generic evidence/inspector/status/reset                | The feature shows mathematical predicates and restores its initial URL scenario; other courses expose samples, causal events, pixels, or lifecycle state and reset differently.                                       | **Still reject.** Visual card/reset resemblance does not supply a shared transition invariant.             |
+| `IntegerRuntime`, `ArithmeticRuntime`, `BitVisualizer` | These would own fixed-word, carry, signed-reading, or rendering policy that only this course needs.                                                                                                                   | **Reject.** They are new framework nouns rather than second-consumer invariants.                           |
+
+### 9.4 Extraction decision after four courses
+
+**Nothing new is extractable.** The only contracts now with an additional consumer are the already
+proven app boundaries—`LabShell`, opaque router search transport, navigation/test rendering, and
+design tokens. They were already shared for three courses and are not expanded by this feature.
+
+Two's Complement supplies stronger evidence _against_ broad extraction: a bit-shaped visual can be
+an editable finite word and directional carry proof rather than Image's passive 2D representation;
+“overflow” has two explicitly non-interchangeable facts; and a URL can be a reproducible initial
+condition without becoming a generic synchronization system. No prior `WAIT` item receives a second
+compatible consumer, and no new extraction proposal is made in this task.

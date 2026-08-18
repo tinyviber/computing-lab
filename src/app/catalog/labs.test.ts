@@ -10,6 +10,7 @@ describe("lab catalog", () => {
         expect.objectContaining({ id: "image-encoding", route: "/labs/image-encoding" }),
         expect.objectContaining({ id: "audio-encoding", route: "/labs/audio-encoding" }),
         expect.objectContaining({ id: "home-network", route: "/labs/home-network" }),
+        expect.objectContaining({ id: "twos-complement", route: "/labs/twos-complement" }),
       ]),
     );
     for (const lab of labs) {
