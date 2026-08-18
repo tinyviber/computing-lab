@@ -1,0 +1,334 @@
+.mc-page {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.mc-hero,
+.mc-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.mc-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+  align-items: end;
+}
+
+.mc-hero h2 {
+  max-width: 45rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: clamp(1.65rem, 3vw, 2.7rem);
+  line-height: 1.06;
+}
+
+.mc-hero p:not(.eyebrow) {
+  max-width: 52rem;
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+.mc-fixture-card,
+.mc-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.mc-fixture-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.mc-fixture-card span,
+.mc-fixture-card small {
+  color: var(--ink-muted);
+}
+
+.mc-fixture-card strong {
+  font-size: 1.25rem;
+}
+
+.mc-layout {
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.mc-controls,
+.mc-main-column {
+  display: grid;
+  gap: 1rem;
+}
+
+.mc-controls {
+  position: sticky;
+  top: 1rem;
+}
+
+.mc-card {
+  padding: 1rem;
+}
+
+.mc-card h3 {
+  margin: 0.2rem 0 0.75rem;
+}
+
+.mc-card p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.mc-controls label {
+  display: block;
+  margin: 0.75rem 0 0.3rem;
+  font-weight: 700;
+}
+
+.mc-controls select,
+.mc-controls input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.mc-controls button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mc-controls button:hover:not(:disabled),
+.mc-controls button:focus-visible {
+  border-color: var(--accent);
+}
+
+.mc-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.mc-action-row {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.mc-primary-button,
+.mc-action-row .mc-secondary-button {
+  flex: 1;
+}
+
+.mc-primary-button {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: white !important;
+}
+
+.mc-secondary-button,
+.mc-reset-button {
+  width: 100%;
+  margin-top: 0.65rem;
+}
+
+.mc-status-card,
+.mc-final-card {
+  background: var(--surface-raised);
+}
+
+.mc-status-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.mc-status-card strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  text-transform: uppercase;
+}
+
+.mc-status-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.mc-status-card dt,
+.mc-facts dt {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.mc-status-card dd,
+.mc-facts dd {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+}
+
+.mc-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.mc-card-heading > span {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.mc-trace-list {
+  display: grid;
+  gap: 0.45rem;
+  max-height: 24rem;
+  overflow: auto;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+
+.mc-trace-list button {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.mc-trace-list button:hover,
+.mc-trace-list button:focus-visible,
+.mc-trace-list button.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.mc-trace-list button span,
+.mc-trace-list button small {
+  color: var(--ink-muted);
+}
+
+.mc-trace-list button small {
+  font-family: var(--font-mono);
+}
+
+.mc-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0 0;
+}
+
+.mc-facts div {
+  padding: 0.65rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-raised);
+}
+
+.mc-table-scroll {
+  max-height: 22rem;
+  overflow: auto;
+}
+
+.mc-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.85rem;
+  font-size: 0.88rem;
+}
+
+.mc-table caption {
+  padding: 0 0 0.45rem;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.mc-table th,
+.mc-table td {
+  padding: 0.45rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+}
+
+.mc-table thead th {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.mc-final-card output {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+}
+
+.mc-claim {
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .mc-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-controls {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .mc-page {
+    padding: 0.75rem;
+  }
+
+  .mc-hero,
+  .mc-facts,
+  .mc-status-card dl {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-status-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mc-status-card dl {
+    width: 100%;
+  }
+
+  .mc-trace-list button {
+    grid-template-columns: 1fr;
+  }
+
+  .mc-action-row {
+    flex-direction: column;
+  }
+}

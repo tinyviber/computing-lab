@@ -46,6 +46,12 @@ describe("application router integration", () => {
       /Run to completion|Message scenario/i,
     ],
     ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 workspace/i, /Run to end|UTF-8 fixture/i],
+    [
+      "Monte Carlo lesson",
+      "/labs/monte-carlo?scenario=small",
+      /Monte Carlo π workspace/i,
+      /Run to end|Monte Carlo fixture/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -68,6 +74,9 @@ describe("application router integration", () => {
     } else if (_name === "UTF-8 lesson") {
       expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("emoji");
+    } else if (_name === "Monte Carlo lesson") {
+      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("small");
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
