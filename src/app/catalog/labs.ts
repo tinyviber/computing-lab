@@ -41,6 +41,14 @@ export const labs: LabDefinition[] = [
     description: "逐步观察变量、循环条件与输出如何形成。",
     status: "available",
   },
+  {
+    id: "protocol-process",
+    title: "协议过程",
+    category: "协议过程",
+    route: "/labs/protocol-process",
+    description: "观察延迟、丢失、超时、重试与确认如何形成可靠传递。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {
