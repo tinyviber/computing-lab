@@ -9,6 +9,7 @@ import {
 import { AudioEncodingPage } from "../features/audio-encoding";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
+import { MonteCarloPage } from "../features/monte-carlo";
 import { ProgramExecutionPage } from "../features/program-execution";
 import { ProtocolProcessPage } from "../features/protocol-process";
 import { TwosComplementPage } from "../features/twos-complement";
@@ -96,6 +97,13 @@ const utf8Route = createRoute({
   component: Utf8Page,
   errorComponent: LabErrorPage,
 });
+const monteCarloRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/monte-carlo",
+  validateSearch: passThroughSearch,
+  component: MonteCarloPage,
+  errorComponent: LabErrorPage,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -106,6 +114,7 @@ const routeTree = rootRoute.addChildren([
   programExecutionRoute,
   protocolProcessRoute,
   utf8Route,
+  monteCarloRoute,
 ]);
 
 export function createAppRouter({

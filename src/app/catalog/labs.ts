@@ -57,6 +57,14 @@ export const labs: LabDefinition[] = [
     description: "观察 Unicode 码点如何按范围变成不同数量的 UTF-8 字节。",
     status: "available",
   },
+  {
+    id: "monte-carlo",
+    title: "蒙特卡洛求 π",
+    category: "随机与模拟",
+    route: "/labs/monte-carlo",
+    description: "用随机点估计 π，观察固定种子如何让轨迹可复现并逐渐收敛。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {
