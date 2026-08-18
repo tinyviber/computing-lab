@@ -39,6 +39,12 @@ describe("application router integration", () => {
       /程序执行 workspace/i,
       /Step|Program source/i,
     ],
+    [
+      "protocol process lesson",
+      "/labs/protocol-process?scenario=request-loss",
+      /Protocol Process workspace/i,
+      /Run to completion|Message scenario/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -53,6 +59,11 @@ describe("application router integration", () => {
     } else if (_name === "program execution lesson") {
       expect(screen.getByRole("button", { name: "Step" })).toBeInTheDocument();
       expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
+    } else if (_name === "protocol process lesson") {
+      expect(screen.getByRole("button", { name: "Run to completion" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /message scenario/i })).toHaveValue(
+        "request-loss",
+      );
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
