@@ -11,26 +11,9 @@ import {
   type WordWidth,
 } from "../domain/model";
 import { parseTwosComplementScenario } from "../lesson/scenario";
-import {
-  createTwosComplementLessonState,
-  transitionTwosComplementLesson,
-  type TwosComplementExample,
-} from "../lesson/state";
+import { getTwosComplementExamples } from "../lesson/examples";
+import { createTwosComplementLessonState, transitionTwosComplementLesson } from "../lesson/state";
 import "./twos-complement.css";
-
-function examplesForWidth(
-  width: WordWidth,
-): ReadonlyArray<{ id: TwosComplementExample; label: string; description: string }> {
-  return [
-    { id: "signed-boundary", label: "7 + 1", description: "signed overflow; no carry-out" },
-    {
-      id: "carry-only",
-      label: `${2 ** width - 1} + 1`,
-      description: "unsigned carry-out; signed −1 + 1 does not overflow",
-    },
-    { id: "negative-overflow", label: "−8 + −1", description: "negative signed overflow" },
-  ];
-}
 
 function signedNumber(value: number): string {
   return value < 0 ? `−${Math.abs(value)}` : String(value);
@@ -148,7 +131,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
   const activeReadingName = lesson.reading === "signed" ? "two's-complement" : "unsigned";
   const carryDifference = model.signCarriesDiffer;
   const negativeOnePattern = "1".repeat(lesson.width);
-  const examples = examplesForWidth(lesson.width);
+  const examples = getTwosComplementExamples(lesson.width);
 
   return (
     <LabShell
@@ -191,6 +174,10 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 ]}
                 value={lesson.reading}
               />
+              <p className="twos-resize-note">
+                On expansion, signed words sign-extend and unsigned words zero-extend; when
+                shrinking, the low bits are kept and higher bits are truncated.
+              </p>
               <dl className="twos-ranges">
                 <div>
                   <dt>unsigned range</dt>

@@ -78,6 +78,94 @@ describe("two's-complement domain model", () => {
     });
   });
 
+  it("preserves each guided overflow contract at both supported widths", () => {
+    const contracts = [
+      {
+        width: 4 as const,
+        left: "0111",
+        right: "0001",
+        result: "1000",
+        carryOut: 0,
+        carryIntoSign: 1,
+        signCarriesDiffer: true,
+        signedOverflow: true,
+        unsignedOverflow: false,
+      },
+      {
+        width: 4 as const,
+        left: "1111",
+        right: "0001",
+        result: "0000",
+        carryOut: 1,
+        carryIntoSign: 1,
+        signCarriesDiffer: false,
+        signedOverflow: false,
+        unsignedOverflow: true,
+      },
+      {
+        width: 4 as const,
+        left: "1000",
+        right: "1111",
+        result: "0111",
+        carryOut: 1,
+        carryIntoSign: 0,
+        signCarriesDiffer: true,
+        signedOverflow: true,
+        unsignedOverflow: true,
+      },
+      {
+        width: 8 as const,
+        left: "01111111",
+        right: "00000001",
+        result: "10000000",
+        carryOut: 0,
+        carryIntoSign: 1,
+        signCarriesDiffer: true,
+        signedOverflow: true,
+        unsignedOverflow: false,
+      },
+      {
+        width: 8 as const,
+        left: "11111111",
+        right: "00000001",
+        result: "00000000",
+        carryOut: 1,
+        carryIntoSign: 1,
+        signCarriesDiffer: false,
+        signedOverflow: false,
+        unsignedOverflow: true,
+      },
+      {
+        width: 8 as const,
+        left: "10000000",
+        right: "11111111",
+        result: "01111111",
+        carryOut: 1,
+        carryIntoSign: 0,
+        signCarriesDiffer: true,
+        signedOverflow: true,
+        unsignedOverflow: true,
+      },
+    ] as const;
+
+    for (const contract of contracts) {
+      const model = deriveIntegerModel({
+        width: contract.width,
+        left: contract.left,
+        right: contract.right,
+      });
+
+      expect(model).toMatchObject({
+        result: contract.result,
+        carryOut: contract.carryOut,
+        carryIntoSign: contract.carryIntoSign,
+        signCarriesDiffer: contract.signCarriesDiffer,
+        signed: { overflow: contract.signedOverflow },
+        unsigned: { overflow: contract.unsignedOverflow },
+      });
+    }
+  });
+
   it("supports both finite widths without host-integer word expansion", () => {
     const eightBit = deriveIntegerModel({ width: 8, left: "01111111", right: "00000001" });
     expect(eightBit).toMatchObject({

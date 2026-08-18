@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { deriveIntegerModel } from "../domain/model";
+import { getTwosComplementExamples } from "./examples";
 import { parseTwosComplementScenario } from "./scenario";
 import { createTwosComplementLessonState, transitionTwosComplementLesson } from "./state";
 
@@ -36,17 +38,125 @@ describe("two's-complement lesson state", () => {
     expect(state.reading).toBe("signed");
   });
 
-  it("applies guided examples at either finite width without adding workflow state", () => {
-    let state = createTwosComplementLessonState(
-      parseTwosComplementScenario("width=8&a=00000000&b=00000000&reading=signed"),
-    );
-    state = transitionTwosComplementLesson(state, {
-      type: "apply-example",
-      example: "negative-overflow",
-    });
-    expect(state).toMatchObject({ left: "11111000", right: "11111111", width: 8 });
-    expect("submit" in state).toBe(false);
-    expect("status" in state).toBe(false);
+  it.each([
+    [4, "signed-boundary", "0111", "0001"],
+    [4, "carry-only", "1111", "0001"],
+    [4, "negative-overflow", "1000", "1111"],
+    [8, "signed-boundary", "01111111", "00000001"],
+    [8, "carry-only", "11111111", "00000001"],
+    [8, "negative-overflow", "10000000", "11111111"],
+  ] as const)(
+    "applies the %s-bit %s guided contract words exactly",
+    (width, example, left, right) => {
+      let state = createTwosComplementLessonState(
+        parseTwosComplementScenario(`width=${width}&a=00000000&b=00000000&reading=signed`),
+      );
+      state = transitionTwosComplementLesson(state, { type: "apply-example", example });
+
+      expect(state).toMatchObject({ width, left, right });
+      expect("submit" in state).toBe(false);
+      expect("status" in state).toBe(false);
+    },
+  );
+
+  it("keeps every catalogued example aligned with independent ripple-carry evidence", () => {
+    const expectedByWidth = {
+      4: {
+        "signed-boundary": {
+          label: "7 + 1",
+          description: "signed overflow at +7; no carry-out",
+          result: "1000",
+          carryOut: 0,
+          carryIntoSign: 1,
+          signCarriesDiffer: true,
+          signedOverflow: true,
+          unsignedOverflow: false,
+        },
+        "carry-only": {
+          label: "15 + 1",
+          description: "unsigned carry-out; signed −1 + 1 does not overflow",
+          result: "0000",
+          carryOut: 1,
+          carryIntoSign: 1,
+          signCarriesDiffer: false,
+          signedOverflow: false,
+          unsignedOverflow: true,
+        },
+        "negative-overflow": {
+          label: "−8 + −1",
+          description: "negative signed overflow below −8",
+          result: "0111",
+          carryOut: 1,
+          carryIntoSign: 0,
+          signCarriesDiffer: true,
+          signedOverflow: true,
+          unsignedOverflow: true,
+        },
+      },
+      8: {
+        "signed-boundary": {
+          label: "127 + 1",
+          description: "signed overflow at +127; no carry-out",
+          result: "10000000",
+          carryOut: 0,
+          carryIntoSign: 1,
+          signCarriesDiffer: true,
+          signedOverflow: true,
+          unsignedOverflow: false,
+        },
+        "carry-only": {
+          label: "255 + 1",
+          description: "unsigned carry-out; signed −1 + 1 does not overflow",
+          result: "00000000",
+          carryOut: 1,
+          carryIntoSign: 1,
+          signCarriesDiffer: false,
+          signedOverflow: false,
+          unsignedOverflow: true,
+        },
+        "negative-overflow": {
+          label: "−128 + −1",
+          description: "negative signed overflow below −128",
+          result: "01111111",
+          carryOut: 1,
+          carryIntoSign: 0,
+          signCarriesDiffer: true,
+          signedOverflow: true,
+          unsignedOverflow: true,
+        },
+      },
+    } as const;
+
+    for (const width of [4, 8] as const) {
+      const examples = getTwosComplementExamples(width);
+      expect(examples.map(({ id }) => id)).toEqual([
+        "signed-boundary",
+        "carry-only",
+        "negative-overflow",
+      ]);
+
+      for (const metadata of examples) {
+        const model = deriveIntegerModel({
+          width,
+          left: metadata.words.left,
+          right: metadata.words.right,
+        });
+        const expected = expectedByWidth[width][metadata.id];
+
+        expect(metadata).toMatchObject({
+          label: expected.label,
+          description: expected.description,
+        });
+        expect(model).toMatchObject({
+          result: expected.result,
+          carryOut: expected.carryOut,
+          carryIntoSign: expected.carryIntoSign,
+          signCarriesDiffer: expected.signCarriesDiffer,
+          signed: { overflow: expected.signedOverflow },
+          unsigned: { overflow: expected.unsignedOverflow },
+        });
+      }
+    }
   });
 
   it("resets to the original URL scenario rather than an example", () => {

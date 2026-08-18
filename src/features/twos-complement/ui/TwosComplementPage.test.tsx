@@ -69,4 +69,26 @@ describe("TwosComplementPage", () => {
     expect(screen.getByRole("button", { name: "Signed" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
   });
+
+  it("shows width-relative 8-bit boundary and negative overflow evidence", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/twos-complement?width=8&a=00000000&b=00000000&reading=signed");
+
+    await user.click(screen.getByRole("button", { name: /^127 \+ 1/ }));
+    expect(
+      screen.getByText("10000000", { selector: ".twos-result-card code" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Signed overflow: yes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Carry-out: no" })).toBeInTheDocument();
+    expect(screen.getByText(/127 \+ 1 stores −128/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /^−128 \+ −1/ }));
+    expect(
+      screen.getByText("01111111", { selector: ".twos-result-card code" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Signed overflow: yes" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Carry-out: yes" })).toBeInTheDocument();
+    expect(screen.getByText(/−128 \+ −1 stores 127/i)).toBeInTheDocument();
+    expect(screen.getByText(/sign-bit carry-in 0 ≠ carry-out 1/i)).toBeInTheDocument();
+  });
 });

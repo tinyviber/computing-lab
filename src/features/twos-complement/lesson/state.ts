@@ -1,13 +1,8 @@
-import {
-  resizeBitPattern,
-  toggleBit,
-  type BitPattern,
-  type Reading,
-  type WordWidth,
-} from "../domain/model";
+import { resizeBitPattern, toggleBit, type Reading, type WordWidth } from "../domain/model";
+import { getTwosComplementExample, type TwosComplementExample } from "./examples";
 import type { TwosComplementScenario } from "./scenario";
 
-export type TwosComplementExample = "signed-boundary" | "carry-only" | "negative-overflow";
+export type { TwosComplementExample } from "./examples";
 
 export type TwosComplementLessonState = TwosComplementScenario & {
   initialScenario: TwosComplementScenario;
@@ -29,17 +24,6 @@ export function createTwosComplementLessonState(
   scenario: TwosComplementScenario,
 ): TwosComplementLessonState {
   return { ...scenario, initialScenario: cloneScenario(scenario) };
-}
-
-function exampleWords(example: TwosComplementExample): { left: BitPattern; right: BitPattern } {
-  switch (example) {
-    case "carry-only":
-      return { left: "1111", right: "0001" };
-    case "negative-overflow":
-      return { left: "1000", right: "1111" };
-    case "signed-boundary":
-      return { left: "0111", right: "0001" };
-  }
 }
 
 export function transitionTwosComplementLesson(
@@ -65,11 +49,11 @@ export function transitionTwosComplementLesson(
     case "set-reading":
       return { ...state, reading: action.reading };
     case "apply-example": {
-      const words = exampleWords(action.example);
+      const { words } = getTwosComplementExample(state.width, action.example);
       return {
         ...state,
-        left: resizeBitPattern(words.left, state.width, "signed"),
-        right: resizeBitPattern(words.right, state.width, "signed"),
+        left: words.left,
+        right: words.right,
       };
     }
     case "reset":

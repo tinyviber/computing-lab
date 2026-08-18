@@ -1,6 +1,6 @@
 # 二进制补码参考课程：课程设计与实现交接
 
-> **状态：** feature-local 课程已实现；format、lint、typecheck、189 个 Vitest 测试与 production build 通过。Playwright E2E 因本机 Chromium 缺失而未能启动。  
+> **状态：** feature-local 课程已实现；format、lint、typecheck、197 个 Vitest 测试与 production build 通过。Playwright E2E 因本机 Chromium 缺失而未能启动。
 > **边界：** 这是第四个 reference course 的 feature-local 设计与实现；不提出或实施 shared primitive extraction。
 
 ## 1. 课程问题与最小承诺
@@ -34,7 +34,7 @@
 2. **操纵 word**：A 与 B 的每个 bit 都是键盘可触发的 button，并标示 bit position / current value。点击后立即重算，不存在 submit step。
 3. **读同一结果**：signed/unsigned segmented reading 控制 primary sentence，但 result card 同时保留另一种 interpretation，因此切换不会伪装成改变 bits。
 4. **观察 computation**：从低位向高位的 ripple trace 显示每列 carry-in、A、B、result；最高列右侧单独保留 carry-out（“width 外、未存入”）。
-5. **验证边界**：快捷例子提供 `7 + 1`（signed overflow, no carry）与 `15 + 1` / `1111 + 0001`（carry, no signed overflow），以及一个负数 case；它们不是练习关卡，也不写入 URL。
+5. **验证边界**：快捷例子按当前 width 提供 signed-boundary、carry-only 与 negative-overflow：4-bit 分别是 `0111 + 0001`、`1111 + 0001`、`1000 + 1111`；8-bit 分别是 `01111111 + 00000001`、`11111111 + 00000001`、`10000000 + 11111111`。它们不是练习关卡，也不写入 URL。
 6. **复位**：恢复 URL 初始 scenario，而不是全局固定 default。
 
 直接 drag carry、十进制 text-input 反推 bits、连续动画和问答评分被排除：它们会增加操作或 assessment 状态，而不能增强这节课的核心因果证据。
@@ -88,7 +88,7 @@ Canonical serialization always emits the normalized finite width, exact-width lo
 
 Actions: `load-scenario`, `set-width`, `toggle-bit` (operand plus MSB-first index), `set-reading`, `apply-example`, `reset`.
 
-Examples are in the local lesson layer: signed-boundary `0111+0001`, carry-only `1111+0001`, and negative-overflow `1000+1111` at the selected width (sign-extended equivalents at 8). They are local guided entry points, not URL schema.
+Examples are in the local lesson layer and are width-native: at 4 bit, signed-boundary is `0111+0001`, carry-only is `1111+0001`, and negative-overflow is `1000+1111`; at 8 bit, they are `01111111+00000001`, `11111111+00000001`, and `10000000+11111111`. They are local guided entry points, not URL schema.
 
 ## 7. UI model
 
