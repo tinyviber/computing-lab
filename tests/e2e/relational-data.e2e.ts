@@ -17,6 +17,12 @@ test("traces fixed queries, provenance, and the broken foreign key", async ({ pa
   await expect(
     page.getByRole("table", { name: /provenance: which source rows produced each result/i }),
   ).toContainText(/loan-1/);
+  const borrowers = page.getByRole("table", {
+    name: /borrower source rows: NULL versus empty string/i,
+  });
+  await expect(borrowers).toContainText("NULL");
+  await expect(borrowers).toContainText('""');
+  await expect(page.getByText(/IS NOT NULL.*rejects only NULL/i)).toBeVisible();
 
   const query2 = page.getByRole("button", { name: /Query 2, Available books, 2 rows/i });
   await query2.focus();

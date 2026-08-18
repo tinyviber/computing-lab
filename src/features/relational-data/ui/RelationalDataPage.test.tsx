@@ -18,6 +18,12 @@ describe("RelationalDataPage", () => {
     expect(
       screen.getByRole("table", { name: /constraint checks over the catalog/i }),
     ).toHaveTextContent(/FAIL.*99/i);
+    const borrowers = screen.getByRole("table", {
+      name: /borrower source rows: NULL versus empty string/i,
+    });
+    expect(within(borrowers).getByText("NULL")).toBeInTheDocument();
+    expect(within(borrowers).getByText('""')).toBeInTheDocument();
+    expect(screen.getByText(/IS NOT NULL.*rejects only NULL/i)).toBeInTheDocument();
   });
 
   it("supports prediction, query provenance, and the broken loan lesson", async () => {

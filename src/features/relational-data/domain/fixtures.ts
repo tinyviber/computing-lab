@@ -67,7 +67,8 @@ export const RELATIONAL_SCENARIOS: Readonly<Record<RelationalScenarioId, Relatio
         rows: [
           { id: "person-1", values: { id: 1, name: "Ada" } },
           { id: "person-2", values: { id: 2, name: "Lin" } },
-          { id: "person-3", values: { id: 3, name: "Kai" } },
+          { id: "person-3", values: { id: 3, name: null } },
+          { id: "person-4", values: { id: 4, name: "" } },
         ],
       },
       {
@@ -81,6 +82,7 @@ export const RELATIONAL_SCENARIOS: Readonly<Record<RelationalScenarioId, Relatio
           { id: "loan-1", values: { borrower_id: 1, book_id: 3, due: "2026-01-10" } },
           { id: "loan-2", values: { borrower_id: 2, book_id: 4, due: "2026-02-01" } },
           { id: "loan-3", values: { borrower_id: 3, book_id: 99, due: "2026-01-20" } },
+          { id: "loan-4", values: { borrower_id: 3, book_id: 1, due: "2026-02-01" } },
         ],
       },
     ],

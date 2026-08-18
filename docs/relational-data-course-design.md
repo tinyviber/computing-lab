@@ -13,28 +13,28 @@ This course is not a SQL engine, a generic table component, or a generic validat
 One scenario `catalog` with three tables and a fixed reference date `2026-01-15`:
 
 - `books` (`id`, `title`, `author`, `year`, `available`): four rows — two available, two borrowed;
-- `borrowers` (`id`, `name`): three rows;
-- `loans` (`borrower_id`, `book_id`, `due`): three rows, one of which references a non-existent book (`book_id 99`), so validation has a real failure to expose.
+- `borrowers` (`id`, `name`): four rows, including one actual `NULL` and one empty string `""`;
+- `loans` (`borrower_id`, `book_id`, `due`): four rows, one of which references a non-existent book (`book_id 99`), so validation has a real failure to expose.
 
 ## Query sequence
 
-| Step | Query                                                                     | Result rows (fixed data)        |
-| ---- | ------------------------------------------------------------------------- | ------------------------------- |
-| 1    | `all-books` — project the full books table                                | 4                               |
-| 2    | `available-books` — filter `available = true`                             | 2                               |
-| 3    | `overdue-loans` — join loans × borrowers × books where `due < 2026-01-15` | 1                               |
-| 4    | `borrower-counts` — aggregate loans per borrower over the full join       | 2 (Kai's broken loan is absent) |
+| Step | Query                                                                     | Result rows (fixed data)                                         |
+| ---- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| 1    | `all-books` — project the full books table                                | 4                                                                |
+| 2    | `available-books` — filter `available = true`                             | 2                                                                |
+| 3    | `overdue-loans` — join loans × borrowers × books where `due < 2026-01-15` | 1                                                                |
+| 4    | `borrower-counts` — aggregate loans per borrower over the full join       | 3 (Kai's broken loan is absent; valid Kai loan preserves `NULL`) |
 
-Step 4 is the derived-cell lesson: the count is computed, and the missing book row explains why Kai's loan cannot appear in the joined aggregate.
+Step 4 is the derived-cell lesson: the count is computed, the missing book row explains why one Kai loan cannot appear, and the valid Kai loan keeps `NULL` as `NULL` rather than the string `"null"`.
 
 ## Learner trajectory
 
-1. Read the fixture (three tables, row counts, one broken loan).
+1. Read the fixture (three tables, row counts, one `NULL` name, one empty string, and one broken loan).
 2. Optionally predict how many rows the next query will return.
 3. Step one query at a time.
 4. Inspect the result table plus provenance: which source rows matched a filter, which pairs joined, and which group keys produced derived counts.
 5. Run to completion and compare predicted vs actual row counts.
-6. Inspect the constraint panel: unique id, year range, not-null name, and both foreign keys, with the broken loan reported as the single failure.
+6. Inspect the constraint panel: unique id, year range, `name IS NOT NULL`, and both foreign keys. `NULL` fails the not-null check; `""` passes because it is present text; the broken loan fails the book foreign key.
 
 Prediction is optional and non-blocking. There is no arbitrary SQL input, submit/check gate, score, or hidden validation workflow.
 
@@ -70,7 +70,7 @@ export type RelationalMachine = {
 
 `stepRelational(machine, scenario)` runs the next query in the fixed sequence and returns fresh before/after snapshots plus the result. `runRelational` folds the same step. A complete machine is an identity-preserving no-op.
 
-`validateRelational(scenario)` is a pure constraint check returning one result per constraint (unique `books.id`, `books.year >= 1900`, not-null `borrowers.name`, `loans.borrower_id` FK, `loans.book_id` FK) with a pass/fail flag and, on failure, the offending row id. Scenario validation rejects malformed tables, unknown column types, duplicate row ids, and query ids outside the fixed sequence.
+`validateRelational(scenario)` is a pure constraint check returning one result per constraint (unique `books.id`, `books.year >= 1900`, not-null `borrowers.name`, `loans.borrower_id` FK, `loans.book_id` FK) with a pass/fail flag and, on failure, the offending row id. Scenario validation requires every declared column, rejects unknown columns and wrong non-null types, permits actual `NULL`, validates dates, and rejects duplicate row ids. Nullable foreign keys pass the FK check but never join; a separate NOT NULL constraint would be needed to forbid them.
 
 ## Evidence requirements
 
@@ -82,11 +82,11 @@ The selected frame must make query results explainable without replay:
 - derived cells (aggregate counts) flagged as computed;
 - before/after result lists.
 
-The UI renders a semantic query trace, selected-query evidence, a constraint panel, and a predicted-vs-actual comparison table. It does not use a generic table, validator, or query component.
+The UI renders a semantic query trace, selected-query evidence, a fixed borrower source table that labels `NULL` and `""`, a constraint panel, and a predicted-vs-actual comparison table. It does not use a generic table, validator, or query component.
 
 ## Independent test oracle and review gate
 
-Tests hand-author the exact result rows and provenance for all four queries and the exact five constraint outcomes, without deriving expected values from the production runner. They separately test query-sequence boundaries, projection/filter/join/aggregate formulas, scenario validation, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
+Tests hand-author the exact result rows and provenance for all four queries and the exact five constraint outcomes, without deriving expected values from the production runner. They separately test `NULL` versus `""`, typed/null join behavior, row type/column validation, query-sequence boundaries, projection/filter/join/aggregate formulas, scenario validation, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
 
 The design must explicitly answer:
 

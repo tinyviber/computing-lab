@@ -54,9 +54,14 @@ describe("Relational Data domain", () => {
     expect(counts.rows).toEqual([
       { id: "row-1", values: { borrower: "Ada", loans: 1 } },
       { id: "row-2", values: { borrower: "Lin", loans: 1 } },
+      { id: "row-3", values: { borrower: null, loans: 1 } },
     ]);
-    expect(counts.provenance.map((entry) => entry.sourceIds)).toEqual([["loan-1"], ["loan-2"]]);
-    expect(counts.explanation).toMatch(/Kai/);
+    expect(counts.provenance.map((entry) => entry.sourceIds)).toEqual([
+      ["loan-1"],
+      ["loan-2"],
+      ["loan-4"],
+    ]);
+    expect(counts.explanation).toMatch(/NULL/);
   });
 
   it("hand-authors all five constraint outcomes with one FK failure", () => {
@@ -65,10 +70,13 @@ describe("Relational Data domain", () => {
     expect(results.map((result) => [result.id, result.passed])).toEqual([
       ["unique-books-id", true],
       ["books-year-range", true],
-      ["borrowers-name-not-null", true],
+      ["borrowers-name-not-null", false],
       ["loans-borrower-fk", true],
       ["loans-book-fk", false],
     ]);
+    expect(results.find((result) => result.id === "borrowers-name-not-null")?.detail).toMatch(
+      /NULL/,
+    );
     const failing = results.find((result) => result.id === "loans-book-fk")!;
     expect(failing.detail).toMatch(/loan-3/);
     expect(failing.detail).toMatch(/99/);
@@ -117,6 +125,103 @@ describe("Relational Data domain", () => {
         ],
       }),
     ).toThrow(/duplicate row id/i);
+    expect(() =>
+      runRelational({
+        ...scenario,
+        tables: scenario.tables.map((table) =>
+          table.name === "borrowers"
+            ? {
+                ...table,
+                rows: table.rows.map((row) =>
+                  row.id === "person-2" ? { ...row, values: { ...row.values, name: 42 } } : row,
+                ),
+              }
+            : table,
+        ),
+      }),
+    ).toThrow(/invalid.*name/i);
+    expect(() =>
+      runRelational({
+        ...scenario,
+        tables: scenario.tables.map((table) =>
+          table.name === "borrowers"
+            ? {
+                ...table,
+                rows: table.rows.map((row) =>
+                  row.id === "person-2"
+                    ? { ...row, values: { ...row.values, nickname: "extra" } }
+                    : row,
+                ),
+              }
+            : table,
+        ),
+      }),
+    ).toThrow(/unknown column/i);
+    expect(() =>
+      runRelational({
+        ...scenario,
+        tables: scenario.tables.map((table) =>
+          table.name === "borrowers"
+            ? {
+                ...table,
+                rows: table.rows.map((row) => {
+                  if (row.id !== "person-2") return row;
+                  const { name: _name, ...values } = row.values;
+                  return { ...row, values: values as never };
+                }),
+              }
+            : table,
+        ),
+      }),
+    ).toThrow(/missing column/i);
+  });
+
+  it("keeps NULL, empty string, and typed keys distinct", () => {
+    const scenario = getRelationalScenario("catalog");
+    const borrowers = scenario.tables.find((table) => table.name === "borrowers")!;
+    const loans = scenario.tables.find((table) => table.name === "loans")!;
+    const withNullForeignKey = {
+      ...scenario,
+      tables: scenario.tables.map((table) =>
+        table.name === "loans"
+          ? {
+              ...table,
+              rows: [
+                ...table.rows,
+                { id: "loan-null", values: { borrower_id: null, book_id: 1, due: "2026-02-01" } },
+              ],
+            }
+          : table,
+      ),
+    };
+
+    expect(borrowers.rows.find((row) => row.id === "person-3")?.values.name).toBeNull();
+    expect(borrowers.rows.find((row) => row.id === "person-4")?.values.name).toBe("");
+    expect(
+      validateRelational(withNullForeignKey).find((result) => result.id === "loans-borrower-fk"),
+    ).toMatchObject({ passed: true });
+    expect(runRelationalQuery("borrower-counts", withNullForeignKey).rows).toContainEqual({
+      id: "row-3",
+      values: { borrower: null, loans: 1 },
+    });
+    expect(loans.rows.some((row) => row.values.borrower_id === "1")).toBe(false);
+    expect(() =>
+      runRelational({
+        ...scenario,
+        tables: scenario.tables.map((table) =>
+          table.name === "loans"
+            ? {
+                ...table,
+                rows: table.rows.map((row) =>
+                  row.id === "loan-1"
+                    ? { ...row, values: { ...row.values, borrower_id: "1" as never } }
+                    : row,
+                ),
+              }
+            : table,
+        ),
+      }),
+    ).toThrow(/invalid.*borrower_id/i);
   });
 
   it("keeps snapshots and result evidence independent", () => {

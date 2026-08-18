@@ -1,6 +1,6 @@
 export type RelationalScenarioId = "catalog";
 
-export type RelationalValue = string | number | boolean;
+export type RelationalValue = string | number | boolean | null;
 export type RelationalColumn = { name: string; type: "string" | "number" | "boolean" | "date" };
 export type RelationalRow = {
   id: string;
@@ -109,10 +109,35 @@ const QUERY_META: Record<RelationalQueryId, { title: string; description: string
   },
 };
 
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 function table(scenario: RelationalScenario, name: string): RelationalTable {
   const found = scenario.tables.find((candidate) => candidate.name === name);
   if (!found) throw new Error(`Relational scenario is missing table ${name}.`);
   return found;
+}
+
+function sameRelationalValue(
+  left: RelationalValue | undefined,
+  right: RelationalValue | undefined,
+): boolean {
+  return (
+    left !== null &&
+    left !== undefined &&
+    right !== null &&
+    right !== undefined &&
+    typeof left === typeof right &&
+    left === right
+  );
+}
+
+function findRowByValue(
+  current: RelationalTable,
+  column: string,
+  value: RelationalValue | undefined,
+): RelationalRow | undefined {
+  if (value === null || value === undefined) return undefined;
+  return current.rows.find((row) => sameRelationalValue(row.values[column], value));
 }
 
 function projectAllBooks(scenario: RelationalScenario): RelationalQueryResult {
@@ -160,13 +185,13 @@ function joinOverdueLoans(scenario: RelationalScenario): RelationalQueryResult {
   const loans = table(scenario, "loans");
   const borrowers = table(scenario, "borrowers");
   const books = table(scenario, "books");
-  const borrowersById = new Map(borrowers.rows.map((row) => [String(row.values.id), row]));
-  const booksById = new Map(books.rows.map((row) => [String(row.values.id), row]));
-  const overdue = loans.rows.filter((row) => String(row.values.due) < scenario.today);
+  const overdue = loans.rows.filter(
+    (row) => typeof row.values.due === "string" && row.values.due < scenario.today,
+  );
   const rows = overdue
     .map((loan, index) => {
-      const borrower = borrowersById.get(String(loan.values.borrower_id));
-      const book = booksById.get(String(loan.values.book_id));
+      const borrower = findRowByValue(borrowers, "id", loan.values.borrower_id);
+      const book = findRowByValue(books, "id", loan.values.book_id);
       if (!borrower || !book) return undefined;
       return {
         id: `row-${index + 1}`,
@@ -200,14 +225,13 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
   const loans = table(scenario, "loans");
   const borrowers = table(scenario, "borrowers");
   const books = table(scenario, "books");
-  const borrowersById = new Map(borrowers.rows.map((row) => [String(row.values.id), row]));
-  const booksById = new Map(books.rows.map((row) => [String(row.values.id), row]));
-  const counts = new Map<string, { name: string; loanIds: string[] }>();
+  const counts = new Map<string, { name: RelationalValue; loanIds: string[] }>();
   for (const loan of loans.rows) {
-    const borrower = borrowersById.get(String(loan.values.borrower_id));
-    const book = booksById.get(String(loan.values.book_id));
+    const borrower = findRowByValue(borrowers, "id", loan.values.borrower_id);
+    const book = findRowByValue(books, "id", loan.values.book_id);
     if (!borrower || !book) continue;
-    const existing = counts.get(borrower.id) ?? { name: String(borrower.values.name), loanIds: [] };
+    const borrowerName = borrower.values.name;
+    const existing = counts.get(borrower.id) ?? { name: borrowerName, loanIds: [] };
     existing.loanIds.push(loan.id);
     counts.set(borrower.id, existing);
   }
@@ -221,7 +245,7 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
     title: QUERY_META["borrower-counts"].title,
     description: QUERY_META["borrower-counts"].description,
     explanation:
-      "Loans are grouped by borrower over the full join; Kai's loan is absent because its book row is missing, so its count is derived only from valid joins.",
+      "Loans are grouped by borrower over the full join; Kai's broken loan is absent because its book row is missing, while the valid loan preserves Kai's NULL name as a relational value.",
     columns: ["borrower", "loans"],
     rows,
     provenance: rows.map((row, index) => ({
@@ -251,15 +275,39 @@ export function assertRelationalScenario(scenario: RelationalScenario): void {
   const ids = new Set<string>();
   for (const current of scenario.tables) {
     if (!current.name.trim()) throw new Error("Relational tables need names.");
+    const columnNames = new Set<string>();
     for (const column of current.columns) {
       if (!column.name.trim()) throw new Error("Relational columns need names.");
       if (!["string", "number", "boolean", "date"].includes(column.type)) {
         throw new Error(`Unknown column type: ${column.type}.`);
       }
+      if (columnNames.has(column.name)) throw new Error(`Duplicate column name: ${column.name}.`);
+      columnNames.add(column.name);
     }
     for (const row of current.rows) {
       if (ids.has(row.id)) throw new Error(`Duplicate row id: ${row.id}.`);
       ids.add(row.id);
+      for (const column of current.columns) {
+        if (!Object.prototype.hasOwnProperty.call(row.values, column.name)) {
+          throw new Error(`Row ${row.id} is missing column ${column.name}.`);
+        }
+        const value = row.values[column.name];
+        if (value === null) continue;
+        const validType =
+          column.type === "string"
+            ? typeof value === "string"
+            : column.type === "number"
+              ? typeof value === "number" && Number.isFinite(value)
+              : column.type === "boolean"
+                ? typeof value === "boolean"
+                : typeof value === "string" && DATE_PATTERN.test(value);
+        if (!validType) {
+          throw new Error(`Row ${row.id} has an invalid ${column.name} value.`);
+        }
+      }
+      for (const key of Object.keys(row.values)) {
+        if (!columnNames.has(key)) throw new Error(`Row ${row.id} has unknown column ${key}.`);
+      }
     }
   }
 }
@@ -348,14 +396,15 @@ export function validateRelational(scenario: RelationalScenario): RelationalCons
   const borrowers = table(scenario, "borrowers");
   const loans = table(scenario, "loans");
 
-  const bookIds = new Set(books.rows.map((row) => String(row.values.id)));
-  const borrowerIds = new Set(borrowers.rows.map((row) => String(row.values.id)));
+  const bookIds = books.rows.map((row) => row.values.id);
+  const borrowerIds = borrowers.rows.map((row) => row.values.id);
 
   const uniqueBooksId = (() => {
     const seen = new Set<string>();
     for (const row of books.rows) {
       const value = row.values.id;
       if (value === undefined) return { passed: false, detail: "books.id is missing." };
+      if (value === null) return { passed: false, detail: `book ${row.id} has NULL id.` };
       const key = String(value);
       if (seen.has(key)) return { passed: false, detail: `duplicate id ${key}.` };
       seen.add(key);
@@ -376,31 +425,45 @@ export function validateRelational(scenario: RelationalScenario): RelationalCons
   const borrowersNameNotNull = (() => {
     const invalid = borrowers.rows.find((row) => {
       const name = row.values.name;
-      return typeof name !== "string" || name.trim() === "";
+      return name === null;
     });
     return invalid
-      ? { passed: false, detail: `borrower ${invalid.id} has an empty name.` }
-      : { passed: true, detail: "every borrower has a name." };
+      ? { passed: false, detail: `borrower ${invalid.id} has NULL name.` }
+      : { passed: true, detail: 'every borrower name is not NULL; "" remains a present string.' };
   })();
 
   const loansBorrowerFk = (() => {
-    const invalid = loans.rows.find((row) => !borrowerIds.has(String(row.values.borrower_id)));
+    const invalid = loans.rows.find(
+      (row) =>
+        row.values.borrower_id !== null &&
+        !borrowerIds.some((id) => sameRelationalValue(id, row.values.borrower_id)),
+    );
     return invalid
       ? {
           passed: false,
           detail: `loan ${invalid.id} references missing borrower ${String(invalid.values.borrower_id)}.`,
         }
-      : { passed: true, detail: "every loan references an existing borrower." };
+      : {
+          passed: true,
+          detail: "every loan references an existing borrower; NULL is nullable and does not join.",
+        };
   })();
 
   const loansBookFk = (() => {
-    const invalid = loans.rows.find((row) => !bookIds.has(String(row.values.book_id)));
+    const invalid = loans.rows.find(
+      (row) =>
+        row.values.book_id !== null &&
+        !bookIds.some((id) => sameRelationalValue(id, row.values.book_id)),
+    );
     return invalid
       ? {
           passed: false,
           detail: `loan ${invalid.id} references missing book ${String(invalid.values.book_id)}.`,
         }
-      : { passed: true, detail: "every loan references an existing book." };
+      : {
+          passed: true,
+          detail: "every loan references an existing book; NULL is nullable and does not join.",
+        };
   })();
 
   return [

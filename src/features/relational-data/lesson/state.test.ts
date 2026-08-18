@@ -28,7 +28,7 @@ describe("Relational lesson state", () => {
     expect(first.frames[0].predictedRows).toBe(4);
     expect(first.frames[0].result.rows).toHaveLength(4);
     expect(complete.frames).toHaveLength(4);
-    expect(complete.frames[3].result.rows).toHaveLength(2);
+    expect(complete.frames[3].result.rows).toHaveLength(3);
     expect(complete.selectedFrameIndex).toBe(3);
   });
 

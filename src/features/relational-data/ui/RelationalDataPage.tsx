@@ -7,6 +7,7 @@ import {
   validateRelational,
   type RelationalFrame,
   type RelationalQueryResult,
+  type RelationalValue,
 } from "../domain";
 import { parseRelationalScenario } from "../lesson/scenario";
 import {
@@ -15,6 +16,13 @@ import {
   type RelationalLessonState,
 } from "../lesson/state";
 import "./relational-data.css";
+
+function formatRelationalValue(value: RelationalValue | undefined): string {
+  if (value === null) return "NULL";
+  if (value === undefined) return "MISSING";
+  if (value === "") return '""';
+  return String(value);
+}
 
 function ResultTable({ result }: { result: RelationalQueryResult }) {
   return (
@@ -38,7 +46,7 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
           result.rows.map((row) => (
             <tr key={row.id}>
               {result.columns.map((column) => (
-                <td key={column}>{String(row.values[column])}</td>
+                <td key={column}>{formatRelationalValue(row.values[column])}</td>
               ))}
             </tr>
           ))
@@ -164,6 +172,7 @@ function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
 
 function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelationalScenario> }) {
   const constraints = useMemo(() => validateRelational(scenario), [scenario]);
+  const borrowers = scenario.tables.find((table) => table.name === "borrowers")!;
   return (
     <section className="rd-card" aria-label="Relational constraints">
       <p className="eyebrow">CONSTRAINTS</p>
@@ -190,9 +199,37 @@ function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelatio
         </tbody>
       </table>
       <p className="rd-claim">
-        The broken loan (book 99) fails the foreign-key check and disappears from the joined
-        aggregate — that is the provenance lesson.
+        NULL means absent value; an empty string is present text. `borrowers.name IS NOT NULL`
+        rejects only NULL, while the broken loan (book 99) fails its foreign-key check and
+        disappears from the joined aggregate.
       </p>
+      <table className="rd-table">
+        <caption>Borrower source rows: NULL versus empty string</caption>
+        <thead>
+          <tr>
+            <th scope="col">Row</th>
+            <th scope="col">id</th>
+            <th scope="col">name</th>
+            <th scope="col">Value meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          {borrowers.rows.map((row) => (
+            <tr key={row.id}>
+              <th scope="row">{row.id}</th>
+              <td>{formatRelationalValue(row.values.id)}</td>
+              <td>{formatRelationalValue(row.values.name)}</td>
+              <td>
+                {row.values.name === null
+                  ? "NULL (absent)"
+                  : row.values.name === ""
+                    ? "empty string (present)"
+                    : "text value"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }

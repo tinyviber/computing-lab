@@ -4,7 +4,7 @@
 
 **Branch:** `feat/relational-data-reference-course`
 
-**Review status:** design gate and implementation reviewed; hand-authored result/provenance oracles, the single FK failure, and the derived-cell flag scoping were verified. Independent reviewer infra was unavailable for the final gate, so strict self-review with the same checklist was used.
+**Review status:** initial design/implementation review found the value model could not represent NULL. This mission reworked it with actual NULL, visible empty-string contrast, typed row validation, and non-coercing joins/FKs. Hand-authored result/provenance oracles remain feature-local.
 
 **Implementation status:** feature-local course complete. No shared table, query, or validator primitive extracted.
 
@@ -17,8 +17,8 @@ Relational Data does not repeat Image/Audio Encoding, Two's Complement, Program 
 The course uses one fixed scenario `catalog` with three tables and reference date `2026-01-15`:
 
 - `books` (`id`, `title`, `author`, `year`, `available`) — four rows, two available;
-- `borrowers` (`id`, `name`) — three rows;
-- `loans` (`borrower_id`, `book_id`, `due`) — three rows, one referencing the non-existent book `99`.
+- `borrowers` (`id`, `name`) — four rows, including one NULL and one empty string;
+- `loans` (`borrower_id`, `book_id`, `due`) — four rows, one referencing the non-existent book `99`, plus one valid loan for the NULL-named borrower.
 
 The course trajectory is:
 
@@ -32,12 +32,12 @@ predict how many rows the next query returns
 
 Queries and fixed results:
 
-| Step | Query                                    | Rows                            |
-| ---- | ---------------------------------------- | ------------------------------- |
-| 1    | all books (project)                      | 4                               |
-| 2    | available books (filter)                 | 2                               |
-| 3    | overdue loans (join)                     | 1                               |
-| 4    | loans per borrower (aggregate over join) | 2 — Kai's broken loan is absent |
+| Step | Query                                    | Rows                                                      |
+| ---- | ---------------------------------------- | --------------------------------------------------------- |
+| 1    | all books (project)                      | 4                                                         |
+| 2    | available books (filter)                 | 2                                                         |
+| 3    | overdue loans (join)                     | 1                                                         |
+| 4    | loans per borrower (aggregate over join) | 3 — broken Kai loan absent; valid Kai loan preserves NULL |
 
 ## 2. Domain evidence
 
@@ -45,11 +45,11 @@ The feature owns pure relational semantics under `src/features/relational-data/d
 
 - `runRelationalQuery(id, scenario)` is a pure projection/filter/join/aggregate over the fixed tables;
 - each result carries column names, typed values, and one provenance row per result row naming the exact source row ids (matched rows for filters, the loan/borrower/book triple for joins, source loan ids for aggregate groups);
-- the aggregate result flags `loans` as a derived cell and explains that Kai's loan is absent because its book row is missing;
+- the aggregate result flags `loans` as a derived cell, preserves Kai's NULL name, and explains that Kai's broken loan is absent because its book row is missing;
 - `stepRelational(machine, scenario, predictedRows?)` runs the next query in the fixed sequence and returns fresh before/after snapshots plus the result; `runRelational` folds the same step; a complete machine is an identity-preserving no-op;
-- `validateRelational(scenario)` checks five constraints — unique `books.id`, `books.year >= 1900`, not-null `borrowers.name`, both foreign keys — and reports exactly one failure (`loan-3` references missing book `99`);
-- joins and FK checks key on column values (`books.id`/`borrowers.id`), while provenance names globally unique row ids (`book-3`, `person-1`, `loan-1`);
-- scenario validation rejects malformed tables, unknown column types, duplicate row ids, bad dates, and empty titles.
+- `validateRelational(scenario)` checks five constraints — unique `books.id`, `books.year >= 1900`, `borrowers.name IS NOT NULL`, both foreign keys — and reports two failures: NULL name and `loan-3` referencing missing book `99`;
+- joins and FK checks use typed column equality; NULL never joins, and nullable NULL foreign keys pass FK validation but produce no joined row. Provenance names globally unique row ids (`book-3`, `person-1`, `loan-1`);
+- scenario validation requires declared columns, permits NULL, rejects unknown/missing columns and wrong non-null types, validates dates, and rejects duplicate row ids.
 
 ## 3. Independent test evidence
 
@@ -58,8 +58,9 @@ The domain oracle hand-authors, without deriving from the production runner:
 - the exact all-books rows and their per-row projection provenance;
 - the exact available-books titles and provenance (`book-1`, `book-2`);
 - the exact overdue-loans row (`loan-1`, Ada, A Wizard of Earthsea, `2026-01-10`) and its join provenance (`loan-1, person-1, book-3`);
-- the exact aggregate rows (Ada 1, Lin 1) and provenance (`loan-1`, `loan-2`);
-- all five constraint outcomes with the FK failure detail naming `loan-3` and `99`;
+- the exact aggregate rows (Ada 1, Lin 1, NULL 1) and provenance (`loan-1`, `loan-2`, `loan-4`);
+- all five constraint outcomes with NULL-name and FK failure details naming `loan-3` and `99`;
+- adversarial NULL, empty-string, typed-key, nullable-FK, missing-column, unknown-column, and wrong-type cases;
 - one-query-per-step boundaries, terminal idempotence, snapshot/result independence, and malformed-scenario rejection.
 
 Lesson tests verify prediction attach-to-frame, run-all completeness, frame selection bounds, URL-baseline sync, and completion idempotence.
@@ -73,7 +74,8 @@ The page exposes:
 - native focusable query buttons with query number, title, and predicted/actual rows in their accessible names;
 - `aria-current` on exactly the selected query with Enter/Space activation;
 - selected-query evidence: title, pseudo-SQL description, explanation, predicted-vs-observed status, derived-cell note (aggregate only), result table, and provenance table;
-- a constraint panel with a captioned table of all five checks and the single FAIL row;
+- a constraint panel with a captioned table of all five checks and two deliberate FAIL rows (NULL name and broken book FK);
+- a fixed borrower source table that renders NULL as `NULL` and empty string as `""`, with an explanation that `IS NOT NULL` rejects only NULL;
 - a predicted-vs-actual comparison table built from stored frames;
 - a real Playwright `520×900` responsive test specification.
 
