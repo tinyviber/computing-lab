@@ -147,7 +147,7 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
 function ProvenanceTable({ result }: { result: RelationalQueryResult }) {
   return (
     <table className="rd-table">
-      <caption>来源追踪：哪些源行产生了每条结果</caption>
+      <caption>哪些原始记录产生了每条结果</caption>
       <thead>
         <tr>
           <th scope="col">结果行</th>
@@ -184,16 +184,16 @@ function FrameTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="rd-card" aria-label="关系查询轨迹">
+    <section className="rd-card" aria-label="关系查询过程">
       <div className="rd-card-heading">
         <div>
-          <p className="eyebrow">查询轨迹</p>
-          <h3>每个帧执行一条查询</h3>
+          <p className="eyebrow">查询过程</p>
+          <h3>一步运行一条查询</h3>
         </div>
-        <span>{frames.length} 个帧</span>
+        <span>{frames.length} 步</span>
       </div>
       {frames.length === 0 ? (
-        <p>按“执行一步”，在固定目录上运行第一条查询。</p>
+        <p>点击“执行一步”，运行第一条查询。</p>
       ) : (
         <ol className="rd-trace-list">
           {frames.map((frame) => (
@@ -226,7 +226,7 @@ function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
       <section className="rd-card" aria-label="当前关系数据证据">
         <p className="eyebrow">当前证据</p>
         <h3>执行一步来运行查询</h3>
-        <p>选中的查询会显示结果行、来源追踪和派生单元格。</p>
+        <p>选中的查询会显示结果行、哪些原始记录产生了结果，以及计算得到的结果。</p>
       </section>
     );
   }
@@ -248,7 +248,7 @@ function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
       ) : null}
       {derivedColumns.length > 0 ? (
         <p className="rd-derived-note">
-          派生单元格：{derivedColumns.join(", ")} 是计算得到的，不是存储值。
+          计算得到的结果：{derivedColumns.join(", ")} 不是表中直接存储的值。
         </p>
       ) : null}
       <ResultTable result={frame.result} />
@@ -339,8 +339,7 @@ function RelationalContent({
           <p className="eyebrow">关系数据 · 固定目录</p>
           <h2>固定的一组行如何回答查询？</h2>
           <p>
-            在 books、borrowers、loans
-            上运行四条固定查询；观察结果行、来源追踪、派生计数，以及约束检查中标出的外键问题。
+            在三张表上运行几条查询，观察哪些行留下、哪些行消失，以及每条结果是由哪些原始记录产生的。
           </p>
         </div>
         <div className="rd-fixture-card" aria-label="关系数据情境">
@@ -399,7 +398,7 @@ function RelationalContent({
 
           <section className="rd-card">
             <p className="eyebrow">推进</p>
-            <h3>推进查询执行</h3>
+            <h3>继续运行查询</h3>
             {nextQueryId ? <p className="rd-next">下一条：{queryTitle(nextQueryId)}。</p> : null}
             <div className="rd-action-row">
               <button
@@ -424,7 +423,7 @@ function RelationalContent({
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
-              恢复 URL 情境
+              恢复进入页面时的初始状态
             </button>
           </section>
         </aside>

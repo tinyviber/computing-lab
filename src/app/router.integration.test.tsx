@@ -37,7 +37,7 @@ describe("application router integration", () => {
       "program execution lesson",
       "/labs/program-execution?fixture=zero-iterations",
       /程序执行 workspace/i,
-      /执行一步|程序源代码/,
+      /执行一步|程序步骤/,
     ],
     [
       "protocol process lesson",
@@ -77,7 +77,7 @@ describe("application router integration", () => {
       expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
     } else if (_name === "program execution lesson") {
       expect(screen.getByRole("button", { name: "执行一步" })).toBeInTheDocument();
-      expect(screen.getByRole("list", { name: "程序源代码" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "程序步骤" })).toBeInTheDocument();
     } else if (_name === "protocol process lesson") {
       expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: /消息情境/i })).toHaveValue("request-loss");

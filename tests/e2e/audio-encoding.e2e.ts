@@ -6,19 +6,19 @@ test.describe("Sound reference trajectories", () => {
       waitUntil: "networkidle",
     });
 
-    const plot = page.getByRole("img", { name: /plot/i });
+    const plot = page.getByRole("img", { name: /波形图/ });
     const cursor = page.locator("#sound-cursor");
-    await expect(page.getByRole("button", { name: /^original$/i })).toHaveAttribute(
+    await expect(page.getByRole("button", { name: "原始信号" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
-    await page.getByRole("button", { name: /^play$/i }).click();
+    await page.getByRole("button", { name: "播放" }).click();
     await expect(page.getByTestId("sound-audio-status")).toContainText(
-      /playing|visual-only|audio unavailable|active/i,
+      /播放中|仅视觉播放|音频不可用|已激活/,
     );
 
-    await page.getByRole("button", { name: /^reconstructed$/i }).click();
-    await expect(page.getByRole("button", { name: /^reconstructed$/i })).toHaveAttribute(
+    await page.getByRole("button", { name: "重建信号" }).click();
+    await expect(page.getByRole("button", { name: "重建信号" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -29,11 +29,11 @@ test.describe("Sound reference trajectories", () => {
       .poll(async () => Number(await cursor.inputValue()))
       .toBeGreaterThanOrEqual(seekTarget);
     const cursorAfterSeek = Number(await cursor.inputValue());
-    await page.getByRole("button", { name: /advance 100 ms/i }).click();
+    await page.getByRole("button", { name: "前进 100 毫秒" }).click();
     await expect
       .poll(async () => Number(await cursor.inputValue()))
       .toBeGreaterThan(cursorAfterSeek);
-    await page.getByRole("button", { name: /^stop$/i }).click();
+    await page.getByRole("button", { name: "停止" }).click();
     await expect(cursor).toHaveValue("0");
   });
 
@@ -43,17 +43,17 @@ test.describe("Sound reference trajectories", () => {
       { waitUntil: "networkidle" },
     );
 
-    const plot = page.getByRole("img", { name: /samples plot/i });
+    const plot = page.getByRole("img", { name: /采样点\s*波形图/ });
     await expect(plot).toHaveAttribute("data-evidence", "samples");
-    const plotWindow = page.getByLabel(/plot window/i);
+    const plotWindow = page.getByLabel("以毫秒表示的波形分析窗口");
     await expect(plotWindow).toHaveValue("40");
-    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/40 ms/i);
+    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/40 毫秒/);
     const initialStart = Number(await plot.getAttribute("data-time-window-start"));
     const initialEnd = Number(await plot.getAttribute("data-time-window-end"));
     expect(initialEnd - initialStart).toBeCloseTo(40, 3);
     await plotWindow.selectOption("20");
     await expect(plotWindow).toHaveValue("20");
-    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/20 ms/i);
+    await expect(page.locator('label[for="sound-plot-window"]')).toContainText(/20 毫秒/);
     const selectedStart = Number(await plot.getAttribute("data-time-window-start"));
     const selectedEnd = Number(await plot.getAttribute("data-time-window-end"));
     expect(selectedEnd - selectedStart).toBeCloseTo(20, 3);
@@ -63,15 +63,15 @@ test.describe("Sound reference trajectories", () => {
     expect(await markers.count()).toBeGreaterThan(1);
     await expect(markers.first()).toHaveAttribute("data-sample-index", "0");
 
-    await page.getByRole("button", { name: /^quantization$/i }).click();
-    await page.getByRole("button", { name: /^levels$/i }).click();
+    await page.getByRole("button", { name: "量化（quantization）" }).click();
+    await page.getByRole("button", { name: "量化级别" }).click();
     await expect(page.getByTestId("sound-quantization-evidence")).toBeVisible();
     await expect(page.locator("[data-level-count]")).toHaveAttribute("data-level-count", "16");
     expect(await page.locator(".sound-level-line").count()).toBeLessThanOrEqual(24);
     await expect(page.locator("[data-level-code='0']")).toHaveAttribute("data-level-value", "-1");
 
-    await page.getByRole("button", { name: /reconstruction error/i }).click();
-    await expect(page.getByRole("button", { name: /reconstruction error/i })).toHaveAttribute(
+    await page.getByRole("button", { name: "重建误差" }).click();
+    await expect(page.getByRole("button", { name: "重建误差" })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -85,7 +85,7 @@ test.describe("Sound reference trajectories", () => {
       waitUntil: "networkidle",
     });
 
-    const plot = page.getByRole("img", { name: /samples plot/i });
+    const plot = page.getByRole("img", { name: /采样点\s*波形图/ });
     await page.locator("#sound-plot-window").selectOption("1");
     const startMs = Number(await plot.getAttribute("data-time-window-start"));
     const endMs = Number(await plot.getAttribute("data-time-window-end"));
@@ -166,7 +166,7 @@ test.describe("Sound reference trajectories", () => {
 
     await cursor.fill("500.25");
     await expect(cursor).toHaveValue("500.25");
-    const plot = page.getByRole("img", { name: /plot/i });
+    const plot = page.getByRole("img", { name: /波形图/ });
     const cursorLine = plot.locator(".sound-cursor-line");
     await expect(cursorLine).toHaveCount(1);
     expect(Number(await cursorLine.getAttribute("x1"))).toBeGreaterThan(45);

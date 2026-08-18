@@ -129,7 +129,7 @@ function TraceList({
             <li key={frame.index}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`第 ${frame.index + 1} 帧，时刻 ${frame.event.at}，${eventKindLabel(frame.event.kind)}：${outcomeText(frame.event)}`}
+                aria-label={`第 ${frame.index + 1} 步，时刻 ${frame.event.at}，${eventKindLabel(frame.event.kind)}：${outcomeText(frame.event)}`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
@@ -196,8 +196,8 @@ function CounterTable({ snapshot }: { snapshot: ProtocolSnapshot }) {
       </thead>
       <tbody>
         <tr>
-          <th scope="row">模拟时间</th>
-          <td>{snapshot.now} 个时刻</td>
+          <th scope="row">当前模拟时间</th>
+          <td>第 {snapshot.now} 个时间单位</td>
         </tr>
         <tr>
           <th scope="row">已发送请求次数</th>
@@ -261,7 +261,7 @@ function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
       <section className="protocol-card" aria-label="选中事件证据">
         <p className="eyebrow">选中证据</p>
         <h3>执行一步，检查队列与时钟</h3>
-        <p>每一帧记录一个协议事件、模拟时刻、事件结果，以及事件前后的完整队列快照。</p>
+        <p>每一步记录一个协议事件、发生时间、结果，以及事件前后的完整队列。</p>
       </section>
     );
   }
@@ -272,7 +272,7 @@ function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
         <div>
           <p className="eyebrow">选中证据</p>
           <h3>
-            第 {frame.index + 1} 帧 · 时刻 {frame.event.at}
+            第 {frame.index + 1} 步 · 时刻 {frame.event.at}
           </h3>
         </div>
         <span className="protocol-event-chip">{eventKindLabel(frame.event.kind)}</span>
@@ -286,8 +286,8 @@ function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
         </span>
       </div>
       <div className="protocol-snapshot-grid">
-        <QueueTable snapshot={frame.before} caption={`第 ${frame.index + 1} 帧之前的队列`} />
-        <QueueTable snapshot={frame.after} caption={`第 ${frame.index + 1} 帧之后的队列`} />
+        <QueueTable snapshot={frame.before} caption={`第 ${frame.index + 1} 步之前的队列`} />
+        <QueueTable snapshot={frame.after} caption={`第 ${frame.index + 1} 步之后的队列`} />
       </div>
       <CounterTable snapshot={frame.after} />
     </section>
@@ -355,7 +355,7 @@ function ProtocolProcessPageContent({
               <option value="1">1 次</option>
               <option value="2">2 次</option>
             </select>
-            <label htmlFor="protocol-timeout-conclusion">超时时，发送方知道</label>
+            <label htmlFor="protocol-timeout-conclusion">超时发生时，发送方能确定什么？</label>
             <select
               aria-describedby="protocol-prediction-help"
               id="protocol-timeout-conclusion"
@@ -476,8 +476,8 @@ function ProtocolProcessPageContent({
             </div>
             <dl>
               <div>
-                <dt>模拟时间</dt>
-                <dd>{lesson.machine.now} 个时刻</dd>
+                <dt>当前模拟时间</dt>
+                <dd>第 {lesson.machine.now} 个时间单位</dd>
               </div>
               <div>
                 <dt>已处理事件</dt>

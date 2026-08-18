@@ -56,7 +56,7 @@ function eventKindLabel(kind: ExecutionFrame["eventKind"]): string {
 function frameExplanation(frame: ExecutionFrame): string {
   if (frame.condition) {
     return frame.condition.enteredBody
-      ? "条件为真，下一帧进入循环体。"
+      ? "条件为真，下一步进入循环体。"
       : "条件为假，循环体在这次检查中被跳过。";
   }
   if (frame.assignment) {
@@ -71,7 +71,7 @@ function terminalMessage(reason: string): string {
 }
 
 function frameAccessibleName(frame: ExecutionFrame): string {
-  return `第 ${frame.index + 1} 帧，第 ${frame.sourceLine} 行，${eventKindLabel(frame.eventKind)}：${frameOutcome(frame)}`;
+  return `第 ${frame.index + 1} 步，第 ${frame.sourceLine} 行，${eventKindLabel(frame.eventKind)}：${frameOutcome(frame)}`;
 }
 
 function EnvironmentTable({
@@ -113,7 +113,7 @@ function BeforeAfterTable({
 }) {
   return (
     <table className="program-environment-table program-before-after-table">
-      <caption>第 {frame.index + 1} 帧前后的变量</caption>
+      <caption>第 {frame.index + 1} 步前后的变量</caption>
       <thead>
         <tr>
           <th scope="col">变量</th>
@@ -148,15 +148,15 @@ function ProgramSource({
   activeLine?: number;
 }) {
   return (
-    <section className="program-card" aria-label="程序源代码">
+    <section className="program-card" aria-label="程序步骤">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">实验伪代码</p>
-          <h3>每一步执行一条语句或一次条件检查</h3>
+          <p className="eyebrow">程序步骤</p>
+          <h3>每一步做一件事</h3>
         </div>
-        <span className="program-source-note">不提供自由编辑器</span>
+        <span className="program-source-note">按步骤查看</span>
       </div>
-      <ol aria-label="程序源代码" className="program-source-list">
+      <ol aria-label="程序步骤" className="program-source-list">
         {lines.map((sourceLine) => (
           <li className={sourceLine.line === activeLine ? "is-active" : ""} key={sourceLine.line}>
             <span className="program-line-number">{sourceLine.line}</span>
@@ -181,13 +181,13 @@ function ExecutionTrace({
     <section className="program-card program-trace-card" aria-label="执行记录">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">不可变本地记录</p>
-          <h3>检查每一个因果事件</h3>
+          <p className="eyebrow">执行记录</p>
+          <h3>看看程序每一步发生了什么</h3>
         </div>
-        <span className="program-trace-count">{frames.length} 帧</span>
+        <span className="program-trace-count">{frames.length} 步</span>
       </div>
       {frames.length === 0 ? (
-        <p className="program-empty-trace">点击“执行一步”，创建第一个赋值帧。</p>
+        <p className="program-empty-trace">点击“执行一步”，创建第一个执行步骤。</p>
       ) : (
         <ol className="program-trace-list">
           {frames.map((frame) => (
@@ -224,21 +224,21 @@ function FrameEvidence({
 }) {
   if (!frame) {
     return (
-      <section className="program-card" aria-label="选中帧证据">
+      <section className="program-card" aria-label="选中步骤证据">
         <p className="eyebrow">证据</p>
         <h3>执行一步，检查执行前后的状态</h3>
-        <p>选中的帧会显示语句、变量变化、条件值、输出，以及循环继续或停止的原因。</p>
+        <p>选中的步骤会显示语句、变量变化、条件值、输出，以及循环继续或停止的原因。</p>
       </section>
     );
   }
 
   return (
-    <section className="program-card program-evidence-card" aria-label="选中帧证据">
+    <section className="program-card program-evidence-card" aria-label="选中步骤证据">
       <div className="program-card-heading">
         <div>
           <p className="eyebrow">选中证据</p>
           <h3>
-            第 {frame.index + 1} 帧，第 {frame.sourceLine} 行
+            第 {frame.index + 1} 步，第 {frame.sourceLine} 行
           </h3>
         </div>
         <span className="program-event-chip">{eventKindLabel(frame.eventKind)}</span>
@@ -252,7 +252,7 @@ function FrameEvidence({
             {frame.condition.result ? "真" : "假"}
           </span>
           <small>
-            {frame.condition.enteredBody ? "下一帧进入循环体。" : "这次检查跳过循环体。"}
+            {frame.condition.enteredBody ? "下一步进入循环体。" : "这次检查跳过循环体。"}
           </small>
         </div>
       ) : null}
@@ -378,7 +378,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
 
             <section className="program-card">
               <p className="eyebrow">推进</p>
-              <h3>推进机器</h3>
+              <h3>继续执行</h3>
               <div className="program-action-row">
                 <button onClick={() => dispatch({ type: "step" })} type="button">
                   执行一步
@@ -388,7 +388,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 </button>
               </div>
               <p className="program-help-text">
-                “执行一步”和“运行到结束”使用同一个本地纯转换；选中帧只读，不会改变状态。
+                “执行一步”和“运行到结束”遵循同样的执行规则。点击之前的步骤只会查看历史，不会改变程序当前状态。
               </p>
               <div className="program-guided-actions">
                 <button
@@ -409,7 +409,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 </button>
               </div>
               <p className="program-help-text" id="program-guided-help">
-                对应证据帧出现后，才能使用引导检查。
+                对应执行步骤出现后，才能使用引导检查。
               </p>
             </section>
           </aside>
@@ -417,12 +417,12 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
           <div className="program-main" aria-label="程序执行工作区" role="region">
             <ProgramSource activeLine={selectedFrame?.sourceLine} lines={program.sourceLines} />
 
-            <section className="program-observation-grid" aria-label="当前机器观察">
+            <section className="program-observation-grid" aria-label="当前执行情况">
               <div className="program-card">
                 <div className="program-card-heading">
                   <div>
                     <p className="eyebrow">当前环境</p>
-                    <h3>选中帧之后</h3>
+                    <h3>这一步之后的变量</h3>
                   </div>
                   <span className="program-control-chip">
                     {displaySnapshot.status === "running"
@@ -434,7 +434,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 </div>
                 <EnvironmentTable
                   caption={
-                    selectedFrame ? `第 ${selectedFrame.index + 1} 帧之后的变量` : "初始变量"
+                    selectedFrame ? `第 ${selectedFrame.index + 1} 步之后的变量` : "初始变量"
                   }
                   snapshot={displaySnapshot}
                   variables={program.variables}

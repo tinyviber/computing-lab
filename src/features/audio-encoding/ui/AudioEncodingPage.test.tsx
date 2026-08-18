@@ -13,8 +13,8 @@ describe("Sound reference UI", () => {
     expect(screen.getByRole("main", { name: /声音编码 workspace/i })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(control(/^信号源$/)).toHaveValue("pure440");
-    expect(control(/采样率/)).toHaveValue("8000");
-    expect(control(/位深/)).toHaveValue("8");
+    expect(control(/采样频率/)).toHaveValue("8000");
+    expect(control(/量化位数/)).toHaveValue("8");
     expect(control(/^相位$/)).toHaveValue("0");
 
     for (const name of [/停止/, /播放/, /暂停/, /原始信号/, /重建信号/]) {
@@ -36,7 +36,7 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=1000&bitDepth=4");
 
-    const metrics = screen.getByLabelText("派生声音指标");
+    const metrics = screen.getByLabelText("声音读数");
     expect(within(metrics).getByText(/采样量化均方根误差/)).toBeInTheDocument();
     expect(within(metrics).getByText(/采样量化峰值误差/)).toBeInTheDocument();
     expect(screen.queryByText(/^均方根误差$/)).not.toBeInTheDocument();
@@ -104,7 +104,7 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    const sampleRate = control(/采样率/);
+    const sampleRate = control(/采样频率/);
     sampleRate.focus();
     fireEvent.change(sampleRate, { target: { value: "16000" } });
     expect(sampleRate).toHaveFocus();
@@ -136,8 +136,17 @@ describe("Sound reference UI", () => {
     expect(firstRender).not.toMatch(/Folded frequency/i);
     expect(firstRender).not.toMatch(/至少一个可见频率分量高于.*奈奎斯特上限/);
     expect(firstRender).not.toMatch(/发生混叠.*折叠到/);
+    expect(firstRender).not.toMatch(/所有频率分量都低于或恰在|每个可见频率分量都低于或恰在/);
+    expect(firstRender).not.toMatch(/高于奈奎斯特频率|折叠后频率|频率分量混叠/);
+    expect(firstRender).not.toMatch(
+      /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
+    );
+    expect(firstRender).not.toMatch(/位深/);
+    expect(firstRender).toMatch(/页面上的数值来自固定的本地示例/);
+    expect(firstRender).toMatch(/量化位数（bit depth）/);
     expect(screen.getByRole("group", { name: "分析模式" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "混叠（aliasing）" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "声音读数" })).toHaveTextContent(/频率分量/);
   });
 
   it("does not write live URL state while interacting with Sound controls", async () => {
@@ -261,7 +270,7 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=840");
 
-    const sampleRate = control(/采样率/);
+    const sampleRate = control(/采样频率/);
     expect(sampleRate.tagName).toBe("SELECT");
     expect(sampleRate).toHaveValue("840");
     expect(

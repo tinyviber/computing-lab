@@ -29,7 +29,7 @@ describe("ProtocolProcessPage", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: /你的预测/i }), "delivered");
     await user.selectOptions(screen.getByRole("combobox", { name: /请求次数/i }), "2");
     await user.selectOptions(
-      screen.getByRole("combobox", { name: /超时时，发送方知道/i }),
+      screen.getByRole("combobox", { name: /超时发生时，发送方能确定什么/i }),
       "status-unknown",
     );
     await user.click(button("记录预测"));
@@ -62,8 +62,8 @@ describe("ProtocolProcessPage", () => {
     await renderAppAt("/labs/protocol-process?scenario=no-loss");
     await user.click(button("运行到结束"));
 
-    const first = screen.getByRole("button", { name: /第 1 帧，时刻 0，发送请求/i });
-    const second = screen.getByRole("button", { name: /第 2 帧，时刻 2，送达请求/i });
+    const first = screen.getByRole("button", { name: /第 1 步，时刻 0，发送请求/i });
+    const second = screen.getByRole("button", { name: /第 2 步，时刻 2，送达请求/i });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
@@ -71,7 +71,7 @@ describe("ProtocolProcessPage", () => {
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
 
-    const final = screen.getByRole("button", { name: /第 4 帧，时刻 5，送达确认/i });
+    const final = screen.getByRole("button", { name: /第 4 步，时刻 5，送达确认/i });
     final.focus();
     await user.keyboard(" ");
     expect(final).toHaveAttribute("aria-current", "true");
@@ -131,5 +131,6 @@ describe("ProtocolProcessPage", () => {
     expect(firstRender).not.toMatch(/接收方已经接受过.*重复请求没有再次生效/);
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "检查第一个故障" })).toBeDisabled();
+    expect(screen.queryByRole("region", { name: "情境比较" })).not.toBeInTheDocument();
   });
 });

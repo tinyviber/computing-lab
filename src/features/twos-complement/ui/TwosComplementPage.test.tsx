@@ -33,6 +33,15 @@ describe("TwosComplementPage", () => {
     expect(screen.getByText(/按无符号.*15 \+ 1 存储为 0/)).toBeInTheDocument();
   });
 
+  it("keeps the stored result as a hook without putting it in the prompt", async () => {
+    await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");
+
+    const prompt = screen.getByRole("heading", { name: /0111 \+ 0001/ });
+    expect(prompt).toHaveTextContent("结果应该怎样读");
+    expect(prompt).not.toHaveTextContent("1000");
+    expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
+  });
+
   it("supports width, bit, reading, examples, distinct flags, and URL reset without submit flow", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");

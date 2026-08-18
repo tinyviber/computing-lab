@@ -156,11 +156,11 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
         <header className="twos-intro">
           <p className="eyebrow">参考课程</p>
           <h2>
-            为什么 <code>0111 + 0001</code> 会变成 <code>1000</code>？
+            <code>0111 + 0001</code> 的结果应该怎样读？
           </h2>
           <p>
-            这台机器只存 {lesson.width} 个 bit。改变 A 或 B 的任一位，所有读数都由同一条逐列
-            ripple-carry 计算重新得出；没有提交或答案状态。
+            这台机器只存 {lesson.width} 个 bit。先观察机器存下的位模式，再比较有符号和无符号读法，
+            解释进位与溢出。
           </p>
         </header>
 
@@ -179,7 +179,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 value={lesson.width}
               />
               <SegmentControl<Reading>
-                label="主要读法"
+                label="当前读法"
                 onChange={(reading) => dispatch({ type: "set-reading", reading })}
                 options={[
                   { value: "signed", label: "有符号" },
@@ -236,9 +236,9 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               <div className="twos-card-heading">
                 <div>
                   <p className="eyebrow">字表示</p>
-                  <h3 id="words-heading">同样的位，可选择主要读法</h3>
+                  <h3 id="words-heading">同样的位，可选择当前读法</h3>
                 </div>
-                <span className="twos-reading-chip">主要读法：{readingLabel(lesson.reading)}</span>
+                <span className="twos-reading-chip">当前读法：{readingLabel(lesson.reading)}</span>
               </div>
               <div className="twos-words-grid">
                 <WordBits
@@ -275,7 +275,9 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                   <p className="eyebrow">逐位加法</p>
                   <h3 id="ripple-heading">每一列都处理 A、B 和输入进位</h3>
                 </div>
-                <span className="twos-direction">视觉顺序：MSB → LSB · 进位方向：LSB → MSB</span>
+                <span className="twos-direction">
+                  从左到右：最高位 → 最低位 · 进位方向：最低位 → 最高位
+                </span>
               </div>
               <div className="twos-trace-wrap">
                 <div

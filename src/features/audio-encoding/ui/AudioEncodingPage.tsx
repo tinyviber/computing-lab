@@ -39,7 +39,7 @@ const SOURCE_COPY: Record<SoundSource, { label: string; description: string }> =
   },
   speech: {
     label: "类语音信号",
-    description: "由明确频率分量组成的确定性复合信号。",
+    description: "由几个固定频率组成的组合信号。",
   },
   sawtooth: {
     label: "锯齿波",
@@ -135,13 +135,6 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const showOriginal = selectedView === "compare" || selectedView === "samples";
   const showReconstructed = selectedView !== "error";
   const plotError = selectedView === "error";
-  const aliasedComponentCount = useMemo(
-    () =>
-      model.aliasingEvidence.components.filter(
-        (component) => component.classification === "aliased",
-      ).length,
-    [model],
-  );
   const { levelPreview, plotLines, visibleSamples } = useMemo(() => {
     const samplesInWindow = model.samples.filter(
       (sample) =>
@@ -240,7 +233,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   }, [state.transport]);
 
   const sourceCopy = SOURCE_COPY[state.source];
-  const liveMessage = `${sourceCopy.label}；${TRANSPORT_LABELS[state.transport]}；光标 ${formatCursorTime(cursor.timeMs, cursorDigits)} 毫秒；${model.anyAliasing ? "至少一个频率分量发生混叠" : "所有频率分量都低于或恰在奈奎斯特频率"}。`;
+  const liveMessage = `${sourceCopy.label}；${TRANSPORT_LABELS[state.transport]}；光标 ${formatCursorTime(cursor.timeMs, cursorDigits)} 毫秒。`;
 
   const play = () => {
     const result = playback.play(playbackRequest);
@@ -268,11 +261,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
         <section className="lesson-section sound-visualization" aria-labelledby="sound-heading">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">参考实现</p>
+              <p className="eyebrow">参考模型</p>
               <h2 id="sound-heading">采样、量化与重建</h2>
               <p className="section-description">
-                所有读数来自确定性的本地夹具；视觉时钟由显式步进推进，音频试听使用固定 48 kHz
-                缓冲区。
+                页面上的数值来自固定的本地示例。图表按你点击的每一步推进；试听播放始终使用固定的 48
+                kHz 设置。
               </p>
             </div>
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
@@ -280,7 +273,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
 
           <div className="sound-panel sound-plot-panel">
             <div className="sound-panel-header">
-              <span>有界波形图</span>
+              <span>波形图</span>
               <code>
                 {plot.length} 个点 · {formatNumber(plotWindowWidthMs, 1)} 毫秒窗口 ·{" "}
                 {formatNumber(plotWindow.startMs, 1)}–{formatNumber(plotWindow.endMs, 1)} 毫秒 /{" "}
@@ -382,9 +375,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             {state.mode === "compare" ? (
               <div data-testid="sound-compare-evidence">
                 <p className="eyebrow">对照证据</p>
-                <p>
-                  叠加图把不可变的原始 x(t) 与采样保持重建进行对照。使用 A/B 控件试听任一缓冲区。
-                </p>
+                <p>原始信号不会随着采样设置改变。你可以在“原始信号”和“重建信号”之间切换试听。</p>
               </div>
             ) : null}
             {state.mode === "aliasing" ? (
@@ -396,7 +387,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                     : "每个可见频率分量都低于或恰在当前奈奎斯特频率。"}
                 </p>
                 <p>
-                  采样率的一半是奈奎斯特频率；超过这个上限的分量会折叠到可表示范围内，表格给出每个分量的观察结果。
+                  采样频率的一半是奈奎斯特频率；超过这个上限的分量会折叠到可表示范围内，表格给出每个分量的观察结果。
                 </p>
                 <div className="sound-evidence-table" role="table">
                   {model.aliasingEvidence.components.map((component) => (
@@ -418,12 +409,9 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             {state.mode === "quantization" ? (
               <div data-testid="sound-quantization-evidence">
                 <p className="eyebrow">量化证据</p>
-                <p>
-                  共 {model.quantization.levelValues.length} 个量化级别；当前显示{" "}
-                  {levelPreview.length} 个级别的有界预览。
-                </p>
+                <p>共 {model.quantization.levelValues.length} 个量化级别；当前显示部分量化级别。</p>
                 <p>采样量化指标只在采样时刻测量。</p>
-                <p>位深决定可用的量化级别数；级别越少，每个采样值能表示的精度越低。</p>
+                <p>量化位数决定可用的量化级别数；位数越少，每个采样值能表示的精度越低。</p>
                 <div
                   className="sound-level-preview"
                   data-level-count={model.quantization.levelValues.length}
@@ -443,26 +431,14 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             ) : null}
           </div>
 
-          <div className="sound-summary" aria-label="派生声音指标">
+          <div className="sound-summary" aria-label="声音读数" role="region">
             <div>
               <span>奈奎斯特频率</span>
               <strong>{formatNumber(model.nyquistHz, 0)} Hz</strong>
             </div>
             <div>
-              {fixture.components.length === 1 ? (
-                <>
-                  <span>折叠后频率</span>
-                  <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz</strong>
-                </>
-              ) : (
-                <>
-                  <span>频率分量混叠</span>
-                  <strong>
-                    {aliasedComponentCount} / {model.aliasingEvidence.components.length}{" "}
-                    个高于奈奎斯特频率
-                  </strong>
-                </>
-              )}
+              <span>频率分量</span>
+              <strong>{model.aliasingEvidence.components.length} 个</strong>
             </div>
             <div>
               <span>采样量化均方根误差</span>
@@ -473,7 +449,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <strong>{formatNumber(model.sampleQuantizationPeakError)}</strong>
             </div>
             <div>
-              <span>数据负载</span>
+              <span>理论数据量</span>
               <strong>
                 {model.payload.totalBits} bits / {model.payload.totalBytes} B
               </strong>
@@ -555,7 +531,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div className="sound-inspector-section">
             <p className="eyebrow">配置</p>
             <label className="sound-label" htmlFor="sound-rate">
-              采样率 <span>{state.config.sampleRate} Hz</span>
+              采样频率 <span>{state.config.sampleRate} Hz</span>
             </label>
             <select
               aria-describedby="sound-rate-description"
@@ -580,7 +556,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               选择接近奈奎斯特临界点的教学档位，或保留情境中的精确值。
             </p>
             <label className="sound-label" htmlFor="sound-bits">
-              位深 <span>{state.config.bitDepth} bit</span>
+              量化位数（bit depth） <span>{state.config.bitDepth} bit</span>
             </label>
             <input
               aria-describedby="sound-bits-description"
@@ -594,7 +570,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.bitDepth}
             />
             <p className="sound-control-description" id="sound-bits-description">
-              量化级别数为 2 的位深次方。
+              量化级别数为 2 的量化位数次方。
             </p>
             <label className="sound-label" htmlFor="sound-phase">
               相位 <span>{formatNumber(state.config.phase, 2)} 圈</span>
@@ -741,11 +717,6 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </button>
               ))}
             </div>
-            <p className="sound-mode-note">
-              {model.anyAliasing
-                ? `${model.aliasingEvidence.components.filter((component) => component.classification === "aliased").length} 个可见频率分量高于 ${model.nyquistHz} Hz 的奈奎斯特上限。`
-                : "每个可见频率分量都低于或恰在当前奈奎斯特上限。"}
-            </p>
           </div>
 
           <div className="sound-inspector-section">

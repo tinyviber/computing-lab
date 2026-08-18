@@ -15,6 +15,9 @@ describe("RelationalDataPage", () => {
     expect(screen.getByRole("combobox", { name: /关系数据情境/ })).toHaveValue("catalog");
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
+    expect(screen.queryByRole("region", { name: /关系数据约束/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: /查询结果行/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("main")).not.toHaveTextContent(/外键问题/);
     await userEvent.setup().click(button("执行一步"));
     expect(screen.getByRole("table", { name: /固定目录上的约束检查/ })).toHaveTextContent(
       /失败.*99/,
@@ -42,10 +45,10 @@ describe("RelationalDataPage", () => {
       /按借阅人统计借阅数/,
     );
     expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
-      /派生单元格：loans 是计算得到的/,
+      /计算得到的结果：loans 不是表中直接存储的值/,
     );
     const provenance = screen.getByRole("table", {
-      name: /来源追踪：哪些源行产生了每条结果/,
+      name: /哪些原始记录产生了每条结果/,
     });
     expect(provenance).toHaveTextContent(/loan-1/);
     expect(provenance).toHaveTextContent(/loan-2/);
@@ -111,6 +114,8 @@ describe("RelationalDataPage", () => {
     expect(firstRender).not.toMatch(/How does a fixed set of rows answer a query/i);
     expect(firstRender).not.toMatch(/broken loan.*disappears from the joined aggregate/i);
     expect(firstRender).not.toMatch(/NULL 表示缺失值，空字符串仍是存在的文本/);
+    expect(screen.queryByRole("region", { name: "关系数据约束" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("table", { name: "查询结果行" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
   });
