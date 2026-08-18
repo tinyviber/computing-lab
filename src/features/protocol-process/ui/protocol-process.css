@@ -1,0 +1,358 @@
+.protocol-page {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.protocol-hero,
+.protocol-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.protocol-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+  align-items: end;
+}
+
+.protocol-hero h2 {
+  max-width: 42rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: clamp(1.65rem, 3vw, 2.7rem);
+  line-height: 1.06;
+}
+
+.protocol-hero p:not(.eyebrow) {
+  max-width: 52rem;
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+.protocol-message-card,
+.protocol-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.protocol-message-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.protocol-message-card span,
+.protocol-message-card small {
+  color: var(--ink-muted);
+}
+
+.protocol-message-card strong {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+}
+
+.protocol-layout {
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.protocol-controls,
+.protocol-main-column {
+  display: grid;
+  gap: 1rem;
+}
+
+.protocol-controls {
+  position: sticky;
+  top: 1rem;
+}
+
+.protocol-card {
+  padding: 1rem;
+}
+
+.protocol-card-heading,
+.protocol-status-card,
+.protocol-action-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.protocol-card h3 {
+  margin: 0.2rem 0 0.75rem;
+}
+
+.protocol-card p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.protocol-controls label {
+  display: block;
+  margin: 0.75rem 0 0.3rem;
+  font-weight: 700;
+}
+
+.protocol-controls select {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.protocol-controls button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.protocol-controls button:hover:not(:disabled),
+.protocol-controls button:focus-visible {
+  border-color: var(--accent);
+}
+
+.protocol-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.protocol-primary-button {
+  flex: 1;
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: white !important;
+}
+
+.protocol-secondary-button {
+  width: 100%;
+  margin-top: 0.65rem;
+}
+
+.protocol-action-row .protocol-secondary-button {
+  margin-top: 0;
+  flex: 1;
+}
+
+.protocol-reset-button {
+  width: 100%;
+  margin-top: 0.65rem;
+}
+
+.protocol-guidance-card button {
+  width: 100%;
+  margin-top: 0.55rem;
+}
+
+.protocol-status-card {
+  background: var(--surface-raised);
+}
+
+.protocol-status-card strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  text-transform: uppercase;
+}
+
+.protocol-status-card dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(5rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.protocol-status-card dt {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.protocol-status-card dd {
+  margin: 0.2rem 0 0;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.protocol-trace-count {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.protocol-empty-trace {
+  margin-bottom: 0;
+}
+
+.protocol-trace-list {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+
+.protocol-trace-list button {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  width: 100%;
+  gap: 0.7rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.protocol-trace-list button:hover,
+.protocol-trace-list button:focus-visible,
+.protocol-trace-list button.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.protocol-trace-index {
+  display: grid;
+  place-items: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.protocol-trace-copy {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.protocol-trace-copy strong {
+  font-size: 0.88rem;
+}
+
+.protocol-trace-copy span {
+  color: var(--ink-muted);
+  font-size: 0.84rem;
+}
+
+.protocol-event-chip {
+  padding: 0.3rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface-raised);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+}
+
+.protocol-explanation {
+  margin-top: 0;
+}
+
+.protocol-event-evidence {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.75rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-raised);
+}
+
+.protocol-event-evidence span {
+  font-family: var(--font-mono);
+}
+
+.protocol-snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.protocol-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.85rem;
+  font-size: 0.88rem;
+}
+
+.protocol-table caption {
+  padding: 0 0 0.45rem;
+  color: var(--ink-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: left;
+}
+
+.protocol-table th,
+.protocol-table td {
+  padding: 0.45rem;
+  border-top: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.protocol-table thead th {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.protocol-table tbody th {
+  font-weight: 700;
+}
+
+.protocol-final-card {
+  background: var(--surface-raised);
+}
+
+.protocol-final-card p:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .protocol-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-controls {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .protocol-page {
+    padding: 0.75rem;
+  }
+
+  .protocol-hero,
+  .protocol-snapshot-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .protocol-status-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .protocol-status-card dl {
+    width: 100%;
+  }
+
+  .protocol-action-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

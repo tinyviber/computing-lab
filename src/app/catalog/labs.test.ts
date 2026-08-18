@@ -11,6 +11,12 @@ describe("lab catalog", () => {
         expect.objectContaining({ id: "audio-encoding", route: "/labs/audio-encoding" }),
         expect.objectContaining({ id: "home-network", route: "/labs/home-network" }),
         expect.objectContaining({ id: "twos-complement", route: "/labs/twos-complement" }),
+        expect.objectContaining({ id: "program-execution", route: "/labs/program-execution" }),
+        expect.objectContaining({ id: "protocol-process", route: "/labs/protocol-process" }),
+        expect.objectContaining({ id: "utf8", route: "/labs/utf8" }),
+        expect.objectContaining({ id: "monte-carlo", route: "/labs/monte-carlo" }),
+        expect.objectContaining({ id: "relational-data", route: "/labs/relational-data" }),
+        expect.objectContaining({ id: "byte-edit", route: "/labs/byte-edit" }),
       ]),
     );
     for (const lab of labs) {

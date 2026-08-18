@@ -1,0 +1,273 @@
+.be-page {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1rem, 2.5vw, 2rem);
+}
+
+.be-hero,
+.be-layout {
+  display: grid;
+  gap: 1rem;
+}
+
+.be-hero {
+  grid-template-columns: minmax(0, 1fr) minmax(15rem, 20rem);
+  align-items: end;
+}
+
+.be-hero h2 {
+  max-width: 45rem;
+  margin: 0.25rem 0 0.75rem;
+  font-size: clamp(1.65rem, 3vw, 2.7rem);
+  line-height: 1.06;
+}
+
+.be-hero p:not(.eyebrow) {
+  max-width: 52rem;
+  color: var(--ink-muted);
+  line-height: 1.6;
+}
+
+.be-fixture-card,
+.be-card {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+.be-fixture-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.be-fixture-card span,
+.be-fixture-card small {
+  color: var(--ink-muted);
+}
+
+.be-fixture-card strong {
+  font-size: 1.25rem;
+}
+
+.be-layout {
+  grid-template-columns: minmax(15rem, 18rem) minmax(0, 1fr);
+  align-items: start;
+}
+
+.be-controls,
+.be-main-column {
+  display: grid;
+  gap: 1rem;
+}
+
+.be-controls {
+  position: sticky;
+  top: 1rem;
+}
+
+.be-card {
+  padding: 1rem;
+}
+
+.be-card h3 {
+  margin: 0.2rem 0 0.75rem;
+}
+
+.be-card p {
+  color: var(--ink-muted);
+  line-height: 1.5;
+}
+
+.be-controls label {
+  display: block;
+  margin: 0.75rem 0 0.3rem;
+  font-weight: 700;
+}
+
+.be-controls select,
+.be-controls input {
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.be-controls button {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 0.55rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.be-controls button:hover:not(:disabled),
+.be-controls button:focus-visible {
+  border-color: var(--accent);
+}
+
+.be-primary-button,
+.be-secondary-button,
+.be-reset-button {
+  width: 100%;
+  margin-top: 0.65rem;
+}
+
+.be-primary-button {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: white !important;
+}
+
+.be-preset-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.45rem;
+  margin-top: 0.5rem;
+}
+
+.be-preset-button {
+  padding: 0.5rem 0.45rem !important;
+  font-size: 0.85rem;
+}
+
+.be-status-card {
+  background: var(--surface-raised);
+}
+
+.be-status-card strong {
+  display: block;
+  margin: 0.25rem 0 0.5rem;
+  font-size: 1.05rem;
+  overflow-wrap: anywhere;
+}
+
+.be-valid,
+.be-invalid {
+  padding: 0.55rem 0.65rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface);
+  font-weight: 700;
+}
+
+.be-invalid {
+  border-left-color: var(--danger, #c0392b);
+}
+
+.be-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.be-card-heading > span {
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.be-mono {
+  font-family: var(--font-mono);
+}
+
+.be-trace-list {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0;
+  margin: 1rem 0 0;
+  list-style: none;
+}
+
+.be-trace-list button {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 0.65rem;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.be-trace-list button:hover,
+.be-trace-list button:focus-visible,
+.be-trace-list button.is-selected {
+  border-color: var(--accent);
+  background: var(--surface-raised);
+}
+
+.be-trace-list button span,
+.be-trace-list button small {
+  color: var(--ink-muted);
+}
+
+.be-trace-list button small {
+  font-family: var(--font-mono);
+}
+
+.be-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.be-facts div {
+  padding: 0.65rem;
+  border-left: 3px solid var(--accent);
+  background: var(--surface-raised);
+}
+
+.be-facts dt {
+  color: var(--ink-muted);
+  font-size: 0.78rem;
+}
+
+.be-facts dd {
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .be-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .be-controls {
+    position: static;
+  }
+}
+
+@media (max-width: 560px) {
+  .be-page {
+    padding: 0.75rem;
+  }
+
+  .be-hero,
+  .be-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .be-preset-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .be-trace-list button {
+    grid-template-columns: 1fr;
+  }
+}

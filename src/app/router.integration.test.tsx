@@ -33,6 +33,37 @@ describe("application router integration", () => {
       /二进制补码 workspace/i,
       /Signed overflow: yes/i,
     ],
+    [
+      "program execution lesson",
+      "/labs/program-execution?fixture=zero-iterations",
+      /程序执行 workspace/i,
+      /Step|Program source/i,
+    ],
+    [
+      "protocol process lesson",
+      "/labs/protocol-process?scenario=request-loss",
+      /Protocol Process workspace/i,
+      /Run to completion|Message scenario/i,
+    ],
+    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 workspace/i, /Run to end|UTF-8 fixture/i],
+    [
+      "Monte Carlo lesson",
+      "/labs/monte-carlo?scenario=small",
+      /Monte Carlo π workspace/i,
+      /Run to end|Monte Carlo fixture/i,
+    ],
+    [
+      "relational data lesson",
+      "/labs/relational-data",
+      /关系数据 workspace/i,
+      /Run to end|Relational fixture/i,
+    ],
+    [
+      "byte edit lesson",
+      "/labs/byte-edit?scenario=accent",
+      /字节编辑 workspace/i,
+      /Apply edit|Byte edit fixture/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -44,6 +75,26 @@ describe("application router integration", () => {
       expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
+    } else if (_name === "program execution lesson") {
+      expect(screen.getByRole("button", { name: "Step" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
+    } else if (_name === "protocol process lesson") {
+      expect(screen.getByRole("button", { name: "Run to completion" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /message scenario/i })).toHaveValue(
+        "request-loss",
+      );
+    } else if (_name === "UTF-8 lesson") {
+      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("emoji");
+    } else if (_name === "Monte Carlo lesson") {
+      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("small");
+    } else if (_name === "relational data lesson") {
+      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /relational fixture/i })).toHaveValue("catalog");
+    } else if (_name === "byte edit lesson") {
+      expect(screen.getByRole("button", { name: "Apply edit" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("accent");
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
@@ -88,6 +139,15 @@ describe("application router integration", () => {
     expect(screen.getByRole("region", { name: /事件链/i })).toHaveTextContent(
       /gateway-unresolved|gateway|arp/i,
     );
+  });
+
+  it("refreshes the UTF-8 reset baseline when the same route receives a new search", async () => {
+    const { router } = await renderAppAt("/labs/utf8?scenario=emoji");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Run to end" }));
+    await navigateApp(router, "/labs/utf8?scenario=ascii");
+    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reset to URL scenario" }));
+    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
   });
 
   it("navigates between lessons through real router links without a document reload", async () => {

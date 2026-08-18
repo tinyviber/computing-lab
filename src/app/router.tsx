@@ -7,9 +7,15 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { AudioEncodingPage } from "../features/audio-encoding";
+import { ByteEditPage } from "../features/byte-edit";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
+import { MonteCarloPage } from "../features/monte-carlo";
+import { ProgramExecutionPage } from "../features/program-execution";
+import { ProtocolProcessPage } from "../features/protocol-process";
+import { RelationalDataPage } from "../features/relational-data";
 import { TwosComplementPage } from "../features/twos-complement";
+import { Utf8Page } from "../features/utf8";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -72,6 +78,48 @@ const twosComplementRoute = createRoute({
   component: TwosComplementPage,
   errorComponent: LabErrorPage,
 });
+const programExecutionRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/program-execution",
+  validateSearch: passThroughSearch,
+  component: ProgramExecutionPage,
+  errorComponent: LabErrorPage,
+});
+const protocolProcessRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/protocol-process",
+  validateSearch: passThroughSearch,
+  component: ProtocolProcessPage,
+  errorComponent: LabErrorPage,
+});
+const utf8Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/utf8",
+  validateSearch: passThroughSearch,
+  component: Utf8Page,
+  errorComponent: LabErrorPage,
+});
+const monteCarloRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/monte-carlo",
+  validateSearch: passThroughSearch,
+  component: MonteCarloPage,
+  errorComponent: LabErrorPage,
+});
+const relationalDataRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/relational-data",
+  validateSearch: passThroughSearch,
+  component: RelationalDataPage,
+  errorComponent: LabErrorPage,
+});
+const byteEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/byte-edit",
+  validateSearch: passThroughSearch,
+  component: ByteEditPage,
+  errorComponent: LabErrorPage,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -79,6 +127,12 @@ const routeTree = rootRoute.addChildren([
   audioRoute,
   networkRoute,
   twosComplementRoute,
+  programExecutionRoute,
+  protocolProcessRoute,
+  utf8Route,
+  monteCarloRoute,
+  relationalDataRoute,
+  byteEditRoute,
 ]);
 
 export function createAppRouter({
