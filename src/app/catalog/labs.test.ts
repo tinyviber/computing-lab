@@ -16,6 +16,7 @@ describe("lab catalog", () => {
         expect.objectContaining({ id: "utf8", route: "/labs/utf8" }),
         expect.objectContaining({ id: "monte-carlo", route: "/labs/monte-carlo" }),
         expect.objectContaining({ id: "relational-data", route: "/labs/relational-data" }),
+        expect.objectContaining({ id: "byte-edit", route: "/labs/byte-edit" }),
       ]),
     );
     for (const lab of labs) {

@@ -7,6 +7,7 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { AudioEncodingPage } from "../features/audio-encoding";
+import { ByteEditPage } from "../features/byte-edit";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
 import { MonteCarloPage } from "../features/monte-carlo";
@@ -112,6 +113,13 @@ const relationalDataRoute = createRoute({
   component: RelationalDataPage,
   errorComponent: LabErrorPage,
 });
+const byteEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/byte-edit",
+  validateSearch: passThroughSearch,
+  component: ByteEditPage,
+  errorComponent: LabErrorPage,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -124,6 +132,7 @@ const routeTree = rootRoute.addChildren([
   utf8Route,
   monteCarloRoute,
   relationalDataRoute,
+  byteEditRoute,
 ]);
 
 export function createAppRouter({
