@@ -44,7 +44,7 @@ Queries and fixed results:
 The feature owns pure relational semantics under `src/features/relational-data/domain/**`:
 
 - `runRelationalQuery(id, scenario)` is a pure projection/filter/join/aggregate over the fixed tables;
-- each result carries column names, typed values, and one provenance row per result row naming the exact source row ids (matched rows for filters, the loan/borrower/book triple for joins, source loan ids for aggregate groups);
+- each result carries column names, typed values, and one provenance row per result row naming the exact source row ids (matched rows for filters, the loan/borrower/book triple for joins, and a stable union of every participating loan, borrower, and book row for aggregate groups);
 - the aggregate result flags `loans` as a derived cell, preserves Kai's NULL name, and explains that Kai's broken loan is absent because its book row is missing;
 - `stepRelational(machine, scenario, predictedRows?)` runs the next query in the fixed sequence and returns fresh before/after snapshots plus the result; `runRelational` folds the same step; a complete machine is an identity-preserving no-op;
 - `validateRelational(scenario)` checks five constraints — unique `books.id`, `books.year >= 1900`, `borrowers.name IS NOT NULL`, both foreign keys — and reports two failures: NULL name and `loan-3` referencing missing book `99`;
@@ -58,7 +58,7 @@ The domain oracle hand-authors, without deriving from the production runner:
 - the exact all-books rows and their per-row projection provenance;
 - the exact available-books titles and provenance (`book-1`, `book-2`);
 - the exact overdue-loans row (`loan-1`, Ada, A Wizard of Earthsea, `2026-01-10`) and its join provenance (`loan-1, person-1, book-3`);
-- the exact aggregate rows (Ada 1, Lin 1, NULL 1) and provenance (`loan-1`, `loan-2`, `loan-4`);
+- the exact aggregate rows (Ada 1, Lin 1, NULL 1) and complete provenance (`loan-1, person-1, book-3`; `loan-2, person-2, book-4`; `loan-4, person-3, book-1`);
 - all five constraint outcomes with NULL-name and FK failure details naming `loan-3` and `99`;
 - adversarial NULL, empty-string, typed-key, nullable-FK, missing-column, unknown-column, and wrong-type cases;
 - one-query-per-step boundaries, terminal idempotence, snapshot/result independence, and malformed-scenario rejection.
@@ -85,7 +85,7 @@ The UI never executes SQL, runs queries, or checks constraints itself. It dispat
 
 | Hypothesis                                         | Result                    | Evidence                                                                                                        | Decision                                    |
 | -------------------------------------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| provenance/lineage                                 | STRONGER                  | Every result row names the exact source row ids; the aggregate's missing source is the lesson                   | Keep feature-local; no shared lineage model |
+| provenance/lineage                                 | STRONGER                  | Every result row names the exact participating source row ids, including aggregate loan/borrower/book unions    | Keep feature-local; no shared lineage model |
 | constraints/validation                             | STRONGER locally          | Five table-specific checks with one deliberate failure                                                          | Reject generic Validator                    |
 | derived cells                                      | STRONGER locally          | Aggregate counts are flagged as computed, not stored                                                            | No generic table/derived-cell primitive     |
 | query-result evidence                              | STRONGER locally          | Projection/filter/join/aggregate produce inspectable result and provenance tables                               | No shared query component                   |

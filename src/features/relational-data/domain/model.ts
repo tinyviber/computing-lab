@@ -225,20 +225,26 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
   const loans = table(scenario, "loans");
   const borrowers = table(scenario, "borrowers");
   const books = table(scenario, "books");
-  const counts = new Map<string, { name: RelationalValue; loanIds: string[] }>();
+  const counts = new Map<
+    string,
+    { name: RelationalValue; sourceIds: string[]; loanCount: number }
+  >();
   for (const loan of loans.rows) {
     const borrower = findRowByValue(borrowers, "id", loan.values.borrower_id);
     const book = findRowByValue(books, "id", loan.values.book_id);
     if (!borrower || !book) continue;
     const borrowerName = borrower.values.name;
-    const existing = counts.get(borrower.id) ?? { name: borrowerName, loanIds: [] };
-    existing.loanIds.push(loan.id);
+    const existing = counts.get(borrower.id) ?? { name: borrowerName, sourceIds: [], loanCount: 0 };
+    for (const sourceId of [loan.id, borrower.id, book.id]) {
+      if (!existing.sourceIds.includes(sourceId)) existing.sourceIds.push(sourceId);
+    }
+    existing.loanCount += 1;
     counts.set(borrower.id, existing);
   }
   const entries = [...counts.values()];
   const rows = entries.map((entry, index) => ({
     id: `row-${index + 1}`,
-    values: { borrower: entry.name, loans: entry.loanIds.length },
+    values: { borrower: entry.name, loans: entry.loanCount },
   }));
   return {
     id: "borrower-counts",
@@ -250,8 +256,8 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
     rows,
     provenance: rows.map((row, index) => ({
       resultRowId: row.id,
-      sourceIds: entries[index].loanIds,
-      note: "aggregate over join",
+      sourceIds: entries[index].sourceIds,
+      note: "aggregate over join; stable union of participating loan, borrower, and book rows",
     })),
   };
 }

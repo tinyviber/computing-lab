@@ -48,8 +48,10 @@ describe("RelationalDataPage", () => {
     const provenance = screen.getByRole("table", {
       name: /provenance: which source rows produced each result/i,
     });
-    expect(within(provenance).getByText("loan-1")).toBeInTheDocument();
-    expect(within(provenance).getByText("loan-2")).toBeInTheDocument();
+    expect(provenance).toHaveTextContent(/loan-1/);
+    expect(provenance).toHaveTextContent(/loan-2/);
+    expect(provenance).toHaveTextContent(/loan-1, person-1, book-3/);
+    expect(provenance).toHaveTextContent(/loan-4, person-3, book-1/);
     expect(screen.getByRole("region", { name: /predicted versus actual/i })).toHaveTextContent(
       /All books\s*44/i,
     );

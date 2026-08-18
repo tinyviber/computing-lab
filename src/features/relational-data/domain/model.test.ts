@@ -57,9 +57,9 @@ describe("Relational Data domain", () => {
       { id: "row-3", values: { borrower: null, loans: 1 } },
     ]);
     expect(counts.provenance.map((entry) => entry.sourceIds)).toEqual([
-      ["loan-1"],
-      ["loan-2"],
-      ["loan-4"],
+      ["loan-1", "person-1", "book-3"],
+      ["loan-2", "person-2", "book-4"],
+      ["loan-4", "person-3", "book-1"],
     ]);
     expect(counts.explanation).toMatch(/NULL/);
   });

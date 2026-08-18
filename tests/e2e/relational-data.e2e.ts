@@ -16,7 +16,10 @@ test("traces fixed queries, provenance, and the broken foreign key", async ({ pa
   ).toContainText(/FAIL/);
   await expect(
     page.getByRole("table", { name: /provenance: which source rows produced each result/i }),
-  ).toContainText(/loan-1/);
+  ).toContainText(/loan-1, person-1, book-3/);
+  await expect(
+    page.getByRole("table", { name: /provenance: which source rows produced each result/i }),
+  ).toContainText(/loan-4, person-3, book-1/);
   const borrowers = page.getByRole("table", {
     name: /borrower source rows: NULL versus empty string/i,
   });

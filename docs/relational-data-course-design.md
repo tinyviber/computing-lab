@@ -65,7 +65,7 @@ export type RelationalMachine = {
 `runRelationalQuery(id, scenario)` is a pure function returning an independently owned result with:
 
 - column names and typed values;
-- one provenance row per result row naming the exact source row ids that produced it (matched rows for filters, matched pair ids for joins, source loan ids for aggregate groups);
+- one provenance row per result row naming the exact source row ids that produced it (matched rows for filters, matched pair ids for joins, and a stable union of every participating loan, borrower, and book row for aggregate groups);
 - a textual explanation of the operation (project / filter / join / aggregate).
 
 `stepRelational(machine, scenario)` runs the next query in the fixed sequence and returns fresh before/after snapshots plus the result. `runRelational` folds the same step. A complete machine is an identity-preserving no-op.
