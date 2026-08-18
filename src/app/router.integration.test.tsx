@@ -27,6 +27,12 @@ describe("application router integration", () => {
       /家庭网络探针 workspace/i,
       /Send probe|事件链/i,
     ],
+    [
+      "two's-complement lesson",
+      "/labs/twos-complement?width=4&a=0111&b=0001&reading=signed",
+      /二进制补码 workspace/i,
+      /Signed overflow: yes/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -34,10 +40,13 @@ describe("application router integration", () => {
       expect(screen.getByRole("grid", { name: expected })).toBeInTheDocument();
     } else if (_name === "audio lesson") {
       expect(document.body).toHaveTextContent(expected);
-    } else {
+    } else if (_name === "network lesson") {
       expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
+    } else {
+      expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
     }
   });
 
@@ -97,6 +106,7 @@ describe("application router integration", () => {
     ["image", "/labs/image-encoding"],
     ["audio", "/labs/audio-encoding"],
     ["network", "/labs/home-network"],
+    ["two's-complement", "/labs/twos-complement?width=4&a=0111&b=0001&reading=signed"],
   ])(
     "does not replace browser history methods while mounting the %s lesson",
     async (_name, entry) => {

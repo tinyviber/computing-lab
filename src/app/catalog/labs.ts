@@ -25,6 +25,14 @@ export const labs: LabDefinition[] = [
     description: "连接设备、配置网关，排查家庭网络故障。",
     status: "available",
   },
+  {
+    id: "twos-complement",
+    title: "二进制补码",
+    category: "数据表示",
+    route: "/labs/twos-complement",
+    description: "观察固定宽度 word、ripple carry 与 signed overflow 的不同证据。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {

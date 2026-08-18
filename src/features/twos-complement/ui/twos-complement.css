@@ -1,0 +1,520 @@
+.twos-course {
+  min-width: 0;
+  padding: 28px clamp(16px, 3vw, 40px) 56px;
+  background: var(--canvas);
+}
+
+.twos-intro,
+.twos-layout {
+  max-width: 1440px;
+  margin: 0 auto;
+}
+
+.twos-intro {
+  margin-bottom: 24px;
+}
+
+.twos-intro h2 {
+  margin: 5px 0 9px;
+  color: var(--primary);
+  font-size: clamp(25px, 3vw, 38px);
+  line-height: 1.12;
+  letter-spacing: -0.035em;
+}
+
+.twos-intro h2 code {
+  color: var(--accent);
+  font-size: 0.86em;
+}
+
+.twos-intro > p:last-child {
+  max-width: 780px;
+  margin: 0;
+  color: var(--secondary);
+  line-height: 1.65;
+}
+
+.twos-layout {
+  display: grid;
+  grid-template-columns: minmax(244px, 300px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.twos-controls,
+.twos-main {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+
+.twos-controls {
+  position: sticky;
+  top: 16px;
+}
+
+.twos-card,
+.twos-word {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: 0 8px 28px rgb(23 33 43 / 4%);
+}
+
+.twos-controls .twos-card {
+  padding: 18px;
+}
+
+.twos-card > h3,
+.twos-controls h3 {
+  margin: 4px 0 16px;
+  color: var(--primary);
+  font-size: 16px;
+  letter-spacing: -0.015em;
+}
+
+.twos-card-heading,
+.twos-word-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.twos-card-heading h3,
+.twos-word-heading h3 {
+  margin: 4px 0 0;
+  color: var(--primary);
+  font-size: 16px;
+}
+
+.twos-reading-chip,
+.twos-direction {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.twos-control-group {
+  display: grid;
+  gap: 7px;
+  margin-top: 15px;
+}
+
+.twos-control-group > span {
+  color: var(--secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.twos-segment {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.twos-segment button,
+.twos-example-list button,
+.twos-reset,
+.twos-bit-button {
+  border: 0;
+  background: var(--surface);
+  color: var(--secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.twos-segment button {
+  min-height: 35px;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.twos-segment button:last-child {
+  border-right: 0;
+}
+
+.twos-segment button.is-active {
+  background: var(--primary);
+  color: white;
+}
+
+.twos-ranges {
+  display: grid;
+  gap: 8px;
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.twos-ranges div,
+.twos-word-readings div,
+.twos-result-card dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.twos-ranges dt,
+.twos-word-readings dt,
+.twos-result-card dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.twos-ranges dd,
+.twos-word-readings dd,
+.twos-result-card dd {
+  margin: 0;
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.twos-example-list {
+  display: grid;
+  gap: 8px;
+}
+
+.twos-example-list button {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  text-align: left;
+}
+
+.twos-example-list button strong {
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.twos-example-list button span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.twos-reset {
+  width: 100%;
+  margin-top: 14px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.twos-example-list button:hover,
+.twos-reset:hover,
+.twos-bit-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.twos-words-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 20px;
+  background: var(--subtle);
+}
+
+.twos-word {
+  overflow: hidden;
+  box-shadow: none;
+}
+
+.twos-word-heading {
+  padding: 13px 14px;
+}
+
+.twos-word-heading h3 {
+  font-size: 13px;
+}
+
+.twos-word-heading code,
+.twos-result-card > code {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.twos-plus {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 24px;
+  text-align: center;
+}
+
+.twos-bit-row {
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+}
+
+.twos-bit-row-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.twos-bit-row-8 {
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+}
+
+.twos-bit-button {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 3px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  text-align: center;
+}
+
+.twos-bit-button strong {
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 19px;
+}
+
+.twos-bit-position,
+.twos-bit-weight {
+  overflow: hidden;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.twos-bit-weight {
+  color: var(--accent);
+}
+
+.twos-word-readings {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+
+.twos-negation-note {
+  margin: 0;
+  padding: 0 20px 18px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.twos-negation-note code {
+  color: var(--accent);
+}
+
+.twos-trace-wrap {
+  overflow-x: auto;
+  padding: 20px;
+}
+
+.twos-trace {
+  display: grid;
+  min-width: 680px;
+  border: 1px solid var(--border);
+}
+
+.twos-trace-4 {
+  grid-template-columns: 92px 130px repeat(4, minmax(82px, 1fr));
+}
+
+.twos-trace-8 {
+  grid-template-columns: 92px 130px repeat(8, minmax(82px, 1fr));
+}
+
+.twos-trace-labels,
+.twos-trace-column {
+  display: grid;
+  grid-template-rows: repeat(6, minmax(36px, auto));
+}
+
+.twos-trace-labels {
+  background: var(--subtle);
+}
+
+.twos-trace-labels span,
+.twos-trace-column > span,
+.twos-trace-column > strong {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  text-align: center;
+}
+
+.twos-trace-labels span {
+  color: var(--secondary);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.twos-trace-column > strong {
+  font-size: 15px;
+}
+
+.twos-trace-column .twos-result-bit {
+  background: rgb(37 99 235 / 8%);
+  color: var(--accent);
+}
+
+.twos-trace-labels span:last-child,
+.twos-trace-column > strong:last-child {
+  border-bottom: 0;
+}
+
+.twos-carry-out {
+  display: grid;
+  align-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: #fff8ed;
+  color: var(--warning);
+  font-size: 11px;
+  text-align: center;
+}
+
+.twos-carry-out strong {
+  font-family: "SFMono-Regular", Consolas, monospace;
+}
+
+.twos-carry-out small {
+  color: var(--secondary);
+}
+
+.twos-evidence-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.82fr) repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.twos-result-card,
+.twos-evidence-card {
+  padding: 18px;
+}
+
+.twos-result-card > code {
+  display: block;
+  margin: 9px 0 7px;
+  font-size: 31px;
+  letter-spacing: 0.12em;
+}
+
+.twos-result-card > p,
+.twos-evidence-card > p {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.twos-result-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 15px 0;
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.twos-primary-sentence,
+.twos-evidence-card strong {
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.twos-evidence-card h3 {
+  margin: 5px 0 10px;
+  color: var(--primary);
+  font-size: 17px;
+}
+
+.twos-evidence-card strong {
+  display: block;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.twos-evidence-card[data-carry-out="1"] h3 {
+  color: var(--warning);
+}
+
+.twos-evidence-card[data-signed-overflow="true"] h3 {
+  color: var(--danger);
+}
+
+.twos-segment button:focus-visible,
+.twos-example-list button:focus-visible,
+.twos-reset:focus-visible,
+.twos-bit-button:focus-visible {
+  position: relative;
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1120px) {
+  .twos-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .twos-controls {
+    position: static;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 780px) {
+  .twos-course {
+    padding: 20px 12px 40px;
+  }
+
+  .twos-controls,
+  .twos-words-grid,
+  .twos-evidence-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .twos-plus {
+    display: none;
+  }
+
+  .twos-card-heading {
+    display: grid;
+    gap: 7px;
+  }
+
+  .twos-reading-chip,
+  .twos-direction {
+    text-align: left;
+  }
+
+  .twos-words-grid,
+  .twos-trace-wrap {
+    padding: 14px;
+  }
+}

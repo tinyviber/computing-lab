@@ -9,6 +9,7 @@ import {
 import { AudioEncodingPage } from "../features/audio-encoding";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
+import { TwosComplementPage } from "../features/twos-complement";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -64,8 +65,21 @@ const networkRoute = createRoute({
   component: HomeNetworkPage,
   errorComponent: LabErrorPage,
 });
+const twosComplementRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/twos-complement",
+  validateSearch: passThroughSearch,
+  component: TwosComplementPage,
+  errorComponent: LabErrorPage,
+});
 
-const routeTree = rootRoute.addChildren([indexRoute, imageRoute, audioRoute, networkRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  imageRoute,
+  audioRoute,
+  networkRoute,
+  twosComplementRoute,
+]);
 
 export function createAppRouter({
   history = createBrowserHistory(),
