@@ -10,6 +10,8 @@ This directory keeps durable, decision-level research summaries for Computing La
 - `output/03-precedent-research.md` — external precedent index and source links.
 - `output/04-interaction-primitives.md` — historical hypothesis registry only.
 - `output/05-image-encoding-natural-course-model.md` — feature-specific Image course model.
+- `output/06-primitive-foundation-research.md` — long-term primitive hypothesis foundation research.
+- `output/07-program-execution-evidence.md` — Program Execution course implementation evidence and primitive matrix update.
 
 These are research records, not current architecture authority. Current product and boundary decisions live in `docs/`, especially `docs/architecture.md`, `docs/course-model-reset.md`, and `docs/primitive-extraction-review.md`.
 

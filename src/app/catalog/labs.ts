@@ -33,6 +33,14 @@ export const labs: LabDefinition[] = [
     description: "观察固定宽度 word、ripple carry 与 signed overflow 的不同证据。",
     status: "available",
   },
+  {
+    id: "program-execution",
+    title: "程序执行",
+    category: "程序设计",
+    route: "/labs/program-execution",
+    description: "逐步观察变量、循环条件与输出如何形成。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {
