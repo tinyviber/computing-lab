@@ -73,6 +73,14 @@ export const labs: LabDefinition[] = [
     description: "观察固定数据如何回答查询、约束保护什么、派生计数与溯源从何而来。",
     status: "available",
   },
+  {
+    id: "byte-edit",
+    title: "字节编辑",
+    category: "信息编码",
+    route: "/labs/byte-edit",
+    description: "编辑固定文本的一个字节，观察 UTF-8 有效性规则如何裁决整段序列。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {

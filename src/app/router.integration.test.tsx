@@ -58,6 +58,12 @@ describe("application router integration", () => {
       /关系数据 workspace/i,
       /Run to end|Relational fixture/i,
     ],
+    [
+      "byte edit lesson",
+      "/labs/byte-edit?scenario=accent",
+      /字节编辑 workspace/i,
+      /Apply edit|Byte edit fixture/i,
+    ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -86,6 +92,9 @@ describe("application router integration", () => {
     } else if (_name === "relational data lesson") {
       expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: /relational fixture/i })).toHaveValue("catalog");
+    } else if (_name === "byte edit lesson") {
+      expect(screen.getByRole("button", { name: "Apply edit" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("accent");
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
