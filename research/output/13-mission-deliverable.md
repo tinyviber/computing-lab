@@ -14,10 +14,10 @@ The chain was inspected against GitHub after the lineage rework. Heads below are
 | #14 | Protocol Process           | #13 `ac7cfd2`                                     | `feat/protocol-process-reference-course` `32d1c9c`  | `checks` + `e2e-base-path` pass |
 | #15 | UTF-8                      | #14 `32d1c9c`                                     | `feat/utf8-reference-course` `2587490`              | `checks` + `e2e-base-path` pass |
 | #16 | Monte Carlo π              | #15 `2587490`                                     | `feat/monte-carlo-reference-course` `d22664e`       | `checks` + `e2e-base-path` pass |
-| #17 | Relational Data            | #16 `d22664e`                                     | `feat/relational-data-reference-course` `17a4ee8`   | pending on new head             |
-| #18 | Byte Edit + mission report | #17 `17a4ee8`                                     | `feat/byte-edit-reference-course` `6f12da8`         | pending on rebased head         |
+| #17 | Relational Data            | #16 `d22664e`                                     | `feat/relational-data-reference-course` `17a4ee8`   | `checks` + `e2e-base-path` pass |
+| #18 | Byte Edit + mission report | #17 `17a4ee8`                                     | `feat/byte-edit-reference-course` `ee3cbe9`         | `checks` + `e2e-base-path` pass |
 
-All six are open draft PRs. #13–#16 retain their green validation runs; #17 and #18 require fresh exact-head CI after the lineage fix and rebase.
+All six are open draft PRs. Exact-head validation runs: #13 `32131820278`, #14 `32144927977`, #15 `32145097369`, #16 `32146042142`, #17 `32149378982`, and #18 `32149649653`.
 
 The original live failures were repaired at their owning branches: #14 failed Prettier on `research/output/08-protocol-process-evidence.md`; #15 failed Prettier on `research/output/09-utf8-evidence.md`. The descendants were rebased so each PR owns only its feature evidence and later branches do not reintroduce those parent-file failures.
 
@@ -101,7 +101,7 @@ Local validation after the lineage fix and rebase:
 - `bun run build` — PASS
 - `bun run test:e2e` — environment-blocked locally: all 26 tests stopped at Playwright launch because Chromium is absent from the configured cache. No E2E assertion ran locally.
 
-GitHub CI for #17 and #18 is intentionally re-running on the exact new heads above; the final run IDs will be recorded in the PR bodies after completion.
+GitHub CI downloaded Chromium and passed both `checks` and `e2e-base-path` for the exact #17 and #18 heads above. #17 run `32149378982`; #18 run `32149649653`.
 
 The pre-existing unrelated untracked file `research/output/06-primitive-foundation-research.md` was preserved and is not part of this chain.
 
