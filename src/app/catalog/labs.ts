@@ -65,6 +65,14 @@ export const labs: LabDefinition[] = [
     description: "用随机点估计 π，观察固定种子如何让轨迹可复现并逐渐收敛。",
     status: "available",
   },
+  {
+    id: "relational-data",
+    title: "关系数据",
+    category: "数据查询",
+    route: "/labs/relational-data",
+    description: "观察固定数据如何回答查询、约束保护什么、派生计数与溯源从何而来。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {

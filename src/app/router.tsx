@@ -12,6 +12,7 @@ import { ImageEncodingPage } from "../features/image-encoding";
 import { MonteCarloPage } from "../features/monte-carlo";
 import { ProgramExecutionPage } from "../features/program-execution";
 import { ProtocolProcessPage } from "../features/protocol-process";
+import { RelationalDataPage } from "../features/relational-data";
 import { TwosComplementPage } from "../features/twos-complement";
 import { Utf8Page } from "../features/utf8";
 import { HomePage } from "./pages/HomePage";
@@ -104,6 +105,13 @@ const monteCarloRoute = createRoute({
   component: MonteCarloPage,
   errorComponent: LabErrorPage,
 });
+const relationalDataRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/relational-data",
+  validateSearch: passThroughSearch,
+  component: RelationalDataPage,
+  errorComponent: LabErrorPage,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -115,6 +123,7 @@ const routeTree = rootRoute.addChildren([
   protocolProcessRoute,
   utf8Route,
   monteCarloRoute,
+  relationalDataRoute,
 ]);
 
 export function createAppRouter({
