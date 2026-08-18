@@ -49,6 +49,14 @@ export const labs: LabDefinition[] = [
     description: "观察延迟、丢失、超时、重试与确认如何形成可靠传递。",
     status: "available",
   },
+  {
+    id: "utf8",
+    title: "UTF-8 编码",
+    category: "信息编码",
+    route: "/labs/utf8",
+    description: "观察 Unicode 码点如何按范围变成不同数量的 UTF-8 字节。",
+    status: "available",
+  },
 ];
 
 export function getLab(id: string): LabDefinition | undefined {

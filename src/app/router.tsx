@@ -12,6 +12,7 @@ import { ImageEncodingPage } from "../features/image-encoding";
 import { ProgramExecutionPage } from "../features/program-execution";
 import { ProtocolProcessPage } from "../features/protocol-process";
 import { TwosComplementPage } from "../features/twos-complement";
+import { Utf8Page } from "../features/utf8";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
@@ -88,6 +89,13 @@ const protocolProcessRoute = createRoute({
   component: ProtocolProcessPage,
   errorComponent: LabErrorPage,
 });
+const utf8Route = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/utf8",
+  validateSearch: passThroughSearch,
+  component: Utf8Page,
+  errorComponent: LabErrorPage,
+});
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
@@ -97,6 +105,7 @@ const routeTree = rootRoute.addChildren([
   twosComplementRoute,
   programExecutionRoute,
   protocolProcessRoute,
+  utf8Route,
 ]);
 
 export function createAppRouter({
