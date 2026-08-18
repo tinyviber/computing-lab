@@ -45,6 +45,7 @@ describe("application router integration", () => {
       /Protocol Process workspace/i,
       /Run to completion|Message scenario/i,
     ],
+    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 workspace/i, /Run to end|UTF-8 fixture/i],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
@@ -64,6 +65,9 @@ describe("application router integration", () => {
       expect(screen.getByRole("combobox", { name: /message scenario/i })).toHaveValue(
         "request-loss",
       );
+    } else if (_name === "UTF-8 lesson") {
+      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("emoji");
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
@@ -108,6 +112,15 @@ describe("application router integration", () => {
     expect(screen.getByRole("region", { name: /事件链/i })).toHaveTextContent(
       /gateway-unresolved|gateway|arp/i,
     );
+  });
+
+  it("refreshes the UTF-8 reset baseline when the same route receives a new search", async () => {
+    const { router } = await renderAppAt("/labs/utf8?scenario=emoji");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Run to end" }));
+    await navigateApp(router, "/labs/utf8?scenario=ascii");
+    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Reset to URL scenario" }));
+    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
   });
 
   it("navigates between lessons through real router links without a document reload", async () => {
