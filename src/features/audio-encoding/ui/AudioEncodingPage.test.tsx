@@ -12,21 +12,21 @@ describe("Sound reference UI", () => {
 
     expect(screen.getByRole("main", { name: /声音编码 workspace/i })).toBeInTheDocument();
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(control(/^source$/i)).toHaveValue("pure440");
-    expect(control(/sample rate/i)).toHaveValue("8000");
-    expect(control(/bit depth/i)).toHaveValue("8");
-    expect(control(/^phase$/i)).toHaveValue("0");
+    expect(control(/^信号源$/)).toHaveValue("pure440");
+    expect(control(/采样频率/)).toHaveValue("8000");
+    expect(control(/量化位数/)).toHaveValue("8");
+    expect(control(/^相位$/)).toHaveValue("0");
 
-    for (const name of [/stop/i, /play/i, /pause/i, /original/i, /reconstructed/i]) {
+    for (const name of [/停止/, /播放/, /暂停/, /原始信号/, /重建信号/]) {
       expect(button(name)).toBeInTheDocument();
     }
     for (const name of [
-      /compare/i,
-      /aliasing/i,
-      /quantization/i,
-      /samples/i,
-      /levels/i,
-      /error/i,
+      /对照（compare）/,
+      /混叠（aliasing）/,
+      /量化（quantization）/,
+      /采样点/,
+      /量化级别/,
+      /重建误差/,
     ]) {
       expect(button(name)).toBeInTheDocument();
     }
@@ -36,81 +36,81 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=1000&bitDepth=4");
 
-    const metrics = screen.getByLabelText("Derived sound metrics");
-    expect(within(metrics).getByText(/sample quantization rms/i)).toBeInTheDocument();
-    expect(within(metrics).getByText(/sample quantization peak/i)).toBeInTheDocument();
-    expect(screen.queryByText(/^rms error$/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/^peak error$/i)).not.toBeInTheDocument();
+    const metrics = screen.getByLabelText("声音读数");
+    expect(within(metrics).getByText(/采样量化均方根误差/)).toBeInTheDocument();
+    expect(within(metrics).getByText(/采样量化峰值误差/)).toBeInTheDocument();
+    expect(screen.queryByText(/^均方根误差$/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/^峰值误差$/)).not.toBeInTheDocument();
 
-    const readout = screen.getByLabelText("Cursor readout");
-    expect(within(readout).getByText(/reconstruction error/i)).toBeInTheDocument();
+    const readout = screen.getByLabelText("光标读数");
+    expect(within(readout).getByText(/重建误差/)).toBeInTheDocument();
 
-    await user.click(button(/^quantization$/i));
+    await user.click(button(/^量化（quantization）$/));
     const evidence = screen.getByTestId("sound-quantization-evidence");
-    expect(evidence).toHaveTextContent(/only at sampling instants/i);
-    expect(evidence).not.toHaveTextContent(/reconstruction error/i);
+    expect(evidence).toHaveTextContent(/采样量化指标只在采样时刻测量/);
+    expect(evidence).not.toHaveTextContent(/连续重建误差/);
   });
 
   it("uses milliseconds for speech and falls back through the controlled window select", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    const source = control(/^source$/i);
-    const plotWindow = control(/plot window/i);
+    const source = control(/^信号源$/);
+    const plotWindow = control(/波形窗口/);
     expect(plotWindow).toHaveValue("4");
-    expect(plotWindow).toHaveTextContent(/4 reference periods/i);
+    expect(plotWindow).toHaveTextContent(/4 个参考周期/);
 
     await user.selectOptions(source, "speech");
     expect(source).toHaveValue("speech");
     expect(plotWindow).toHaveValue("40");
-    expect(plotWindow).toHaveTextContent(/40 ms/i);
-    expect(screen.queryByText(/reference periods/i)).not.toBeInTheDocument();
+    expect(plotWindow).toHaveTextContent(/40 毫秒/);
+    expect(screen.queryByText(/参考周期/)).not.toBeInTheDocument();
 
     await user.selectOptions(source, "sawtooth");
     expect(source).toHaveValue("sawtooth");
     expect(plotWindow).toHaveValue("4");
-    expect(plotWindow).toHaveTextContent(/4 reference periods/i);
+    expect(plotWindow).toHaveTextContent(/4 个参考周期/);
   });
 
   it("starts speech with a 40 ms window and no periodic reference label", async () => {
     await renderAppAt("/labs/audio-encoding?source=speech");
 
-    const plotWindow = control(/plot window/i);
+    const plotWindow = control(/波形窗口/);
     expect(plotWindow).toHaveValue("40");
-    expect(plotWindow).toHaveTextContent(/40 ms/i);
-    expect(screen.queryByText(/reference periods/i)).not.toBeInTheDocument();
+    expect(plotWindow).toHaveTextContent(/40 毫秒/);
+    expect(screen.queryByText(/参考周期/)).not.toBeInTheDocument();
   });
 
   it("keeps source, audition, mode, and view changes orthogonal", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    await user.selectOptions(control(/^source$/i), "sawtooth");
-    await user.click(button(/^original$/i));
-    await user.click(button(/^aliasing$/i));
-    await user.click(button(/reconstruction error/i));
+    await user.selectOptions(control(/^信号源$/), "sawtooth");
+    await user.click(button(/^原始信号$/));
+    await user.click(button(/^混叠（aliasing）$/));
+    await user.click(button(/^重建误差$/));
 
-    expect(control(/^source$/i)).toHaveValue("sawtooth");
-    expect(button(/^original$/i)).toHaveAttribute("aria-pressed", "true");
-    expect(button(/^aliasing$/i)).toHaveAttribute("aria-pressed", "true");
-    expect(button(/reconstruction error/i)).toHaveAttribute("aria-pressed", "true");
-    expect(button(/^compare$/i)).toHaveAttribute("aria-pressed", "false");
-    expect(button(/^quantization$/i)).toHaveAttribute("aria-pressed", "false");
-    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "false");
-    expect(button(/^levels$/i)).toHaveAttribute("aria-pressed", "false");
+    expect(control(/^信号源$/)).toHaveValue("sawtooth");
+    expect(button(/^原始信号$/)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^混叠（aliasing）$/)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^重建误差$/)).toHaveAttribute("aria-pressed", "true");
+    expect(button(/^对照（compare）$/)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^量化（quantization）$/)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^采样点$/)).toHaveAttribute("aria-pressed", "false");
+    expect(button(/^量化级别$/)).toHaveAttribute("aria-pressed", "false");
   });
 
   it("supports keyboard-labelled controls without stealing focus", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    const sampleRate = control(/sample rate/i);
+    const sampleRate = control(/采样频率/);
     sampleRate.focus();
     fireEvent.change(sampleRate, { target: { value: "16000" } });
     expect(sampleRate).toHaveFocus();
     expect(sampleRate).toHaveValue("16000");
 
-    const source = control(/^source$/i);
+    const source = control(/^信号源$/);
     source.focus();
     await user.selectOptions(source, "high-pulse");
     expect(source).toHaveFocus();
@@ -119,13 +119,34 @@ describe("Sound reference UI", () => {
   it("exposes a bounded polite live region and bounded accessible plot", async () => {
     await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=48000&bitDepth=16");
 
-    const live = screen.getByText(/High pulse; stopped/i);
+    const live = screen.getByText(/高频脉冲；已停止/);
     expect(live).toHaveAttribute("aria-live", "polite");
     expect((live.textContent ?? "").length).toBeLessThanOrEqual(240);
 
-    const plot = screen.getByRole("img", { name: /sound|waveform|plot/i });
+    const plot = screen.getByRole("img", { name: /波形图/ });
     expect(plot).toBeInTheDocument();
     expect(plot.getAttribute("aria-label")).toBeTruthy();
+  });
+
+  it("keeps the first render exploratory instead of revealing aliasing outcomes", async () => {
+    await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12");
+
+    const firstRender = document.body.textContent ?? "";
+    expect(firstRender).not.toMatch(/A high-frequency component is above the Nyquist limit/i);
+    expect(firstRender).not.toMatch(/Folded frequency/i);
+    expect(firstRender).not.toMatch(/至少一个可见频率分量高于.*奈奎斯特上限/);
+    expect(firstRender).not.toMatch(/发生混叠.*折叠到/);
+    expect(firstRender).not.toMatch(/所有频率分量都低于或恰在|每个可见频率分量都低于或恰在/);
+    expect(firstRender).not.toMatch(/高于奈奎斯特频率|折叠后频率|频率分量混叠/);
+    expect(firstRender).not.toMatch(
+      /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
+    );
+    expect(firstRender).not.toMatch(/位深/);
+    expect(firstRender).toMatch(/页面上的数值来自固定的本地示例/);
+    expect(firstRender).toMatch(/量化位数（bit depth）/);
+    expect(screen.getByRole("group", { name: "分析模式" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "混叠（aliasing）" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "声音读数" })).toHaveTextContent(/频率分量/);
   });
 
   it("does not write live URL state while interacting with Sound controls", async () => {
@@ -133,9 +154,9 @@ describe("Sound reference UI", () => {
     const { history } = await renderAppAt("/labs/audio-encoding");
     const initial = history.location.href;
 
-    await user.selectOptions(control(/^source$/i), "speech");
-    await user.click(button(/^aliasing$/i));
-    await user.click(button(/reconstruction error/i));
+    await user.selectOptions(control(/^信号源$/), "speech");
+    await user.click(button(/^混叠（aliasing）$/));
+    await user.click(button(/^重建误差$/));
 
     expect(history.location.href).toBe(initial);
   });
@@ -146,10 +167,10 @@ describe("Sound reference UI", () => {
       "/labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=8&phase=0.25&view=samples",
     );
 
-    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "true");
-    const plot = screen.getByRole("img", { name: /samples plot/i });
-    expect(button(/^samples$/i)).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /^samples$/i })).toHaveAttribute(
+    expect(button(/^采样点$/)).toHaveAttribute("aria-pressed", "true");
+    const plot = screen.getByRole("img", { name: /采样点\s*波形图/ });
+    expect(button(/^采样点$/)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^采样点$/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -161,8 +182,8 @@ describe("Sound reference UI", () => {
       expect(marker.getAttribute("data-sample-index")).toMatch(/^\d+$/);
     }
 
-    await user.click(button(/^levels$/i));
-    expect(screen.getByRole("button", { name: /^levels$/i })).toHaveAttribute(
+    await user.click(button(/^量化级别$/));
+    expect(screen.getByRole("button", { name: /^量化级别$/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -172,8 +193,8 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=48000&bitDepth=4");
 
-    await user.click(button(/^quantization$/i));
-    await user.click(button(/^levels$/i));
+    await user.click(button(/^量化（quantization）$/));
+    await user.click(button(/^量化级别$/));
     const levelPreview = screen.getByTestId("sound-quantization-evidence");
     expect(levelPreview.querySelector("[data-level-count]")).toHaveAttribute(
       "data-level-count",
@@ -186,28 +207,26 @@ describe("Sound reference UI", () => {
     expect(document.querySelectorAll(".sound-level-line").length).toBeLessThanOrEqual(24);
     expect(document.querySelectorAll(".sound-sample-marker").length).toBeLessThanOrEqual(160);
 
-    await user.click(button(/reconstruction error/i));
-    const errorPlot = screen.getByRole("img", { name: /error plot/i });
-    expect(button(/reconstruction error/i)).toHaveAttribute("aria-pressed", "true");
+    await user.click(button(/^重建误差$/));
+    const errorPlot = screen.getByRole("img", { name: /重建误差\s*波形图/ });
+    expect(button(/^重建误差$/)).toHaveAttribute("aria-pressed", "true");
     expect(errorPlot.querySelector(".sound-error-line")).toBeInTheDocument();
   });
 
   it("renders distinct compare, aliasing, and quantization evidence without scalar composite claims", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=speech&sampleRate=840&bitDepth=4");
-    const plot = () => screen.getByRole("img", { name: /plot/i });
+    const plot = () => screen.getByRole("img", { name: /波形图/ });
 
     expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
       "data-sound-mode",
       "compare",
     );
     expect(screen.getByTestId("sound-compare-evidence")).toBeInTheDocument();
-    expect(screen.queryByText(/folded frequency/i)).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/moves sampling timestamps; source x\(t\) stays unchanged/i),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/折叠后频率/)).not.toBeInTheDocument();
+    expect(screen.getByText(/移动采样时间戳；信号源 x\(t\) 保持不变/)).toBeInTheDocument();
 
-    await user.click(button(/^aliasing$/i));
+    await user.click(button(/^混叠（aliasing）$/));
     expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
       "data-sound-mode",
       "aliasing",
@@ -218,30 +237,30 @@ describe("Sound reference UI", () => {
     expect(evidenceTable).toHaveTextContent("180 Hz");
     expect(evidenceTable).toHaveTextContent("420 Hz");
     expect(evidenceTable).toHaveTextContent("780 Hz");
-    expect(within(aliasingEvidence).getByText(/component aliasing evidence/i)).toBeInTheDocument();
-    expect(screen.queryByText(/speech-like.*below.*nyquist/i)).not.toBeInTheDocument();
+    expect(within(aliasingEvidence).getByText(/频率分量混叠证据/)).toBeInTheDocument();
+    expect(screen.queryByText(/类语音.*低于.*奈奎斯特/)).not.toBeInTheDocument();
 
-    await user.click(button(/^quantization$/i));
+    await user.click(button(/^量化（quantization）$/));
     expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
       "data-sound-mode",
       "quantization",
     );
     const quantizationEvidence = screen.getByTestId("sound-quantization-evidence");
     expect(quantizationEvidence).toBeInTheDocument();
-    expect(within(quantizationEvidence).getByText(/quantization evidence/i)).toBeInTheDocument();
+    expect(within(quantizationEvidence).getByText(/量化证据/)).toBeInTheDocument();
   });
 
   it("keeps compare overlay and A/B audition selection as separate evidence", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
 
-    const plot = screen.getByRole("img", { name: /plot/i });
+    const plot = screen.getByRole("img", { name: /波形图/ });
     expect(plot.querySelector(".sound-original-line")).toBeInTheDocument();
     expect(plot.querySelector(".sound-reconstructed-line")).toBeInTheDocument();
 
-    await user.click(button(/^reconstructed$/i));
-    expect(button(/^reconstructed$/i)).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: /^reconstructed$/i })).toHaveAttribute(
+    await user.click(button(/^重建信号$/));
+    expect(button(/^重建信号$/)).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: /^重建信号$/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -251,13 +270,13 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=840");
 
-    const sampleRate = control(/sample rate/i);
+    const sampleRate = control(/采样频率/);
     expect(sampleRate.tagName).toBe("SELECT");
     expect(sampleRate).toHaveValue("840");
     expect(
-      within(sampleRate).getByRole("option", { name: /840 hz \(scenario\)/i }),
+      within(sampleRate).getByRole("option", { name: /840 Hz（情境值）/ }),
     ).toBeInTheDocument();
-    expect(within(sampleRate).getByRole("option", { name: /^880 hz$/i })).toBeInTheDocument();
+    expect(within(sampleRate).getByRole("option", { name: /^880 Hz$/ })).toBeInTheDocument();
     const optionValues = within(sampleRate)
       .getAllByRole("option")
       .map((option) => Number((option as HTMLOptionElement).value));
@@ -273,11 +292,11 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=8000&bitDepth=8");
 
-    const plot = screen.getByRole("img", { name: /plot/i });
+    const plot = screen.getByRole("img", { name: /波形图/ });
     const initialEnd = plot.getAttribute("data-time-window-end");
     const initialPoints = plot.querySelectorAll(".sound-original-line circle").length;
 
-    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
+    await user.selectOptions(screen.getByLabelText(/波形窗口/), "1");
     expect(plot.getAttribute("data-time-window-end")).not.toBe(initialEnd);
     expect(plot.querySelectorAll(".sound-original-line circle").length).toBeLessThanOrEqual(360);
     expect(initialPoints).toBeLessThanOrEqual(360);
@@ -291,15 +310,15 @@ describe("Sound reference UI", () => {
     expect(header).not.toBeNull();
     fireEvent.change(cursor, { target: { value: "500.25" } });
 
-    expect(header).toHaveTextContent(/9\.1 ms window/);
-    expect(header).not.toHaveTextContent(/504\.8 ms window/);
+    expect(header).toHaveTextContent(/9\.1 毫秒窗口/);
+    expect(header).not.toHaveTextContent(/504\.8 毫秒窗口/);
   });
 
   it("shows real full-range quantization codes in a bounded preview", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=16");
-    await user.click(button(/^quantization$/i));
-    await user.click(button(/^levels$/i));
+    await user.click(button(/^量化（quantization）$/));
+    await user.click(button(/^量化级别$/));
 
     const evidence = screen.getByTestId("sound-quantization-evidence");
     const levels = evidence.querySelectorAll("[data-level-code]");
@@ -309,7 +328,7 @@ describe("Sound reference UI", () => {
     expect(levels[0]).toHaveAttribute("data-level-value", "-1");
     expect(levels[levels.length - 1]).toHaveAttribute("data-level-code", "65535");
     expect(levels[levels.length - 1]).toHaveAttribute("data-level-value", "1");
-    expect(evidence).toHaveTextContent(/65536 (?:total levels|complete level values)/i);
+    expect(evidence).toHaveTextContent(/共 65536 个量化级别/);
   });
 
   it("keeps pure440 sample markers dense and aligned to dynamic local time", async () => {
@@ -318,8 +337,8 @@ describe("Sound reference UI", () => {
       "/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&view=samples",
     );
 
-    const plot = screen.getByRole("img", { name: /samples plot/i });
-    await user.selectOptions(screen.getByLabelText(/plot window/i), "1");
+    const plot = screen.getByRole("img", { name: /采样点\s*波形图/ });
+    await user.selectOptions(screen.getByLabelText(/波形窗口/), "1");
 
     const startMs = Number(plot.getAttribute("data-time-window-start"));
     const endMs = Number(plot.getAttribute("data-time-window-end"));
@@ -362,7 +381,7 @@ describe("Sound reference UI", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
 
-    await user.selectOptions(control(/^source$/i), "high-pulse");
+    await user.selectOptions(control(/^信号源$/), "high-pulse");
     const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
     expect(Number(cursorInput.getAttribute("step"))).toBeGreaterThan(0);
     expect(Number(cursorInput.getAttribute("step"))).toBeLessThan(1);
@@ -370,7 +389,7 @@ describe("Sound reference UI", () => {
       /\d+\.\d+\s*\/\s*1000 ms/,
     );
 
-    const plot = screen.getByRole("img", { name: /plot/i });
+    const plot = screen.getByRole("img", { name: /波形图/ });
     const initialStart = Number(plot.getAttribute("data-time-window-start"));
     const initialEnd = Number(plot.getAttribute("data-time-window-end"));
     fireEvent.change(cursorInput, { target: { value: "500.25" } });

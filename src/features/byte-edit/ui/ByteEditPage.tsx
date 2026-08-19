@@ -17,12 +17,34 @@ import {
 import "./byte-edit.css";
 
 const scenarioOptions: readonly { value: ByteEditScenarioId; label: string }[] = [
-  { value: "mixed", label: "Mixed text" },
+  { value: "mixed", label: "混合文本" },
   { value: "ascii", label: "ASCII" },
-  { value: "accent", label: "Accented Latin" },
-  { value: "cjk", label: "CJK character" },
-  { value: "emoji", label: "Emoji" },
+  { value: "accent", label: "带重音拉丁字母" },
+  { value: "cjk", label: "CJK 字符" },
+  { value: "emoji", label: "表情符号" },
 ];
+
+const PRESET_LABELS: Record<string, string> = {
+  original: "原始序列",
+  truncated: "截断序列",
+  overlong: "过长编码 A",
+  surrogate: "代理项",
+  "out-of-range": "超出范围",
+  "corrupt-continuation": "损坏的延续字节",
+};
+
+const presetLabel = (id: string) => PRESET_LABELS[id] ?? id;
+
+const DECODE_REASON_LABELS: Record<string, string> = {
+  "byte value out of range": "字节值超出范围",
+  "missing continuation byte": "缺少后续字节",
+  "invalid continuation byte": "无效延续字节",
+  "overlong encoding": "过长编码",
+  "surrogate code point": "代理码点",
+  "code point above U+10FFFF": "码点超出范围",
+  "unexpected continuation byte": "意外的延续字节",
+  "invalid lead byte": "无效起始字节",
+};
 
 const hexBytes = (bytes: readonly number[]) =>
   bytes.map((value) => value.toString(16).padStart(2, "0")).join(" ");
@@ -30,7 +52,7 @@ const hexBytes = (bytes: readonly number[]) =>
 function DecodeEvidence({ decode }: { decode: ReturnType<typeof decodeUtf8> }) {
   return decode.valid ? (
     <p className="be-valid" role="status">
-      Valid UTF-8 → “{decode.characters}” (
+      有效 UTF-8 → “{decode.characters}” (
       {decode.codePoints
         .map((point) => `U+${point.toString(16).toUpperCase().padStart(4, "0")}`)
         .join(" ")}
@@ -38,11 +60,12 @@ function DecodeEvidence({ decode }: { decode: ReturnType<typeof decodeUtf8> }) {
     </p>
   ) : (
     <p className="be-invalid" role="status">
-      Invalid at byte {decode.at}: {decode.reason}
+      无效：第 {decode.at} 个字节被拒绝（
+      {DECODE_REASON_LABELS[decode.reason] ?? decode.reason}
       {decode.offendingByte !== undefined
-        ? ` (offending byte 0x${decode.offendingByte.toString(16).padStart(2, "0").toUpperCase()})`
+        ? `；问题字节 0x${decode.offendingByte.toString(16).padStart(2, "0").toUpperCase()}`
         : ""}
-      .
+      ）。
     </p>
   );
 }
@@ -57,34 +80,34 @@ function FrameTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="be-card" aria-label="Byte edit trace">
+    <section className="be-card" aria-label="字节编辑记录">
       <div className="be-card-heading">
         <div>
-          <p className="eyebrow">EDIT TRACE</p>
-          <h3>One applied edit per frame</h3>
+          <p className="eyebrow">编辑记录</p>
+          <h3>每帧应用一次编辑</h3>
         </div>
-        <span>{frames.length} frames</span>
+        <span>{frames.length} 帧</span>
       </div>
       {frames.length === 0 ? (
-        <p>Apply a byte edit or load a preset to start the trace.</p>
+        <p>应用一次字节编辑或加载样例，开始记录。</p>
       ) : (
         <ol className="be-trace-list">
           {frames.map((frame) => (
             <li key={frame.index}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`Edit ${frame.index + 1}, ${frame.edit.kind === "byte" ? `byte ${frame.edit.byteIndex} to ${frame.edit.value}` : frame.edit.preset}, ${frame.decode.valid ? "valid" : "invalid"}`}
+                aria-label={`第 ${frame.index + 1} 次编辑，${frame.edit.kind === "byte" ? `第 ${frame.edit.byteIndex} 个字节改为 ${frame.edit.value}` : presetLabel(frame.edit.preset)}，${frame.decode.valid ? "有效" : "无效"}`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
               >
-                <strong>Edit {frame.index + 1}</strong>
+                <strong>编辑 {frame.index + 1}</strong>
                 <span>
                   {frame.edit.kind === "byte"
-                    ? `byte ${frame.edit.byteIndex} → ${frame.edit.value}`
-                    : BYTE_EDIT_PRESETS[frame.edit.preset].label}
+                    ? `第 ${frame.edit.byteIndex} 个字节 → ${frame.edit.value}`
+                    : presetLabel(frame.edit.preset)}
                 </span>
-                <small>{frame.decode.valid ? "valid" : "invalid"}</small>
+                <small>{frame.decode.valid ? "有效" : "无效"}</small>
               </button>
             </li>
           ))}
@@ -97,44 +120,46 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
   if (!frame) {
     return (
-      <section className="be-card" aria-label="Selected byte edit evidence">
-        <p className="eyebrow">SELECTED EVIDENCE</p>
-        <h3>Apply an edit to inspect it</h3>
-        <p>The selected edit will show before/after bytes and the full-sequence decode result.</p>
+      <section className="be-card" aria-label="选中字节编辑证据">
+        <p className="eyebrow">选中证据</p>
+        <h3>应用一次编辑，检查结果</h3>
+        <p>选中的编辑会显示编辑前后的字节，以及完整序列的解码结果。</p>
       </section>
     );
   }
   return (
-    <section className="be-card" aria-label="Selected byte edit evidence">
+    <section className="be-card" aria-label="选中字节编辑证据">
       <div className="be-card-heading">
         <div>
-          <p className="eyebrow">SELECTED EVIDENCE</p>
+          <p className="eyebrow">选中证据</p>
           <h3>
             {frame.edit.kind === "byte"
-              ? `Byte ${frame.edit.byteIndex} → ${frame.edit.value}`
-              : BYTE_EDIT_PRESETS[frame.edit.preset].label}
+              ? `第 ${frame.edit.byteIndex} 个字节 → ${frame.edit.value}`
+              : presetLabel(frame.edit.preset)}
           </h3>
         </div>
         <span className="be-mono">{hexBytes(frame.after.bytes)}</span>
       </div>
       {frame.predictedValid !== undefined ? (
         <p role="status">
-          Predicted {frame.predictedValid ? "valid" : "invalid"}; observed{" "}
-          {frame.decode.valid ? "valid" : "invalid"}.
+          预测：{frame.predictedValid ? "有效" : "无效"}；观察：
+          {frame.decode.valid ? "有效" : "无效"}。
         </p>
       ) : null}
       <dl className="be-facts">
         <div>
-          <dt>Bytes before</dt>
+          <dt>编辑前字节</dt>
           <dd className="be-mono">{hexBytes(frame.before.bytes)}</dd>
         </div>
         <div>
-          <dt>Bytes after</dt>
+          <dt>编辑后字节</dt>
           <dd className="be-mono">{hexBytes(frame.after.bytes)}</dd>
         </div>
       </dl>
       <DecodeEvidence decode={frame.decode} />
-      {frame.edit.kind === "preset" ? <p>{BYTE_EDIT_PRESETS[frame.edit.preset].note}</p> : null}
+      {frame.edit.kind === "preset" ? (
+        <p>该样例用于观察解码器如何拒绝或接受固定字节序列。</p>
+      ) : null}
     </section>
   );
 }
@@ -155,63 +180,60 @@ function ByteEditContent({
     <div className="be-page">
       <header className="be-hero">
         <div>
-          <p className="eyebrow">BYTE EDIT · FINITE REPRESENTATION</p>
-          <h2>What happens when you edit one byte?</h2>
-          <p>
-            Change a byte of a known UTF-8 sequence, or load a preset, and read the exact validity
-            rule the decoder applies.
-          </p>
+          <p className="eyebrow">字节编辑 · 有限表示</p>
+          <h2>编辑一个字节时会发生什么？</h2>
+          <p>修改已知 UTF-8 序列中的一个字节，或加载固定样例，观察解码器应用的有效性规则。</p>
         </div>
-        <div className="be-fixture-card" aria-label="Byte edit fixture">
-          <span>FIXTURE</span>
+        <div className="be-fixture-card" aria-label="字节编辑样例">
+          <span>样例</span>
           <strong>{option.label}</strong>
           <small className="be-mono">{hexBytes(scenario.bytes)}</small>
         </div>
       </header>
 
       <div className="be-layout">
-        <aside className="be-controls" aria-label="Byte edit controls">
+        <aside className="be-controls" aria-label="字节编辑控制">
           <section className="be-card">
-            <p className="eyebrow">PREDICT</p>
-            <h3>Will the edited sequence stay valid?</h3>
-            <label htmlFor="be-prediction">Validity</label>
+            <p className="eyebrow">预测</p>
+            <h3>编辑后的序列仍有效吗？</h3>
+            <label htmlFor="be-prediction">有效性</label>
             <select
               id="be-prediction"
               onChange={(event) => dispatch({ type: "set-prediction", value: event.target.value })}
               value={lesson.predictionDraft}
             >
-              <option value="">Choose one</option>
-              <option value="valid">Stays valid</option>
-              <option value="invalid">Becomes invalid</option>
+              <option value="">请选择</option>
+              <option value="valid">仍有效</option>
+              <option value="invalid">变为无效</option>
             </select>
-            <p id="be-prediction-help">Prediction is optional and never blocks an edit.</p>
+            <p id="be-prediction-help">预测可选，也不会阻止编辑。</p>
             <button
               className="be-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
               type="button"
             >
-              Record prediction
+              记录预测
             </button>
-            {lesson.predictionMessage ? <p role="status">{lesson.predictionMessage}</p> : null}
+            {lesson.predictionMessage ? <p role="status">预测已记录；编辑仍可继续。</p> : null}
           </section>
 
           <section className="be-card">
-            <p className="eyebrow">EDIT</p>
-            <h3>Change one byte</h3>
-            <label htmlFor="be-index">Byte index</label>
+            <p className="eyebrow">编辑</p>
+            <h3>修改一个字节</h3>
+            <label htmlFor="be-index">字节索引</label>
             <select
               id="be-index"
               onChange={(event) => dispatch({ type: "set-edit-index", value: event.target.value })}
               value={lesson.editIndexDraft}
             >
-              <option value="">Choose one</option>
+              <option value="">请选择</option>
               {lesson.machine.bytes.map((value, index) => (
                 <option key={index} value={index}>
-                  {index} (currently {value})
+                  {index}（当前为 {value}）
                 </option>
               ))}
             </select>
-            <label htmlFor="be-value">New value (0–255)</label>
+            <label htmlFor="be-value">新值（0–255）</label>
             <input
               id="be-value"
               min={0}
@@ -225,13 +247,13 @@ function ByteEditContent({
               onClick={() => dispatch({ type: "apply-edit" })}
               type="button"
             >
-              Apply edit
+              应用编辑
             </button>
           </section>
 
           <section className="be-card">
-            <p className="eyebrow">PRESETS</p>
-            <h3>Load a known sequence</h3>
+            <p className="eyebrow">固定样例</p>
+            <h3>加载已知序列</h3>
             <div className="be-preset-grid">
               {Object.values(BYTE_EDIT_PRESETS).map((preset) => (
                 <button
@@ -240,16 +262,16 @@ function ByteEditContent({
                   onClick={() => dispatch({ type: "apply-preset", preset: preset.id })}
                   type="button"
                 >
-                  {preset.label}
+                  {presetLabel(preset.id)}
                 </button>
               ))}
             </div>
           </section>
 
           <section className="be-card">
-            <p className="eyebrow">FIXTURE</p>
-            <h3>Choose text</h3>
-            <label htmlFor="be-scenario">Byte edit fixture</label>
+            <p className="eyebrow">样例</p>
+            <h3>选择文本</h3>
+            <label htmlFor="be-scenario">字节编辑样例</label>
             <select
               id="be-scenario"
               onChange={(event) =>
@@ -271,15 +293,15 @@ function ByteEditContent({
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
-              Reset to URL scenario
+              恢复初始情境
             </button>
           </section>
         </aside>
 
         <div className="be-main-column">
-          <section className="be-card be-status-card" aria-label="Current byte sequence">
+          <section className="be-card be-status-card" aria-label="当前字节序列">
             <div>
-              <p className="eyebrow">CURRENT SEQUENCE</p>
+              <p className="eyebrow">当前序列</p>
               <strong className="be-mono">{hexBytes(lesson.machine.bytes)}</strong>
             </div>
             <DecodeEvidence decode={currentDecode} />
@@ -310,7 +332,7 @@ export function ByteEditPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell eyebrow="Byte Edit" title="字节编辑" subtitle="one byte changes meaning">
+    <LabShell eyebrow="字节编辑" title="字节编辑" subtitle="一个字节改变含义">
       <ByteEditContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

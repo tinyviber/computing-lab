@@ -7,7 +7,7 @@ export function HomePage() {
     <div className="home-page">
       <header className="home-header">
         <div>
-          <p className="eyebrow">COMPUTING LAB / LOCAL</p>
+          <p className="eyebrow">计算实验室 · 本地运行</p>
           <h1>交互式计算实验</h1>
           <p className="home-lede">
             用可观察、可调整的实验理解信息编码与网络配置。无需账号，状态留在浏览器里。
@@ -20,10 +20,10 @@ export function HomePage() {
       <section aria-labelledby="lab-catalog-title">
         <div className="section-heading catalog-heading">
           <div>
-            <p className="eyebrow">LAB REGISTRY</p>
+            <p className="eyebrow">实验目录</p>
             <h2 id="lab-catalog-title">选择一个实验</h2>
           </div>
-          <span className="summary-note">{labs.length} labs / local-first</span>
+          <span className="summary-note">{labs.length} 个实验 · 本地优先</span>
         </div>
         <div className="lab-card-grid">
           {labs.map((lab) => (
@@ -43,7 +43,7 @@ export function HomePage() {
       </section>
       <footer className="home-footer">
         <span className="local-dot" aria-hidden="true" />
-        <span>All calculations run locally in your browser.</span>
+        <span>所有计算都在浏览器本地完成。</span>
       </footer>
     </div>
   );

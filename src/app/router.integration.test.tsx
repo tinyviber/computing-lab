@@ -13,56 +13,56 @@ describe("application router integration", () => {
       "image lesson",
       "/labs/image-encoding?image=checkerboard&sample=25&bits=2&view=representation",
       /图像编码 workspace/i,
-      /12 by 8 encoded sample grid/i,
+      /12 × 8 编码采样网格/,
     ],
     [
       "audio lesson",
       "/labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12",
       /声音编码 workspace/i,
-      /high-pulse|16.?000|12.?bit/i,
+      /高频脉冲|16.?000|12.?bit/i,
     ],
     [
       "network lesson",
       "/labs/home-network?scenario=wrong-gateway",
       /家庭网络探针 workspace/i,
-      /Send probe|事件链/i,
+      /发送探针|事件链/,
     ],
     [
       "two's-complement lesson",
       "/labs/twos-complement?width=4&a=0111&b=0001&reading=signed",
       /二进制补码 workspace/i,
-      /Signed overflow: yes/i,
+      /有符号溢出：有/,
     ],
     [
       "program execution lesson",
       "/labs/program-execution?fixture=zero-iterations",
       /程序执行 workspace/i,
-      /Step|Program source/i,
+      /执行一步|程序步骤/,
     ],
     [
       "protocol process lesson",
       "/labs/protocol-process?scenario=request-loss",
-      /Protocol Process workspace/i,
-      /Run to completion|Message scenario/i,
+      /可靠送达 workspace/i,
+      /运行到结束|消息情境/,
     ],
-    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 workspace/i, /Run to end|UTF-8 fixture/i],
+    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 编码 workspace/i, /运行到结束|UTF-8 样例/],
     [
       "Monte Carlo lesson",
       "/labs/monte-carlo?scenario=small",
-      /Monte Carlo π workspace/i,
-      /Run to end|Monte Carlo fixture/i,
+      /蒙特卡洛 π workspace/,
+      /运行到结束|蒙特卡洛样例/,
     ],
     [
       "relational data lesson",
       "/labs/relational-data",
       /关系数据 workspace/i,
-      /Run to end|Relational fixture/i,
+      /运行到结束|关系数据情境/,
     ],
     [
       "byte edit lesson",
       "/labs/byte-edit?scenario=accent",
       /字节编辑 workspace/i,
-      /Apply edit|Byte edit fixture/i,
+      /应用编辑|字节编辑样例/,
     ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
     await renderAppAt(entry);
@@ -73,31 +73,29 @@ describe("application router integration", () => {
       expect(document.body).toHaveTextContent(expected);
     } else if (_name === "network lesson") {
       expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: /发送探针/ })).toBeInTheDocument();
       expect(screen.getByRole("region", { name: /事件链/i })).toBeInTheDocument();
     } else if (_name === "program execution lesson") {
-      expect(screen.getByRole("button", { name: "Step" })).toBeInTheDocument();
-      expect(screen.getByRole("list", { name: "Program source" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "执行一步" })).toBeInTheDocument();
+      expect(screen.getByRole("list", { name: "程序步骤" })).toBeInTheDocument();
     } else if (_name === "protocol process lesson") {
-      expect(screen.getByRole("button", { name: "Run to completion" })).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /message scenario/i })).toHaveValue(
-        "request-loss",
-      );
+      expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /消息情境/i })).toHaveValue("request-loss");
     } else if (_name === "UTF-8 lesson") {
-      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("emoji");
+      expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("emoji");
     } else if (_name === "Monte Carlo lesson") {
-      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("small");
+      expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("small");
     } else if (_name === "relational data lesson") {
-      expect(screen.getByRole("button", { name: "Run to end" })).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /relational fixture/i })).toHaveValue("catalog");
+      expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /关系数据情境/i })).toHaveValue("catalog");
     } else if (_name === "byte edit lesson") {
-      expect(screen.getByRole("button", { name: "Apply edit" })).toBeInTheDocument();
-      expect(screen.getByRole("combobox", { name: /byte edit fixture/i })).toHaveValue("accent");
+      expect(screen.getByRole("button", { name: "应用编辑" })).toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("accent");
     } else {
       expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
-      expect(screen.getByRole("button", { name: "A, bit 3, 0" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "A，第 3 位，0" })).toBeInTheDocument();
     }
   });
 
@@ -107,16 +105,16 @@ describe("application router integration", () => {
       "/computing-lab",
     );
     expect(document.querySelector("h1")).toHaveTextContent("图像编码");
-    expect(screen.getByRole("grid", { name: /12 by 8 encoded sample grid/i })).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
   });
 
   it("changes image lesson state when the same route receives a new search", async () => {
     const { router } = await renderAppAt("/labs/image-encoding");
-    expect(screen.getByRole("grid", { name: /24 by 16 encoded sample grid/i })).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: /24 × 16 编码采样网格/ })).toBeInTheDocument();
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
-    expect(screen.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
-    expect(screen.getByRole("img", { name: /pixel error map/i })).toBeInTheDocument();
-    expect(document.body).toHaveTextContent("12 × 8 × 2 = 192 bits");
+    expect(screen.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
+    expect(screen.getByRole("img", { name: /像素误差图/ })).toBeInTheDocument();
+    expect(document.body).toHaveTextContent("12 × 8 × 2 = 192 位");
   });
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {
@@ -135,7 +133,7 @@ describe("application router integration", () => {
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
     await navigateApp(router, "/labs/home-network?scenario=wrong-gateway");
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
-    await userEvent.setup().click(screen.getByRole("button", { name: /send probe/i }));
+    await userEvent.setup().click(screen.getByRole("button", { name: /发送探针/ }));
     expect(screen.getByRole("region", { name: /事件链/i })).toHaveTextContent(
       /gateway-unresolved|gateway|arp/i,
     );
@@ -143,11 +141,11 @@ describe("application router integration", () => {
 
   it("refreshes the UTF-8 reset baseline when the same route receives a new search", async () => {
     const { router } = await renderAppAt("/labs/utf8?scenario=emoji");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Run to end" }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "运行到结束" }));
     await navigateApp(router, "/labs/utf8?scenario=ascii");
-    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
-    await userEvent.setup().click(screen.getByRole("button", { name: "Reset to URL scenario" }));
-    expect(screen.getByRole("combobox", { name: /UTF-8 fixture/i })).toHaveValue("ascii");
+    expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("ascii");
+    await userEvent.setup().click(screen.getByRole("button", { name: "恢复初始情境" }));
+    expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("ascii");
   });
 
   it("navigates between lessons through real router links without a document reload", async () => {
@@ -159,7 +157,7 @@ describe("application router integration", () => {
     await user.click(document.querySelector('a.lab-link[href="/labs/home-network"]')!);
     await router.load();
     expect(document.querySelector("h1")).toHaveTextContent("家庭网络探针");
-    expect(screen.getByRole("button", { name: /send probe/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /发送探针/ })).toBeInTheDocument();
   });
 
   it.each([

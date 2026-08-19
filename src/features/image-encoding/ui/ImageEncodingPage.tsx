@@ -40,26 +40,36 @@ type CanvasViewProps = {
 };
 
 const VIEW_LABELS: Record<ImageView, string> = {
-  compare: "Compare source / reconstruction",
-  sampling: "Sampling reconstruction",
-  quantization: "Quantization reconstruction",
-  representation: "Encoded representation",
-  error: "Visible error map",
+  compare: "对比：原图 / 重建图",
+  sampling: "采样重建",
+  quantization: "量化重建",
+  representation: "编码表示",
+  error: "可见误差图",
 };
+
+function imageFixtureLabel(id: ImageFixtureId): string {
+  return {
+    photo: "受控彩色场景",
+    gradient: "平滑色彩渐变",
+    checkerboard: "细棋盘格",
+    "text-edge": "文字与细线边缘",
+    "pixel-grid": "可追踪像素图",
+  }[id];
+}
 
 export function phaseControlDescription(geometry: SamplingGeometry): string {
   const xFullDensity = geometry.x.sampledSize >= geometry.x.sourceSize;
   const yFullDensity = geometry.y.sampledSize >= geometry.y.sourceSize;
   if (xFullDensity && yFullDensity) {
-    return "Both axes are already sampled at full source density, so phase is fixed at 0.";
+    return "两个方向都已达到原图采样密度，因此网格相位固定为 0。";
   }
   if (xFullDensity) {
-    return `Horizontal: full density (${geometry.x.sampledSize}/${geometry.x.sourceSize}) · phase fixed at 0. Vertical: ${geometry.y.sampledSize}/${geometry.y.sourceSize} samples · phase ${geometry.y.effectivePhase.toFixed(2)}.`;
+    return `水平：完整密度（${geometry.x.sampledSize}/${geometry.x.sourceSize}）· 相位固定为 0。垂直：${geometry.y.sampledSize}/${geometry.y.sourceSize} 个采样 · 相位 ${geometry.y.effectivePhase.toFixed(2)}。`;
   }
   if (yFullDensity) {
-    return `Vertical: full density (${geometry.y.sampledSize}/${geometry.y.sourceSize}) · phase fixed at 0. Horizontal: ${geometry.x.sampledSize}/${geometry.x.sourceSize} samples · phase ${geometry.x.effectivePhase.toFixed(2)}.`;
+    return `垂直：完整密度（${geometry.y.sampledSize}/${geometry.y.sourceSize}）· 相位固定为 0。水平：${geometry.x.sampledSize}/${geometry.x.sourceSize} 个采样 · 相位 ${geometry.x.effectivePhase.toFixed(2)}。`;
   }
-  return "Move both sampling axes within one cell to expose phase-sensitive patterns.";
+  return "在一个采样格内移动两个方向的网格，观察对相位敏感的图案如何变化。";
 }
 
 function drawRaster(
@@ -124,7 +134,7 @@ function CanvasView({
   return (
     <div className="image-canvas-frame">
       <canvas
-        aria-label={`${label}; use arrow keys to inspect nearby pixels`}
+        aria-label={`${label}；可用方向键检查附近像素`}
         className="image-canvas"
         height={raster.height}
         onClick={(event) => onPick(clickCoordinate(event, raster))}
@@ -135,7 +145,7 @@ function CanvasView({
         width={raster.width}
       />
       <span className="canvas-caption">
-        {raster.width} × {raster.height} display pixels
+        {raster.width} × {raster.height} 个显示像素
       </span>
     </div>
   );
@@ -155,7 +165,7 @@ function clickCoordinate(event: MouseEvent<HTMLCanvasElement>, raster: RasterIma
 function readUploadedImage(file: File): Promise<RasterImage> {
   return new Promise((resolve, reject) => {
     if (typeof Image === "undefined" || typeof URL.createObjectURL !== "function") {
-      reject(new Error("This browser cannot decode local image uploads."));
+      reject(new Error("当前浏览器无法解码本地上传的图像。"));
       return;
     }
     const objectUrl = URL.createObjectURL(file);
@@ -172,7 +182,7 @@ function readUploadedImage(file: File): Promise<RasterImage> {
         canvas.width = width;
         canvas.height = height;
         const context = canvas.getContext("2d");
-        if (!context) throw new Error("Canvas decoding is unavailable.");
+        if (!context) throw new Error("Canvas 解码不可用。");
         context.drawImage(image, 0, 0, width, height);
         const data = context.getImageData(0, 0, width, height).data;
         const pixels = Array.from({ length: width * height }, (_, index) => ({
@@ -190,16 +200,14 @@ function readUploadedImage(file: File): Promise<RasterImage> {
           sourceDimensions: { width: originalWidth, height: originalHeight },
         });
       } catch (error) {
-        reject(
-          error instanceof Error ? error : new Error("The selected image could not be decoded."),
-        );
+        reject(error instanceof Error ? error : new Error("所选图像无法解码。"));
       } finally {
         URL.revokeObjectURL(objectUrl);
       }
     };
     image.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error("The selected image could not be decoded."));
+      reject(new Error("所选图像无法解码。"));
     };
     image.src = objectUrl;
   });
@@ -314,11 +322,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       dispatch({ type: "load-source", source });
       const original = source.sourceDimensions ?? { width: source.width, height: source.height };
       setUploadMessage(
-        `已载入 ${source.label}（原图 ${original.width} × ${original.height}；working raster ${source.width} × ${source.height}）`,
+        `已载入 ${source.label}（原图 ${original.width} × ${original.height}；工作栅格 ${source.width} × ${source.height}）`,
       );
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "The selected image could not be decoded.";
+      const message = error instanceof Error ? error.message : "所选图像无法解码。";
       dispatch({ type: "decode-error", message });
       setUploadMessage(undefined);
     }
@@ -332,29 +339,31 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
   return (
     <LabShell
-      eyebrow="IMAGE / 01"
+      eyebrow="图像 / 01"
       title="图像编码"
-      subtitle="Sampling, quantization and reconstruction"
+      subtitle="采样（sampling）、量化（quantization）与重建（reconstruction）"
     >
       <div className="image-course">
         <header className="image-course-intro">
           <div>
-            <p className="eyebrow">MECHANISM LAB</p>
+            <p className="eyebrow">机制实验</p>
             <h2>从真实图像到有限的像素编码</h2>
             <p>
               先改变空间采样密度，再限制每个采样像素可使用的颜色状态。重建图像始终保持与原图相同的显示尺寸，方便区分“网页缩小”和“编码后像素化”。
             </p>
           </div>
-          <div className="source-meta" aria-label="Current image source">
-            <span>
-              {lesson.source.sourceKind === "upload" ? "UPLOADED IMAGE" : "LOCAL FIXTURE"}
-            </span>
-            <strong>{lesson.source.label}</strong>
+          <div className="source-meta" aria-label="当前图像来源">
+            <span>{lesson.source.sourceKind === "upload" ? "已上传图像" : "本地样例"}</span>
+            <strong>
+              {lesson.source.sourceKind === "fixture"
+                ? imageFixtureLabel(lesson.source.id)
+                : lesson.source.label}
+            </strong>
             <small>
               {lesson.source.sourceDimensions
-                ? `original ${lesson.source.sourceDimensions.width} × ${lesson.source.sourceDimensions.height}; working raster `
+                ? `原始 ${lesson.source.sourceDimensions.width} × ${lesson.source.sourceDimensions.height}；工作栅格 `
                 : ""}
-              {lesson.source.width} × {lesson.source.height} pixels
+              {lesson.source.width} × {lesson.source.height} 像素
             </small>
           </div>
         </header>
@@ -364,16 +373,16 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">SOURCE MATERIAL</p>
-                  <h3 id="source-heading">Choose or upload a source image</h3>
+                  <p className="eyebrow">源素材</p>
+                  <h3 id="source-heading">选择或上传源图像</h3>
                 </div>
                 <button className="button button-secondary" onClick={reset} type="button">
-                  Reset scenario
+                  恢复样例情境
                 </button>
               </div>
               <div className="source-controls">
                 <label className="select-field" htmlFor="image-fixture">
-                  <span>Built-in material</span>
+                  <span>内置素材</span>
                   <select
                     id="image-fixture"
                     onChange={(event) => changeFixture(event.target.value as ImageFixtureId)}
@@ -383,15 +392,15 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   >
                     {IMAGE_FIXTURE_LIST.map((fixture) => (
                       <option key={fixture.id} value={fixture.id}>
-                        {fixture.label}
+                        {imageFixtureLabel(fixture.id)}
                       </option>
                     ))}
                   </select>
                 </label>
                 <label className="upload-field">
-                  <span>Upload a real image</span>
+                  <span>上传真实图像</span>
                   <input accept="image/*" onChange={handleUpload} type="file" />
-                  <small>Decode stays local; uploaded pixels are not written to the URL.</small>
+                  <small>解码仅在本地进行；上传像素不会写入 URL。</small>
                 </label>
               </div>
               {uploadMessage ? (
@@ -409,30 +418,28 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card image-compare-card" aria-labelledby="compare-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">LIVE RECONSTRUCTION</p>
-                  <h3 id="compare-heading">Source → sampled values → quantized reconstruction</h3>
-                  <p className="image-card-description">
-                    Click either image to inspect the same physical display coordinate.
-                  </p>
+                  <p className="eyebrow">实时重建</p>
+                  <h3 id="compare-heading">原图 → 采样值 → 量化重建</h3>
+                  <p className="image-card-description">点击任一图像，检查同一个物理显示坐标。</p>
                 </div>
-                <span className="display-size-chip">same display size</span>
+                <span className="display-size-chip">显示尺寸相同</span>
               </div>
               <div className="canvas-compare-grid">
                 <div>
-                  <h4>Source image</h4>
+                  <h4>原图</h4>
                   <CanvasView
                     canvasRef={sourceCanvasRef}
-                    label="Original source image"
+                    label="原始源图像"
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}
                   />
                 </div>
                 <div>
-                  <h4>Reconstructed image</h4>
+                  <h4>重建图像</h4>
                   <CanvasView
                     canvasRef={reconstructionCanvasRef}
-                    label="Reconstructed image from sampled and quantized values"
+                    label="由采样值和量化值重建的图像"
                     onPick={chooseCanvasPixel}
                     raster={model.reconstructed}
                     selectedCoordinate={lesson.selectedCoordinate}
@@ -441,14 +448,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               </div>
               <div className="loss-strip">
                 <span>
-                  <b>Spatial loss</b> {model.sampled.width} × {model.sampled.height} encoded samples
+                  <b>空间损失</b> {model.sampled.width} × {model.sampled.height} 个编码采样
                 </span>
                 <span>
-                  <b>Color loss</b> {model.quantized.palette.length} states · sampled RGB error{" "}
+                  <b>颜色损失</b> {model.quantized.palette.length} 个状态 · 采样 RGB 误差{" "}
                   {(model.averageQuantizationError * 100).toFixed(1)}%
                 </span>
                 <span>
-                  <b>Changed display pixels</b> {model.changedPixelCount.toLocaleString()}
+                  <b>发生变化的显示像素</b> {model.changedPixelCount.toLocaleString()}
                 </span>
               </div>
             </section>
@@ -456,12 +463,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card image-view-card" aria-labelledby="view-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">EVIDENCE VIEWS</p>
-                  <h3 id="view-heading">Make the representation visible</h3>
+                  <p className="eyebrow">证据视图</p>
+                  <h3 id="view-heading">让表示过程可见</h3>
                 </div>
-                <span className="view-note">Views change what is observed, not the model.</span>
+                <span className="view-note">视图改变观察方式，不改变模型。</span>
               </div>
-              <div className="view-tabs" role="tablist" aria-label="Image encoding evidence views">
+              <div className="view-tabs" role="tablist" aria-label="图像编码证据视图">
                 {(Object.keys(VIEW_LABELS) as ImageView[]).map((view) => (
                   <button
                     aria-selected={lesson.view === view}
@@ -480,21 +487,19 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <CanvasView
                     canvasRef={errorCanvasRef}
                     errorMap={model.errorMap}
-                    label="Pixel error map; brighter orange means a larger RGB difference"
+                    label="像素误差图；橙色越亮表示 RGB 差异越大"
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}
                   />
-                  <p>
-                    每个像素的颜色表示 source 与 reconstructed 的 RGB 距离；它不是浏览器文件的差异。
-                  </p>
+                  <p>每个像素的颜色表示源图与重建图之间的 RGB 距离；它不是浏览器文件大小的差异。</p>
                 </div>
               ) : (
                 <div className="representation-stage">
                   <div
                     className="representation-grid"
                     role="grid"
-                    aria-label={`${model.quantized.width} by ${model.quantized.height} encoded sample grid`}
+                    aria-label={`${model.quantized.width} × ${model.quantized.height} 编码采样网格`}
                     style={{
                       gridTemplateColumns: `repeat(${model.quantized.width}, minmax(0, 1fr))`,
                     }}
@@ -507,7 +512,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         style={colorStyle(
                           lesson.view === "sampling" ? pixel.sourceColor : pixel.quantizedColor,
                         )}
-                        aria-label={`Sample ${pixel.sampleIndex + 1}, source ${rgbToHex(pixel.sourceColor)}, palette index ${pixel.paletteIndex}, encoded ${pixel.encodedBits}`}
+                        aria-label={`采样 ${pixel.sampleIndex + 1}；源色 ${rgbToHex(pixel.sourceColor)}；调色板索引 ${pixel.paletteIndex}；编码值 ${pixel.encodedBits}`}
                         title={`${pixel.encodedBits} · ${pixel.quantizedHex}`}
                       />
                     ))}
@@ -518,10 +523,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                       {lesson.view === "sampling"
                         ? "每个格子代表一个保留的空间采样值；格子数量改变的是空间离散化密度。"
                         : lesson.view === "quantization"
-                          ? "每个格子的颜色来自有限 palette；降低 bit depth 会减少可用状态并产生色带。"
+                          ? "每个格子的颜色来自有限调色板（palette）；降低颜色位深（bit depth）会减少可用状态并产生色带。"
                           : lesson.view === "representation"
-                            ? "这是实际写入的 index representation。点击图像后，右侧 inspector 会显示同一个 index 的 bits。"
-                            : "像素网格把采样值、palette index 与重建颜色并置显示。"}
+                            ? "这是实际写入的索引表示（index representation）。点击图像后，右侧检查器会显示同一个索引的 bits。"
+                            : "像素网格把采样值、调色板索引与重建颜色并置显示。"}
                     </p>
                   </div>
                 </div>
@@ -529,24 +534,21 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             </section>
           </div>
 
-          <aside
-            className="image-side-column"
-            aria-label="Image encoding controls and pixel inspector"
-          >
+          <aside className="image-side-column" aria-label="图像编码控制与像素检查器">
             <section
               className="image-card image-parameter-card"
               aria-labelledby="parameter-heading"
             >
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">ENCODING PARAMETERS</p>
-                  <h3 id="parameter-heading">Change one mechanism at a time</h3>
+                  <p className="eyebrow">编码参数</p>
+                  <h3 id="parameter-heading">一次只改变一个机制</h3>
                 </div>
               </div>
               <RangeField
-                description="How many source positions are retained on each axis."
+                description="每个方向保留多少个源图位置。"
                 id="sampling-percent"
-                label="Spatial sampling"
+                label="空间采样"
                 max={MAX_SAMPLING_PERCENT}
                 min={MIN_SAMPLING_PERCENT}
                 onChange={(value) => dispatch({ type: "set-sampling", samplingPercent: value })}
@@ -558,7 +560,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 description={phaseControlDescription(phaseGeometry)}
                 disabled={phaseIsInert}
                 id="sampling-phase"
-                label="Sampling grid phase"
+                label="采样网格相位"
                 max={MAX_PHASE}
                 min={MIN_PHASE}
                 onChange={(value) => dispatch({ type: "set-phase", phase: value })}
@@ -567,61 +569,60 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={phaseIsInert ? 0 : lesson.phase}
               />
               <RangeField
-                description="Bits stored for the palette index of each sampled pixel."
+                description="每个采样像素的调色板索引所存储的位数。"
                 id="bit-depth"
-                label="Color bit depth"
+                label="颜色位深"
                 max={MAX_BIT_DEPTH}
                 min={MIN_BIT_DEPTH}
                 onChange={(value) => dispatch({ type: "set-bit-depth", bitDepth: value })}
                 step={1}
-                unit=" bit"
+                unit=" 位"
                 value={lesson.bitDepth}
               />
               <p className="control-note">
-                Controls update the sampled representation and reconstruction immediately. There is
-                no submit step or target answer.
+                控件会立即更新采样表示与重建图像；没有提交步骤，也没有预设目标答案。
               </p>
             </section>
 
             <section className="image-card image-payload-card" aria-labelledby="payload-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">ENCODED REPRESENTATION</p>
-                  <h3 id="payload-heading">Theoretical raw payload</h3>
+                  <p className="eyebrow">编码表示</p>
+                  <h3 id="payload-heading">理论原始载荷</h3>
                 </div>
               </div>
               <dl className="payload-list">
                 <div>
-                  <dt>Sampled dimensions</dt>
+                  <dt>采样尺寸</dt>
                   <dd>
                     {model.sampled.width} × {model.sampled.height}
                   </dd>
                 </div>
                 <div>
-                  <dt>Total sampled pixels</dt>
+                  <dt>采样像素总数</dt>
                   <dd>{model.sampled.width * model.sampled.height} px</dd>
                 </div>
                 <div>
-                  <dt>Finite palette states</dt>
-                  <dd>{model.quantized.palette.length} available indexed states</dd>
+                  <dt>有限调色板状态</dt>
+                  <dd>{model.quantized.palette.length} 个可用索引状态</dd>
                 </div>
                 <div>
-                  <dt>Raw payload</dt>
+                  <dt>原始载荷</dt>
                   <dd>
                     {model.rawPayload.width} × {model.rawPayload.height} ×{" "}
-                    {model.rawPayload.bitDepth} = {model.rawPayload.bits} bits
+                    {model.rawPayload.bitDepth} = {model.rawPayload.bits} 位
                   </dd>
                 </div>
                 <div>
-                  <dt>Byte conversion</dt>
+                  <dt>字节换算</dt>
                   <dd>
-                    ceil({model.rawPayload.bits} / 8) = {model.rawPayload.bytes} bytes
+                    ceil({model.rawPayload.bits} / 8) = {model.rawPayload.bytes} 字节
                   </dd>
                 </div>
               </dl>
               <p className="payload-note">
-                这是教学用的 theoretical raw pixel payload，不是 PNG/JPEG 文件大小，不包含 palette
-                table、header、metadata 或 codec compression。
+                这是教学用的理论原始像素载荷，不是 PNG/JPEG
+                文件大小；不包含调色板表、文件头、元数据或编解码压缩。
               </p>
             </section>
 
@@ -631,48 +632,48 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">PIXEL INSPECTOR</p>
-                  <h3 id="inspector-heading">One displayed pixel, all the way to bits</h3>
+                  <p className="eyebrow">像素检查器</p>
+                  <h3 id="inspector-heading">从一个显示像素追踪到 bits</h3>
                 </div>
               </div>
               <div className="inspector-selected-pixel">
                 <span className="inspector-swatch" style={colorStyle(inspection.quantizedColor)} />
                 <div>
                   <strong>
-                    Display coordinate ({inspection.sourceX}, {inspection.sourceY})
+                    显示坐标（{inspection.sourceX}, {inspection.sourceY}）
                   </strong>
-                  <small>Click a source or reconstructed image to change it.</small>
+                  <small>点击原图或重建图像可切换检查位置。</small>
                 </div>
               </div>
               <dl className="pixel-inspection-list">
                 <div>
-                  <dt>Original source color</dt>
+                  <dt>原始源色</dt>
                   <dd>{rgbToHex(inspection.originalColor)}</dd>
                 </div>
                 <div>
-                  <dt>Sample cell</dt>
+                  <dt>采样格</dt>
                   <dd>
                     ({inspection.sampleX}, {inspection.sampleY}) · #{inspection.sampleIndex + 1}
                   </dd>
                 </div>
                 <div>
-                  <dt>Sampled value</dt>
+                  <dt>采样值</dt>
                   <dd>{rgbToHex(inspection.sampledColor)}</dd>
                 </div>
                 <div>
-                  <dt>Quantized palette color</dt>
+                  <dt>量化调色板颜色</dt>
                   <dd>
-                    {rgbToHex(inspection.quantizedColor)} · index {inspection.paletteIndex}
+                    {rgbToHex(inspection.quantizedColor)} · 索引 {inspection.paletteIndex}
                   </dd>
                 </div>
                 <div>
-                  <dt>Encoded value</dt>
+                  <dt>编码值</dt>
                   <dd>
                     <code>{inspection.encodedBits}</code> ({model.quantized.bitDepth} bits)
                   </dd>
                 </div>
                 <div>
-                  <dt>Visible RGB error</dt>
+                  <dt>可见 RGB 误差</dt>
                   <dd>{(inspection.errorMagnitude * 100).toFixed(1)}%</dd>
                 </div>
               </dl>
@@ -681,10 +682,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card palette-card" aria-labelledby="palette-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">PALETTE / INDEX</p>
-                  <h3 id="palette-heading">Finite color states</h3>
+                  <p className="eyebrow">调色板 / 索引</p>
+                  <h3 id="palette-heading">有限颜色状态</h3>
                 </div>
-                <span>{model.quantized.palette.length} available</span>
+                <span>{model.quantized.palette.length} 个可用状态</span>
               </div>
               <div className="palette-list">
                 {model.quantized.palette.map((entry) => (

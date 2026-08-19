@@ -18,11 +18,11 @@ for (const route of routes) {
     expect(response?.status()).toBe(200);
     await expect(page.locator("h1").first()).toHaveText(route.heading);
     if (route.path === "labs/image-encoding") {
-      await expect(page.getByRole("slider", { name: /spatial sampling/i })).toBeVisible();
-      await expect(page.getByRole("img", { name: /reconstructed image/i })).toBeVisible();
+      await expect(page.getByRole("slider", { name: /空间采样/ })).toBeVisible();
+      await expect(page.getByRole("img", { name: /由采样值和量化值重建的图像/ })).toBeVisible();
     }
     if (route.path === "labs/home-network") {
-      await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
+      await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
       await expect(page.getByRole("region", { name: /事件链/i })).toBeVisible();
     }
     expect(failures, failures.join("\n")).toEqual([]);
@@ -45,19 +45,19 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
   await page.goto("labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2", {
     waitUntil: "networkidle",
   });
-  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
-  await expect(page.getByRole("slider", { name: /color bit depth/i })).toHaveValue("2");
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
+  await expect(page.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
 
   await page.goto("labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12", {
     waitUntil: "networkidle",
   });
-  await expect(page.getByLabel(/sample rate/i)).toHaveValue("16000");
-  await expect(page.getByLabel(/bit depth/i)).toHaveValue("12");
+  await expect(page.getByLabel(/采样频率/)).toHaveValue("16000");
+  await expect(page.getByLabel(/量化位数/)).toHaveValue("12");
 
   await page.goto("labs/home-network?scenario=wrong-gateway", { waitUntil: "networkidle" });
   await expect(page.locator("h1").first()).toHaveText("家庭网络探针");
-  await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
-  await page.getByRole("button", { name: /send probe/i }).click();
+  await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
+  await page.getByRole("button", { name: /发送探针/ }).click();
   await expect(page.getByRole("region", { name: /事件链/i })).toContainText(
     /gateway-unresolved|gateway|arp/i,
   );
@@ -74,7 +74,7 @@ test("navigates between labs with SPA links and restores back/forward state", as
   await expect(page.locator("h1").first()).toHaveText(/声音编码/);
   await page.locator("a.lab-link", { hasText: "家庭网络配置" }).click();
   await expect(page.locator("h1").first()).toHaveText(/家庭网络探针/);
-  await expect(page.getByRole("button", { name: /send probe/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
   await page.goBack();
   await expect(page.locator("h1").first()).toHaveText(/声音编码/);
   await page.goForward();
@@ -87,16 +87,16 @@ test("changes same-route image search through browser navigation and restores it
   await page.goto("labs/image-encoding?image=checkerboard&sample=25&bits=2", {
     waitUntil: "networkidle",
   });
-  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
   await page.goto("labs/image-encoding?image=gradient&sample=75&bits=6", {
     waitUntil: "networkidle",
   });
-  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("75");
-  await expect(page.getByRole("slider", { name: /color bit depth/i })).toHaveValue("6");
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("75");
+  await expect(page.getByRole("slider", { name: /颜色位深/ })).toHaveValue("6");
   await page.goBack();
-  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("25");
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
   await page.goForward();
-  await expect(page.getByRole("slider", { name: /spatial sampling/i })).toHaveValue("75");
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("75");
 });
 
 test("serves a base-prefixed deep link with history fallback", async ({ page }) => {

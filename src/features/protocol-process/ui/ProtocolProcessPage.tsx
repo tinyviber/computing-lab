@@ -23,28 +23,84 @@ const scenarioOptions: readonly {
 }[] = [
   {
     value: "ack-loss",
-    label: "First acknowledgment lost",
-    description: "Receiver accepts once, then suppresses the retry duplicate.",
+    label: "情境 A",
+    description: "固定消息交换，观察确认与重试的先后关系。",
   },
   {
     value: "no-loss",
-    label: "No loss baseline",
-    description: "One request and one acknowledgment complete normally.",
+    label: "情境 B",
+    description: "固定消息交换，观察完整的事件序列。",
   },
   {
     value: "request-loss",
-    label: "First request lost",
-    description: "The sender retries because the receiver never saw attempt one.",
+    label: "情境 C",
+    description: "固定消息交换，观察请求尝试的顺序。",
   },
   {
     value: "receiver-silent",
-    label: "Receiver unavailable",
-    description: "Both requests arrive at an unavailable receiver and attempts are exhausted.",
+    label: "情境 D",
+    description: "固定消息交换，观察事件如何走到结束。",
   },
 ];
 
+const MESSAGE_LABEL = "M42 · MEET AT 3";
+
+const EVENT_KIND_LABELS: Record<ProtocolEventEvidence["kind"], string> = {
+  "send-request": "发送请求",
+  "deliver-request": "送达请求",
+  "send-ack": "发送确认",
+  "deliver-ack": "送达确认",
+  timeout: "超时",
+};
+
+const EVENT_OUTCOME_LABELS: Record<ProtocolEventEvidence["outcome"], string> = {
+  queued: "已排队",
+  accepted: "已接受",
+  "duplicate-suppressed": "重复请求被抑制",
+  "receiver-unavailable": "接收方不可用",
+  dropped: "已丢失",
+  "retry-scheduled": "已安排重试",
+  completed: "已完成",
+  failed: "已失败",
+};
+
+function eventKindLabel(kind: ProtocolEventEvidence["kind"]): string {
+  return EVENT_KIND_LABELS[kind];
+}
+
+function eventOutcomeLabel(outcome: ProtocolEventEvidence["outcome"]): string {
+  return EVENT_OUTCOME_LABELS[outcome];
+}
+
+function eventExplanation(event: ProtocolEventEvidence): string {
+  if (event.kind === "send-request") {
+    return event.outcome === "dropped"
+      ? `第 ${event.attempt} 次请求在送达前丢失。`
+      : `发送方把第 ${event.attempt} 次请求放入通道队列。`;
+  }
+  if (event.kind === "deliver-request") {
+    if (event.outcome === "receiver-unavailable") {
+      return `接收方不可用，第 ${event.attempt} 次请求没有产生确认。`;
+    }
+    return event.outcome === "duplicate-suppressed"
+      ? `接收方已经接受过 ${MESSAGE_LABEL}；第 ${event.attempt} 次重复请求没有再次生效。`
+      : `接收方接受了来自第 ${event.attempt} 次尝试的 ${MESSAGE_LABEL}。`;
+  }
+  if (event.kind === "send-ack") {
+    return `接收方发送了第 ${event.attempt} 个确认，确认对象是 ${MESSAGE_LABEL}。`;
+  }
+  if (event.kind === "deliver-ack") {
+    return event.outcome === "dropped"
+      ? `第 ${event.attempt} 个确认在发送方观察到之前丢失。`
+      : `发送方观察到 ${MESSAGE_LABEL} 的第 ${event.attempt} 个确认。`;
+  }
+  return event.outcome === "retry-scheduled"
+    ? `确认没有到达；系统安排第 ${event.attempt + 1} 次请求重试。`
+    : "达到最大尝试次数后仍没有确认。";
+}
+
 function outcomeText(event: ProtocolEventEvidence): string {
-  return `${event.outcome} · ${event.explanation}`;
+  return `${eventOutcomeLabel(event.outcome)} · ${eventExplanation(event)}`;
 }
 
 function TraceList({
@@ -57,23 +113,23 @@ function TraceList({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="protocol-card protocol-trace-card" aria-label="Protocol event trace">
+    <section className="protocol-card protocol-trace-card" aria-label="协议事件记录">
       <div className="protocol-card-heading">
         <div>
-          <p className="eyebrow">EVENT QUEUE TRACE</p>
-          <h3>Inspect one scheduled event at a time</h3>
+          <p className="eyebrow">事件队列记录</p>
+          <h3>逐个检查已安排的事件</h3>
         </div>
-        <span className="protocol-trace-count">{frames.length} events</span>
+        <span className="protocol-trace-count">{frames.length} 个事件</span>
       </div>
       {frames.length === 0 ? (
-        <p className="protocol-empty-trace">Press Step to process the first request event.</p>
+        <p className="protocol-empty-trace">点击“执行一步”，处理第一个请求事件。</p>
       ) : (
         <ol className="protocol-trace-list">
           {frames.map((frame) => (
             <li key={frame.index}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`Frame ${frame.index + 1}, tick ${frame.event.at}, ${frame.event.kind}: ${outcomeText(frame.event)}`}
+                aria-label={`第 ${frame.index + 1} 步，时刻 ${frame.event.at}，${eventKindLabel(frame.event.kind)}：${outcomeText(frame.event)}`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
@@ -81,9 +137,10 @@ function TraceList({
                 <span className="protocol-trace-index">{frame.index + 1}</span>
                 <span className="protocol-trace-copy">
                   <strong>
-                    tick {frame.event.at} · {frame.event.kind} · attempt {frame.event.attempt}
+                    时刻 {frame.event.at} · {eventKindLabel(frame.event.kind)} · 第{" "}
+                    {frame.event.attempt} 次尝试
                   </strong>
-                  <span>{frame.event.outcome}</span>
+                  <span>{eventOutcomeLabel(frame.event.outcome)}</span>
                 </span>
               </button>
             </li>
@@ -100,23 +157,23 @@ function QueueTable({ snapshot, caption }: { snapshot: ProtocolSnapshot; caption
       <caption>{caption}</caption>
       <thead>
         <tr>
-          <th scope="col">Due tick</th>
-          <th scope="col">Event</th>
-          <th scope="col">Attempt</th>
-          <th scope="col">Sequence</th>
+          <th scope="col">到达时刻</th>
+          <th scope="col">事件</th>
+          <th scope="col">尝试次数</th>
+          <th scope="col">序号</th>
         </tr>
       </thead>
       <tbody>
         {snapshot.queue.length === 0 ? (
           <tr>
-            <th scope="row">Queue</th>
-            <td colSpan={3}>empty</td>
+            <th scope="row">队列</th>
+            <td colSpan={3}>空</td>
           </tr>
         ) : (
           snapshot.queue.map((event) => (
             <tr key={`${event.sequence}-${event.kind}`}>
               <th scope="row">{event.dueAt}</th>
-              <td>{event.kind}</td>
+              <td>{eventKindLabel(event.kind)}</td>
               <td>{event.attempt}</td>
               <td>{event.sequence}</td>
             </tr>
@@ -130,32 +187,32 @@ function QueueTable({ snapshot, caption }: { snapshot: ProtocolSnapshot; caption
 function CounterTable({ snapshot }: { snapshot: ProtocolSnapshot }) {
   return (
     <table className="protocol-table">
-      <caption>Protocol counters after the selected event</caption>
+      <caption>选中事件后的协议计数</caption>
       <thead>
         <tr>
-          <th scope="col">Evidence</th>
-          <th scope="col">Value</th>
+          <th scope="col">证据</th>
+          <th scope="col">数值</th>
         </tr>
       </thead>
       <tbody>
         <tr>
-          <th scope="row">Simulated time</th>
-          <td>{snapshot.now} ticks</td>
+          <th scope="row">当前模拟时间</th>
+          <td>第 {snapshot.now} 个时间单位</td>
         </tr>
         <tr>
-          <th scope="row">Request attempts sent</th>
+          <th scope="row">已发送请求次数</th>
           <td>{snapshot.attemptsSent}</td>
         </tr>
         <tr>
-          <th scope="row">Receiver accepted</th>
+          <th scope="row">接收方接受次数</th>
           <td>{snapshot.acceptedCount}</td>
         </tr>
         <tr>
-          <th scope="row">Duplicate suppressed</th>
+          <th scope="row">被抑制的重复请求</th>
           <td>{snapshot.duplicateCount}</td>
         </tr>
         <tr>
-          <th scope="row">Acknowledgments sent</th>
+          <th scope="row">已发送确认数</th>
           <td>{snapshot.acknowledgmentsSent}</td>
         </tr>
       </tbody>
@@ -166,16 +223,16 @@ function CounterTable({ snapshot }: { snapshot: ProtocolSnapshot }) {
 function ScenarioComparisonTable({ current }: { current: ProtocolScenarioId }) {
   return (
     <table className="protocol-table">
-      <caption>Fixture comparison from the domain's fixed evidence</caption>
+      <caption>基于固定证据的情境比较</caption>
       <thead>
         <tr>
-          <th scope="col">Scenario</th>
-          <th scope="col">Result</th>
-          <th scope="col">Attempts</th>
-          <th scope="col">Accepted</th>
-          <th scope="col">Duplicates</th>
-          <th scope="col">ACKs sent</th>
-          <th scope="col">Final tick</th>
+          <th scope="col">情境</th>
+          <th scope="col">结果</th>
+          <th scope="col">尝试次数</th>
+          <th scope="col">接受次数</th>
+          <th scope="col">重复次数</th>
+          <th scope="col">发送确认数</th>
+          <th scope="col">结束时刻</th>
         </tr>
       </thead>
       <tbody>
@@ -184,7 +241,7 @@ function ScenarioComparisonTable({ current }: { current: ProtocolScenarioId }) {
           return (
             <tr key={option.value} data-current={current === option.value ? "true" : undefined}>
               <th scope="row">{option.label}</th>
-              <td>{summary.status}</td>
+              <td>{summary.status === "delivered" ? "已送达" : "已失败"}</td>
               <td>{summary.attempts}</td>
               <td>{summary.accepted}</td>
               <td>{summary.duplicates}</td>
@@ -201,45 +258,41 @@ function ScenarioComparisonTable({ current }: { current: ProtocolScenarioId }) {
 function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
   if (!frame) {
     return (
-      <section className="protocol-card" aria-label="Selected event evidence">
-        <p className="eyebrow">SELECTED EVIDENCE</p>
-        <h3>Step once to inspect the queue and clock</h3>
-        <p>
-          Each frame records one protocol event, its simulated time, its outcome, and complete
-          before/after queue snapshots.
-        </p>
+      <section className="protocol-card" aria-label="选中事件证据">
+        <p className="eyebrow">选中证据</p>
+        <h3>执行一步，检查队列与时钟</h3>
+        <p>每一步记录一个协议事件、发生时间、结果，以及事件前后的完整队列。</p>
       </section>
     );
   }
 
   return (
-    <section className="protocol-card protocol-evidence-card" aria-label="Selected event evidence">
+    <section className="protocol-card protocol-evidence-card" aria-label="选中事件证据">
       <div className="protocol-card-heading">
         <div>
-          <p className="eyebrow">SELECTED EVIDENCE</p>
+          <p className="eyebrow">选中证据</p>
           <h3>
-            Frame {frame.index + 1} · tick {frame.event.at}
+            第 {frame.index + 1} 步 · 时刻 {frame.event.at}
           </h3>
         </div>
-        <span className="protocol-event-chip">{frame.event.kind}</span>
+        <span className="protocol-event-chip">{eventKindLabel(frame.event.kind)}</span>
       </div>
-      <p className="protocol-explanation">{frame.event.explanation}</p>
+      <p className="protocol-explanation">{eventExplanation(frame.event)}</p>
       <div className="protocol-event-evidence" role="note">
-        <strong>Event outcome</strong>
+        <strong>事件结果</strong>
         <span>
-          {frame.event.outcome} · attempt {frame.event.attempt} · {MESSAGE_LABEL}
+          {eventOutcomeLabel(frame.event.outcome)} · 第 {frame.event.attempt} 次尝试 ·{" "}
+          {MESSAGE_LABEL}
         </span>
       </div>
       <div className="protocol-snapshot-grid">
-        <QueueTable snapshot={frame.before} caption={`Queue before frame ${frame.index + 1}`} />
-        <QueueTable snapshot={frame.after} caption={`Queue after frame ${frame.index + 1}`} />
+        <QueueTable snapshot={frame.before} caption={`第 ${frame.index + 1} 步之前的队列`} />
+        <QueueTable snapshot={frame.after} caption={`第 ${frame.index + 1} 步之后的队列`} />
       </div>
       <CounterTable snapshot={frame.after} />
     </section>
   );
 }
-
-const MESSAGE_LABEL = "M42 · MEET AT 3";
 
 function ProtocolProcessPageContent({
   lesson,
@@ -258,26 +311,26 @@ function ProtocolProcessPageContent({
     <div className="protocol-page">
       <header className="protocol-hero">
         <div>
-          <p className="eyebrow">PROTOCOL PROCESS · RELIABLE DELIVERY</p>
-          <h2>When an acknowledgment is late, what can the sender know?</h2>
+          <p className="eyebrow">协议过程 · 可靠送达</p>
+          <h2>确认迟到时，发送方能知道什么？</h2>
           <p>
-            Follow one message through delay, loss, timeout, retry, duplicate suppression, and
-            acknowledgment. The clock is simulated and every queue change is inspectable.
+            跟踪一条消息经历延迟、丢失、超时、重试、重复抑制与确认的过程。时钟是模拟的，
+            每次队列变化都可以检查。
           </p>
         </div>
-        <div className="protocol-message-card" aria-label="Message definition">
-          <span>MESSAGE</span>
+        <div className="protocol-message-card" aria-label="消息定义">
+          <span>消息</span>
           <strong>{MESSAGE_LABEL}</strong>
-          <small>A sends to B through one abstract channel.</small>
+          <small>A 通过一个抽象通道向 B 发送。</small>
         </div>
       </header>
 
       <div className="protocol-layout">
-        <aside className="protocol-controls" aria-label="Experiment controls">
+        <aside className="protocol-controls" aria-label="实验控制">
           <section className="protocol-card">
-            <p className="eyebrow">PREDICT</p>
-            <h3>Will delivery complete?</h3>
-            <label htmlFor="protocol-prediction">Your prediction</label>
+            <p className="eyebrow">预测</p>
+            <h3>送达会完成吗？</h3>
+            <label htmlFor="protocol-prediction">你的预测</label>
             <select
               aria-describedby="protocol-prediction-help"
               id="protocol-prediction"
@@ -286,11 +339,11 @@ function ProtocolProcessPageContent({
               }
               value={lesson.predictionDraft}
             >
-              <option value="">Choose one</option>
-              <option value="delivered">Delivered</option>
-              <option value="failed">Failed</option>
+              <option value="">请选择</option>
+              <option value="delivered">会送达</option>
+              <option value="failed">会失败</option>
             </select>
-            <label htmlFor="protocol-prediction-attempts">Request attempts</label>
+            <label htmlFor="protocol-prediction-attempts">请求次数</label>
             <select
               id="protocol-prediction-attempts"
               onChange={(event) =>
@@ -298,11 +351,11 @@ function ProtocolProcessPageContent({
               }
               value={lesson.predictionAttemptsDraft}
             >
-              <option value="">Choose one</option>
-              <option value="1">1 attempt</option>
-              <option value="2">2 attempts</option>
+              <option value="">请选择</option>
+              <option value="1">1 次</option>
+              <option value="2">2 次</option>
             </select>
-            <label htmlFor="protocol-timeout-conclusion">At timeout, the sender knows</label>
+            <label htmlFor="protocol-timeout-conclusion">超时发生时，发送方能确定什么？</label>
             <select
               aria-describedby="protocol-prediction-help"
               id="protocol-timeout-conclusion"
@@ -311,28 +364,29 @@ function ProtocolProcessPageContent({
               }
               value={lesson.timeoutConclusionDraft}
             >
-              <option value="">Choose one</option>
-              <option value="status-unknown">Delivery status is still unknown</option>
-              <option value="receiver-failed">The receiver failed</option>
+              <option value="">请选择</option>
+              <option value="status-unknown">送达状态仍未知</option>
+              <option value="receiver-failed">接收方失败</option>
             </select>
             <p id="protocol-prediction-help">
-              Prediction is optional and never blocks Step or Run. A timeout alone does not prove
-              receiver failure.
+              预测可选，也不会阻止执行。先记录猜测，再用事件记录检查它。
             </p>
             <button
               className="protocol-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
               type="button"
             >
-              Record prediction
+              记录预测
             </button>
-            {lesson.predictionMessage ? <p role="status">{lesson.predictionMessage}</p> : null}
+            {lesson.predictionMessage ? (
+              <p role="status">预测已记录；事件记录仍可继续检查。</p>
+            ) : null}
           </section>
 
           <section className="protocol-card">
-            <p className="eyebrow">SCENARIO</p>
-            <h3>Choose the fixed fault</h3>
-            <label htmlFor="protocol-scenario">Message scenario</label>
+            <p className="eyebrow">情境</p>
+            <h3>选择固定故障</h3>
+            <label htmlFor="protocol-scenario">消息情境</label>
             <select
               id="protocol-scenario"
               onChange={(event) =>
@@ -353,8 +407,8 @@ function ProtocolProcessPageContent({
           </section>
 
           <section className="protocol-card protocol-action-card">
-            <p className="eyebrow">INTERVENE</p>
-            <h3>Advance the protocol</h3>
+            <p className="eyebrow">推进</p>
+            <h3>推进协议过程</h3>
             <div className="protocol-action-row">
               <button
                 className="protocol-primary-button"
@@ -362,7 +416,7 @@ function ProtocolProcessPageContent({
                 onClick={() => dispatch({ type: "step" })}
                 type="button"
               >
-                Step
+                执行一步
               </button>
               <button
                 className="protocol-secondary-button"
@@ -370,7 +424,7 @@ function ProtocolProcessPageContent({
                 onClick={() => dispatch({ type: "run-all" })}
                 type="button"
               >
-                Run to completion
+                运行到结束
               </button>
             </div>
             <button
@@ -378,7 +432,7 @@ function ProtocolProcessPageContent({
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
-              Reset to URL scenario
+              恢复初始情境
             </button>
           </section>
 
@@ -386,19 +440,16 @@ function ProtocolProcessPageContent({
             className="protocol-card protocol-guidance-card"
             aria-describedby="protocol-guided-help"
           >
-            <p className="eyebrow">GUIDED INSPECTION</p>
-            <h3>Find the causal turning point</h3>
-            <p id="protocol-guided-help">
-              These controls select evidence that already exists; they do not create a missing
-              event.
-            </p>
+            <p className="eyebrow">引导检查</p>
+            <h3>找到因果转折点</h3>
+            <p id="protocol-guided-help">这些按钮只会选中已经存在的证据，不会凭空创建事件。</p>
             <button
               aria-describedby="protocol-guided-help"
               disabled={!hasFault}
               onClick={() => dispatch({ type: "inspect-first-fault" })}
               type="button"
             >
-              Inspect first fault
+              检查第一个故障
             </button>
             <button
               aria-describedby="protocol-guided-help"
@@ -406,28 +457,34 @@ function ProtocolProcessPageContent({
               onClick={() => dispatch({ type: "inspect-retry" })}
               type="button"
             >
-              Inspect retry
+              检查重试
             </button>
           </section>
         </aside>
 
         <div className="protocol-main-column">
-          <section className="protocol-card protocol-status-card" aria-label="Protocol status">
+          <section className="protocol-card protocol-status-card" aria-label="协议状态">
             <div>
-              <p className="eyebrow">CURRENT STATUS</p>
-              <strong>{lesson.machine.status}</strong>
+              <p className="eyebrow">当前状态</p>
+              <strong>
+                {lesson.machine.status === "running"
+                  ? "运行中"
+                  : lesson.machine.status === "delivered"
+                    ? "已送达"
+                    : "已失败"}
+              </strong>
             </div>
             <dl>
               <div>
-                <dt>Simulated time</dt>
-                <dd>{lesson.machine.now} ticks</dd>
+                <dt>当前模拟时间</dt>
+                <dd>第 {lesson.machine.now} 个时间单位</dd>
               </div>
               <div>
-                <dt>Events processed</dt>
+                <dt>已处理事件</dt>
                 <dd>{lesson.machine.processedEvents}</dd>
               </div>
               <div>
-                <dt>Queue entries</dt>
+                <dt>队列条目</dt>
                 <dd>{lesson.machine.queue.length}</dd>
               </div>
             </dl>
@@ -440,45 +497,55 @@ function ProtocolProcessPageContent({
           />
           <SelectedEvidence frame={selectedFrame} />
 
-          <section className="protocol-card protocol-final-card" aria-label="Final protocol result">
-            <p className="eyebrow">FINAL PROTOCOL RESULT</p>
-            <h3>Final delivery and retry evidence</h3>
+          <section className="protocol-card protocol-final-card" aria-label="最终协议结果">
+            <p className="eyebrow">最终协议结果</p>
+            <h3>最终送达与重试证据</h3>
             <p>
-              Status: <strong>{lesson.machine.status}</strong> · attempts:{" "}
-              {lesson.machine.attemptsSent} · accepted: {lesson.machine.acceptedCount} · duplicates
-              suppressed: {lesson.machine.duplicateCount} · acknowledgments:{" "}
-              {lesson.machine.acknowledgmentsSent}
+              状态：
+              <strong>
+                {lesson.machine.status === "running"
+                  ? "运行中"
+                  : lesson.machine.status === "delivered"
+                    ? "已送达"
+                    : "已失败"}
+              </strong>{" "}
+              · 尝试次数：
+              {lesson.machine.attemptsSent} · 接受次数：{lesson.machine.acceptedCount} · 重复抑制：
+              {lesson.machine.duplicateCount} · 已发送确认： {lesson.machine.acknowledgmentsSent}
             </p>
             {lesson.machine.terminal ? (
-              <p>{lesson.machine.terminal.message}</p>
+              <p>
+                {lesson.machine.terminal.reason === "delivered"
+                  ? `在时刻 ${lesson.machine.terminal.at} 观察到确认，消息完成送达。`
+                  : `在时刻 ${lesson.machine.terminal.at} 达到最大尝试次数，仍未观察到确认。`}
+              </p>
             ) : (
-              <p>Run the exchange to observe its terminal reason.</p>
+              <p>运行消息交换后，才能观察它的结束原因。</p>
             )}
             {lesson.prediction ? (
               <p role="status">
-                Prediction: {lesson.prediction} in {lesson.predictionAttempts} attempt
-                {lesson.predictionAttempts === 1 ? "" : "s"}; observed:{" "}
+                预测：{lesson.prediction === "delivered" ? "会送达" : "会失败"}，预计{" "}
+                {lesson.predictionAttempts} 次；观察结果：{" "}
                 {lesson.machine.status === "delivered"
-                  ? "delivered"
+                  ? "已送达"
                   : lesson.machine.status === "failed"
-                    ? "failed"
-                    : "running"}
-                .{" "}
+                    ? "已失败"
+                    : "运行中"}
+                。{" "}
                 {lesson.timeoutConclusion === "status-unknown"
-                  ? "Timeout claim: status unknown."
-                  : "Timeout claim: receiver failed."}
+                  ? "超时判断：状态未知。"
+                  : "超时判断：接收方失败。"}
               </p>
             ) : null}
           </section>
-          <section className="protocol-card" aria-label="Scenario comparison">
-            <p className="eyebrow">COMPARE FIXTURES</p>
-            <h3>Same message, different causal result</h3>
-            <p>
-              Compare the fixed observations: a timeout can precede successful delivery, duplicate
-              suppression, or exhausted attempts.
-            </p>
-            <ScenarioComparisonTable current={lesson.scenario} />
-          </section>
+          {lesson.frames.length > 0 ? (
+            <section className="protocol-card" aria-label="情境比较">
+              <p className="eyebrow">比较情境</p>
+              <h3>同一条消息，不同的因果结果</h3>
+              <p>比较固定观察结果：超时之后可能成功送达、抑制重复请求，也可能耗尽尝试次数。</p>
+              <ScenarioComparisonTable current={lesson.scenario} />
+            </section>
+          ) : null}
         </div>
       </div>
     </div>
@@ -499,11 +566,7 @@ export function ProtocolProcessPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell
-      eyebrow="PROTOCOL PROCESS"
-      title="Protocol Process"
-      subtitle="reliable delivery under uncertainty"
-    >
+    <LabShell eyebrow="协议过程" title="可靠送达" subtitle="不确定条件下的消息传递">
       <ProtocolProcessPageContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

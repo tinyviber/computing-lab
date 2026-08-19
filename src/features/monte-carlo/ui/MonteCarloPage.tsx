@@ -23,19 +23,19 @@ const scenarioOptions: readonly {
 }[] = [
   {
     value: "medium",
-    label: "Medium sample",
-    description: "Seed 2024, 10,000 samples, 40 batches.",
+    label: "中等样本",
+    description: "种子 2024，10,000 个样本，40 个批次。",
   },
-  { value: "small", label: "Small sample", description: "Seed 42, 1,000 samples, 4 batches." },
+  { value: "small", label: "小样本", description: "种子 42，1,000 个样本，4 个批次。" },
   {
     value: "large",
-    label: "Large sample",
-    description: "Seed 271828, 100,000 samples, 400 batches.",
+    label: "大样本",
+    description: "种子 271828，100,000 个样本，400 个批次。",
   },
   {
     value: "same-n-different-seed",
-    label: "Same count, different seed",
-    description: "Seed 11, 10,000 samples: same count as Medium, different trajectory.",
+    label: "样本数相同，不同种子",
+    description: "种子 11，10,000 个样本：数量与中等样本相同，但轨迹不同。",
   },
 ];
 
@@ -45,20 +45,20 @@ const errorText = (value: number) => value.toFixed(4);
 function ConvergenceTable({ frames }: { frames: readonly MonteCarloFrame[] }) {
   return (
     <table className="mc-table">
-      <caption>Convergence by batch</caption>
+      <caption>按批次观察收敛</caption>
       <thead>
         <tr>
-          <th scope="col">Batch</th>
-          <th scope="col">Samples</th>
-          <th scope="col">Inside</th>
-          <th scope="col">Estimate</th>
-          <th scope="col">|Estimate − π|</th>
+          <th scope="col">批次</th>
+          <th scope="col">样本</th>
+          <th scope="col">圆内</th>
+          <th scope="col">估计值</th>
+          <th scope="col">|估计值 − π|</th>
         </tr>
       </thead>
       <tbody>
         {frames.length === 0 ? (
           <tr>
-            <td colSpan={5}>No batches yet.</td>
+            <td colSpan={5}>还没有批次。</td>
           </tr>
         ) : (
           frames.map((frame) => (
@@ -86,30 +86,30 @@ function FrameTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="mc-card" aria-label="Monte Carlo batch trace">
+    <section className="mc-card" aria-label="蒙特卡洛批次记录">
       <div className="mc-card-heading">
         <div>
-          <p className="eyebrow">BATCH TRACE</p>
-          <h3>One batch per frame</h3>
+          <p className="eyebrow">批次记录</p>
+          <h3>每帧处理一个批次</h3>
         </div>
-        <span>{frames.length} frames</span>
+        <span>{frames.length} 帧</span>
       </div>
       {frames.length === 0 ? (
-        <p>Press Step to draw the first 250 random points.</p>
+        <p>点击“执行一步”，生成前 250 个随机点。</p>
       ) : (
         <ol className="mc-trace-list">
           {frames.map((frame) => (
             <li key={frame.batch}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`Batch ${frame.batch}, ${frame.sampleCount} samples, ${frame.insideCount} inside, estimate ${estimateText(frame.estimate)}`}
+                aria-label={`第 ${frame.batch} 批，${frame.sampleCount} 个样本，${frame.insideCount} 个在圆内，估计值 ${estimateText(frame.estimate)}`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
               >
-                <strong>Batch {frame.batch}</strong>
+                <strong>第 {frame.batch} 批</strong>
                 <span>
-                  {frame.sampleCount} samples · {frame.insideCount} inside
+                  {frame.sampleCount} 个样本 · {frame.insideCount} 个在圆内
                 </span>
                 <small>π ≈ {estimateText(frame.estimate)}</small>
               </button>
@@ -124,51 +124,51 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: MonteCarloFrame }) {
   if (!frame) {
     return (
-      <section className="mc-card" aria-label="Selected Monte Carlo evidence">
-        <p className="eyebrow">SELECTED EVIDENCE</p>
-        <h3>Step once to inspect a batch</h3>
-        <p>The selected batch will show cumulative samples, inside count, estimate, and error.</p>
+      <section className="mc-card" aria-label="选中蒙特卡洛证据">
+        <p className="eyebrow">选中证据</p>
+        <h3>执行一步，检查一个批次</h3>
+        <p>选中的批次会显示累计样本、圆内计数、估计值和误差。</p>
       </section>
     );
   }
   return (
-    <section className="mc-card" aria-label="Selected Monte Carlo evidence">
+    <section className="mc-card" aria-label="选中蒙特卡洛证据">
       <div className="mc-card-heading">
         <div>
-          <p className="eyebrow">SELECTED EVIDENCE</p>
+          <p className="eyebrow">选中证据</p>
           <h3>
-            Batch {frame.batch} of {frame.after.samplesDrawn} samples
+            第 {frame.batch} 批，共 {frame.after.samplesDrawn} 个样本
           </h3>
         </div>
-        <span>4 × inside ÷ samples</span>
+        <span>4 × 圆内 ÷ 样本</span>
       </div>
       <dl className="mc-facts">
         <div>
-          <dt>Samples before batch</dt>
+          <dt>批次前样本</dt>
           <dd>{frame.before.samplesDrawn}</dd>
         </div>
         <div>
-          <dt>Samples after batch</dt>
+          <dt>批次后样本</dt>
           <dd>{frame.sampleCount}</dd>
         </div>
         <div>
-          <dt>Inside count before batch</dt>
+          <dt>批次前圆内计数</dt>
           <dd>{frame.before.inside}</dd>
         </div>
         <div>
-          <dt>Inside count after batch</dt>
+          <dt>批次后圆内计数</dt>
           <dd>{frame.insideCount}</dd>
         </div>
         <div>
-          <dt>Inside points in full batch</dt>
+          <dt>整批圆内点数</dt>
           <dd>{frame.batchInsideCount}</dd>
         </div>
         <div>
-          <dt>Running estimate</dt>
+          <dt>当前估计值</dt>
           <dd>{estimateText(frame.estimate)}</dd>
         </div>
         <div>
-          <dt>Running error</dt>
+          <dt>当前误差</dt>
           <dd>{errorText(frame.error)}</dd>
         </div>
       </dl>
@@ -196,53 +196,50 @@ function MonteCarloContent({
     <div className="mc-page">
       <header className="mc-hero">
         <div>
-          <p className="eyebrow">MONTE CARLO · RANDOM SAMPLES</p>
-          <h2>How many random points does it take to find π?</h2>
-          <p>
-            Draw points in a unit square, count how many land inside the quarter circle, and watch
-            the estimate converge.
-          </p>
+          <p className="eyebrow">蒙特卡洛 · 随机采样</p>
+          <h2>需要多少个随机点才能估计 π？</h2>
+          <p>在单位正方形中生成随机点，统计落在四分之一圆内的点，并观察估计值逐步收敛。</p>
         </div>
-        <div className="mc-fixture-card" aria-label="Monte Carlo fixture">
-          <span>FIXTURE</span>
+        <div className="mc-fixture-card" aria-label="蒙特卡洛样例">
+          <span>样例</span>
           <strong>{option.label}</strong>
           <small>
-            seed {fixture.seed} · {fixture.samples.toLocaleString("en-US")} samples ·{" "}
-            {fixture.samples / fixture.batchSize} batches of {fixture.batchSize}
+            种子 {fixture.seed} · {fixture.samples.toLocaleString("en-US")} 个样本 ·{" "}
+            {fixture.samples / fixture.batchSize} 个批次，每批 {fixture.batchSize} 个
           </small>
         </div>
       </header>
 
       <div className="mc-layout">
-        <aside className="mc-controls" aria-label="Monte Carlo experiment controls">
+        <aside className="mc-controls" aria-label="蒙特卡洛实验控制">
           <section className="mc-card">
-            <p className="eyebrow">PREDICT</p>
-            <h3>Where will the estimate land?</h3>
-            <label htmlFor="mc-prediction">Final estimate relative to π</label>
+            <p className="eyebrow">预测</p>
+            <h3>估计值会落在哪里？</h3>
+            <label htmlFor="mc-prediction">最终估计值相对 π 的位置</label>
             <select
               id="mc-prediction"
               onChange={(event) => dispatch({ type: "set-prediction", value: event.target.value })}
               value={lesson.predictionDraft}
             >
-              <option value="">Choose one</option>
-              <option value="above">Above π</option>
-              <option value="below">Below π</option>
+              <option value="">请选择</option>
+              <option value="above">高于 π</option>
+              <option value="below">低于 π</option>
             </select>
-            <p id="mc-prediction-help">Prediction is optional and never blocks Step or Run.</p>
+            <p id="mc-prediction-help">预测可选，也不会阻止执行。</p>
             <button
               className="mc-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
               type="button"
             >
-              Record prediction
+              记录预测
             </button>
-            {lesson.predictionMessage ? <p role="status">{lesson.predictionMessage}</p> : null}
+            {lesson.predictionMessage ? <p role="status">预测已记录；采样仍可继续。</p> : null}
           </section>
 
           <section className="mc-card">
-            <p className="eyebrow">FIXTURE</p>
-            <h3>Choose sample size</h3>
-            <label htmlFor="mc-scenario">Monte Carlo fixture</label>
+            <p className="eyebrow">样例</p>
+            <h3>选择样本规模</h3>
+            <label htmlFor="mc-scenario">蒙特卡洛样例</label>
             <select
               id="mc-scenario"
               onChange={(event) =>
@@ -263,8 +260,8 @@ function MonteCarloContent({
           </section>
 
           <section className="mc-card">
-            <p className="eyebrow">INTERVENE</p>
-            <h3>Advance the sampling</h3>
+            <p className="eyebrow">推进</p>
+            <h3>推进采样</h3>
             <div className="mc-action-row">
               <button
                 className="mc-primary-button"
@@ -272,7 +269,7 @@ function MonteCarloContent({
                 onClick={() => dispatch({ type: "step" })}
                 type="button"
               >
-                Step
+                执行一步
               </button>
               <button
                 className="mc-secondary-button"
@@ -280,7 +277,7 @@ function MonteCarloContent({
                 onClick={() => dispatch({ type: "run-all" })}
                 type="button"
               >
-                Run to end
+                运行到结束
               </button>
             </div>
             <button
@@ -288,28 +285,28 @@ function MonteCarloContent({
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
-              Reset to URL scenario
+              恢复初始情境
             </button>
           </section>
         </aside>
 
         <div className="mc-main-column">
-          <section className="mc-card mc-status-card" aria-label="Monte Carlo sampling status">
+          <section className="mc-card mc-status-card" aria-label="蒙特卡洛采样状态">
             <div>
-              <p className="eyebrow">CURRENT SAMPLING</p>
-              <strong>{lesson.machine.status}</strong>
+              <p className="eyebrow">当前采样</p>
+              <strong>{lesson.machine.status === "complete" ? "已完成" : "进行中"}</strong>
             </div>
             <dl>
               <div>
-                <dt>Samples drawn</dt>
+                <dt>已生成样本</dt>
                 <dd>{lesson.machine.samplesDrawn}</dd>
               </div>
               <div>
-                <dt>Inside quarter circle</dt>
+                <dt>四分之一圆内</dt>
                 <dd>{lesson.machine.inside}</dd>
               </div>
               <div>
-                <dt>Running estimate</dt>
+                <dt>当前估计值</dt>
                 <dd>
                   {lesson.machine.samplesDrawn > 0
                     ? estimateText((4 * lesson.machine.inside) / lesson.machine.samplesDrawn)
@@ -325,50 +322,50 @@ function MonteCarloContent({
           />
           <SelectedEvidence frame={selectedFrame} />
           {selectedFrame ? <MonteCarloGeometry frame={selectedFrame} /> : null}
-          <section className="mc-card" aria-label="Convergence table">
-            <p className="eyebrow">CONVERGENCE</p>
-            <h3>Estimate by batch</h3>
+          <section className="mc-card" aria-label="按批次收敛表">
+            <p className="eyebrow">收敛</p>
+            <h3>按批次观察估计值</h3>
             <div className="mc-table-scroll">
               <ConvergenceTable frames={lesson.frames} />
             </div>
           </section>
-          <section className="mc-card mc-final-card" aria-label="Final Monte Carlo result">
-            <p className="eyebrow">FINAL MONTE CARLO RESULT</p>
-            <h3>Estimate for this fixture</h3>
+          <section className="mc-card mc-final-card" aria-label="最终蒙特卡洛结果">
+            <p className="eyebrow">最终蒙特卡洛结果</p>
+            <h3>这个样例的估计值</h3>
             {finalEstimate === undefined ? (
-              <p>Run the fixture to completion to compare its final estimate.</p>
+              <p>运行样例到结束，比较它的最终估计值。</p>
             ) : (
               <>
-                <output aria-label="Final Monte Carlo estimate">
+                <output aria-label="最终蒙特卡洛估计值">
                   4 × {lesson.machine.inside} ÷ {lesson.machine.samplesDrawn} ≈{" "}
                   {estimateText(finalEstimate)}
                 </output>
                 <p>
-                  Final error {errorText(Math.abs(finalEstimate - Math.PI))} against π ={" "}
-                  {Math.PI.toFixed(4)}.
+                  相对 π = {Math.PI.toFixed(4)} 的最终误差为{" "}
+                  {errorText(Math.abs(finalEstimate - Math.PI))}。
                 </p>
                 {lesson.prediction ? (
                   <p role="status">
-                    Prediction: finishes {lesson.prediction} π; observed estimate{" "}
-                    {estimateText(finalEstimate)} ({finalEstimate > Math.PI ? "above" : "below"} π).
+                    预测：最终值{lesson.prediction === "above" ? "高于" : "低于"} π；观察估计值{" "}
+                    {estimateText(finalEstimate)}（{finalEstimate > Math.PI ? "高于" : "低于"} π）。
                   </p>
                 ) : null}
               </>
             )}
           </section>
-          <section className="mc-card" aria-label="Monte Carlo comparison">
-            <p className="eyebrow">COMPARE</p>
-            <h3>Same count, different seed; more samples, smaller error</h3>
+          <section className="mc-card" aria-label="蒙特卡洛比较">
+            <p className="eyebrow">比较</p>
+            <h3>数量相同但种子不同；样本越多，误差通常越小</h3>
             <div className="mc-table-scroll">
               <table className="mc-table">
-                <caption>Fixture comparison</caption>
+                <caption>样例比较</caption>
                 <thead>
                   <tr>
-                    <th scope="col">Fixture</th>
-                    <th scope="col">Seed</th>
-                    <th scope="col">Samples</th>
-                    <th scope="col">Final estimate</th>
-                    <th scope="col">Final error</th>
+                    <th scope="col">样例</th>
+                    <th scope="col">种子</th>
+                    <th scope="col">样本</th>
+                    <th scope="col">最终估计值</th>
+                    <th scope="col">最终误差</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -385,9 +382,7 @@ function MonteCarloContent({
               </table>
             </div>
             <p className="mc-claim">
-              Observed final error shrinks with more samples for these fixtures; the batch table
-              shows the per-batch wobble, and the same-count pair shows the seed-dependent
-              trajectory.
+              在这些样例中，样本增加时最终误差通常变小；批次表显示每批波动，样本数相同的样例显示种子带来的轨迹差异。
             </p>
           </section>
         </div>
@@ -410,7 +405,7 @@ export function MonteCarloPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell eyebrow="Monte Carlo" title="Monte Carlo π" subtitle="random points converge">
+    <LabShell eyebrow="蒙特卡洛" title="蒙特卡洛 π" subtitle="随机点逐步收敛">
       <MonteCarloContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

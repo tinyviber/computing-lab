@@ -19,17 +19,16 @@ export function MonteCarloGeometry({ frame }: { frame: MonteCarloFrame }) {
   const batchOutside = batchTotal - frame.batchInsideCount;
 
   return (
-    <section className="mc-card mc-geometry-card" aria-label="Monte Carlo geometry evidence">
+    <section className="mc-card mc-geometry-card" aria-label="蒙特卡洛几何证据">
       <div className="mc-card-heading">
         <div>
-          <p className="eyebrow">GEOMETRIC MECHANISM</p>
-          <h3>Why inside ÷ total estimates π ÷ 4</h3>
+          <p className="eyebrow">几何机制</p>
+          <h3>为什么圆内 ÷ 总数可以估计 π ÷ 4？</h3>
         </div>
-        <span>batch {frame.batch}</span>
+        <span>第 {frame.batch} 批</span>
       </div>
       <p>
-        Each point comes from the same deterministic stream used by the counters. Points near the
-        origin lie inside the quarter circle; the rest lie outside.
+        每个点都来自计数器使用的同一条确定性随机流。靠近原点的点位于四分之一圆内，其余点在圆外。
       </p>
       <svg
         aria-labelledby="mc-geometry-title mc-geometry-description"
@@ -37,10 +36,9 @@ export function MonteCarloGeometry({ frame }: { frame: MonteCarloFrame }) {
         role="img"
         viewBox="0 0 288 288"
       >
-        <title id="mc-geometry-title">Unit square with quarter circle and sampled points</title>
+        <title id="mc-geometry-title">带四分之一圆和采样点的单位正方形</title>
         <desc id="mc-geometry-description">
-          The square is the sample space. A quarter circle marks points counted as inside. Circles
-          are inside points and diamonds are outside points.
+          正方形是样本空间；四分之一圆标出计入圆内的点。圆点表示圆内点，菱形表示圆外点。
         </desc>
         <rect
           className="mc-geometry-square"
@@ -98,19 +96,19 @@ export function MonteCarloGeometry({ frame }: { frame: MonteCarloFrame }) {
         })}
       </svg>
       <p className="mc-geometry-summary">
-        Showing {frame.points.length} of {batchTotal} points in this batch: {shownInside} inside and{" "}
-        {shownOutside} outside. Full batch: {frame.batchInsideCount} inside and {batchOutside}{" "}
-        outside. Cumulative: {frame.insideCount} inside of {frame.sampleCount}. Inside / total ≈
-        quarter-circle area / square area = π / 4.
+        当前显示本批 {batchTotal} 个点中的 {frame.points.length} 个：圆内 {shownInside} 个、圆外{" "}
+        {shownOutside} 个。 整批：圆内 {frame.batchInsideCount} 个、圆外 {batchOutside} 个。累计：
+        {frame.sampleCount} 个样本中有 {frame.insideCount} 个在圆内。 圆内 / 总数 ≈ 四分之一圆面积 /
+        正方形面积 = π / 4。
       </p>
-      <ul className="mc-geometry-legend" aria-label="Point classification legend">
+      <ul className="mc-geometry-legend" aria-label="点分类图例">
         <li>
           <span aria-hidden="true" className="mc-legend-mark mc-legend-inside" />
-          Inside quarter circle
+          四分之一圆内
         </li>
         <li>
           <span aria-hidden="true" className="mc-legend-mark mc-legend-outside" />
-          Outside quarter circle
+          四分之一圆外
         </li>
       </ul>
     </section>

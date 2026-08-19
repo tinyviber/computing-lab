@@ -16,17 +16,47 @@ import { createAudioPlaybackRuntime, type AudioPlaybackRequest } from "./audioPl
 import "./audio-encoding.css";
 
 const MODE_LABELS: Record<SoundMode, string> = {
-  compare: "Compare",
-  aliasing: "Aliasing",
-  quantization: "Quantization",
+  compare: "对照（compare）",
+  aliasing: "混叠（aliasing）",
+  quantization: "量化（quantization）",
 };
 
 const VIEW_LABELS: Record<SoundView, string> = {
-  compare: "Compare",
-  samples: "Samples",
-  levels: "Levels",
-  error: "Reconstruction error",
+  compare: "对照",
+  samples: "采样点",
+  levels: "量化级别",
+  error: "重建误差",
 };
+
+const SOURCE_COPY: Record<SoundSource, { label: string; description: string }> = {
+  pure440: {
+    label: "纯 440 Hz 音调",
+    description: "稳定的参考音调，用来对比采样与量化。",
+  },
+  "high-pulse": {
+    label: "高频脉冲",
+    description: "高频脉冲序列，便于观察混叠。",
+  },
+  speech: {
+    label: "类语音信号",
+    description: "由几个固定频率组成的组合信号。",
+  },
+  sawtooth: {
+    label: "锯齿波",
+    description: "含多个谐波的斜坡信号，可显示量化台阶。",
+  },
+};
+
+const TRANSPORT_LABELS = {
+  stopped: "已停止",
+  playing: "播放中",
+  paused: "已暂停",
+} as const;
+
+const AUDITION_LABELS = {
+  original: "原始信号",
+  reconstructed: "重建信号",
+} as const;
 
 function formatNumber(value: number, digits = 3): string {
   const fixed = value.toFixed(digits);
@@ -50,9 +80,9 @@ function plotPoints(values: readonly number[], scale = 1): string {
 }
 
 function classificationLabel(classification: "below" | "at" | "aliased"): string {
-  if (classification === "aliased") return "aliased";
-  if (classification === "at") return "at Nyquist";
-  return "below Nyquist";
+  if (classification === "aliased") return "发生混叠（aliased）";
+  if (classification === "at") return "恰在奈奎斯特频率（at Nyquist）";
+  return "低于奈奎斯特频率（below Nyquist）";
 }
 
 const SAMPLE_RATE_STOPS = [
@@ -66,7 +96,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     source: scenario.source,
     choice: SOUND_FIXTURES[scenario.source].plotWindowDefinition.defaultValue,
   }));
-  const [audioStatus, setAudioStatus] = useState("Audio is ready when Play is pressed.");
+  const [audioStatus, setAudioStatus] = useState("按下“播放”后，音频试听就绪。");
   const playback = useMemo(() => createAudioPlaybackRuntime(), []);
   const model = useMemo(() => {
     return deriveSoundModel(state.source, state.config);
@@ -105,13 +135,6 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const showOriginal = selectedView === "compare" || selectedView === "samples";
   const showReconstructed = selectedView !== "error";
   const plotError = selectedView === "error";
-  const aliasedComponentCount = useMemo(
-    () =>
-      model.aliasingEvidence.components.filter(
-        (component) => component.classification === "aliased",
-      ).length,
-    [model],
-  );
   const { levelPreview, plotLines, visibleSamples } = useMemo(() => {
     const samplesInWindow = model.samples.filter(
       (sample) =>
@@ -209,11 +232,16 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
     };
   }, [state.transport]);
 
-  const liveMessage = `${fixture.label}; ${state.transport}; cursor ${formatCursorTime(cursor.timeMs, cursorDigits)} milliseconds; ${model.anyAliasing ? "one or more components alias" : "all components are below or at Nyquist"}.`;
+  const sourceCopy = SOURCE_COPY[state.source];
+  const liveMessage = `${sourceCopy.label}；${TRANSPORT_LABELS[state.transport]}；光标 ${formatCursorTime(cursor.timeMs, cursorDigits)} 毫秒。`;
 
   const play = () => {
     const result = playback.play(playbackRequest);
-    setAudioStatus(result.message);
+    setAudioStatus(
+      result.available
+        ? `${AUDITION_LABELS[state.audition]}正在播放。`
+        : "音频不可用；当前使用仅视觉播放。",
+    );
     dispatch({ type: "play" });
   };
 
@@ -224,32 +252,36 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   return (
-    <LabShell eyebrow="AUDIO / 01" title="声音编码" subtitle="Sampling and quantization">
+    <LabShell
+      eyebrow="音频 / 01"
+      title="声音编码"
+      subtitle="采样与量化（sampling and quantization）"
+    >
       <div className="sound-feature-layout">
         <section className="lesson-section sound-visualization" aria-labelledby="sound-heading">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">REFERENCE IMPLEMENTATION</p>
+              <p className="eyebrow">参考模型</p>
               <h2 id="sound-heading">采样、量化与重建</h2>
               <p className="section-description">
-                所有读数来自确定性的本地夹具；视觉时钟由显式步进推进，音频试听使用固定 48 kHz
-                缓冲区。
+                页面上的数值来自固定的本地示例。图表按你点击的每一步推进；试听播放始终使用固定的 48
+                kHz 设置。
               </p>
             </div>
-            <span className="sound-transport-badge">{state.transport}</span>
+            <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>
 
           <div className="sound-panel sound-plot-panel">
             <div className="sound-panel-header">
-              <span>BOUNDED PLOT</span>
+              <span>波形图</span>
               <code>
-                {plot.length} points · {formatNumber(plotWindowWidthMs, 1)} ms window ·{" "}
-                {formatNumber(plotWindow.startMs, 1)}–{formatNumber(plotWindow.endMs, 1)} ms /{" "}
-                {model.sampleCount} samples
+                {plot.length} 个点 · {formatNumber(plotWindowWidthMs, 1)} 毫秒窗口 ·{" "}
+                {formatNumber(plotWindow.startMs, 1)}–{formatNumber(plotWindow.endMs, 1)} 毫秒 /{" "}
+                {model.sampleCount} 个采样点
               </code>
             </div>
             <div
-              aria-label={`${fixture.label} ${VIEW_LABELS[selectedView]} plot`}
+              aria-label={`${sourceCopy.label} ${VIEW_LABELS[selectedView]} 波形图`}
               className="sound-plot-stage"
               data-audition={state.audition}
               data-evidence={
@@ -271,7 +303,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 ) : null}
                 {plotError ? (
                   <polyline
-                    aria-label="Reconstruction error"
+                    aria-label="重建误差"
                     className="sound-error-line"
                     points={plotLines.reconstructionError}
                   />
@@ -328,13 +360,13 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
             <div className="sound-panel-footer">
               <span>
-                <i className="sound-legend-original" /> Original
+                <i className="sound-legend-original" /> 原始信号
               </span>
               <span>
-                <i className="sound-legend-reconstructed" /> Sample-hold reconstruction
+                <i className="sound-legend-reconstructed" /> 采样保持重建
               </span>
               <span>
-                <i className="sound-legend-error" /> Reconstruction error
+                <i className="sound-legend-error" /> 重建误差
               </span>
             </div>
           </div>
@@ -342,20 +374,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div className="sound-mode-evidence" data-sound-mode={state.mode}>
             {state.mode === "compare" ? (
               <div data-testid="sound-compare-evidence">
-                <p className="eyebrow">COMPARE EVIDENCE</p>
-                <p>
-                  Overlay shows immutable original x(t) against the sample-hold reconstruction. Use
-                  the A/B controls to audition either buffer.
-                </p>
+                <p className="eyebrow">对照证据</p>
+                <p>原始信号不会随着采样设置改变。你可以在“原始信号”和“重建信号”之间切换试听。</p>
               </div>
             ) : null}
             {state.mode === "aliasing" ? (
               <div data-testid="sound-aliasing-evidence">
-                <p className="eyebrow">COMPONENT ALIASING EVIDENCE</p>
+                <p className="eyebrow">频率分量混叠证据</p>
                 <p>
                   {model.anyAliasing
-                    ? "At least one exposed component is above Nyquist."
-                    : "Every exposed component is below or exactly at Nyquist."}
+                    ? "至少一个可见频率分量高于当前奈奎斯特频率。"
+                    : "每个可见频率分量都低于或恰在当前奈奎斯特频率。"}
+                </p>
+                <p>
+                  采样频率的一半是奈奎斯特频率；超过这个上限的分量会折叠到可表示范围内，表格给出每个分量的观察结果。
                 </p>
                 <div className="sound-evidence-table" role="table">
                   {model.aliasingEvidence.components.map((component) => (
@@ -367,7 +399,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <span role="cell">{formatNumber(component.frequencyHz, 0)} Hz</span>
                       <span role="cell">{classificationLabel(component.classification)}</span>
                       <span role="cell">
-                        folds to {formatNumber(component.foldedFrequencyHz, 1)} Hz
+                        折叠到 {formatNumber(component.foldedFrequencyHz, 1)} Hz
                       </span>
                     </div>
                   ))}
@@ -376,12 +408,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             ) : null}
             {state.mode === "quantization" ? (
               <div data-testid="sound-quantization-evidence">
-                <p className="eyebrow">QUANTIZATION EVIDENCE</p>
-                <p>
-                  {model.quantization.levelValues.length} total levels; showing bounded preview of{" "}
-                  {levelPreview.length}.
-                </p>
-                <p>Sample quantization metrics are measured only at sampling instants.</p>
+                <p className="eyebrow">量化证据</p>
+                <p>共 {model.quantization.levelValues.length} 个量化级别；当前显示部分量化级别。</p>
+                <p>采样量化指标只在采样时刻测量。</p>
+                <p>量化位数决定可用的量化级别数；位数越少，每个采样值能表示的精度越低。</p>
                 <div
                   className="sound-level-preview"
                   data-level-count={model.quantization.levelValues.length}
@@ -391,7 +421,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                       data-level-code={level.code}
                       data-level-value={level.value}
                       key={level.code}
-                      title={`Code ${level.code}`}
+                      title={`量化码 ${level.code}`}
                     >
                       {level.code}: {formatNumber(level.value)}
                     </span>
@@ -401,73 +431,61 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             ) : null}
           </div>
 
-          <div className="sound-summary" aria-label="Derived sound metrics">
+          <div className="sound-summary" aria-label="声音读数" role="region">
             <div>
-              <span>Nyquist</span>
+              <span>奈奎斯特频率</span>
               <strong>{formatNumber(model.nyquistHz, 0)} Hz</strong>
             </div>
             <div>
-              {fixture.components.length === 1 ? (
-                <>
-                  <span>Folded frequency</span>
-                  <strong>{formatNumber(model.foldedFrequencyHz, 1)} Hz</strong>
-                </>
-              ) : (
-                <>
-                  <span>Component aliasing</span>
-                  <strong>
-                    {aliasedComponentCount} / {model.aliasingEvidence.components.length} above
-                    Nyquist
-                  </strong>
-                </>
-              )}
+              <span>频率分量</span>
+              <strong>{model.aliasingEvidence.components.length} 个</strong>
             </div>
             <div>
-              <span>Sample quantization RMS</span>
+              <span>采样量化均方根误差</span>
               <strong>{formatNumber(model.sampleQuantizationRmsError)}</strong>
             </div>
             <div>
-              <span>Sample quantization peak</span>
+              <span>采样量化峰值误差</span>
               <strong>{formatNumber(model.sampleQuantizationPeakError)}</strong>
             </div>
             <div>
-              <span>Payload</span>
+              <span>理论数据量</span>
               <strong>
                 {model.payload.totalBits} bits / {model.payload.totalBytes} B
               </strong>
             </div>
           </div>
 
-          <div className="sound-readout" aria-label="Cursor readout">
-            <p className="eyebrow">CURSOR READOUT</p>
+          <div className="sound-readout" aria-label="光标读数">
+            <p className="eyebrow">光标读数</p>
             <dl>
               <div>
-                <dt>Time</dt>
+                <dt>时间</dt>
                 <dd>{formatCursorTime(cursor.timeMs, cursorReadoutDigits)} ms</dd>
               </div>
               <div>
-                <dt>Sample</dt>
+                <dt>采样点</dt>
                 <dd>
                   #{cursor.sampleIndex + 1} @{" "}
                   {formatCursorTime(cursor.sampleTimestampMs, cursorReadoutDigits)} ms
                 </dd>
               </div>
               <div>
-                <dt>Original</dt>
+                <dt>原始值</dt>
                 <dd>{formatNumber(cursor.original)}</dd>
               </div>
               <div>
-                <dt>Code</dt>
+                <dt>量化码</dt>
                 <dd>
                   {cursor.code} / {model.quantization.levels - 1}
                 </dd>
               </div>
               <div>
-                <dt>Reconstructed</dt>
+                <dt>重建值</dt>
                 <dd>{formatNumber(cursor.reconstructed)}</dd>
               </div>
               <div>
-                <dt>Reconstruction error</dt>
+                <dt>重建误差</dt>
                 <dd>{formatNumber(cursor.reconstructionError)}</dd>
               </div>
             </dl>
@@ -485,11 +503,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           </p>
         </section>
 
-        <aside aria-label="Sound configuration inspector" className="sound-inspector">
+        <aside aria-label="声音配置检查器" className="sound-inspector">
           <div className="sound-inspector-section">
-            <p className="eyebrow">SOURCE</p>
+            <p className="eyebrow">信号源</p>
             <label className="sound-label" htmlFor="sound-source">
-              Source
+              信号源
             </label>
             <select
               id="sound-source"
@@ -500,20 +518,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               {(Object.keys(SOUND_FIXTURES) as SoundSource[]).map((source) => (
                 <option key={source} value={source}>
-                  {SOUND_FIXTURES[source].label}
+                  {SOURCE_COPY[source].label}
                 </option>
               ))}
             </select>
             <p className="sound-source-id">
-              Source id: <code>{state.source}</code>
+              信号源 ID：<code>{state.source}</code>
             </p>
-            <p className="sound-control-description">{fixture.description}</p>
+            <p className="sound-control-description">{sourceCopy.description}</p>
           </div>
 
           <div className="sound-inspector-section">
-            <p className="eyebrow">CONFIGURATION</p>
+            <p className="eyebrow">配置</p>
             <label className="sound-label" htmlFor="sound-rate">
-              Sample rate <span>{state.config.sampleRate} Hz</span>
+              采样频率 <span>{state.config.sampleRate} Hz</span>
             </label>
             <select
               aria-describedby="sound-rate-description"
@@ -525,7 +543,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               {!SAMPLE_RATE_STOPS.includes(state.config.sampleRate) ? (
                 <option value={state.config.sampleRate}>
-                  {state.config.sampleRate} Hz (scenario)
+                  {state.config.sampleRate} Hz（情境值）
                 </option>
               ) : null}
               {SAMPLE_RATE_STOPS.map((rate) => (
@@ -535,10 +553,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               ))}
             </select>
             <p className="sound-control-description" id="sound-rate-description">
-              Choose a teaching stop near a Nyquist crossing, or keep the exact scenario value.
+              选择接近奈奎斯特临界点的教学档位，或保留情境中的精确值。
             </p>
             <label className="sound-label" htmlFor="sound-bits">
-              Bit depth <span>{state.config.bitDepth} bit</span>
+              量化位数（bit depth） <span>{state.config.bitDepth} bit</span>
             </label>
             <input
               aria-describedby="sound-bits-description"
@@ -552,13 +570,13 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.bitDepth}
             />
             <p className="sound-control-description" id="sound-bits-description">
-              Quantization levels are 2 to the bit depth.
+              量化级别数为 2 的量化位数次方。
             </p>
             <label className="sound-label" htmlFor="sound-phase">
-              Phase <span>{formatNumber(state.config.phase, 2)} turns</span>
+              相位 <span>{formatNumber(state.config.phase, 2)} 圈</span>
             </label>
             <input
-              aria-label="Phase"
+              aria-label="相位"
               aria-describedby="sound-phase-description"
               id="sound-phase"
               max="0.99"
@@ -571,22 +589,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.phase}
             />
             <p className="sound-control-description" id="sound-phase-description">
-              Moves sampling timestamps; source x(t) stays unchanged.
+              移动采样时间戳；信号源 x(t) 保持不变。
             </p>
             <label className="sound-label" htmlFor="sound-plot-window">
-              Plot window{" "}
+              波形窗口{" "}
               <span>
                 {plotWindowChoice}{" "}
-                {plotWindowDefinition.kind === "periods"
-                  ? "reference periods"
-                  : "ms analysis window"}
+                {plotWindowDefinition.kind === "periods" ? "个参考周期" : "毫秒分析窗口"}
               </span>
             </label>
             <select
               aria-label={
                 plotWindowDefinition.kind === "periods"
-                  ? "Plot window in reference periods"
-                  : "Plot window analysis window in milliseconds"
+                  ? "以参考周期表示的波形窗口"
+                  : "以毫秒表示的波形分析窗口"
               }
               id="sound-plot-window"
               onChange={(event) =>
@@ -599,17 +615,17 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               {plotWindowDefinition.options.map((option) => (
                 <option key={option} value={option}>
-                  {option} {plotWindowDefinition.kind === "periods" ? "reference periods" : "ms"}
+                  {option} {plotWindowDefinition.kind === "periods" ? "个参考周期" : "毫秒"}
                 </option>
               ))}
             </select>
           </div>
 
           <div className="sound-inspector-section">
-            <p className="eyebrow">TRANSPORT</p>
+            <p className="eyebrow">播放控制</p>
             <div className="sound-button-row">
               <button className="button button-primary" onClick={play} type="button">
-                Play
+                播放
               </button>
               <button
                 className="button button-secondary"
@@ -619,7 +635,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 }}
                 type="button"
               >
-                Pause
+                暂停
               </button>
               <button
                 className="button button-secondary"
@@ -629,7 +645,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 }}
                 type="button"
               >
-                Stop
+                停止
               </button>
             </div>
             <button
@@ -637,10 +653,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               onClick={() => dispatch({ type: "tick", deltaMs: 100 })}
               type="button"
             >
-              Advance 100 ms
+              前进 100 毫秒
             </button>
             <label className="sound-label" htmlFor="sound-cursor">
-              Cursor{" "}
+              光标{" "}
               <span>
                 {formatCursorTime(state.cursor, cursorDigits)} / {model.durationMs} ms
               </span>
@@ -665,13 +681,13 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 }
                 type="checkbox"
               />{" "}
-              Loop full fixture
+              循环播放完整情境
             </label>
           </div>
 
           <div className="sound-inspector-section">
-            <p className="eyebrow">AUDITION</p>
-            <div className="sound-choice-row" role="group" aria-label="Audition source">
+            <p className="eyebrow">试听信号</p>
+            <div className="sound-choice-row" role="group" aria-label="试听信号源">
               {(["original", "reconstructed"] as const).map((audition) => (
                 <button
                   aria-pressed={state.audition === audition}
@@ -680,15 +696,15 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                   onClick={() => dispatch({ type: "set-audition", audition })}
                   type="button"
                 >
-                  {audition}
+                  {AUDITION_LABELS[audition]}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="sound-inspector-section">
-            <p className="eyebrow">ANALYSIS MODE</p>
-            <div className="sound-choice-row" role="group" aria-label="Analysis mode">
+            <p className="eyebrow">分析模式</p>
+            <div className="sound-choice-row" role="group" aria-label="分析模式">
               {(Object.keys(MODE_LABELS) as SoundMode[]).map((mode) => (
                 <button
                   aria-pressed={state.mode === mode}
@@ -701,19 +717,14 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </button>
               ))}
             </div>
-            <p className="sound-mode-note">
-              {model.anyAliasing
-                ? `${model.aliasingEvidence.components.filter((component) => component.classification === "aliased").length} exposed component(s) exceed the ${model.nyquistHz} Hz Nyquist limit.`
-                : "Every exposed component is below or exactly at the current Nyquist limit."}
-            </p>
           </div>
 
           <div className="sound-inspector-section">
-            <p className="eyebrow">VIEW</p>
-            <div className="sound-choice-row sound-view-row" role="group" aria-label="Plot view">
+            <p className="eyebrow">视图</p>
+            <div className="sound-choice-row sound-view-row" role="group" aria-label="波形视图">
               {(Object.keys(VIEW_LABELS) as SoundView[]).map((view) => (
                 <button
-                  aria-label={view === "compare" ? "Overlay view" : undefined}
+                  aria-label={view === "compare" ? "叠加视图" : undefined}
                   aria-pressed={state.view === view}
                   className="sound-choice"
                   key={view}
@@ -731,7 +742,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             onClick={() => dispatch({ type: "reset" })}
             type="button"
           >
-            Reset reference state
+            恢复参考状态
           </button>
         </aside>
       </div>

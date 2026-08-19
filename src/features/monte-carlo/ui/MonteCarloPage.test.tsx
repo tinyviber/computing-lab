@@ -9,17 +9,13 @@ describe("MonteCarloPage", () => {
   it("renders semantic controls, fixture evidence, and comparison rows", async () => {
     await renderAppAt("/labs/monte-carlo");
 
-    expect(screen.getByRole("main", { name: "Monte Carlo π workspace" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 1, name: "Monte Carlo π" })).toBeInTheDocument();
-    expect(
-      screen.getByRole("combobox", { name: /final estimate relative to π/i }),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("medium");
-    expect(screen.getByRole("button", { name: "Step" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Run to end" })).toBeEnabled();
-    expect(screen.getByRole("table", { name: "Fixture comparison" })).toHaveTextContent(
-      /3\.1448.*3\.1328/i,
-    );
+    expect(screen.getByRole("main", { name: "蒙特卡洛 π workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "蒙特卡洛 π" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /最终估计值相对 π 的位置/ })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("medium");
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
+    expect(screen.getByRole("table", { name: "样例比较" })).toHaveTextContent(/3\.1448.*3\.1328/i);
   });
 
   it("supports prediction, convergence evidence, and the final estimate", async () => {
@@ -27,24 +23,24 @@ describe("MonteCarloPage", () => {
     await renderAppAt("/labs/monte-carlo?scenario=small");
 
     await user.selectOptions(
-      screen.getByRole("combobox", { name: /final estimate relative to π/i }),
+      screen.getByRole("combobox", { name: /最终估计值相对 π 的位置/ }),
       "below",
     );
-    await user.click(button("Record prediction"));
-    expect(screen.getByText(/prediction recorded: estimate finishes below π/i)).toBeInTheDocument();
+    await user.click(button("记录预测"));
+    expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
-    await user.click(button("Run to end"));
-    expect(screen.getByLabelText("Final Monte Carlo estimate")).toHaveTextContent("3.08");
-    expect(screen.getByRole("region", { name: /final Monte Carlo result/i })).toHaveTextContent(
-      /final error 0\.0616/i,
+    await user.click(button("运行到结束"));
+    expect(screen.getByLabelText("最终蒙特卡洛估计值")).toHaveTextContent("3.08");
+    expect(screen.getByRole("region", { name: /最终蒙特卡洛结果/ })).toHaveTextContent(
+      /最终误差为 0\.0616/,
     );
-    expect(
-      screen.getByRole("region", { name: /selected Monte Carlo evidence/i }),
-    ).toHaveTextContent(/Batch 4 of 1000 samples/i);
-    const geometry = screen.getByRole("region", { name: /Monte Carlo geometry evidence/i });
-    expect(geometry).toHaveTextContent(/Showing 128 of 250 points/i);
-    expect(geometry).toHaveTextContent(/Full batch: 198 inside and 52 outside/i);
-    expect(geometry).toHaveTextContent(/quarter-circle area \/ square area = π \/ 4/i);
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toHaveTextContent(
+      /第 4 批.*1000 个样本/,
+    );
+    const geometry = screen.getByRole("region", { name: /蒙特卡洛几何证据/ });
+    expect(geometry).toHaveTextContent(/当前显示本批 250 个点中的 128 个/);
+    expect(geometry).toHaveTextContent(/整批：圆内 198 个、圆外 52 个/);
+    expect(geometry).toHaveTextContent(/圆内 \/ 总数.*π \/ 4/);
     expect(geometry.querySelectorAll("[data-monte-carlo-point]")).toHaveLength(128);
     expect(geometry.querySelector("[data-monte-carlo-boundary]")).toBeInTheDocument();
     expect(geometry.querySelectorAll("[data-monte-carlo-axis]")).toHaveLength(2);
@@ -54,7 +50,7 @@ describe("MonteCarloPage", () => {
     expect(geometry.querySelectorAll('[data-monte-carlo-point="outside"]').length).toBeGreaterThan(
       0,
     );
-    expect(screen.getByRole("region", { name: /convergence table/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /按批次收敛表/ })).toHaveTextContent(
       /2\.944.*3\.0507/i,
     );
   });
@@ -62,19 +58,17 @@ describe("MonteCarloPage", () => {
   it("selects frames with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/monte-carlo?scenario=small");
-    await user.click(button("Run to end"));
+    await user.click(button("运行到结束"));
 
-    const first = screen.getByRole("button", { name: /Batch 1, 250 samples, 184 inside/i });
-    const second = screen.getByRole("button", { name: /Batch 2, 500 samples, 375 inside/i });
+    const first = screen.getByRole("button", { name: /第 1 批，250 个样本，184 个在圆内/ });
+    const second = screen.getByRole("button", { name: /第 2 批，500 个样本，375 个在圆内/ });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(
-      screen.getByRole("region", { name: /selected Monte Carlo evidence/i }),
-    ).toHaveTextContent(/2\.944/);
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toHaveTextContent(/2\.944/);
 
     second.focus();
     await user.keyboard(" ");
@@ -85,15 +79,12 @@ describe("MonteCarloPage", () => {
   it("hydrates fixtures and resets to the original URL scenario", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/monte-carlo?scenario=large");
-    expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("large");
+    expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("large");
 
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /Monte Carlo fixture/i }),
-      "small",
-    );
-    expect(screen.getByText(/Press Step to draw the first 250 random points/i)).toBeInTheDocument();
-    await user.click(button("Reset to URL scenario"));
-    expect(screen.getByRole("combobox", { name: /Monte Carlo fixture/i })).toHaveValue("large");
+    await user.selectOptions(screen.getByRole("combobox", { name: /蒙特卡洛样例/ }), "small");
+    expect(screen.getByText(/点击“执行一步”，生成前 250 个随机点/)).toBeInTheDocument();
+    await user.click(button("恢复初始情境"));
+    expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("large");
   });
 
   it("keeps semantic evidence available at a narrow viewport", async () => {
@@ -101,11 +92,11 @@ describe("MonteCarloPage", () => {
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });
     try {
       await renderAppAt("/labs/monte-carlo?scenario=small");
-      await userEvent.setup().click(button("Step"));
-      expect(screen.getByRole("table", { name: /convergence by batch/i })).toBeVisible();
-      expect(screen.queryByLabelText("Final Monte Carlo estimate")).not.toBeInTheDocument();
-      expect(screen.getByRole("region", { name: /selected Monte Carlo evidence/i })).toBeVisible();
-      expect(screen.getByRole("region", { name: /Monte Carlo geometry evidence/i })).toBeVisible();
+      await userEvent.setup().click(button("执行一步"));
+      expect(screen.getByRole("table", { name: /按批次观察收敛/ })).toBeVisible();
+      expect(screen.queryByLabelText("最终蒙特卡洛估计值")).not.toBeInTheDocument();
+      expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /蒙特卡洛几何证据/ })).toBeVisible();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -118,8 +109,8 @@ describe("MonteCarloPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /Monte Carlo π workspace/i })).getByText(
-        /How many random points does it take to find π/i,
+      within(screen.getByRole("main", { name: /蒙特卡洛 π workspace/ })).getByText(
+        /需要多少个随机点才能估计 π/,
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Math\.random/i)).not.toBeInTheDocument();

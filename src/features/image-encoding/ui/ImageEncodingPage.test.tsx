@@ -16,23 +16,18 @@ describe("ImageEncodingPage", () => {
     await renderAppAt(
       "/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=representation",
     );
-    expect(slider(/spatial sampling/i)).toHaveValue("25");
-    expect(slider(/grid phase/i)).toHaveValue("0.5");
-    expect(slider(/color bit depth/i)).toHaveValue("2");
-    expect(screen.getByRole("tab", { name: /encoded representation/i })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByText("12 × 8 × 2 = 192 bits")).toBeInTheDocument();
+    expect(slider(/空间采样/)).toHaveValue("25");
+    expect(slider(/采样网格相位/)).toHaveValue("0.5");
+    expect(slider(/颜色位深/)).toHaveValue("2");
+    expect(screen.getByRole("tab", { name: /编码表示/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByText("12 × 8 × 2 = 192 位")).toBeInTheDocument();
   });
 
   it("uses rounded per-axis geometry to explain or disable phase", async () => {
     await renderAppAt("/labs/image-encoding?image=photo&sample=99&phase=0.8");
-    expect(slider(/grid phase/i)).toHaveValue("0");
-    expect(slider(/grid phase/i)).toBeDisabled();
-    expect(
-      screen.getByText(/Both axes are already sampled at full source density/i),
-    ).toBeInTheDocument();
+    expect(slider(/采样网格相位/)).toHaveValue("0");
+    expect(slider(/采样网格相位/)).toBeDisabled();
+    expect(screen.getByText(/两个方向都已达到原图采样密度/)).toBeInTheDocument();
 
     const narrowGeometry = samplingGeometry(
       {
@@ -50,11 +45,9 @@ describe("ImageEncodingPage", () => {
       y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
     });
     expect(phaseControlDescription(narrowGeometry)).toContain(
-      "Horizontal: full density (3/3) · phase fixed at 0.",
+      "水平：完整密度（3/3）· 相位固定为 0。",
     );
-    expect(phaseControlDescription(narrowGeometry)).toContain(
-      "Vertical: 18/20 samples · phase 0.80.",
-    );
+    expect(phaseControlDescription(narrowGeometry)).toContain("垂直：18/20 个采样 · 相位 0.80。");
   });
 
   it("renders app chrome plus feature-owned source, compare, and inspector regions", async () => {
@@ -64,73 +57,71 @@ describe("ImageEncodingPage", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: /从真实图像到有限的像素编码/i }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /选择或上传源图像/ })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: /choose or upload/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 3, name: /one displayed pixel/i }),
+      screen.getByRole("heading", { level: 3, name: /从一个显示像素追踪到 bits/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /submit encoding/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /提交编码/ })).not.toBeInTheDocument();
   });
 
   it("keeps source and reconstruction at the same physical display size", async () => {
     await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=4");
-    const source = screen.getByRole("img", { name: /original source image/i });
-    const reconstructed = screen.getByRole("img", { name: /reconstructed image/i });
+    const source = screen.getByRole("img", { name: /原始源图像/ });
+    const reconstructed = screen.getByRole("img", { name: /由采样值和量化值重建的图像/ });
     expect(source).toHaveAttribute("width", "48");
     expect(source).toHaveAttribute("height", "32");
     expect(reconstructed).toHaveAttribute("width", "48");
     expect(reconstructed).toHaveAttribute("height", "32");
-    expect(screen.getByText("12 × 8 × 4 = 384 bits")).toBeInTheDocument();
+    expect(screen.getByText("12 × 8 × 4 = 384 位")).toBeInTheDocument();
   });
 
   it("updates sampling and quantization independently with live evidence", async () => {
     await renderAppAt("/labs/image-encoding");
-    setSlider(slider(/spatial sampling/i), 25);
-    expect(screen.getByText("12 × 8 × 4 = 384 bits")).toBeInTheDocument();
-    setSlider(slider(/color bit depth/i), 2);
-    expect(screen.getByText("12 × 8 × 2 = 192 bits")).toBeInTheDocument();
-    expect(screen.getByText(/There is no submit step/i)).toBeInTheDocument();
+    setSlider(slider(/空间采样/), 25);
+    expect(screen.getByText("12 × 8 × 4 = 384 位")).toBeInTheDocument();
+    setSlider(slider(/颜色位深/), 2);
+    expect(screen.getByText("12 × 8 × 2 = 192 位")).toBeInTheDocument();
+    expect(screen.getByText(/没有提交步骤/)).toBeInTheDocument();
   });
 
   it("keeps the sampling view independent from bit-depth quantization", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=gradient&sample=50&bits=1");
-    await user.click(screen.getByRole("tab", { name: /sampling reconstruction/i }));
+    await user.click(screen.getByRole("tab", { name: /采样重建/ }));
     const cell = within(screen.getByRole("grid")).getAllByRole("gridcell")[0];
     const sampledColor = cell.getAttribute("style");
-    setSlider(slider(/color bit depth/i), 8);
+    setSlider(slider(/颜色位深/), 8);
     expect(cell.getAttribute("style")).toBe(sampledColor);
   });
 
   it("shows a pixel-to-bits inspector and representation cells", async () => {
     await renderAppAt("/labs/image-encoding?image=gradient&sample=50&bits=3&view=representation");
-    const grid = screen.getByRole("grid", { name: /encoded sample grid/i });
+    const grid = screen.getByRole("grid", { name: /编码采样网格/ });
     expect(within(grid).getAllByRole("gridcell")).toHaveLength(384);
-    expect(screen.getByText("Encoded value").parentElement).toHaveTextContent(/3 bits/);
-    expect(
-      screen.getByText("Finite color states").closest(".image-card-heading"),
-    ).toHaveTextContent(/available/);
+    expect(screen.getByText("编码值").parentElement).toHaveTextContent(/3 bits/);
+    expect(screen.getByText("有限颜色状态").closest(".image-card-heading")).toHaveTextContent(
+      /有限颜色状态/,
+    );
   });
 
   it("switches to an error map without changing the encoded model", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=checkerboard&sample=25&bits=2");
-    await user.click(screen.getByRole("tab", { name: /visible error map/i }));
-    expect(screen.getByRole("img", { name: /pixel error map/i })).toBeInTheDocument();
-    expect(screen.getByText(/theoretical raw pixel payload/i)).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /可见误差图/ }));
+    expect(screen.getByRole("img", { name: /像素误差图/ })).toBeInTheDocument();
+    expect(screen.getByText(/理论原始载荷/)).toBeInTheDocument();
     expect(screen.queryByText(/compression ratio/i)).not.toBeInTheDocument();
   });
 
   it("keeps the feature layout inside the app main and supports reset", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=gradient&sample=25&bits=2");
-    setSlider(slider(/spatial sampling/i), 90);
-    await user.click(screen.getByRole("button", { name: /reset scenario/i }));
-    expect(slider(/spatial sampling/i)).toHaveValue("25");
+    setSlider(slider(/空间采样/), 90);
+    await user.click(screen.getByRole("button", { name: /恢复样例情境/ }));
+    expect(slider(/空间采样/)).toHaveValue("25");
     expect(
-      screen.getByRole("heading", { level: 3, name: /one displayed pixel/i }).closest("main"),
+      screen.getByRole("heading", { level: 3, name: /从一个显示像素追踪到 bits/ }).closest("main"),
     ).toBe(screen.getByRole("main"));
     expect(screen.getByRole("grid").closest("#lab-navigation")).toBeNull();
   });

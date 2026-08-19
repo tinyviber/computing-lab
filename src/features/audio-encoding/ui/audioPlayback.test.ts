@@ -164,7 +164,7 @@ describe("Sound audioPlayback boundary", () => {
       "/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
 
     const context = audioContext();
     expect(context.createBufferCalls).toHaveLength(2);
@@ -183,7 +183,7 @@ describe("Sound audioPlayback boundary", () => {
     expect(context.sources).toHaveLength(1);
     expect(context.sources[0].buffer).toBe(original);
     expect(context.sources[0].startCalls).toHaveLength(1);
-    expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(/audio playback active/i);
+    expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(/播放中/);
 
     unmount();
   });
@@ -229,9 +229,9 @@ describe("Sound audioPlayback boundary", () => {
 
   it("selects the A/B buffer without recreating a source for cursor ticks", async () => {
     await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=16000&bitDepth=4");
-    const play = screen.getByRole("button", { name: /^play$/i });
-    const reconstructed = screen.getByRole("button", { name: /^reconstructed$/i });
-    const advance = screen.getByRole("button", { name: /advance 100 ms/i });
+    const play = screen.getByRole("button", { name: /^播放$/ });
+    const reconstructed = screen.getByRole("button", { name: /^重建信号$/ });
+    const advance = screen.getByRole("button", { name: /前进 100 毫秒/ });
 
     fireEvent.click(play);
     const context = audioContext();
@@ -241,7 +241,7 @@ describe("Sound audioPlayback boundary", () => {
     expect(context.sources).toHaveLength(1);
     expect(firstSource.stopCalls).toBe(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /^stop$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^停止$/ }));
     fireEvent.click(reconstructed);
     fireEvent.click(play);
     expect(context.sources).toHaveLength(2);
@@ -251,8 +251,8 @@ describe("Sound audioPlayback boundary", () => {
 
   it("restarts the active audition at the user seek offset without duplicating reducer ticks", async () => {
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
-    fireEvent.click(screen.getByRole("button", { name: /^reconstructed$/i }));
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^重建信号$/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
 
     const context = audioContext();
     const firstSource = context.sources[0];
@@ -265,7 +265,7 @@ describe("Sound audioPlayback boundary", () => {
     const seekSource = context.sources[1];
     expect(seekSource.buffer).toBe(context.createBufferCalls[1]);
     expect(seekSource.startCalls[0]?.[1]).toBeCloseTo(0.25, 6);
-    expect(screen.getByRole("button", { name: /^reconstructed$/i })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: /^重建信号$/ })).toHaveAttribute(
       "aria-pressed",
       "true",
     );
@@ -280,23 +280,23 @@ describe("Sound audioPlayback boundary", () => {
 
   it("keeps paused seeks visual-only until the next Play uses the new offset", async () => {
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
     const context = audioContext();
-    fireEvent.click(screen.getByRole("button", { name: /^pause$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^暂停$/ }));
     const sourceCount = context.sources.length;
 
     fireEvent.change(document.querySelector("#sound-cursor")!, { target: { value: "250" } });
     expect(cursorValue()).toBe(250);
     expect(context.sources).toHaveLength(sourceCount);
 
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
     expect(context.sources).toHaveLength(sourceCount + 1);
     expect(context.sources.at(-1)?.startCalls[0]?.[1]).toBeCloseTo(0.25, 6);
   });
 
   it("uses the reducer clock as the visual authority and keeps RAF deterministic", async () => {
     await renderAppAt("/labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8");
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
 
     await waitFor(() => expect(rafCallbacks.size).toBeGreaterThan(0));
     const startTime = performance.now();
@@ -305,7 +305,7 @@ describe("Sound audioPlayback boundary", () => {
     await waitFor(() => expect(cursorValue()).toBeCloseTo(100, 6));
     expect(audioContext().sources).toHaveLength(1);
 
-    fireEvent.click(screen.getByRole("button", { name: /^pause$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^暂停$/ }));
     const paused = cursorValue();
     runAnimationFrame(200);
     expect(cursorValue()).toBe(paused);
@@ -315,31 +315,29 @@ describe("Sound audioPlayback boundary", () => {
     MockAudioContext.available = false;
     await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=16000");
 
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
-    expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(
-      /visual-only|audio unavailable/i,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /advance 100 ms/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
+    expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(/仅视觉播放|音频不可用/);
+    fireEvent.click(screen.getByRole("button", { name: /前进 100 毫秒/ }));
     expect(cursorValue()).toBe(100);
   });
 
   it("cleans up the active node on pause, stop, source/config changes, and unmount", async () => {
     const { unmount } = await renderAppAt("/labs/audio-encoding?source=pure440");
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
     const context = audioContext();
     const firstSource = context.sources[0];
 
-    fireEvent.click(screen.getByRole("button", { name: /^pause$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^暂停$/ }));
     expect(firstSource.stopCalls).toBeGreaterThan(0);
     expect(firstSource.disconnectCalls).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
     const secondSource = context.sources[1];
     fireEvent.change(document.getElementById("sound-source")!, { target: { value: "speech" } });
     expect(secondSource.stopCalls).toBeGreaterThan(0);
     expect(secondSource.disconnectCalls).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: /^play$/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^播放$/ }));
     fireEvent.change(document.getElementById("sound-rate")!, { target: { value: "16000" } });
     expect(context.sources.at(-1)?.stopCalls).toBeGreaterThan(0);
     unmount();
