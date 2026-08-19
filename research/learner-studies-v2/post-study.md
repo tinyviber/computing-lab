@@ -22,7 +22,7 @@ The replay used fresh route loads, first DOM snapshot before exploration, knowle
 - Audio: first snapshot exposed controls and bounded 440 Hz reference evidence but no high-frequency aliasing outcome. Selecting `混叠（aliasing）`, then `高频脉冲`, produced per-component rows showing `发生混叠` and folded frequencies.
 - Relational: first snapshot had no `关系数据约束` region and no `查询结果行` table. After `执行一步`, both query evidence and constraint evidence appeared.
 
-This is synthetic browser evidence, not a student sample. Narrow-viewport semantics are covered by the selected UI tests; a separate Playwright narrow viewport run was blocked because the local Chromium headless binary is not installed.
+This is synthetic browser evidence, not a student sample. Narrow-viewport semantics are covered by the selected UI tests, and the full Playwright contract was rerun in both root and base-path configurations.
 
 ## Contamination and legibility controls
 
@@ -36,10 +36,11 @@ This is synthetic browser evidence, not a student sample. Narrow-viewport semant
 - `bun run format:check` — pass
 - `bun run lint` — pass
 - `bun run typecheck` — pass
-- `bun run test:run` — pass: 56 files, 334 tests
+- `bun run test:run` — pass: 56 files, 336 tests
 - `bun run test:deploy` — pass: all deployment scenarios
 - `bun run build` — pass; Vite chunk-size warning only
-- `bun run test:e2e` — blocked before test execution: Playwright Chromium executable is absent locally
+- `bun run test:e2e` — pass: root E2E 26/26
+- `VITE_BASE_PATH=/computing-lab/ BASE_PATH=/computing-lab bun run test:e2e` — pass: base-path E2E 26/26
 - In-app browser replay — pass for the three selected first-render/interaction checks above
 
 ## Surviving and downgraded claims
@@ -50,4 +51,4 @@ Downgraded: human comprehension, transfer, teacher silence, and learning-effect 
 
 ## Handoff status
 
-**NOT READY for human deployment evidence.** The productization branch is suitable for review as a draft PR. Human preflight, CI/browser binary setup, and reviewer decisions remain open before promoting the research claims or changing the PR out of draft.
+**NOT READY for human deployment evidence.** The productization branch is suitable for review as a draft PR. Human preflight and reviewer decisions remain open before promoting the research claims or changing the PR out of draft.
