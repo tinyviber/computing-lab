@@ -126,9 +126,15 @@ Freeze these items before recruiting the first student. Give every learner the c
 > - 每秒取样：`800` 次
 > - 每个采样值用 `3` 位表示
 >
-> 请预测：图上会不会出现一个较低的频率？如果会，大约是多少？每个采样值有多少个可选的量化级别？请说明你的依据，不要求使用专业术语。
+> **核心问题：**
+>
+> 1. 会不会发生混叠？为什么？
+> 2. 如果想减少或避免这种现象，你会先改变哪个设置？
+> 3. 每个采样值有多少个可选的量化级别？
+>
+> **可选的加强问题：** 如果你能根据刚才实验里看到的折叠规律判断，它大约会显示成多少 Hz？这道题不影响核心 transfer 结果。请说明你的依据，不要求使用专业术语。
 
-**Observer-only scoring reference:** the half-rate boundary is 400 Hz; 500 Hz is represented at about 300 Hz; 3 bits provide 8 levels. Accept an equivalent explanation in the student’s own words.
+**Observer-only scoring reference:** core transfer requires recognizing that 500 Hz is above the 400 Hz half-rate boundary, explaining that the sampling setting is too low for this component, suggesting a higher sampling frequency or a lower source frequency, and deriving 8 levels from 3 bits. The approximate 300 Hz folded result is a stronger optional transfer signal, not a core failure condition. Accept an equivalent explanation in the student’s own words.
 
 **Backup — read exactly only for contamination:**
 
@@ -138,11 +144,19 @@ Freeze these items before recruiting the first student. Give every learner the c
 > - 每秒取样：`1200` 次
 > - 每个采样值用 `4` 位表示
 >
-> 请预测：图上会不会出现一个较低的频率？如果会，大约是多少？每个采样值有多少个可选的量化级别？请说明你的依据，不要求使用专业术语。
+> **核心问题：**
+>
+> 1. 会不会发生混叠？为什么？
+> 2. 如果想减少或避免这种现象，你会先改变哪个设置？
+> 3. 每个采样值有多少个可选的量化级别？
+>
+> **可选的加强问题：** 如果你能根据刚才实验里看到的折叠规律判断，它大约会显示成多少 Hz？这道题不影响核心 transfer 结果。请说明你的依据，不要求使用专业术语。
 
-**Backup scoring reference:** the half-rate boundary is 600 Hz; 700 Hz is represented at about 500 Hz; 4 bits provide 16 levels.
+**Backup scoring reference:** core transfer requires recognizing that 700 Hz is above the 600 Hz half-rate boundary, explaining that the sampling setting is too low for this component, suggesting a higher sampling frequency or a lower source frequency, and deriving 16 levels from 4 bits. The approximate 500 Hz folded result is a stronger optional transfer signal, not a core failure condition.
 
 ### Relational Data canonical item
+
+The core transfer is stated in natural language because the Lab teaches relational behavior and source evidence, not SQL syntax. SQL is an optional secondary representation and is never required for the core score.
 
 **Participant prompt — read exactly:**
 
@@ -171,13 +185,15 @@ Freeze these items before recruiting the first student. Give every learner the c
 > | p3        | t7      |
 > | p4        | t7      |
 >
-> 查询是：
->
-> `SELECT players.name, teams.name FROM registrations JOIN players ON registrations.player_id = players.id JOIN teams ON registrations.team_id = teams.id`
+> 现在把 `registrations` 中的每一条记录分别去 `players` 和 `teams` 中寻找相同的 id。只有两边都能找到对应记录时，这条报名才进入结果。结果中显示玩家姓名和社团名称。
 >
 > 请预测结果有几行，哪一条报名记录不会出现在结果中，以及 `NULL` 和 `""` 在结果中会怎样出现。请说明你的依据，不要求使用专业术语。
 
-**Observer-only scoring reference:** three result rows; the `p4` registration disappears because there is no `players` row for `p4`; `NULL` and the empty string remain distinct values in the rows for `p2` and `p3`.
+**Observer-only scoring reference:** three result rows; the `p4` registration disappears because there is no `players` row for `p4`; `NULL` and the empty string remain distinct values in the rows for `p2` and `p3`. Do not count SQL reading as part of this score.
+
+**Optional secondary representation — do not read before the core answer:** if the student volunteers SQL knowledge or asks how the rule would be written, show this exact equivalent after recording the core response:
+
+`SELECT players.name, teams.name FROM registrations JOIN players ON registrations.player_id = players.id JOIN teams ON registrations.team_id = teams.id`
 
 **Backup — read exactly only for contamination:**
 
@@ -206,13 +222,15 @@ Freeze these items before recruiting the first student. Give every learner the c
 > | v3         | r4      |
 > | v9         | r4      |
 >
-> 查询是：
->
-> `SELECT visitors.name, rooms.name FROM visits JOIN visitors ON visits.visitor_id = visitors.id JOIN rooms ON visits.room_id = rooms.id`
+> 现在把 `visits` 中的每一条记录分别去 `visitors` 和 `rooms` 中寻找相同的 id。只有两边都能找到对应记录时，这条访问才进入结果。结果中显示访客姓名和房间名称。
 >
 > 请预测结果有几行，哪一条访问记录不会出现在结果中，以及 `NULL` 和 `""` 在结果中会怎样出现。请说明你的依据，不要求使用专业术语。
 
-**Backup scoring reference:** three result rows; the `v9` visit disappears because there is no `visitors` row for `v9`; `NULL` and the empty string remain distinct values.
+**Backup scoring reference:** three result rows; the `v9` visit disappears because there is no `visitors` row for `v9`; `NULL` and the empty string remain distinct values. Do not count SQL reading as part of this score.
+
+**Optional secondary representation — do not read before the core answer:** if the student volunteers SQL knowledge or asks how the rule would be written, show this exact equivalent after recording the core response:
+
+`SELECT visitors.name, rooms.name FROM visits JOIN visitors ON visits.visitor_id = visitors.id JOIN rooms ON visits.room_id = rooms.id`
 
 ## Shared learner observer fields
 
