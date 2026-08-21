@@ -7,10 +7,14 @@
   align-items: center;
   display: flex;
   justify-content: space-between;
-  height: 72px;
-  padding: 0 28px;
-  background: var(--surface);
+  position: relative;
+  z-index: 30;
+  height: 76px;
+  padding: 0 32px;
+  background: rgb(255 255 255 / 92%);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 12px rgb(23 40 61 / 3%);
+  backdrop-filter: blur(14px);
 }
 
 .brand-lockup,
@@ -35,26 +39,32 @@
   align-items: center;
   display: flex;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-  border-radius: var(--radius-control);
-  background: var(--primary);
+  width: 34px;
+  height: 34px;
+  border: 1px solid #d9d8ff;
+  border-radius: 10px;
+  background: var(--accent-soft);
   color: var(--surface);
-  font-size: 10px;
+  color: var(--accent);
+  font-size: 20px;
   font-weight: 700;
   text-decoration: none;
 }
 
+.brand-mark-symbol {
+  transform: translateY(-1px);
+}
+
 .brand-lockup h1 {
   color: var(--primary);
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 650;
   line-height: 20px;
 }
 
 .brand-lockup p {
   margin-top: 1px;
-  color: var(--muted);
+  color: var(--secondary);
   font-size: 12px;
   line-height: 17px;
 }
@@ -67,6 +77,15 @@
   color: var(--primary);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 12px;
+}
+
+.context-progress {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #e9f7f0;
+  color: var(--success);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .mobile-menu-button {
@@ -82,31 +101,31 @@
 .app-layout {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  min-height: calc(100vh - 72px);
+  min-height: calc(100vh - 76px);
 }
 
 .workflow-rail {
   display: flex;
   flex-direction: column;
-  padding: 28px 20px 20px;
-  background: var(--surface);
+  padding: 24px 18px 18px;
+  background: #fbfcfe;
   border-right: 1px solid var(--border);
 }
 
 .lab-navigation {
-  min-height: calc(100vh - 72px);
+  min-height: calc(100vh - 76px);
 }
 
 .rail-heading {
   align-items: flex-start;
   justify-content: space-between;
-  padding: 0 8px 22px;
+  padding: 0 8px 18px;
   border-bottom: 1px solid var(--border);
 }
 
 .rail-heading h2 {
   margin-top: 6px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 650;
   line-height: 22px;
 }
@@ -125,7 +144,7 @@
 
 .lab-list {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 
 .lab-link {
@@ -133,17 +152,17 @@
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 9px;
+  padding: 10px 10px;
   border: 1px solid transparent;
-  border-radius: var(--radius-control);
+  border-radius: 10px;
   color: var(--secondary);
   text-decoration: none;
 }
 
 .lab-link:hover,
 .lab-link.is-active {
-  background: var(--subtle);
-  border-color: var(--border);
+  background: #eef0ff;
+  border-color: #d8d7ff;
   color: var(--primary);
 }
 
@@ -169,6 +188,74 @@
   margin-top: auto;
   padding: 18px 8px 0;
   border-top: 1px solid var(--border);
+}
+
+.lesson-path {
+  margin: 28px 8px 0;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.lesson-path-heading h3 {
+  margin-top: 5px;
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.lesson-path-list {
+  display: grid;
+  gap: 4px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-path-item {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: start;
+  padding: 8px 6px;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.lesson-path-item.is-current {
+  background: var(--accent-soft);
+  color: var(--primary);
+}
+
+.lesson-path-index {
+  padding-top: 1px;
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lesson-path-item strong,
+.lesson-path-item small {
+  display: block;
+}
+
+.lesson-path-item strong {
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.lesson-path-item small {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.lesson-path-live {
+  padding-top: 2px;
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .rail-footer strong,
@@ -253,6 +340,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .preview-panel-header,
