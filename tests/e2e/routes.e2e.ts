@@ -19,7 +19,7 @@ for (const route of routes) {
     await expect(page.locator("h1").first()).toHaveText(route.heading);
     if (route.path === "labs/image-encoding") {
       await expect(page.getByRole("slider", { name: /空间采样/ })).toBeVisible();
-      await expect(page.getByRole("img", { name: /由采样值和量化值重建的图像/ })).toBeVisible();
+      await expect(page.getByRole("img", { name: /重建图像/ })).toBeVisible();
     }
     if (route.path === "labs/home-network") {
       await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
@@ -61,6 +61,19 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
   await expect(page.getByRole("region", { name: /事件链/i })).toContainText(
     /gateway-unresolved|gateway|arp/i,
   );
+});
+
+test("changes image encoding parameters through keyboard controls", async ({ page }) => {
+  await page.goto("labs/image-encoding", { waitUntil: "networkidle" });
+
+  const sampling = page.getByRole("slider", { name: /空间采样/ });
+  await sampling.press("ArrowLeft");
+  await expect(sampling).toHaveValue("45");
+
+  const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
+  await bitDepth.press("ArrowDown");
+  await bitDepth.press("ArrowDown");
+  await expect(bitDepth).toHaveValue("2");
 });
 
 test("navigates between labs with SPA links and restores back/forward state", async ({ page }) => {

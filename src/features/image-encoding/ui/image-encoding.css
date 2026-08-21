@@ -4,6 +4,49 @@
   background: var(--canvas);
 }
 
+.image-stage-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 1440px;
+  margin: 0 auto 18px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.image-stage {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.image-stage b {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.image-stage-progress {
+  margin-left: auto;
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.image-stage-progress strong {
+  color: var(--success);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
 .image-course-intro {
   display: flex;
   align-items: flex-start;
@@ -72,7 +115,7 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--surface);
-  box-shadow: 0 8px 28px rgb(23 33 43 / 4%);
+  box-shadow: var(--shadow-sm);
 }
 
 .image-card-heading {
@@ -89,6 +132,216 @@
   color: var(--primary);
   font-size: 17px;
   letter-spacing: -0.015em;
+}
+
+.mission-card {
+  overflow: hidden;
+  border-color: #d6d7ff;
+}
+
+.mission-heading {
+  align-items: center;
+  background: linear-gradient(120deg, #f5f4ff, #fff);
+}
+
+.mission-heading .image-card-description {
+  max-width: 580px;
+  margin-top: 8px;
+}
+
+.mission-progress {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 2px;
+  padding-left: 18px;
+  border-left: 1px solid #d9d9f2;
+}
+
+.mission-progress strong {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mission-progress strong span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.mission-progress small {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.mission-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mission-item {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 58px;
+  padding: 10px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.mission-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 9px;
+}
+
+.mission-item.is-done .mission-marker {
+  border-color: #a9dfc4;
+  background: #e9f8f0;
+  color: var(--success);
+  font-size: 13px;
+}
+
+.mission-copy strong,
+.mission-copy small {
+  display: block;
+}
+
+.mission-copy strong {
+  color: var(--primary);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.mission-copy small {
+  margin-top: 2px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.mission-copy .mission-evidence {
+  margin-top: 5px;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mission-kind {
+  padding: 4px 7px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.mission-kind.is-explore {
+  background: #e9f8f0;
+  color: var(--success);
+}
+
+.mission-kind.is-discuss {
+  background: var(--subtle);
+  color: var(--muted);
+}
+
+.mission-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 12px 20px 14px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.mission-key {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 4px;
+  border-radius: 50%;
+}
+
+.mission-key-explore {
+  background: var(--success);
+}
+.mission-key-discuss {
+  background: var(--muted);
+}
+
+.deep-dive-card {
+  overflow: hidden;
+  border-color: #cfe1db;
+}
+
+.deep-dive-badge {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: #e9f8f0;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.deep-dive-list details {
+  padding: 13px 20px;
+  border-top: 1px solid var(--border);
+}
+
+.deep-dive-list summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.deep-dive-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.deep-dive-list summary::after {
+  float: right;
+  color: var(--muted);
+  content: "+";
+  font-size: 15px;
+  font-weight: 400;
+}
+
+.deep-dive-list details[open] summary::after {
+  content: "−";
+}
+
+.deep-dive-list summary span {
+  display: inline-block;
+  width: 24px;
+  color: var(--success);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.deep-dive-list details p {
+  margin: 8px 24px 1px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.deep-dive-list details .deep-dive-locked {
+  color: var(--muted);
 }
 
 .image-card-description,
@@ -382,6 +635,14 @@
   line-height: 1.55;
 }
 
+.image-gated-notice {
+  margin: 0;
+  padding: 18px 20px 20px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .inspector-selected-pixel {
   display: flex;
   align-items: center;
@@ -477,6 +738,7 @@
   }
 
   .image-course-intro,
+  .image-stage-nav,
   .source-controls,
   .canvas-compare-grid,
   .representation-stage,
@@ -488,6 +750,44 @@
 
   .image-course-intro {
     gap: 16px;
+  }
+
+  .image-stage-nav {
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .image-stage-progress {
+    width: 100%;
+    margin: 4px 8px 2px;
+    padding: 7px 0 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .mission-heading {
+    align-items: flex-start;
+  }
+
+  .mission-progress {
+    padding-left: 10px;
+  }
+
+  .mission-item {
+    grid-template-columns: 26px minmax(0, 1fr);
+    gap: 9px;
+    padding: 11px 14px;
+  }
+
+  .mission-kind {
+    grid-column: 2;
+    justify-self: start;
+    margin-top: -5px;
+  }
+
+  .mission-footer {
+    padding-right: 14px;
+    padding-left: 14px;
   }
 
   .source-meta {

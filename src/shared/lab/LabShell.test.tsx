@@ -34,6 +34,15 @@ describe("LabShell", () => {
     expect(document.querySelector("#lab-navigation")).not.toBe(main);
   });
 
+  it("keeps course-flow semantics out of the shared lab shell", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    expect(document.querySelector("#lab-navigation .lesson-path")).toBeNull();
+    expect(document.querySelector(".context-progress")).toBeNull();
+    expect(screen.queryByText("学习路径")).not.toBeInTheDocument();
+    expect(screen.queryByText("进行中")).not.toBeInTheDocument();
+  });
+
   it("returns focus to menu button after Escape closes mobile rail", async () => {
     const user = userEvent.setup();
     const matchMedia = vi.fn().mockImplementation((query: string) => ({

@@ -8,6 +8,14 @@ afterEach(() => {
 });
 
 describe("application router integration", () => {
+  it("labels featured image CTA as start and keeps canonical route", async () => {
+    await renderAppAt("/");
+
+    const cta = screen.getByRole("link", { name: /开始图像编码/ });
+    expect(cta).toHaveAttribute("href", "/labs/image-encoding");
+    expect(screen.queryByRole("link", { name: /继续图像编码/ })).not.toBeInTheDocument();
+  });
+
   it.each([
     [
       "image lesson",
@@ -113,8 +121,8 @@ describe("application router integration", () => {
     expect(screen.getByRole("grid", { name: /24 × 16 编码采样网格/ })).toBeInTheDocument();
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
     expect(screen.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
+    expect(screen.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
     expect(screen.getByRole("img", { name: /像素误差图/ })).toBeInTheDocument();
-    expect(document.body).toHaveTextContent("12 × 8 × 2 = 192 位");
   });
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {

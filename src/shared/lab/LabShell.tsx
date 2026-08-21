@@ -124,11 +124,13 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
             {railOpen ? "×" : "☰"}
           </button>
           <Link className="brand-mark" to="/" aria-label="计算实验室首页">
-            CL
+            <span className="brand-mark-symbol">⌁</span>
           </Link>
           <div>
             <h1>{title}</h1>
-            <p>计算实验室 · {subtitle}</p>
+            <p>
+              计算实验室 <span aria-hidden="true">/</span> {subtitle}
+            </p>
           </div>
         </div>
         <div className="topbar-context">
