@@ -40,11 +40,13 @@ BASE_PATH=/computing-lab/ bun run test:e2e
 Routes:
 
 - `/` — lab registry
-- `/labs/image-encoding` — sampling and quantization
+- `/labs/image-encoding` — image sampling and color-count analysis
 - `/labs/audio-encoding` — waveform sampling
 - `/labs/home-network` — gateway configuration
 
-All lesson calculations run in the browser. Image scenarios are shareable, for example `/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=error`; uploaded image pixels stay local and are not written to the URL.
+All lesson calculations run in the browser. The image lesson starts with one fixed local kitten sample and supports shareable parameters, for example `/labs/image-encoding?image=photo&sample=25&phase=0.5&bits=2&view=error`; uploaded image pixels stay local and are not written to the URL. Older fixture URLs remain available for compatibility tests and direct links.
+
+For a record of the image sample selection, plain-language copy audit, and classroom UI changes, see [docs/image-encoding-optimization.md](docs/image-encoding-optimization.md).
 
 ## Static host deployment
 

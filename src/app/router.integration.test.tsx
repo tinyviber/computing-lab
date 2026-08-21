@@ -8,12 +8,35 @@ afterEach(() => {
 });
 
 describe("application router integration", () => {
-  it("labels featured image CTA as start and keeps canonical route", async () => {
+  it("keeps the home route free of legacy marketing copy and the ready-state label", async () => {
     await renderAppAt("/");
 
-    const cta = screen.getByRole("link", { name: /开始图像编码/ });
-    expect(cta).toHaveAttribute("href", "/labs/image-encoding");
+    const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
+    expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
+    expect(screen.getByText("计算实验 / 01")).toBeInTheDocument();
+    expect(screen.getByText("每个实验都从问题开始")).toBeInTheDocument();
+    expect(screen.queryByLabelText("图像编码实验预览")).not.toBeInTheDocument();
+    expect(screen.queryByText("INTERACTIVE COMPUTING / 01")).not.toBeInTheDocument();
+    expect(screen.queryByText("source raster → reconstruction")).not.toBeInTheDocument();
+    for (const legacyPhrase of [
+      /不先背结论/,
+      /把一个系统拆开/,
+      /开始图像编码/,
+      /先做一个看得见的实验/,
+      /可直接开始/,
+    ]) {
+      expect(screen.queryByText(legacyPhrase)).not.toBeInTheDocument();
+    }
     expect(screen.queryByRole("link", { name: /继续图像编码/ })).not.toBeInTheDocument();
+  });
+
+  it("hydrates the photo source through the canonical image query", async () => {
+    await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare");
+
+    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "32");
   });
 
   it.each([

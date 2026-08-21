@@ -131,7 +131,7 @@ submit 只在局部 checkpoint 有意义，例如“预测降低 sample rate 会
 2. **区分 aliasing 与 quantization noise**：选择含高频成分的 source → 保持高 bit depth、降低 rate → 听到错误音高/音色 → 恢复 rate、降低 bit depth → 听到颗粒感 → 对照 waveform 与参数，建立二者因果差异。
 3. **视觉相似不等于听觉相同**：看 original/reconstructed 叠加 → 认为“线差不多所以一样” → 开同步 loop → 切换高频局部 → 听到差异 → 放大 samples/levels → 理解显示尺度会隐藏误差。
 4. **sample phase 探索**：固定 rate/depth → 拖动 phase → 看 sample positions 变化 → 观察 reconstruction 轻微变化 → 认识采样时刻影响有限样本，但不改变原始频率。
-5. **录制式模拟**：开始 capture simulation → 实时显示连续输入与 sample points → 停止 → A/B 播放 original/reconstructed → 改参数重采集 → 比较 size、失真、听感，形成 input → encode → playback 因果链。
+5. **录制式模拟**：开始 capture simulation → 实时显示连续输入与 sample points → 停止 → A/B 播放 original/reconstructed → 改参数重采集 → 比较 size、失真、听感，说明 input → encode → playback 每一步如何影响下一步。
 
 #### Scenario URL
 
@@ -151,7 +151,7 @@ submit 只在局部 checkpoint 有意义，例如“预测降低 sample rate 会
 
 #### 学生必须理解的因果关系
 
-家庭网络连通性不是“填写正确网关”单独决定的，而是一条可验证因果链：
+家庭网络连通性不是“填写正确网关”单独决定的，而是可以逐步检查每一步原因的过程：
 
 ```text
 connect / associate

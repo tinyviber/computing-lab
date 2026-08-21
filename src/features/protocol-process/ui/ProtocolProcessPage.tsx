@@ -441,7 +441,7 @@ function ProtocolProcessPageContent({
             aria-describedby="protocol-guided-help"
           >
             <p className="eyebrow">引导检查</p>
-            <h3>找到因果转折点</h3>
+            <h3>找到结果发生变化的地方</h3>
             <p id="protocol-guided-help">这些按钮只会选中已经存在的证据，不会凭空创建事件。</p>
             <button
               aria-describedby="protocol-guided-help"
@@ -541,7 +541,7 @@ function ProtocolProcessPageContent({
           {lesson.frames.length > 0 ? (
             <section className="protocol-card" aria-label="情境比较">
               <p className="eyebrow">比较情境</p>
-              <h3>同一条消息，不同的因果结果</h3>
+              <h3>同一条消息，为什么会有不同结果</h3>
               <p>比较固定观察结果：超时之后可能成功送达、抑制重复请求，也可能耗尽尝试次数。</p>
               <ScenarioComparisonTable current={lesson.scenario} />
             </section>

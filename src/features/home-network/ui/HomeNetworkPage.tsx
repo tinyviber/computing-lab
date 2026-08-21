@@ -144,10 +144,10 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
         <header className="network-lesson-intro">
           <div>
             <p className="eyebrow">家庭网络 / 探针实验</p>
-            <h2>追踪一个数据包的第一处阻塞</h2>
+            <h2>找出数据包第一次被拦住的地方</h2>
             <p>
               固定的家庭局域网使用
-              192.168.1.0/24。编辑设备配置，选择探针目标，然后观察每一跳的因果证据。
+              192.168.1.0/24。编辑设备配置，选择探针目标，然后看每一跳为什么成功或失败。
             </p>
           </div>
           <div className="scenario-chip" aria-label={`预设情境 ${lesson.scenario}`}>
@@ -468,7 +468,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           <section aria-labelledby="trace-heading" className="trace-card">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">因果记录</p>
+                <p className="eyebrow">过程记录</p>
                 <h3 id="trace-heading">事件链</h3>
               </div>
               {selectedTrace ? <span className="trace-id">{selectedTrace.id}</span> : null}
@@ -501,7 +501,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 ))}
               </ol>
             ) : (
-              <p className="empty-evidence">发送探针后，这里会显示按顺序排列的因果链。</p>
+              <p className="empty-evidence">
+                发送探针后，这里会按顺序显示每一步发生了什么，以及原因。
+              </p>
             )}
           </section>
 
