@@ -28,7 +28,7 @@ function branchLabel(branch: Utf8Frame["evidence"]["branch"]): string {
 
 function evidenceExplanation(frame: Utf8Frame): string {
   const count = frame.evidence.bytes.length;
-  return `这个 Unicode 码点按 ${count} 字节模板拆分载荷位，得到右侧的 UTF-8 字节。`;
+  return `这个 Unicode 编号按 ${count} 字节模板拆分数据位，得到右侧的 UTF-8 字节。`;
 }
 
 function ByteTable({ bytes, caption }: { bytes: readonly Utf8ByteEvidence[]; caption: string }) {
@@ -114,7 +114,7 @@ function SelectedEvidence({ frame }: { frame?: Utf8Frame }) {
       <section className="utf8-card" aria-label="选中 UTF-8 证据">
         <p className="eyebrow">选中证据</p>
         <h3>执行一步，检查一个码点</h3>
-        <p>选中的帧会显示标量、模板、载荷位和生成的字节。</p>
+        <p>选中的帧会显示 Unicode 编号、模板、数据位和生成的字节。</p>
       </section>
     );
   }
@@ -169,7 +169,7 @@ function Utf8Content({
         <div>
           <p className="eyebrow">UTF-8 · 表示路径</p>
           <h2>为什么四个可见字符会占十个字节？</h2>
-          <p>跟踪每个 Unicode 标量经过范围规则、载荷模板后生成的 UTF-8 字节。</p>
+          <p>查看每个 Unicode 编号经过范围规则和数据位模板后，怎样生成 UTF-8 字节。</p>
         </div>
         <div className="utf8-source-card" aria-label="UTF-8 源文本">
           <span>源文本</span>

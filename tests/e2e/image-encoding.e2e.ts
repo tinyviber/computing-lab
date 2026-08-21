@@ -21,6 +21,8 @@ test("loads the photo scenario without external network or image dependencies", 
   });
   expect(nonLocalRequests).toEqual([]);
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
+  await expect(page.getByText("小猫照片").first()).toBeVisible();
+  await expect(page.getByLabel("内置素材")).toHaveCount(0);
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "32");
 

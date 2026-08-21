@@ -14,7 +14,8 @@ describe("application router integration", () => {
     const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
     expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
     expect(screen.getByText("计算实验 / 01")).toBeInTheDocument();
-    expect(screen.getByText("源图像 → 重建图像")).toBeInTheDocument();
+    expect(screen.getByText("每个实验都从问题开始")).toBeInTheDocument();
+    expect(screen.queryByLabelText("图像编码实验预览")).not.toBeInTheDocument();
     expect(screen.queryByText("INTERACTIVE COMPUTING / 01")).not.toBeInTheDocument();
     expect(screen.queryByText("source raster → reconstruction")).not.toBeInTheDocument();
     for (const legacyPhrase of [
@@ -32,7 +33,8 @@ describe("application router integration", () => {
   it("hydrates the photo source through the canonical image query", async () => {
     await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare");
 
-    expect(screen.getByLabelText("内置素材")).toHaveValue("photo");
+    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
     expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
     expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "32");
   });

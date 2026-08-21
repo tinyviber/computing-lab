@@ -37,7 +37,7 @@
 5. **验证边界**：快捷例子按当前 width 提供 signed-boundary、carry-only 与 negative-overflow：4-bit 分别是 `0111 + 0001`、`1111 + 0001`、`1000 + 1111`；8-bit 分别是 `01111111 + 00000001`、`11111111 + 00000001`、`10000000 + 11111111`。它们不是练习关卡，也不写入 URL。
 6. **复位**：恢复 URL 初始 scenario，而不是全局固定 default。
 
-直接 drag carry、十进制 text-input 反推 bits、连续动画和问答评分被排除：它们会增加操作或 assessment 状态，而不能增强这节课的核心因果证据。
+直接 drag carry、十进制 text-input 反推 bits、连续动画和问答评分被排除：它们会增加操作或 assessment 状态，而不能增强这节课要观察的核心计算关系。
 
 ## 5. Feature-local domain model
 

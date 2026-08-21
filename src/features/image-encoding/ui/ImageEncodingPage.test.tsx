@@ -101,9 +101,11 @@ describe("ImageEncodingPage", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 3, name: /选择或上传源图像/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: /本节使用的图像/ })).toBeInTheDocument();
+    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: /从一个显示像素追踪到 bits/ }),
+      screen.getByRole("heading", { level: 3, name: /把一个像素拆成数字/ }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交编码/ })).not.toBeInTheDocument();
@@ -115,8 +117,8 @@ describe("ImageEncodingPage", () => {
     const outline = screen.getByRole("navigation", { name: "图像编码学习流程" });
     expect(outline).toHaveTextContent(/任务单/);
     expect(outline).toHaveTextContent(/观察重建/);
-    expect(outline).toHaveTextContent(/追踪 bits/);
-    expect(outline).toHaveTextContent(/迁移解释/);
+    expect(outline).toHaveTextContent(/看像素怎样变成数字/);
+    expect(outline).toHaveTextContent(/联系实际/);
     expect(outline.querySelector(".is-current")).toBeNull();
     expect(outline).not.toHaveTextContent(/进行中/);
   });
@@ -237,7 +239,7 @@ describe("ImageEncodingPage", () => {
     await user.click(screen.getByRole("tab", { name: /对比：原图 \/ 重建图/ }));
     expectTaskEvidence(/采样重建/, true);
 
-    await user.selectOptions(screen.getByLabelText("内置素材"), "gradient");
+    await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=8");
     expectTaskEvidence(/空间采样/, false);
     expectTaskEvidence(/采样重建/, false);
 
@@ -252,7 +254,7 @@ describe("ImageEncodingPage", () => {
     setSlider(slider(/空间采样/), 45);
     await user.click(screen.getByRole("tab", { name: /采样重建/ }));
     expectTaskEvidence(/采样重建/, true);
-    await user.click(screen.getByRole("button", { name: /恢复样例情境/ }));
+    await user.click(screen.getByRole("button", { name: /恢复固定样例/ }));
     expectTaskEvidence(/空间采样/, false);
     expectTaskEvidence(/颜色位深/, false);
     expectTaskEvidence(/采样重建/, false);
@@ -276,17 +278,17 @@ describe("ImageEncodingPage", () => {
     await user.click(screen.getByRole("tab", { name: /编码表示/ }));
     fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }));
     expect(screen.getByText("编码值").parentElement).toHaveTextContent(/3 bits/);
-    expect(screen.getByText("状态记录").closest(".image-card-heading")).toHaveTextContent(
-      /状态记录/,
+    expect(screen.getByText("颜色编号记录").closest(".image-card-heading")).toHaveTextContent(
+      /颜色编号记录/,
     );
   });
 
   it("switches to an error map without changing the encoded model", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=checkerboard&sample=25&bits=2");
-    await user.click(screen.getByRole("tab", { name: /可见误差图/ }));
+    await user.click(screen.getByRole("tab", { name: /颜色差异图/ }));
     expect(screen.getByRole("img", { name: /像素误差图/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /载荷记录/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /原始数据量/ })).toBeInTheDocument();
     expect(screen.queryByText(/compression ratio/i)).not.toBeInTheDocument();
   });
 
@@ -294,10 +296,10 @@ describe("ImageEncodingPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=gradient&sample=25&bits=2");
     setSlider(slider(/空间采样/), 90);
-    await user.click(screen.getByRole("button", { name: /恢复样例情境/ }));
+    await user.click(screen.getByRole("button", { name: /恢复固定样例/ }));
     expect(slider(/空间采样/)).toHaveValue("25");
     expect(
-      screen.getByRole("heading", { level: 3, name: /从一个显示像素追踪到 bits/ }).closest("main"),
+      screen.getByRole("heading", { level: 3, name: /把一个像素拆成数字/ }).closest("main"),
     ).toBe(screen.getByRole("main"));
     expect(screen.getByRole("grid").closest("#lab-navigation")).toBeNull();
   });

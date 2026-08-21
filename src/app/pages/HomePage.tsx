@@ -2,7 +2,6 @@ import { Link } from "@tanstack/react-router";
 import { labs } from "../catalog/labs";
 import "./home.css";
 
-const entryLab = labs.find((lab) => lab.id === "image-encoding") ?? labs[0];
 const catalogGroups = [
   { label: "信息编码", ids: ["image-encoding", "audio-encoding", "utf8", "byte-edit"] },
   { label: "系统与程序", ids: ["home-network", "program-execution", "protocol-process"] },
@@ -33,31 +32,27 @@ export function HomePage() {
           <div className="home-hero-copy">
             <p className="eyebrow">计算实验 / 01</p>
             <h1 id="home-title">交互式计算实验</h1>
-            <p className="home-lede">
-              教师设定任务，学生调整参数、观察证据、记录结果，再用记录解释系统如何工作。
-            </p>
+            <p className="home-lede">教师提出问题，学生动手改变参数，看结果、记变化、说明原因。</p>
             <div className="home-hero-actions">
-              <Link className="button button-primary" to={entryLab.route}>
-                进入图像编码实验 <span aria-hidden="true">→</span>
-              </Link>
+              <a className="button button-primary" href="#catalog">
+                选择一个实验 <span aria-hidden="true">→</span>
+              </a>
               <a className="button button-secondary" href="#catalog">
                 浏览全部实验
               </a>
             </div>
           </div>
-          <div className="home-hero-visual" aria-label="图像编码实验预览">
-            <div className="visual-window-bar">
-              <span>图像编码 / 01</span>
-              <span>探索中</span>
-            </div>
-            <div className="visual-grid">
-              {Array.from({ length: 48 }, (_, index) => (
-                <span className={`visual-pixel visual-pixel-${index % 8}`} key={index} />
+          <div className="home-overview" aria-label="实验目录概览">
+            <p className="eyebrow">课堂目录</p>
+            <h2>每个实验都从问题开始</h2>
+            <p>目录只按主题分组，不设默认推荐。教师可以从本节课的问题出发，选择任意一个实验。</p>
+            <div className="home-overview-groups">
+              {catalogGroups.map((group) => (
+                <div className="home-overview-group" key={group.label}>
+                  <span>{group.label}</span>
+                  <strong>{group.ids.length} 个实验</strong>
+                </div>
               ))}
-            </div>
-            <div className="visual-caption">
-              <span>源图像 → 重建图像</span>
-              <strong>采样 · 量化 · bits</strong>
             </div>
           </div>
         </section>
@@ -71,7 +66,7 @@ export function HomePage() {
           </div>
           <div className="method-card">
             <p>
-              教师设定任务，学生调整参数、观察证据、记录结果，再用记录解释现象。课堂可以从任一实验进入，按目标安排观察、讨论与书面总结。
+              教师设定任务，学生调整参数、观察结果、记录变化，再用记录解释现象。课堂可以从任一实验进入，按目标安排观察、讨论与书面总结。
             </p>
             <ol className="method-list">
               <li>

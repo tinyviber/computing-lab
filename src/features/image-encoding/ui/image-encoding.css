@@ -257,7 +257,7 @@
   padding: 18px 20px 12px;
 }
 
-.select-field,
+.fixed-source,
 .upload-field {
   display: grid;
   gap: 7px;
@@ -265,13 +265,14 @@
   font-size: 12px;
 }
 
-.select-field span,
+.fixed-source > span,
+.fixed-source strong,
 .upload-field span {
   color: var(--primary);
   font-weight: 600;
 }
 
-.select-field select,
+.fixed-source strong,
 .upload-field input[type="file"] {
   width: 100%;
   min-height: 38px;
@@ -283,6 +284,7 @@
   font: inherit;
 }
 
+.fixed-source small,
 .upload-field small {
   color: var(--muted);
   font-size: 11px;

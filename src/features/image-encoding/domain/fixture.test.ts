@@ -56,12 +56,12 @@ describe("photo image fixture", () => {
       pixelAt(5, 19),
       pixelAt(47, 31),
     ]).toEqual([
-      { r: 28, g: 76, b: 164 },
-      { r: 40, g: 110, b: 178 },
-      { r: 229, g: 70, b: 68 },
-      { r: 35, g: 57, b: 132 },
-      { r: 58, g: 132, b: 180 },
-      { r: 154, g: 182, b: 145 },
+      { r: 102, g: 66, b: 53 },
+      { r: 9, g: 1, b: 2 },
+      { r: 99, g: 67, b: 58 },
+      { r: 230, g: 243, b: 254 },
+      { r: 17, g: 11, b: 8 },
+      { r: 146, g: 121, b: 105 },
     ]);
   });
 
@@ -77,14 +77,15 @@ describe("photo image fixture", () => {
       const key = colorKey(pixel);
       colorCounts.set(key, (colorCounts.get(key) ?? 0) + 1);
     }
-    expect(Math.max(...colorCounts.values())).toBeGreaterThanOrEqual(100);
+    expect(colorCounts.size).toBeGreaterThan(1000);
+    expect(Math.max(...colorCounts.values())).toBeLessThanOrEqual(20);
 
     const skyColumn = Array.from({ length: 13 }, (_, y) => pixelAt(0, y));
     expect(new Set(skyColumn.map((pixel) => pixel.b)).size).toBeGreaterThanOrEqual(8);
-    expect(skyColumn[0]?.b).toBeLessThan(skyColumn.at(-1)?.b ?? 0);
+    expect(skyColumn[0]?.b).toBeGreaterThan(skyColumn.at(-1)?.b ?? 0);
 
-    const saturatedPixels = photo.pixels.filter((pixel) => channelRange(pixel) >= 100);
-    expect(saturatedPixels.length).toBeGreaterThanOrEqual(150);
+    const contrastPixels = photo.pixels.filter((pixel) => channelRange(pixel) >= 40);
+    expect(contrastPixels.length).toBeGreaterThanOrEqual(150);
 
     const pairs = adjacentPairs();
     expect(

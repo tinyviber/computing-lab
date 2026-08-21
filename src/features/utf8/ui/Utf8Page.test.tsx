@@ -95,7 +95,7 @@ describe("Utf8Page", () => {
     }
     expect(
       within(screen.getByRole("main", { name: /UTF-8 编码 workspace/i })).getByText(
-        /跟踪每个 Unicode 标量/,
+        /查看每个 Unicode 编号/,
       ),
     ).toBeInTheDocument();
   });
