@@ -109,7 +109,7 @@ describe("ImageEncodingPage", () => {
   it("renders app chrome plus feature-owned source, compare, and inspector regions", async () => {
     await renderAppAt("/labs/image-encoding");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole("main", { name: /图像编码 workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
