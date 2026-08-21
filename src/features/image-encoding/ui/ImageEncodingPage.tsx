@@ -39,6 +39,15 @@ type CanvasViewProps = {
   canvasRef?: RefObject<HTMLCanvasElement | null>;
 };
 
+type ExplorationTrace = {
+  samplingChanged: boolean;
+  samplingViewed: boolean;
+  bitDepthChanged: boolean;
+  quantizationViewed: boolean;
+  representationViewed: boolean;
+  pixelInspected: boolean;
+};
+
 const VIEW_LABELS: Record<ImageView, string> = {
   compare: "对比：原图 / 重建图",
   sampling: "采样重建",
@@ -261,10 +270,121 @@ function RangeField({
   );
 }
 
+function MissionList({
+  tasks,
+  explorationCount,
+}: {
+  tasks: readonly { id: string; title: string; detail: string; done: boolean; explore: boolean }[];
+  explorationCount: number;
+}) {
+  return (
+    <section className="image-card mission-card" aria-labelledby="mission-heading">
+      <div className="image-card-heading mission-heading">
+        <div>
+          <p className="eyebrow">课堂任务单</p>
+          <h3 id="mission-heading">把图像送进一条低带宽通道</h3>
+          <p className="image-card-description">
+            下面 10 项任务中，有 6 项可以通过试验台自己解锁；其余留给同伴讨论和最后的书面解释。
+          </p>
+        </div>
+        <div className="mission-progress" aria-label={`已解锁 ${explorationCount} 项探索证据`}>
+          <strong>
+            {explorationCount}
+            <span>/6</span>
+          </strong>
+          <small>探索证据</small>
+        </div>
+      </div>
+      <ol className="mission-list">
+        {tasks.map((task, index) => (
+          <li className={`mission-item${task.done ? " is-done" : ""}`} key={task.id}>
+            <span className="mission-marker" aria-hidden="true">
+              {task.done ? "✓" : String(index + 1).padStart(2, "0")}
+            </span>
+            <span className="mission-copy">
+              <strong>{task.title}</strong>
+              <small>{task.detail}</small>
+            </span>
+            <span className={`mission-kind ${task.explore ? "is-explore" : "is-discuss"}`}>
+              {task.explore ? "探索解锁" : "讨论 / 书面"}
+            </span>
+          </li>
+        ))}
+      </ol>
+      <div className="mission-footer">
+        <span>
+          <span className="mission-key mission-key-explore" />{" "}
+          改变参数、切换视图或检查像素后自动记录
+        </span>
+        <span>
+          <span className="mission-key mission-key-discuss" /> 不把“看到了”当成“解释清楚了”
+        </span>
+      </div>
+    </section>
+  );
+}
+
+function DeepDivePanel() {
+  return (
+    <section className="image-card deep-dive-card" aria-labelledby="deep-dive-heading">
+      <div className="image-card-heading">
+        <div>
+          <p className="eyebrow">可选深挖</p>
+          <h3 id="deep-dive-heading">继续追问：机器究竟保存了什么？</h3>
+        </div>
+        <span className="deep-dive-badge">原理</span>
+      </div>
+      <div className="deep-dive-list">
+        <details open>
+          <summary>
+            <span>01</span> 采样不是“把网页缩小”
+          </summary>
+          <p>
+            编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。试着把采样降到
+            25%，比较两张同尺寸画布。
+          </p>
+        </details>
+        <details>
+          <summary>
+            <span>02</span> 位深描述的是索引状态
+          </summary>
+          <p>
+            当每个采样像素使用 b 位索引时，最多有 2<sup>b</sup> 个调色板状态。位深减半，不等于 RGB
+            三个通道各自减半。
+          </p>
+        </details>
+        <details>
+          <summary>
+            <span>03</span> 一颗像素如何变成 bits
+          </summary>
+          <p>从显示坐标追踪到采样格，再到调色板索引；检查器中的 bit 串就是重建时真正使用的表示。</p>
+        </details>
+        <details>
+          <summary>
+            <span>04</span> 理论载荷不是 PNG 文件大小
+          </summary>
+          <p>
+            本实验计算的是“采样像素数 ×
+            每像素位数”的原始载荷，暂不包含文件头、调色板、元数据和压缩编码。
+          </p>
+        </details>
+      </div>
+    </section>
+  );
+}
+
 function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseImageEncodingScenario(search), [search]);
   const [lesson, dispatch] = useReducer(transitionImageLesson, scenario, createImageLessonState);
   const [uploadMessage, setUploadMessage] = useState<string | undefined>();
+  const [trace, setTrace] = useState<ExplorationTrace>({
+    samplingChanged: false,
+    samplingViewed: false,
+    bitDepthChanged: false,
+    quantizationViewed: false,
+    representationViewed: false,
+    pixelInspected: false,
+  });
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const reconstructionCanvasRef = useRef<HTMLCanvasElement>(null);
   const errorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -297,7 +417,28 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   ]);
 
   const chooseCanvasPixel = (coordinate: { x: number; y: number }) => {
+    setTrace((current) => ({ ...current, pixelInspected: true }));
     dispatch({ type: "select-pixel", ...coordinate });
+  };
+
+  const changeSampling = (samplingPercent: number) => {
+    setTrace((current) => ({ ...current, samplingChanged: true }));
+    dispatch({ type: "set-sampling", samplingPercent });
+  };
+
+  const changeBitDepth = (bitDepth: number) => {
+    setTrace((current) => ({ ...current, bitDepthChanged: true }));
+    dispatch({ type: "set-bit-depth", bitDepth });
+  };
+
+  const changeView = (view: ImageView) => {
+    setTrace((current) => ({
+      ...current,
+      samplingViewed: current.samplingViewed || view === "sampling",
+      quantizationViewed: current.quantizationViewed || view === "quantization",
+      representationViewed: current.representationViewed || view === "representation",
+    }));
+    dispatch({ type: "set-view", view });
   };
 
   const changeFixture = (fixture: ImageFixtureId) => {
@@ -335,13 +476,102 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const reset = () => {
     dispatch({ type: "reset" });
     setUploadMessage(undefined);
+    setTrace({
+      samplingChanged: false,
+      samplingViewed: false,
+      bitDepthChanged: false,
+      quantizationViewed: false,
+      representationViewed: false,
+      pixelInspected: false,
+    });
   };
+
+  const missionTasks = [
+    {
+      id: "predict",
+      title: "先预测：如果采样变少，哪一种信息会先消失？",
+      detail: "不要急着打开提示，把预测写在纸上。",
+      done: false,
+      explore: false,
+    },
+    {
+      id: "sample",
+      title: "把空间采样调到 50% 以下，并记录重建尺寸",
+      detail: "观察编码采样数量减少，但显示画布仍保持同样大小。",
+      done: trace.samplingChanged && lesson.samplingPercent <= 50,
+      explore: true,
+    },
+    {
+      id: "spatial-loss",
+      title: "在“采样重建”视图中圈出一种空间损失",
+      detail: "用一句话说明：它来自采样密度，而不是颜色位深。",
+      done: trace.samplingViewed && trace.samplingChanged,
+      explore: true,
+    },
+    {
+      id: "quantize",
+      title: "把颜色位深调到 2 位，并数一数可用状态",
+      detail: "观察有限调色板，以及颜色渐变如何出现色带。",
+      done: trace.bitDepthChanged && lesson.bitDepth <= 2,
+      explore: true,
+    },
+    {
+      id: "color-loss",
+      title: "切换到“量化重建”，找出一种颜色损失",
+      detail: "把它和上一项的空间损失区分开。",
+      done: trace.quantizationViewed && trace.bitDepthChanged,
+      explore: true,
+    },
+    {
+      id: "trace-bits",
+      title: "点击一个像素，追踪它最终写入的索引 bits",
+      detail: "完成：显示坐标 → 采样格 → 调色板索引 → 编码值。",
+      done: trace.pixelInspected && trace.representationViewed,
+      explore: true,
+    },
+    {
+      id: "payload",
+      title: "用公式核对一遍编码载荷",
+      detail: "采样宽 × 采样高 × 位深，再把 bit 换算成 Byte。",
+      done: trace.representationViewed && trace.bitDepthChanged,
+      explore: true,
+    },
+    {
+      id: "tradeoff",
+      title: "讨论：同样的载荷，能否换来不同的图像观感？",
+      detail: "比较“高采样 + 低位深”和“低采样 + 高位深”。",
+      done: false,
+      explore: false,
+    },
+    {
+      id: "transfer",
+      title: "迁移：为什么真实 PNG/JPEG 文件大小不能直接套用本页公式？",
+      detail: "至少指出两个没有被理论载荷包含的部分。",
+      done: false,
+      explore: false,
+    },
+    {
+      id: "explain",
+      title: "最后用 80 字解释：图像编码到底做了哪几次取舍？",
+      detail: "不要抄定义，要写出因果链。",
+      done: false,
+      explore: false,
+    },
+  ] as const;
+  const explorationCount = missionTasks.filter((task) => task.explore && task.done).length;
 
   return (
     <LabShell
       eyebrow="图像 / 01"
       title="图像编码"
       subtitle="采样（sampling）、量化（quantization）与重建（reconstruction）"
+      currentStep="mission"
+      lessonSteps={[
+        { id: "mission", label: "任务单", caption: "先提出预测" },
+        { id: "evidence", label: "观察重建", caption: "改变一个变量" },
+        { id: "trace", label: "追踪 bits", caption: "看见底层表示" },
+        { id: "transfer", label: "迁移解释", caption: "说清楚取舍" },
+      ]}
     >
       <div className="image-course">
         <header className="image-course-intro">
@@ -368,8 +598,31 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
           </div>
         </header>
 
+        <nav className="image-stage-nav" aria-label="图像编码学习流程">
+          <span className="image-stage is-current">
+            <b>01</b>
+            <span>任务单</span>
+          </span>
+          <span className="image-stage">
+            <b>02</b>
+            <span>观察重建</span>
+          </span>
+          <span className="image-stage">
+            <b>03</b>
+            <span>追踪 bits</span>
+          </span>
+          <span className="image-stage">
+            <b>04</b>
+            <span>迁移解释</span>
+          </span>
+          <span className="image-stage-progress">
+            <strong>{explorationCount}/6</strong> 个探索证据已解锁
+          </span>
+        </nav>
+
         <div className="image-course-grid">
           <div className="image-main-column">
+            <MissionList explorationCount={explorationCount} tasks={missionTasks} />
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>
@@ -474,7 +727,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     aria-selected={lesson.view === view}
                     className={`view-tab${lesson.view === view ? " is-active" : ""}`}
                     key={view}
-                    onClick={() => dispatch({ type: "set-view", view })}
+                    onClick={() => changeView(view)}
                     role="tab"
                     type="button"
                   >
@@ -535,6 +788,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
           </div>
 
           <aside className="image-side-column" aria-label="图像编码控制与像素检查器">
+            <DeepDivePanel />
             <section
               className="image-card image-parameter-card"
               aria-labelledby="parameter-heading"
@@ -551,7 +805,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 label="空间采样"
                 max={MAX_SAMPLING_PERCENT}
                 min={MIN_SAMPLING_PERCENT}
-                onChange={(value) => dispatch({ type: "set-sampling", samplingPercent: value })}
+                onChange={changeSampling}
                 step={5}
                 unit="%"
                 value={lesson.samplingPercent}
@@ -574,7 +828,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 label="颜色位深"
                 max={MAX_BIT_DEPTH}
                 min={MIN_BIT_DEPTH}
-                onChange={(value) => dispatch({ type: "set-bit-depth", bitDepth: value })}
+                onChange={changeBitDepth}
                 step={1}
                 unit=" 位"
                 value={lesson.bitDepth}
