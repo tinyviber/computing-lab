@@ -66,14 +66,6 @@
   content: "";
 }
 
-.home-local-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--secondary);
-  font-size: 11px;
-}
-
 .home-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.78fr);
@@ -92,14 +84,6 @@
   line-height: 0.99;
 }
 
-.home-lede {
-  max-width: 520px;
-  margin-top: 22px;
-  color: var(--secondary);
-  font-size: 16px;
-  line-height: 1.75;
-}
-
 .home-hero-actions {
   display: flex;
   flex-wrap: wrap;
@@ -113,21 +97,6 @@
   border-radius: 12px;
   background: var(--surface);
   box-shadow: var(--shadow-sm);
-}
-
-.home-overview h2 {
-  margin-top: 14px;
-  color: var(--primary);
-  font-size: clamp(24px, 3vw, 34px);
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-}
-
-.home-overview > p:not(.eyebrow) {
-  margin-top: 14px;
-  color: var(--secondary);
-  font-size: 13px;
-  line-height: 1.7;
 }
 
 .home-overview-groups {
@@ -153,48 +122,12 @@
   font-weight: 650;
 }
 
-.method-section,
 .catalog-section {
   padding-top: 26px;
 }
 
 .catalog-section {
   margin-top: 66px;
-}
-
-.method-section + .catalog-section {
-  margin-top: 66px;
-}
-
-.method-card {
-  max-width: 920px;
-  padding: 24px 28px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  color: var(--secondary);
-  box-shadow: var(--shadow-sm);
-}
-
-.method-card > p {
-  max-width: 760px;
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-}
-
-.method-list {
-  display: grid;
-  gap: 10px;
-  margin: 18px 0 0;
-  padding-left: 20px;
-  color: var(--secondary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.method-list strong {
-  color: var(--primary);
 }
 
 .catalog-heading {
@@ -272,24 +205,6 @@
   color: var(--accent);
 }
 
-.home-footer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 76px;
-  padding-top: 18px;
-  border-top: 1px solid var(--border);
-  color: var(--secondary);
-  font-size: 11px;
-}
-
-.footer-divider {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--border);
-}
-
 .not-found {
   display: grid;
   gap: 16px;
@@ -326,12 +241,6 @@
   .home-nav {
     display: none;
   }
-  .home-local-status {
-    font-size: 0;
-  }
-  .home-local-status .local-dot {
-    margin-right: 4px;
-  }
   .home-hero {
     gap: 32px;
     padding: 48px 0 52px;
@@ -339,20 +248,7 @@
   .home-hero-copy h1 {
     font-size: 46px;
   }
-  .home-lede {
-    font-size: 14px;
-  }
-  .method-card {
-    padding: 20px;
-  }
   .lab-card-grid {
     grid-template-columns: 1fr;
-  }
-  .home-footer {
-    flex-wrap: wrap;
-    margin-top: 48px;
-  }
-  .footer-divider {
-    display: none;
   }
 }

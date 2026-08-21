@@ -6,7 +6,7 @@ export const labs: LabDefinition[] = [
     title: "图像编码",
     category: "信息编码",
     route: "/labs/image-encoding",
-    description: "观察采样与量化如何影响图像和数据量。",
+    description: "采样、量化、重建图像与数据量。",
     status: "available",
   },
   {
@@ -14,7 +14,7 @@ export const labs: LabDefinition[] = [
     title: "声音编码",
     category: "信息编码",
     route: "/labs/audio-encoding",
-    description: "观察采样率和量化位数如何描述声音。",
+    description: "采样率、量化位数与混叠。",
     status: "available",
   },
   {
@@ -30,7 +30,7 @@ export const labs: LabDefinition[] = [
     title: "二进制补码",
     category: "数据表示",
     route: "/labs/twos-complement",
-    description: "观察固定宽度 word、ripple carry 与 signed overflow 的不同证据。",
+    description: "固定宽度整数、逐位进位与有符号溢出。",
     status: "available",
   },
   {
@@ -38,7 +38,7 @@ export const labs: LabDefinition[] = [
     title: "程序执行",
     category: "程序设计",
     route: "/labs/program-execution",
-    description: "逐步观察变量、循环条件与输出如何形成。",
+    description: "变量、循环条件与输出。",
     status: "available",
   },
   {
@@ -46,7 +46,7 @@ export const labs: LabDefinition[] = [
     title: "协议过程",
     category: "协议过程",
     route: "/labs/protocol-process",
-    description: "观察延迟、丢失、超时、重试与确认如何形成可靠传递。",
+    description: "延迟、丢失、超时、重试与确认。",
     status: "available",
   },
   {
@@ -54,7 +54,7 @@ export const labs: LabDefinition[] = [
     title: "UTF-8 编码",
     category: "信息编码",
     route: "/labs/utf8",
-    description: "观察 Unicode 码点如何按范围变成不同数量的 UTF-8 字节。",
+    description: "Unicode 码点与 UTF-8 字节数。",
     status: "available",
   },
   {
@@ -62,7 +62,7 @@ export const labs: LabDefinition[] = [
     title: "蒙特卡洛求 π",
     category: "随机与模拟",
     route: "/labs/monte-carlo",
-    description: "用随机点估计 π，观察固定种子如何让轨迹可复现并逐渐收敛。",
+    description: "随机点、样本量与 π 估计。",
     status: "available",
   },
   {
@@ -70,7 +70,7 @@ export const labs: LabDefinition[] = [
     title: "关系数据",
     category: "数据查询",
     route: "/labs/relational-data",
-    description: "观察固定数据如何回答查询、约束保护什么、派生计数与溯源从何而来。",
+    description: "查询、约束、派生计数与来源行。",
     status: "available",
   },
   {
@@ -78,7 +78,7 @@ export const labs: LabDefinition[] = [
     title: "字节编辑",
     category: "信息编码",
     route: "/labs/byte-edit",
-    description: "编辑固定文本的一个字节，观察 UTF-8 有效性规则如何裁决整段序列。",
+    description: "单字节修改与 UTF-8 有效性。",
     status: "available",
   },
 ];

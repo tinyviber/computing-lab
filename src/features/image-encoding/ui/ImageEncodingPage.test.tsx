@@ -11,7 +11,7 @@ function setSlider(element: HTMLElement, value: number) {
   fireEvent.change(element, { target: { value: String(value) } });
 }
 
-const evidenceStatus = /(?:相关)?证据(?:已解锁|已出现|可用)/;
+const evidenceStatus = /(?:相关)?(?:证据(?:已解锁|已出现|可用)|观察已出现)/;
 
 function taskItem(title: RegExp): HTMLElement {
   const task = [...document.querySelectorAll(".mission-item")].find((candidate) =>
@@ -50,13 +50,12 @@ function imageResetButton(): HTMLButtonElement {
 }
 
 describe("ImageEncodingPage", () => {
-  it("uses classroom language for teacher assignments and learner observations", async () => {
+  it("uses direct task and control language", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    expect(screen.getByRole("main")).toHaveTextContent(/教师(?:布置|设定)/);
-    expect(screen.getByRole("main")).toHaveTextContent(/学生调整参数/);
-    expect(screen.getByRole("main")).toHaveTextContent(/观察/);
-    expect(screen.getByRole("main")).toHaveTextContent(/记录/);
+    expect(screen.getByRole("main")).not.toHaveTextContent(/教师|学生/);
+    expect(screen.getByRole("main")).toHaveTextContent(/调到 25% 左右/);
+    expect(screen.getByRole("main")).toHaveTextContent(/更新图像/);
     expect(screen.getAllByText(/拖动滑杆（也可聚焦后用方向键）/)).toHaveLength(2);
   });
 
@@ -160,16 +159,11 @@ describe("ImageEncodingPage", () => {
     },
   );
 
-  it("renders image course outline as a neutral feature-local map", async () => {
+  it("keeps the task disclosure as the feature-local map", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    const outline = screen.getByRole("navigation", { name: "图像编码学习流程" });
-    expect(outline).toHaveTextContent(/任务单/);
-    expect(outline).toHaveTextContent(/观察重建/);
-    expect(outline).toHaveTextContent(/看像素怎样变成数字/);
-    expect(outline).toHaveTextContent(/联系实际/);
-    expect(outline.querySelector(".is-current")).toBeNull();
-    expect(outline).not.toHaveTextContent(/进行中/);
+    expect(screen.queryByRole("navigation", { name: "图像编码学习流程" })).not.toBeInTheDocument();
+    expect(screen.getByText("展开查看任务")).toBeInTheDocument();
   });
 
   it("uses one native worksheet disclosure with a direct task list and stable evidence", async () => {
@@ -194,8 +188,7 @@ describe("ImageEncodingPage", () => {
     expect(within(worksheet).getAllByRole("listitem")).toHaveLength(10);
     expect(worksheet.querySelectorAll("details")).toHaveLength(0);
     expect(task.querySelector("p")).toBeInTheDocument();
-    expect(task).toHaveTextContent(/证据已出现/);
-    expect(task).toHaveTextContent(/仍需学生记录、描述、计算或解释/);
+    expect(task).toHaveTextContent(/相关观察已出现/);
     expect(task.textContent).toBe(evidenceBefore);
 
     await user.click(summary);
@@ -219,7 +212,7 @@ describe("ImageEncodingPage", () => {
     expect(slider(/空间采样/)).toHaveValue("25");
     setSlider(slider(/颜色位深/), 2);
     expect(slider(/颜色位深/)).toHaveValue("2");
-    expect(screen.getByText(/没有提交步骤/)).toBeInTheDocument();
+    expect(screen.getByText(/控件会立即更新采样表示与重建图像/)).toBeInTheDocument();
   });
 
   it("requires strict real slider targets and keeps target evidence sticky", async () => {
@@ -255,9 +248,8 @@ describe("ImageEncodingPage", () => {
   it("keeps the lesson copy observational rather than revealing conclusions", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    expect(screen.getByRole("main")).toHaveTextContent(/教师(?:布置|设定)/);
-    expect(screen.getByRole("main")).toHaveTextContent(/学生调整参数/);
-    expect(screen.getByRole("main")).toHaveTextContent(/观察.*记录/);
+    expect(screen.getByRole("main")).not.toHaveTextContent(/教师|学生/);
+    expect(screen.getByRole("main")).toHaveTextContent(/调整采样和颜色数量/);
     expect(document.body).not.toHaveTextContent(/0\s*\/\s*6|探索证据|可直接开始/);
   });
 
@@ -265,7 +257,7 @@ describe("ImageEncodingPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
 
-    const deepDive = sectionByHeading(/继续追问：机器究竟保存了什么/, 3);
+    const deepDive = sectionByHeading(/图像怎样变成编码/, 3);
     expect(deepDive.querySelectorAll("details[open]")).toHaveLength(0);
     expect(deepDive).not.toHaveTextContent(/编码单元数量真的变少了/);
 
@@ -358,8 +350,8 @@ describe("ImageEncodingPage", () => {
     await user.click(screen.getByRole("tab", { name: /编码表示/ }));
     fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }));
     expect(screen.getByText("编码值").parentElement).toHaveTextContent(/3 bits/);
-    expect(screen.getByText("颜色编号记录").closest(".image-card-heading")).toHaveTextContent(
-      /颜色编号记录/,
+    expect(screen.getByText("颜色编号").closest(".image-card-heading")).toHaveTextContent(
+      /颜色编号/,
     );
   });
 

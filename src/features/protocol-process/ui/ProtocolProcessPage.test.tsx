@@ -9,7 +9,7 @@ describe("ProtocolProcessPage", () => {
   it("renders semantic controls, queue evidence, and disabled guided actions", async () => {
     await renderAppAt("/labs/protocol-process");
 
-    expect(screen.getByRole("main", { name: "可靠送达 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "可靠送达实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "可靠送达" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /你的预测/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /消息情境/i })).toBeInTheDocument();
@@ -17,7 +17,7 @@ describe("ProtocolProcessPage", () => {
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
     expect(button("检查第一个故障")).toBeDisabled();
     expect(button("检查重试")).toBeDisabled();
-    expect(button("检查第一个故障")).toHaveAccessibleDescription(/这些按钮只会选中已经存在的证据/i);
+    expect(button("检查第一个故障")).not.toHaveAccessibleDescription();
     await userEvent.setup().click(button("执行一步"));
     expect(screen.getByRole("table", { name: /选中事件后的协议计数/i })).toBeInTheDocument();
   });
@@ -40,20 +40,20 @@ describe("ProtocolProcessPage", () => {
     expect(button("检查重试")).toBeEnabled();
 
     await user.click(button("检查第一个故障"));
-    const evidence = screen.getByRole("region", { name: /选中事件证据/i });
+    const evidence = screen.getByRole("region", { name: /选中事件结果/i });
     expect(evidence).toHaveTextContent(/时刻 5/);
     expect(evidence).toHaveTextContent(/已丢失/);
     expect(evidence).toHaveTextContent(/确认在发送方观察到之前丢失/);
 
     await user.click(button("检查重试"));
-    expect(screen.getByRole("region", { name: /选中事件证据/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中事件结果/i })).toHaveTextContent(
       /第 2 次请求重试/,
     );
     expect(screen.getByRole("region", { name: /最终协议结果/i })).toHaveTextContent(
       /状态：已送达.*尝试次数：2.*接受次数：1.*重复抑制：1/,
     );
     expect(screen.getByRole("region", { name: /最终协议结果/i })).toHaveTextContent(
-      /预测：会送达.*预计 2 次.*观察结果：\s*已送达.*超时判断：状态未知/i,
+      /预测：会送达.*预计 2 次.*实际结果：\s*已送达.*超时判断：状态未知/i,
     );
   });
 
@@ -115,7 +115,7 @@ describe("ProtocolProcessPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /可靠送达 workspace/i })).getByText(
+      within(screen.getByRole("main", { name: /可靠送达实验区/ })).getByText(
         /时钟是模拟的，\s*每次队列变化都可以检查/,
       ),
     ).toBeInTheDocument();

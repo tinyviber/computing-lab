@@ -19,11 +19,11 @@ export function MonteCarloGeometry({ frame }: { frame: MonteCarloFrame }) {
   const batchOutside = batchTotal - frame.batchInsideCount;
 
   return (
-    <section className="mc-card mc-geometry-card" aria-label="蒙特卡洛几何证据">
+    <section className="mc-card mc-geometry-card" aria-label="蒙特卡洛几何结果">
       <div className="mc-card-heading">
         <div>
           <p className="eyebrow">几何机制</p>
-          <h3>为什么圆内 ÷ 总数可以估计 π ÷ 4？</h3>
+          <h3>圆内比例与 π 的关系</h3>
         </div>
         <span>第 {frame.batch} 批</span>
       </div>

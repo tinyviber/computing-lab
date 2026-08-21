@@ -109,8 +109,6 @@ p {
 .control-description,
 .action-hint,
 .metric-note,
-.home-lede,
-.home-footer,
 .not-found p:not(.eyebrow) {
   color: var(--secondary);
   line-height: 20px;

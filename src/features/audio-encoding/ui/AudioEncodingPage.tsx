@@ -31,15 +31,15 @@ const VIEW_LABELS: Record<SoundView, string> = {
 const SOURCE_COPY: Record<SoundSource, { label: string; description: string }> = {
   pure440: {
     label: "纯 440 Hz 音调",
-    description: "稳定的参考音调，用来对比采样与量化。",
+    description: "440 Hz 纯音。",
   },
   "high-pulse": {
     label: "高频脉冲",
-    description: "高频脉冲序列，便于观察混叠。",
+    description: "高频脉冲序列。",
   },
   speech: {
     label: "类语音信号",
-    description: "由几个固定频率组成的组合信号。",
+    description: "由多个频率组成的组合信号。",
   },
   sawtooth: {
     label: "锯齿波",
@@ -252,20 +252,14 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   return (
-    <LabShell
-      eyebrow="音频 / 01"
-      title="声音编码"
-      subtitle="采样与量化（sampling and quantization）"
-    >
+    <LabShell eyebrow="音频 / 01" title="声音编码" subtitle="采样与量化">
       <div className="sound-feature-layout">
         <section className="lesson-section sound-visualization" aria-labelledby="sound-heading">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">参考模型</p>
               <h2 id="sound-heading">采样、量化与重建</h2>
               <p className="section-description">
-                页面上的数值来自固定的本地示例。图表按你点击的每一步推进；试听播放始终使用固定的 48
-                kHz 设置。
+                数值来自本地示例。图表按每一步推进；试听使用 48 kHz。
               </p>
             </div>
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
@@ -374,20 +368,20 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div className="sound-mode-evidence" data-sound-mode={state.mode}>
             {state.mode === "compare" ? (
               <div data-testid="sound-compare-evidence">
-                <p className="eyebrow">对照证据</p>
+                <p className="eyebrow">对照结果</p>
                 <p>原始信号不会随着采样设置改变。你可以在“原始信号”和“重建信号”之间切换试听。</p>
               </div>
             ) : null}
             {state.mode === "aliasing" ? (
               <div data-testid="sound-aliasing-evidence">
-                <p className="eyebrow">频率分量混叠证据</p>
+                <p className="eyebrow">频率分量混叠结果</p>
                 <p>
                   {model.anyAliasing
                     ? "至少一个可见频率分量高于当前奈奎斯特频率。"
                     : "每个可见频率分量都低于或恰在当前奈奎斯特频率。"}
                 </p>
                 <p>
-                  采样频率的一半是奈奎斯特频率；超过这个上限的分量会折叠到可表示范围内，表格给出每个分量的观察结果。
+                  采样频率的一半是奈奎斯特频率；超过这个上限的分量会折叠到可表示范围内，表格列出每个分量的结果。
                 </p>
                 <div className="sound-evidence-table" role="table">
                   {model.aliasingEvidence.components.map((component) => (
@@ -408,7 +402,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             ) : null}
             {state.mode === "quantization" ? (
               <div data-testid="sound-quantization-evidence">
-                <p className="eyebrow">量化证据</p>
+                <p className="eyebrow">量化结果</p>
                 <p>共 {model.quantization.levelValues.length} 个量化级别；当前显示部分量化级别。</p>
                 <p>采样量化指标只在采样时刻测量。</p>
                 <p>量化位数决定可用的量化级别数；位数越少，每个采样值能表示的精度越低。</p>
@@ -503,7 +497,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           </p>
         </section>
 
-        <aside aria-label="声音配置检查器" className="sound-inspector">
+        <aside aria-label="声音设置" className="sound-inspector">
           <div className="sound-inspector-section">
             <p className="eyebrow">信号源</p>
             <label className="sound-label" htmlFor="sound-source">
@@ -522,9 +516,6 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </option>
               ))}
             </select>
-            <p className="sound-source-id">
-              信号源 ID：<code>{state.source}</code>
-            </p>
             <p className="sound-control-description">{sourceCopy.description}</p>
           </div>
 
@@ -553,7 +544,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               ))}
             </select>
             <p className="sound-control-description" id="sound-rate-description">
-              选择接近奈奎斯特临界点的教学档位，或保留情境中的精确值。
+              选择采样率；可使用接近奈奎斯特频率的档位或情境值。
             </p>
             <label className="sound-label" htmlFor="sound-bits">
               量化位数（bit depth） <span>{state.config.bitDepth} bit</span>
@@ -742,7 +733,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             onClick={() => dispatch({ type: "reset" })}
             type="button"
           >
-            恢复参考状态
+            恢复默认状态
           </button>
         </aside>
       </div>

@@ -13,17 +13,17 @@ const fixtureOptions: readonly { value: ProgramId; label: string; description: s
   {
     value: "sum-1-to-3",
     label: "从 1 加到 3",
-    description: "观察一段带有条件检查和输出的短程序。",
+    description: "带有条件检查和输出的短程序。",
   },
   {
     value: "zero-iterations",
     label: "零次循环",
-    description: "观察另一种初始状态下的执行记录。",
+    description: "另一种初始状态下的执行记录。",
   },
   {
     value: "off-by-one",
     label: "边界比较",
-    description: "比较循环条件与边界值的执行记录。",
+    description: "循环条件与边界值的执行记录。",
   },
 ];
 
@@ -60,10 +60,10 @@ function frameExplanation(frame: ExecutionFrame): string {
       : "条件为假，循环体在这次检查中被跳过。";
   }
   if (frame.assignment) {
-    return `执行 ${frame.assignment.variable} = ${frame.assignment.expressionText}，记录变量变化。`;
+    return `执行 ${frame.assignment.variable} = ${frame.assignment.expressionText}；变量已更新。`;
   }
   if (frame.print) return `执行输出语句，产生 ${frame.print.value}。`;
-  return frame.runtimeError ? "程序执行遇到运行错误。" : "程序状态到达一个可观察的结束点。";
+  return frame.runtimeError ? "程序执行遇到运行错误。" : "程序到达结束状态。";
 }
 
 function terminalMessage(reason: string): string {
@@ -152,7 +152,7 @@ function ProgramSource({
       <div className="program-card-heading">
         <div>
           <p className="eyebrow">程序步骤</p>
-          <h3>每一步做一件事</h3>
+          <h3>执行步骤</h3>
         </div>
         <span className="program-source-note">按步骤查看</span>
       </div>
@@ -182,7 +182,7 @@ function ExecutionTrace({
       <div className="program-card-heading">
         <div>
           <p className="eyebrow">执行记录</p>
-          <h3>看看程序每一步发生了什么</h3>
+          <h3>执行记录</h3>
         </div>
         <span className="program-trace-count">{frames.length} 步</span>
       </div>
@@ -224,8 +224,8 @@ function FrameEvidence({
 }) {
   if (!frame) {
     return (
-      <section className="program-card" aria-label="选中步骤证据">
-        <p className="eyebrow">证据</p>
+      <section className="program-card" aria-label="选中步骤详情">
+        <p className="eyebrow">步骤详情</p>
         <h3>执行一步，检查执行前后的状态</h3>
         <p>选中的步骤会显示语句、变量变化、条件值、输出，以及循环继续或停止的原因。</p>
       </section>
@@ -233,10 +233,10 @@ function FrameEvidence({
   }
 
   return (
-    <section className="program-card program-evidence-card" aria-label="选中步骤证据">
+    <section className="program-card program-evidence-card" aria-label="选中步骤详情">
       <div className="program-card-heading">
         <div>
-          <p className="eyebrow">选中证据</p>
+          <p className="eyebrow">选中结果</p>
           <h3>
             第 {frame.index + 1} 步，第 {frame.sourceLine} 行
           </h3>
@@ -246,7 +246,7 @@ function FrameEvidence({
       <p className="program-explanation">{frameExplanation(frame)}</p>
       {frame.condition ? (
         <div className="program-condition-evidence" role="note">
-          <strong>条件证据</strong>
+          <strong>条件结果</strong>
           <span>
             {frame.condition.leftValue} {frame.condition.operator} {frame.condition.rightValue} →{" "}
             {frame.condition.result ? "真" : "假"}
@@ -258,7 +258,7 @@ function FrameEvidence({
       ) : null}
       {frame.assignment ? (
         <div className="program-assignment-evidence" role="note">
-          <strong>赋值证据</strong>
+          <strong>赋值结果</strong>
           <span>
             {frame.assignment.variable}: {valueText(frame.assignment.previousValue)} →{" "}
             {frame.assignment.value}
@@ -270,7 +270,7 @@ function FrameEvidence({
       ) : null}
       {frame.print ? (
         <div className="program-output-evidence" role="note">
-          <strong>输出证据</strong>
+          <strong>输出结果</strong>
           <span>
             {frame.print.expressionText} 产生 {frame.print.value}
           </span>
@@ -312,12 +312,8 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
     <LabShell eyebrow="程序设计 / 01" subtitle="循环与变量追踪" title="程序执行">
       <div className="program-course">
         <header className="program-intro">
-          <p className="eyebrow">参考课程</p>
-          <h2>为什么这个循环最终会输出这个值？</h2>
-          <p>
-            这是一段受限的实验伪代码。每一步只执行一条赋值、一次 while
-            条件检查或一次输出；你可以观察变量如何改变，以及循环何时停止。
-          </p>
+          <h2>循环执行与最终输出</h2>
+          <p>程序包含赋值、while 条件和输出；执行记录显示变量变化与循环结束原因。</p>
         </header>
 
         <div className="program-layout">
@@ -350,7 +346,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
 
             <section className="program-card">
               <p className="eyebrow">预测</p>
-              <h3>会输出什么？</h3>
+              <h3>预测输出</h3>
               <label className="program-field-label" htmlFor="program-prediction">
                 预测输出值
               </label>
@@ -368,7 +364,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                   记录预测
                 </button>
               </div>
-              <p className="program-help-text">预测可选，也不会阻止执行。</p>
+              <p className="program-help-text">可先记录预测，再执行。</p>
               {lesson.predictionMessage ? (
                 <p aria-live="polite" className="program-prediction-message">
                   预测已记录；你仍可继续执行。
@@ -388,7 +384,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 </button>
               </div>
               <p className="program-help-text">
-                “执行一步”和“运行到结束”遵循同样的执行规则。点击之前的步骤只会查看历史，不会改变程序当前状态。
+                “执行一步”和“运行到结束”使用相同规则；点击已完成步骤只查看历史。
               </p>
               <div className="program-guided-actions">
                 <button
@@ -414,7 +410,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
             </section>
           </aside>
 
-          <div className="program-main" aria-label="程序执行工作区" role="region">
+          <div className="program-main" aria-label="程序执行记录" role="region">
             <ProgramSource activeLine={selectedFrame?.sourceLine} lines={program.sourceLines} />
 
             <section className="program-observation-grid" aria-label="当前执行情况">
@@ -470,10 +466,10 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 )}
                 {lesson.prediction !== undefined && lesson.machine.status === "completed" ? (
                   <p className="program-prediction-result">
-                    预测：{lesson.prediction}；观察值：{observedOutput}。{" "}
+                    预测：{lesson.prediction}；实际值：{observedOutput}。{" "}
                     {lesson.prediction === observedOutput
-                      ? "预测与观察一致。"
-                      : "比较选中证据，找到第一次分歧。"}
+                      ? "预测与实际一致。"
+                      : "比较选中结果，找到第一次分歧。"}
                   </p>
                 ) : null}
               </div>

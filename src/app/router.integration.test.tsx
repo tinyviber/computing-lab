@@ -14,10 +14,15 @@ describe("application router integration", () => {
     const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
     expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
     expect(screen.getByText("计算实验 / 01")).toBeInTheDocument();
-    expect(screen.getByText("每个实验都从问题开始")).toBeInTheDocument();
+    expect(screen.queryByText("每个实验都从问题开始")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("图像编码实验预览")).not.toBeInTheDocument();
     expect(screen.queryByText("INTERACTIVE COMPUTING / 01")).not.toBeInTheDocument();
     expect(screen.queryByText("source raster → reconstruction")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("教师提出问题，学生动手改变参数，看结果、记变化、说明原因。"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("本地学习空间")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /进入实验/ }).length).toBeGreaterThan(0);
     for (const legacyPhrase of [
       /不先背结论/,
       /把一个系统拆开/,
@@ -62,56 +67,56 @@ describe("application router integration", () => {
     [
       "image lesson",
       "/labs/image-encoding?image=checkerboard&sample=25&bits=2&view=representation",
-      /图像编码 workspace/i,
+      /图像编码实验区/,
       /12 × 8 编码采样网格/,
     ],
     [
       "audio lesson",
       "/labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12",
-      /声音编码 workspace/i,
+      /声音编码实验区/,
       /高频脉冲|16.?000|12.?bit/i,
     ],
     [
       "network lesson",
       "/labs/home-network?scenario=wrong-gateway",
-      /家庭网络探针 workspace/i,
+      /家庭网络探针实验区/,
       /发送探针|事件链/,
     ],
     [
       "two's-complement lesson",
       "/labs/twos-complement?width=4&a=0111&b=0001&reading=signed",
-      /二进制补码 workspace/i,
+      /二进制补码实验区/,
       /有符号溢出：有/,
     ],
     [
       "program execution lesson",
       "/labs/program-execution?fixture=zero-iterations",
-      /程序执行 workspace/i,
+      /程序执行实验区/,
       /执行一步|程序步骤/,
     ],
     [
       "protocol process lesson",
       "/labs/protocol-process?scenario=request-loss",
-      /可靠送达 workspace/i,
+      /可靠送达实验区/,
       /运行到结束|消息情境/,
     ],
-    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 编码 workspace/i, /运行到结束|UTF-8 样例/],
+    ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 编码实验区/, /运行到结束|UTF-8 样例/],
     [
       "Monte Carlo lesson",
       "/labs/monte-carlo?scenario=small",
-      /蒙特卡洛 π workspace/,
+      /蒙特卡洛 π实验区/,
       /运行到结束|蒙特卡洛样例/,
     ],
     [
       "relational data lesson",
       "/labs/relational-data",
-      /关系数据 workspace/i,
+      /关系数据实验区/,
       /运行到结束|关系数据情境/,
     ],
     [
       "byte edit lesson",
       "/labs/byte-edit?scenario=accent",
-      /字节编辑 workspace/i,
+      /字节编辑实验区/,
       /应用编辑|字节编辑样例/,
     ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
@@ -169,12 +174,12 @@ describe("application router integration", () => {
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {
     const { router } = await renderAppAt("/labs/audio-encoding?source=pure440");
-    expect(document.body).toHaveTextContent(/pure440/i);
+    expect(document.body).toHaveTextContent("纯 440 Hz 音调");
     await navigateApp(
       router,
       "/labs/audio-encoding?source=sawtooth&sampleRate=16000&bitDepth=12&mode=quantization&view=levels",
     );
-    expect(document.body).toHaveTextContent(/sawtooth/i);
+    expect(document.body).toHaveTextContent("锯齿波");
     expect(document.body).toHaveTextContent(/quantization|levels/i);
   });
 

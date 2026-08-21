@@ -24,7 +24,6 @@
 .preview-panel-footer,
 .summary-heading,
 .control-heading,
-.rail-footer,
 .status-message,
 .calculation-row {
   align-items: center;
@@ -170,29 +169,6 @@
   margin-top: 3px;
   color: var(--muted);
   font-size: 10px;
-}
-
-.rail-footer {
-  align-items: flex-start;
-  gap: 8px;
-  margin-top: auto;
-  padding: 18px 8px 0;
-  border-top: 1px solid var(--border);
-}
-
-.rail-footer strong,
-.rail-footer span:not(.local-dot) {
-  display: block;
-}
-
-.rail-footer strong {
-  font-size: 12px;
-}
-
-.rail-footer span:not(.local-dot) {
-  color: var(--secondary);
-  font-size: 11px;
-  line-height: 17px;
 }
 
 .workspace {

@@ -3,12 +3,12 @@ import { expect, test } from "@playwright/test";
 test("traces fixed queries, provenance, and the catalog rules", async ({ page }) => {
   await page.goto("labs/relational-data", { waitUntil: "networkidle" });
 
-  await expect(page.getByRole("main", { name: "关系数据 workspace" })).toBeVisible();
+  await expect(page.getByRole("main", { name: "关系数据实验区" })).toBeVisible();
   await page.getByRole("spinbutton", { name: /行数/ }).fill("4");
   await page.getByRole("button", { name: "记录预测" }).click();
   await page.getByRole("button", { name: "运行到结束" }).click();
 
-  await expect(page.getByRole("region", { name: /当前关系数据证据/ })).toContainText(
+  await expect(page.getByRole("region", { name: /当前关系数据结果/ })).toContainText(
     /按借阅人统计借阅数/,
   );
   await expect(page.getByRole("table", { name: /固定目录上的约束检查/ })).toContainText(/失败/);

@@ -60,13 +60,6 @@ function LabNavigation({
           ))}
         </ul>
       </nav>
-      <div className="rail-footer">
-        <span className="local-dot" aria-hidden="true" />
-        <div>
-          <strong>本地学习空间</strong>
-          <span>无需账号，也不需要联网</span>
-        </div>
-      </div>
     </aside>
   );
 }
@@ -156,7 +149,7 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
           setRailOpen={setRailOpen}
         />
 
-        <main className="workspace" aria-label={`${title} workspace`}>
+        <main className="workspace" aria-label={`${title}实验区`}>
           {children}
         </main>
       </div>

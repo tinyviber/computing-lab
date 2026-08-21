@@ -99,8 +99,7 @@ test("keeps default and legacy image source identities local and truthful", asyn
 
   await page.getByRole("slider", { name: /空间采样/ }).press("ArrowLeft");
   const evidenceBefore = await task.textContent();
-  await expect(task).toContainText(/证据已出现/);
-  await expect(task).toContainText(/仍需学生记录、描述、计算或解释/);
+  await expect(task).not.toContainText(/结果已出现|仍需你记录、描述、计算或解释/);
   expect(await task.textContent()).toBe(evidenceBefore);
 
   await worksheetSummary.focus();

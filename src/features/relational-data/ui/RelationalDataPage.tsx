@@ -223,27 +223,26 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
   if (!frame) {
     return (
-      <section className="rd-card" aria-label="当前关系数据证据">
-        <p className="eyebrow">当前证据</p>
+      <section className="rd-card" aria-label="当前关系数据结果">
+        <p className="eyebrow">当前结果</p>
         <h3>执行一步来运行查询</h3>
-        <p>选中的查询会显示结果行、哪些原始记录产生了结果，以及计算得到的结果。</p>
+        <p>下方显示结果行、来源行和计算列。</p>
       </section>
     );
   }
   const derivedColumns = frame.queryId === "borrower-counts" ? (["loans"] as const) : ([] as const);
   return (
-    <section className="rd-card" aria-label="当前关系数据证据">
+    <section className="rd-card" aria-label="当前关系数据结果">
       <div className="rd-card-heading">
         <div>
-          <p className="eyebrow">当前证据</p>
+          <p className="eyebrow">当前结果</p>
           <h3>{queryTitle(frame.queryId)}</h3>
         </div>
-        <span className="rd-mono">{queryExplanation(frame.result)}</span>
       </div>
       <p>{queryExplanation(frame.result)}</p>
       {frame.predictedRows !== undefined ? (
         <p role="status">
-          预测 {frame.predictedRows} 行；实际观察到 {frame.result.rows.length} 行。
+          预测 {frame.predictedRows} 行；实际返回 {frame.result.rows.length} 行。
         </p>
       ) : null}
       {derivedColumns.length > 0 ? (
@@ -265,7 +264,7 @@ function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelatio
       <p className="eyebrow">约束</p>
       <h3>数据声明的规则</h3>
       <table className="rd-table">
-        <caption>固定目录上的约束检查</caption>
+        <caption>约束检查</caption>
         <thead>
           <tr>
             <th scope="col">约束</th>
@@ -286,8 +285,7 @@ function ConstraintsPanel({ scenario }: { scenario: ReturnType<typeof getRelatio
         </tbody>
       </table>
       <p className="rd-claim">
-        先观察上面的约束检查和下面的源行，再用查询结果核对：NULL
-        表示缺失值，空字符串仍是存在的文本；
+        约束检查和源行可用于核对查询结果：NULL 表示缺失值，空字符串仍是存在的文本；
         连接与聚合时，外键能否找到对应书籍会影响哪些行进入结果。
       </p>
       <table className="rd-table">
@@ -336,11 +334,9 @@ function RelationalContent({
     <div className="rd-page">
       <header className="rd-hero">
         <div>
-          <p className="eyebrow">关系数据 · 固定目录</p>
-          <h2>固定的一组行如何回答查询？</h2>
-          <p>
-            在三张表上运行几条查询，观察哪些行留下、哪些行消失，以及每条结果是由哪些原始记录产生的。
-          </p>
+          <p className="eyebrow">关系数据</p>
+          <h2>查询结果与来源行</h2>
+          <p>在三张表上运行查询，查看筛选、连接、聚合和来源行。</p>
         </div>
         <div className="rd-fixture-card" aria-label="关系数据情境">
           <span>情境</span>
@@ -355,7 +351,7 @@ function RelationalContent({
         <aside className="rd-controls" aria-label="关系数据实验控制">
           <section className="rd-card">
             <p className="eyebrow">预测</p>
-            <h3>下一条查询会返回多少行？</h3>
+            <h3>下一条查询的结果行数</h3>
             <label htmlFor="rd-prediction">行数</label>
             <input
               id="rd-prediction"
@@ -364,7 +360,7 @@ function RelationalContent({
               type="number"
               value={lesson.predictionDraft}
             />
-            <p id="rd-prediction-help">预测是可选的，不会阻止“执行一步”或“运行到结束”。</p>
+            <p id="rd-prediction-help">可先记录预测，再执行查询。</p>
             <button
               className="rd-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
@@ -393,12 +389,12 @@ function RelationalContent({
             >
               <option value="catalog">图书目录</option>
             </select>
-            <p>一个固定情境，参考日期为 2026-01-15。</p>
+            <p>参考日期：2026-01-15。</p>
           </section>
 
           <section className="rd-card">
             <p className="eyebrow">推进</p>
-            <h3>继续运行查询</h3>
+            <h3>运行查询</h3>
             {nextQueryId ? <p className="rd-next">下一条：{queryTitle(nextQueryId)}。</p> : null}
             <div className="rd-action-row">
               <button

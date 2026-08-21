@@ -72,13 +72,13 @@ function FrameTrace({
   onSelect: (index: number) => void;
 }) {
   return (
-    <section className="utf8-card" aria-label="UTF-8 帧记录">
+    <section className="utf8-card" aria-label="UTF-8 步骤记录">
       <div className="utf8-card-heading">
         <div>
           <p className="eyebrow">码点记录</p>
-          <h3>每帧处理一个码点</h3>
+          <h3>码点转换</h3>
         </div>
-        <span>{frames.length} 帧</span>
+        <span>{frames.length} 个步骤</span>
       </div>
       {frames.length === 0 ? (
         <p>点击“执行一步”，检查第一个标量到字节的转换。</p>
@@ -88,12 +88,12 @@ function FrameTrace({
             <li key={frame.index}>
               <button
                 aria-current={selectedFrameIndex === frame.index ? "true" : undefined}
-                aria-label={`第 ${frame.index + 1} 帧，${frame.evidence.character}，${codePointLabel(frame.evidence.codePoint)}，${branchLabel(frame.evidence.branch)}，${frame.evidence.bytes.length} 字节`}
+                aria-label={`第 ${frame.index + 1} 个步骤，${frame.evidence.character}，${codePointLabel(frame.evidence.codePoint)}，${branchLabel(frame.evidence.branch)}，${frame.evidence.bytes.length} 字节`}
                 className={selectedFrameIndex === frame.index ? "is-selected" : ""}
                 onClick={() => onSelect(frame.index)}
                 type="button"
               >
-                <strong>第 {frame.index + 1} 帧</strong>
+                <strong>第 {frame.index + 1} 个步骤</strong>
                 <span>
                   {frame.evidence.character} · {codePointLabel(frame.evidence.codePoint)} ·{" "}
                   {branchLabel(frame.evidence.branch)}
@@ -111,18 +111,18 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: Utf8Frame }) {
   if (!frame) {
     return (
-      <section className="utf8-card" aria-label="选中 UTF-8 证据">
-        <p className="eyebrow">选中证据</p>
+      <section className="utf8-card" aria-label="选中 UTF-8 结果">
+        <p className="eyebrow">选中结果</p>
         <h3>执行一步，检查一个码点</h3>
-        <p>选中的帧会显示 Unicode 编号、模板、数据位和生成的字节。</p>
+        <p>选中的步骤会显示 Unicode 编号、模板、数据位和生成的字节。</p>
       </section>
     );
   }
   return (
-    <section className="utf8-card" aria-label="选中 UTF-8 证据">
+    <section className="utf8-card" aria-label="选中 UTF-8 结果">
       <div className="utf8-card-heading">
         <div>
-          <p className="eyebrow">选中证据</p>
+          <p className="eyebrow">选中结果</p>
           <h3>
             {frame.evidence.character} · {codePointLabel(frame.evidence.codePoint)}
           </h3>
@@ -140,15 +140,15 @@ function SelectedEvidence({ frame }: { frame?: Utf8Frame }) {
           <dd className="utf8-mono">{frame.evidence.template}</dd>
         </div>
         <div>
-          <dt>帧之前的输出</dt>
+          <dt>步骤前输出</dt>
           <dd className="utf8-mono">{frame.before.bytes.join(" ") || "—"}</dd>
         </div>
         <div>
-          <dt>帧之后的输出</dt>
+          <dt>步骤后输出</dt>
           <dd className="utf8-mono">{frame.after.bytes.join(" ") || "—"}</dd>
         </div>
       </dl>
-      <ByteTable bytes={frame.evidence.bytes} caption={`第 ${frame.index + 1} 帧生成的字节`} />
+      <ByteTable bytes={frame.evidence.bytes} caption={`第 ${frame.index + 1} 个步骤生成的字节`} />
     </section>
   );
 }
@@ -168,7 +168,7 @@ function Utf8Content({
       <header className="utf8-hero">
         <div>
           <p className="eyebrow">UTF-8 · 表示路径</p>
-          <h2>为什么四个可见字符会占十个字节？</h2>
+          <h2>Unicode 码点与 UTF-8 字节数</h2>
           <p>查看每个 Unicode 编号经过范围规则和数据位模板后，怎样生成 UTF-8 字节。</p>
         </div>
         <div className="utf8-source-card" aria-label="UTF-8 源文本">
@@ -207,7 +207,7 @@ function Utf8Content({
               type="number"
               value={lesson.predictionBytesDraft}
             />
-            <p id="utf8-prediction-help">预测可选，也不会阻止执行。</p>
+            <p id="utf8-prediction-help">可先记录预测，再编码。</p>
             <button
               className="utf8-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
@@ -307,7 +307,7 @@ function Utf8Content({
             </p>
             {lesson.predictionBranch ? (
               <p role="status">
-                预测：{lesson.predictionBranch}；观察到的最终字节数： {lesson.machine.bytes.length}.
+                预测：{lesson.predictionBranch}；实际最终字节数： {lesson.machine.bytes.length}.
               </p>
             ) : null}
           </section>

@@ -68,7 +68,7 @@ function eventKindLabel(kind: string): string {
 }
 
 function reasonLabel(reasonCode: string): string {
-  return REASON_LABELS[reasonCode] ?? "事件证据已记录。";
+  return REASON_LABELS[reasonCode] ?? "事件结果已记录。";
 }
 
 function deviceName(name: string): string {
@@ -143,12 +143,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
       <div className="home-network-page">
         <header className="network-lesson-intro">
           <div>
-            <p className="eyebrow">家庭网络 / 探针实验</p>
+            <p className="eyebrow">家庭网络 / 探针</p>
             <h2>找出数据包第一次被拦住的地方</h2>
-            <p>
-              固定的家庭局域网使用
-              192.168.1.0/24。编辑设备配置，选择探针目标，然后看每一跳为什么成功或失败。
-            </p>
+            <p>家庭局域网使用 192.168.1.0/24。</p>
           </div>
           <div className="scenario-chip" aria-label={`预设情境 ${lesson.scenario}`}>
             <span>预设</span>
@@ -160,7 +157,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           <section className="network-canvas-card" aria-labelledby="topology-heading">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">固定拓扑</p>
+                <p className="eyebrow">网络拓扑</p>
                 <h3 id="topology-heading">家庭网络路径</h3>
               </div>
               <span className="network-metric">LAN 192.168.1.0/24</span>
@@ -171,9 +168,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               role="img"
               viewBox="0 0 510 300"
             >
-              <title id="home-network-graph-title">固定家庭网络拓扑</title>
+              <title id="home-network-graph-title">家庭网络拓扑</title>
               <desc id="home-network-graph-description">
-                路由器通过固定链路连接学习电脑、打印机和互联网端点；链路不能编辑。
+                路由器连接学习电脑、打印机和互联网端点。
               </desc>
               {NETWORK_LINKS.map((link) => {
                 const from = NODE_POSITIONS[link.from];
@@ -232,9 +229,8 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               <span>
                 <b>WAN</b> {ROUTER_WAN_IP}/24
               </span>
-              <span>链路固定 · 不提供拓扑编辑器</span>
             </div>
-            <div className="network-device-list" aria-label="固定网络设备">
+            <div className="network-device-list" aria-label="网络设备">
               {networkDevices.map((device) => (
                 <button
                   aria-pressed={lesson.selectedDevice === device.id}
@@ -265,16 +261,16 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             </div>
           </section>
 
-          <aside aria-label="网络设备检查器" className="network-inspector-card">
+          <aside aria-label="网络设备信息" className="network-inspector-card">
             <div className="network-card-heading">
               <div>
-                <p className="eyebrow">检查器</p>
+                <p className="eyebrow">设备信息</p>
                 <h3>设备配置</h3>
               </div>
-              <span className="inspector-lock">固定源：学习电脑</span>
+              <span className="inspector-lock">源：学习电脑</span>
             </div>
             <label className="network-field-label" htmlFor="device-inspector">
-              检查设备
+              选择设备
             </label>
             <select
               className="network-select"
@@ -289,7 +285,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               <option value="router">家庭路由器</option>
               <option value="internet">互联网</option>
             </select>
-            <p className="network-field-help">设备检查选择独立于探针目标。</p>
+            <p className="network-field-help">选择设备查看配置。</p>
 
             <div className="network-inspector-details">
               {selectedDevice ? (
@@ -373,7 +369,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                   )}
                 </>
               ) : (
-                <p>互联网是固定探针端点：203.0.113.10/24。</p>
+                <p>互联网探针端点：203.0.113.10/24。</p>
               )}
             </div>
           </aside>
@@ -454,7 +450,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
           </p>
           {selectedTrace && selectedPrediction ? (
             <p className="probe-prediction-feedback" aria-live="polite">
-              预测：<strong>{selectedPredictionLabel}</strong> · 观察：{observedPathLabel} ·{" "}
+              预测：<strong>{selectedPredictionLabel}</strong> · 实际：{observedPathLabel} ·{" "}
               {observedPath
                 ? selectedPrediction === observedPath
                   ? "一致"
@@ -501,13 +497,11 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 ))}
               </ol>
             ) : (
-              <p className="empty-evidence">
-                发送探针后，这里会按顺序显示每一步发生了什么，以及原因。
-              </p>
+              <p className="empty-evidence">发送探针后显示事件顺序与原因。</p>
             )}
           </section>
 
-          <aside aria-label="探针证据" className="probe-evidence-card">
+          <aside aria-label="探针结果" className="probe-evidence-card">
             <section className="failure-panel" aria-labelledby="failure-heading">
               <p className="eyebrow">第一个失败</p>
               <h3 id="failure-heading">
@@ -522,7 +516,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             <section className="selected-event-panel" aria-labelledby="selected-event-heading">
               <p className="eyebrow">选中事件</p>
               <h3 id="selected-event-heading">
-                {lesson.selectedEvent ? eventKindLabel(lesson.selectedEvent.kind) : "请选择事件"}
+                {lesson.selectedEvent
+                  ? eventKindLabel(lesson.selectedEvent.kind)
+                  : "选择事件查看数据包详情"}
               </h3>
               {lesson.selectedEvent ? (
                 <div className="packet-details">
@@ -532,9 +528,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                     <code>变换后首部 · {packetLabel(lesson.selectedEvent.transformedPacket)}</code>
                   ) : null}
                 </div>
-              ) : (
-                <p>事件数据包详情会显示在这里。</p>
-              )}
+              ) : null}
             </section>
           </aside>
         </div>
@@ -542,7 +536,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
         <section aria-labelledby="history-heading" className="history-card">
           <div className="network-card-heading">
             <div>
-              <p className="eyebrow">不可变历史</p>
+              <p className="eyebrow">历史记录</p>
               <h3 id="history-heading">探针历史比较</h3>
             </div>
             <span>{lesson.probeHistory.length} 个探针</span>
@@ -595,7 +589,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
               </div>
             </div>
           ) : (
-            <p className="empty-evidence">历史记录不可变；第一次发送探针后会显示在这里。</p>
+            <p className="empty-evidence">发送探针后显示历史记录。</p>
           )}
         </section>
       </div>

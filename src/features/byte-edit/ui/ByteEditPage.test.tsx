@@ -9,7 +9,7 @@ describe("ByteEditPage", () => {
   it("renders semantic controls, fixture bytes, and a valid current decode", async () => {
     await renderAppAt("/labs/byte-edit");
 
-    expect(screen.getByRole("main", { name: "字节编辑 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "字节编辑实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "字节编辑" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /有效性/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /字节索引/ })).toBeInTheDocument();
@@ -34,14 +34,14 @@ describe("ByteEditPage", () => {
     await user.type(value, "65");
     await user.click(button("应用编辑"));
 
-    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
       /第 2 个字节 → 65/,
     );
-    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
       /第 2 个字节被拒绝.*无效延续字节.*问题字节 0x41/,
     );
-    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
-      /预测：无效；观察：无效/,
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
+      /预测：无效；实际：无效/,
     );
   });
 
@@ -59,7 +59,7 @@ describe("ByteEditPage", () => {
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
       /缺少后续字节/,
     );
 
@@ -87,7 +87,7 @@ describe("ByteEditPage", () => {
     try {
       await renderAppAt("/labs/byte-edit");
       await userEvent.setup().click(button("代理项"));
-      expect(screen.getByRole("region", { name: /选中字节编辑证据/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toBeVisible();
       expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/代理码点/);
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
@@ -101,9 +101,7 @@ describe("ByteEditPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /字节编辑 workspace/i })).getByText(
-        /编辑一个字节时会发生什么/,
-      ),
+      within(screen.getByRole("main", { name: /字节编辑实验区/ })).getByText(/编辑 UTF-8 字节/),
     ).toBeInTheDocument();
   });
 });

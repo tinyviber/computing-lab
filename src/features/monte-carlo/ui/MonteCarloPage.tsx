@@ -45,7 +45,7 @@ const errorText = (value: number) => value.toFixed(4);
 function ConvergenceTable({ frames }: { frames: readonly MonteCarloFrame[] }) {
   return (
     <table className="mc-table">
-      <caption>按批次观察收敛</caption>
+      <caption>批次收敛</caption>
       <thead>
         <tr>
           <th scope="col">批次</th>
@@ -90,9 +90,9 @@ function FrameTrace({
       <div className="mc-card-heading">
         <div>
           <p className="eyebrow">批次记录</p>
-          <h3>每帧处理一个批次</h3>
+          <h3>采样批次</h3>
         </div>
-        <span>{frames.length} 帧</span>
+        <span>{frames.length} 个批次</span>
       </div>
       {frames.length === 0 ? (
         <p>点击“执行一步”，生成前 250 个随机点。</p>
@@ -124,18 +124,18 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: MonteCarloFrame }) {
   if (!frame) {
     return (
-      <section className="mc-card" aria-label="选中蒙特卡洛证据">
-        <p className="eyebrow">选中证据</p>
+      <section className="mc-card" aria-label="选中蒙特卡洛结果">
+        <p className="eyebrow">选中结果</p>
         <h3>执行一步，检查一个批次</h3>
         <p>选中的批次会显示累计样本、圆内计数、估计值和误差。</p>
       </section>
     );
   }
   return (
-    <section className="mc-card" aria-label="选中蒙特卡洛证据">
+    <section className="mc-card" aria-label="选中蒙特卡洛结果">
       <div className="mc-card-heading">
         <div>
-          <p className="eyebrow">选中证据</p>
+          <p className="eyebrow">选中结果</p>
           <h3>
             第 {frame.batch} 批，共 {frame.after.samplesDrawn} 个样本
           </h3>
@@ -197,8 +197,8 @@ function MonteCarloContent({
       <header className="mc-hero">
         <div>
           <p className="eyebrow">蒙特卡洛 · 随机采样</p>
-          <h2>需要多少个随机点才能估计 π？</h2>
-          <p>在单位正方形中生成随机点，统计落在四分之一圆内的点，并观察估计值逐步收敛。</p>
+          <h2>随机点估计 π</h2>
+          <p>在单位正方形中生成随机点，按落入四分之一圆的比例估计 π。</p>
         </div>
         <div className="mc-fixture-card" aria-label="蒙特卡洛样例">
           <span>样例</span>
@@ -214,7 +214,7 @@ function MonteCarloContent({
         <aside className="mc-controls" aria-label="蒙特卡洛实验控制">
           <section className="mc-card">
             <p className="eyebrow">预测</p>
-            <h3>估计值会落在哪里？</h3>
+            <h3>最终估计值</h3>
             <label htmlFor="mc-prediction">最终估计值相对 π 的位置</label>
             <select
               id="mc-prediction"
@@ -225,7 +225,7 @@ function MonteCarloContent({
               <option value="above">高于 π</option>
               <option value="below">低于 π</option>
             </select>
-            <p id="mc-prediction-help">预测可选，也不会阻止执行。</p>
+            <p id="mc-prediction-help">可先记录预测，再采样。</p>
             <button
               className="mc-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
@@ -324,7 +324,7 @@ function MonteCarloContent({
           {selectedFrame ? <MonteCarloGeometry frame={selectedFrame} /> : null}
           <section className="mc-card" aria-label="按批次收敛表">
             <p className="eyebrow">收敛</p>
-            <h3>按批次观察估计值</h3>
+            <h3>批次估计值</h3>
             <div className="mc-table-scroll">
               <ConvergenceTable frames={lesson.frames} />
             </div>
@@ -346,7 +346,7 @@ function MonteCarloContent({
                 </p>
                 {lesson.prediction ? (
                   <p role="status">
-                    预测：最终值{lesson.prediction === "above" ? "高于" : "低于"} π；观察估计值{" "}
+                    预测：最终值{lesson.prediction === "above" ? "高于" : "低于"} π；实际估计值{" "}
                     {estimateText(finalEstimate)}（{finalEstimate > Math.PI ? "高于" : "低于"} π）。
                   </p>
                 ) : null}
@@ -405,7 +405,7 @@ export function MonteCarloPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell eyebrow="蒙特卡洛" title="蒙特卡洛 π" subtitle="随机点逐步收敛">
+    <LabShell eyebrow="蒙特卡洛" title="蒙特卡洛 π" subtitle="随机点与 π 估计">
       <MonteCarloContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

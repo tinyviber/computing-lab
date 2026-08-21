@@ -9,7 +9,7 @@ describe("Utf8Page", () => {
   it("renders semantic source, controls, output, and selected evidence", async () => {
     await renderAppAt("/labs/utf8");
 
-    expect(screen.getByRole("main", { name: "UTF-8 编码 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "UTF-8 编码实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "UTF-8 编码" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /下一个码点分支/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("mixed");
@@ -36,25 +36,25 @@ describe("Utf8Page", () => {
     expect(screen.getByRole("region", { name: /最终 UTF-8 结果/ })).toHaveTextContent(
       /4 个可见码点 → 10 个字节/,
     );
-    expect(screen.getByRole("region", { name: /选中 UTF-8 证据/ })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中 UTF-8 结果/ })).toHaveTextContent(
       /U\+1F642.*4 字节/,
     );
   });
 
-  it("selects frames with keyboard activation and exposes aria-current", async () => {
+  it("selects conversion counts with keyboard activation and exposes aria-current", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/utf8?scenario=mixed");
     await user.click(button("运行到结束"));
 
-    const first = screen.getByRole("button", { name: /第 1 帧.*A.*U\+0041.*1 字节/ });
-    const second = screen.getByRole("button", { name: /第 2 帧.*é.*U\+00E9.*2 字节/ });
+    const first = screen.getByRole("button", { name: /第 1 个步骤.*A.*U\+0041.*1 字节/ });
+    const second = screen.getByRole("button", { name: /第 2 个步骤.*é.*U\+00E9.*2 字节/ });
     first.focus();
     await user.tab();
     expect(second).toHaveFocus();
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /选中 UTF-8 证据/ })).toHaveTextContent(/0xxxxxxx/i);
+    expect(screen.getByRole("region", { name: /选中 UTF-8 结果/ })).toHaveTextContent(/0xxxxxxx/i);
 
     second.focus();
     await user.keyboard(" ");
@@ -94,7 +94,7 @@ describe("Utf8Page", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /UTF-8 编码 workspace/i })).getByText(
+      within(screen.getByRole("main", { name: /UTF-8 编码实验区/ })).getByText(
         /查看每个 Unicode 编号/,
       ),
     ).toBeInTheDocument();
