@@ -36,6 +36,19 @@ function sectionByHeading(name: RegExp, level: 2 | 3): HTMLElement {
   return section;
 }
 
+function sourceSurface(selector: string): HTMLElement {
+  const surface = document.querySelector(selector);
+  if (!(surface instanceof HTMLElement)) throw new Error(`Source surface not found: ${selector}`);
+  return surface;
+}
+
+function imageResetButton(): HTMLButtonElement {
+  const sourceSection = sectionByHeading(/本节使用的图像/, 3);
+  const button = within(sourceSection).getByRole("button", { name: "恢复初始情境" });
+  if (!(button instanceof HTMLButtonElement)) throw new Error("Image reset button not found");
+  return button;
+}
+
 describe("ImageEncodingPage", () => {
   it("uses classroom language for teacher assignments and learner observations", async () => {
     await renderAppAt("/labs/image-encoding");
@@ -110,6 +123,42 @@ describe("ImageEncodingPage", () => {
     expect(screen.queryByText(/step 1/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /提交编码/ })).not.toBeInTheDocument();
   });
+
+  it("keeps the default source identity truthful in both source surfaces", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    const meta = sourceSurface(".source-meta");
+    const fixedSource = sourceSurface(".source-controls .fixed-source");
+    expect(meta.querySelector("span")).toHaveTextContent("固定样例");
+    expect(meta.querySelector("strong")).toHaveTextContent("小猫照片");
+    expect(fixedSource.querySelector("span")).toHaveTextContent("固定样例");
+    expect(fixedSource.querySelector("strong")).toHaveTextContent("小猫照片");
+    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+  });
+
+  it.each([
+    ["gradient", "平滑色彩渐变"],
+    ["checkerboard", "细棋盘格"],
+  ] as const)(
+    "renders %s compatibility fixtures and their actual reconstruction",
+    async (fixture, label) => {
+      await renderAppAt(
+        `/labs/image-encoding?image=${fixture}&sample=25&bits=2&view=representation`,
+      );
+
+      const meta = sourceSurface(".source-meta");
+      const fixedSource = sourceSurface(".source-controls .fixed-source");
+      expect(meta.querySelector("span")).toHaveTextContent("兼容样例");
+      expect(meta.querySelector("strong")).toHaveTextContent(label);
+      expect(fixedSource.querySelector("span")).toHaveTextContent("兼容样例");
+      expect(fixedSource.querySelector("strong")).toHaveTextContent(label);
+      expect(screen.queryByText("小猫照片")).not.toBeInTheDocument();
+      expect(screen.queryByRole("combobox", { name: /素材|样例|来源/ })).not.toBeInTheDocument();
+      expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
+      expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "48");
+    },
+  );
 
   it("renders image course outline as a neutral feature-local map", async () => {
     await renderAppAt("/labs/image-encoding");
@@ -254,7 +303,38 @@ describe("ImageEncodingPage", () => {
     setSlider(slider(/空间采样/), 45);
     await user.click(screen.getByRole("tab", { name: /采样重建/ }));
     expectTaskEvidence(/采样重建/, true);
-    await user.click(screen.getByRole("button", { name: /恢复固定样例/ }));
+    const reset = imageResetButton();
+    await user.click(reset);
+    expectTaskEvidence(/空间采样/, false);
+    expectTaskEvidence(/颜色位深/, false);
+    expectTaskEvidence(/采样重建/, false);
+  });
+
+  it("resets a legacy URL to its original fixture, parameters, view, and empty evidence trace", async () => {
+    const user = userEvent.setup();
+    await renderAppAt(
+      "/labs/image-encoding?image=gradient&sample=25&phase=0.5&bits=2&view=representation",
+    );
+
+    setSlider(slider(/空间采样/), 45);
+    await user.click(screen.getByRole("tab", { name: /采样重建/ }));
+    expectTaskEvidence(/采样重建/, true);
+    setSlider(slider(/颜色位深/), 8);
+    setSlider(slider(/采样网格相位/), 0.75);
+    await user.click(screen.getByRole("tab", { name: /颜色差异图/ }));
+
+    const reset = imageResetButton();
+    await user.click(reset);
+
+    expect(slider(/空间采样/)).toHaveValue("25");
+    expect(slider(/采样网格相位/)).toHaveValue("0.5");
+    expect(slider(/颜色位深/)).toHaveValue("2");
+    expect(screen.getByRole("tab", { name: /编码表示/ })).toHaveAttribute("aria-selected", "true");
+    expect(sourceSurface(".source-meta")).toHaveTextContent(/兼容样例.*平滑色彩渐变/s);
+    expect(sourceSurface(".source-controls .fixed-source")).toHaveTextContent(
+      /兼容样例.*平滑色彩渐变/s,
+    );
+    expect(screen.queryByText("小猫照片")).not.toBeInTheDocument();
     expectTaskEvidence(/空间采样/, false);
     expectTaskEvidence(/颜色位深/, false);
     expectTaskEvidence(/采样重建/, false);
@@ -296,7 +376,8 @@ describe("ImageEncodingPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=gradient&sample=25&bits=2");
     setSlider(slider(/空间采样/), 90);
-    await user.click(screen.getByRole("button", { name: /恢复固定样例/ }));
+    const reset = imageResetButton();
+    await user.click(reset);
     expect(slider(/空间采样/)).toHaveValue("25");
     expect(
       screen.getByRole("heading", { level: 3, name: /把一个像素拆成数字/ }).closest("main"),
