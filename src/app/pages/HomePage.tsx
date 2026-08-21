@@ -32,9 +32,6 @@ export function HomePage() {
               <a className="button button-primary" href="#catalog">
                 选择一个实验 <span aria-hidden="true">→</span>
               </a>
-              <a className="button button-secondary" href="#method">
-                了解课堂使用方式
-              </a>
             </div>
           </div>
           <div className="home-overview" aria-label="实验目录概览">

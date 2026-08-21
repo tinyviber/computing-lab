@@ -35,23 +35,28 @@ describe("application router integration", () => {
     expect(screen.queryByRole("link", { name: /继续图像编码/ })).not.toBeInTheDocument();
   });
 
-  it("routes the two hero CTAs to distinct classroom destinations", async () => {
+  it("keeps the hero CTA anchored to an existing catalog target", async () => {
     await renderAppAt("/");
 
     const hero = screen.getByRole("heading", { name: "交互式计算实验" }).closest("section");
     if (!(hero instanceof HTMLElement)) throw new Error("Home hero section not found");
     const heroLinks = within(hero).getAllByRole("link");
-    expect(heroLinks).toHaveLength(2);
+    expect(heroLinks).toHaveLength(1);
     expect(within(hero).getByRole("link", { name: "选择一个实验" })).toHaveAttribute(
       "href",
       "#catalog",
     );
-    expect(within(hero).getByRole("link", { name: "了解课堂使用方式" })).toHaveAttribute(
-      "href",
-      "#method",
-    );
+    expect(screen.queryByRole("link", { name: "了解课堂使用方式" })).not.toBeInTheDocument();
+    expect(document.getElementById("method")).not.toBeInTheDocument();
     expect(screen.getAllByRole("link", { name: "选择一个实验" })).toHaveLength(1);
     expect(screen.queryByRole("link", { name: "浏览全部实验" })).not.toBeInTheDocument();
+
+    for (const link of screen.getAllByRole("link")) {
+      const href = link.getAttribute("href");
+      if (href?.startsWith("#")) {
+        expect(document.getElementById(href.slice(1))).not.toBeNull();
+      }
+    }
   });
 
   it("hydrates the photo source through the canonical image query", async () => {

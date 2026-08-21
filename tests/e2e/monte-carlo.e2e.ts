@@ -30,7 +30,7 @@ test.describe("responsive evidence", () => {
   test("keeps convergence tables and status usable on a narrow viewport", async ({ page }) => {
     await page.goto("labs/monte-carlo?scenario=small", { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "执行一步" }).click();
-    await expect(page.getByRole("table", { name: /按批次观察收敛/ })).toBeVisible();
+    await expect(page.getByRole("table", { name: /批次收敛/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /选中蒙特卡洛结果/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /蒙特卡洛几何结果/ })).toBeVisible();
   });

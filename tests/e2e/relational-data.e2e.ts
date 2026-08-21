@@ -11,7 +11,7 @@ test("traces fixed queries, provenance, and the catalog rules", async ({ page })
   await expect(page.getByRole("region", { name: /当前关系数据结果/ })).toContainText(
     /按借阅人统计借阅数/,
   );
-  await expect(page.getByRole("table", { name: /固定目录上的约束检查/ })).toContainText(/失败/);
+  await expect(page.getByRole("table", { name: /约束检查/ })).toContainText(/失败/);
   await expect(page.getByRole("table", { name: /哪些原始记录产生了每条结果/ })).toContainText(
     /loan-1, person-1, book-3/,
   );
