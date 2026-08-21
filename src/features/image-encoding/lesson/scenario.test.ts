@@ -14,6 +14,16 @@ describe("image lesson scenario", () => {
     });
   });
 
+  it("keeps the photo image query as a supported shareable source", () => {
+    expect(parseImageEncodingScenario("image=photo&sample=25&bits=8&view=error")).toEqual({
+      fixture: "photo",
+      samplingPercent: 25,
+      phase: 0,
+      bitDepth: 8,
+      view: "error",
+    });
+  });
+
   it("defaults and clamps malformed values without accepting a workflow state", () => {
     expect(
       parseImageEncodingScenario("image=nope&sample=999&phase=-2&bits=99&view=submit"),

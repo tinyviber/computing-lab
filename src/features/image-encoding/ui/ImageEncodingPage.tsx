@@ -53,9 +53,7 @@ type MissionTask = {
   id: string;
   title: string;
   detail: string;
-  done: boolean;
   evidenceUnlocked: boolean;
-  explore: boolean;
 };
 
 const EMPTY_EXPLORATION_TRACE: ExplorationTrace = {
@@ -77,7 +75,7 @@ const VIEW_LABELS: Record<ImageView, string> = {
 
 function imageFixtureLabel(id: ImageFixtureId): string {
   return {
-    photo: "受控彩色场景",
+    photo: "彩色采样练习图",
     gradient: "平滑色彩渐变",
     checkerboard: "细棋盘格",
     "text-edge": "文字与细线边缘",
@@ -289,60 +287,27 @@ function RangeField({
   );
 }
 
-function MissionList({
-  tasks,
-  explorationCount,
-}: {
-  tasks: readonly MissionTask[];
-  explorationCount: number;
-}) {
+function MissionList({ tasks }: { tasks: readonly MissionTask[] }) {
   return (
-    <section className="image-card mission-card" aria-labelledby="mission-heading">
-      <div className="image-card-heading mission-heading">
-        <div>
-          <p className="eyebrow">课堂任务单</p>
-          <h3 id="mission-heading">把图像送进一条低带宽通道</h3>
-          <p className="image-card-description">
-            下面 10 项任务中，有 6 项会在试验台出现相关证据；其余留给同伴讨论和最后的书面解释。
-          </p>
-        </div>
-        <div className="mission-progress" aria-label={`已出现 ${explorationCount} 项探索证据`}>
-          <strong>
-            {explorationCount}
-            <span>/6</span>
-          </strong>
-          <small>探索证据</small>
-        </div>
-      </div>
+    <details className="image-card mission-card">
+      <summary className="mission-summary">
+        <span className="mission-summary-label">课堂任务单</span>
+        <span className="mission-summary-description">按需要展开任务，记录观察到的状态。</span>
+      </summary>
       <ol className="mission-list">
-        {tasks.map((task, index) => (
-          <li className={`mission-item${task.done ? " is-done" : ""}`} key={task.id}>
-            <span className="mission-marker" aria-hidden="true">
-              {task.done ? "✓" : String(index + 1).padStart(2, "0")}
-            </span>
-            <span className="mission-copy">
-              <strong>{task.title}</strong>
-              <small>{task.detail}</small>
+        {tasks.map((task) => (
+          <li className="mission-item" key={task.id}>
+            <details>
+              <summary>{task.title}</summary>
+              <p>{task.detail}</p>
               {task.evidenceUnlocked ? (
-                <small className="mission-evidence">✓ 相关证据已出现</small>
+                <p className="mission-evidence">观察状态：相关证据已出现。</p>
               ) : null}
-            </span>
-            <span className={`mission-kind ${task.explore ? "is-explore" : "is-discuss"}`}>
-              {task.explore ? "探索证据" : "讨论 / 书面"}
-            </span>
+            </details>
           </li>
         ))}
       </ol>
-      <div className="mission-footer">
-        <span>
-          <span className="mission-key mission-key-explore" />{" "}
-          页面自动记录观察证据；解释与计算仍需自己完成
-        </span>
-        <span>
-          <span className="mission-key mission-key-discuss" /> 不把“看到了”当成“解释清楚了”
-        </span>
-      </div>
-    </section>
+    </details>
   );
 }
 
@@ -389,7 +354,6 @@ function DeepDivePanel({
           <p className="eyebrow">可选深挖</p>
           <h3 id="deep-dive-heading">继续追问：机器究竟保存了什么？</h3>
         </div>
-        <span className="deep-dive-badge">原理</span>
       </div>
       <div className="deep-dive-list">
         <DeepDiveItem
@@ -543,89 +507,65 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const missionTasks: MissionTask[] = [
     {
       id: "predict",
-      title: "先预测：如果采样变少，哪一种信息会先消失？",
-      detail: "不要急着打开提示，把预测写在纸上。",
-      done: false,
+      title: "预测：采样变少后，哪种信息先消失？",
+      detail: "把预测写在纸上。",
       evidenceUnlocked: false,
-      explore: false,
     },
     {
       id: "sample",
-      title: "把空间采样调到 50% 以下，并记录采样后的宽 × 高",
-      detail:
-        "拖动“空间采样”滑杆到低于 50%（例如 25%），记录“采样后的宽 × 高”，再和左右两张画布的显示尺寸比较。你发现了什么？",
-      done: trace.samplingTargetReached,
+      title: "调低空间采样，记录采样尺寸",
+      detail: "调到 25% 左右，记下采样宽 × 高，并与画布显示尺寸比较。",
       evidenceUnlocked: trace.samplingTargetReached,
-      explore: true,
     },
     {
       id: "spatial-loss",
-      title: "在“采样重建”视图中记录一种变化",
-      detail: "描述你观察到的变化。哪个变量可能造成它？再改变另一个变量验证。",
-      done: false,
+      title: "观察采样重建",
+      detail: "记录一处变化，再改变另一个变量验证。",
       evidenceUnlocked: spatialEvidenceUnlocked,
-      explore: true,
     },
     {
       id: "quantize",
-      title: "把颜色位深调到 2 位",
-      detail: "拖动“颜色位深”滑杆到 2 位。数一数现在最多有多少种编码状态，再记录图像变化。",
-      done: trace.bitDepthTargetReached,
+      title: "调低颜色位深",
+      detail: "调到 2 位，记录最多状态数和图像变化。",
       evidenceUnlocked: trace.bitDepthTargetReached,
-      explore: true,
     },
     {
       id: "color-loss",
-      title: "切换到“量化重建”，记录一种变化",
-      detail: "描述你看到的变化，再和采样视图中的观察比较。",
-      done: false,
+      title: "观察量化重建",
+      detail: "记录一处颜色变化，并与采样视图比较。",
       evidenceUnlocked: quantizationEvidenceUnlocked,
-      explore: true,
     },
     {
       id: "trace-bits",
-      title: "打开编码表示并点击一个像素",
-      detail: "再写下检查器里的坐标、索引和 bits，观察它们如何对应。",
-      done: traceEvidenceUnlocked,
+      title: "追踪一个像素到 bits",
+      detail: "打开编码表示，点击一个像素，记下坐标、索引和 bits。",
       evidenceUnlocked: traceEvidenceUnlocked,
-      explore: true,
     },
     {
       id: "payload",
-      title: "用公式核对一遍编码载荷",
-      detail: "写下采样宽、高、位深和你的计算结果，再与面板比较。",
-      done: false,
+      title: "核对编码载荷",
+      detail: "记下采样宽、高、位深，核对计算结果。",
       evidenceUnlocked: payloadEvidenceUnlocked,
-      explore: true,
     },
     {
       id: "tradeoff",
-      title: "讨论：同样的载荷，能否换来不同的图像观感？",
-      detail: "比较“高采样 + 低位深”和“低采样 + 高位深”。",
-      done: false,
+      title: "比较两种参数取舍",
+      detail: "比较高采样 + 低位深与低采样 + 高位深。",
       evidenceUnlocked: false,
-      explore: false,
     },
     {
       id: "transfer",
-      title: "迁移：为什么真实 PNG/JPEG 文件大小不能直接套用本页公式？",
-      detail: "至少指出两个没有被理论载荷包含的部分。",
-      done: false,
+      title: "迁移到 PNG / JPEG 文件",
+      detail: "写出两个理论载荷未包含的文件部分。",
       evidenceUnlocked: false,
-      explore: false,
     },
     {
       id: "explain",
-      title: "最后用 80 字解释：图像编码到底做了哪几次取舍？",
-      detail: "不要抄定义，要写出因果链。",
-      done: false,
+      title: "用 80 字总结取舍关系",
+      detail: "写出采样、量化与图像变化之间的因果链。",
       evidenceUnlocked: false,
-      explore: false,
     },
   ];
-  const explorationCount = missionTasks.filter(
-    (task) => task.explore && task.evidenceUnlocked,
-  ).length;
 
   return (
     <LabShell
@@ -637,9 +577,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
         <header className="image-course-intro">
           <div>
             <p className="eyebrow">机制实验</p>
-            <h2>从真实图像到有限的像素编码</h2>
+            <h2>从图像到有限的像素编码</h2>
             <p>
-              先记录当前图像与参数，再一次只改变一个变量。比较图像、状态数量和像素记录，把你看到的变化写下来，再提出解释。
+              教师设定本节问题，学生调整参数、观察并记录结果，再用记录解释采样、量化与重建的关系。
             </p>
           </div>
           <div className="source-meta" aria-label="当前图像来源">
@@ -675,14 +615,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <b>04</b>
             <span>迁移解释</span>
           </span>
-          <span className="image-stage-progress">
-            <strong>{explorationCount}/6</strong> 个探索证据已出现
-          </span>
         </nav>
 
         <div className="image-course-grid">
           <div className="image-main-column">
-            <MissionList explorationCount={explorationCount} tasks={missionTasks} />
+            <MissionList tasks={missionTasks} />
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>

@@ -27,38 +27,51 @@ function makeRaster(
   };
 }
 
-const photo = makeRaster("photo", "受控彩色场景（非照片）", 48, 32, (x, y) => {
-  const horizon = Math.floor(13 + Math.sin(x / 8) * 2);
-  if (y < horizon) {
-    const t = y / Math.max(1, horizon);
-    return {
-      r: clampChannel(40 + 60 * t),
-      g: clampChannel(120 + 80 * t),
-      b: clampChannel(190 + 55 * t),
+const photo = makeRaster("photo", "彩色采样练习图", 48, 32, (x, y) => {
+  const horizontal = x / 47;
+  const vertical = y / 31;
+  let color: RGB = {
+    r: clampChannel(28 + horizontal * 94 + vertical * 32),
+    g: clampChannel(76 + vertical * 88 + horizontal * 18),
+    b: clampChannel(164 - horizontal * 54 + vertical * 35),
+  };
+
+  const coralBlock = x >= 3 && x <= 21 && y >= 3 && y <= 15;
+  if (coralBlock) {
+    const shade = (x - 3) / 18;
+    color = {
+      r: clampChannel(238 - shade * 24),
+      g: clampChannel(58 + shade * 32),
+      b: clampChannel(63 + shade * 12),
     };
   }
-  if (y > 25) {
-    const t = (y - 25) / 7;
-    return {
-      r: clampChannel(35 + 28 * t),
-      g: clampChannel(74 + 30 * t),
-      b: clampChannel(58 + 22 * t),
-    };
+
+  const tealBlock = x >= 29 && x <= 44 && y >= 4 && y <= 19;
+  if (tealBlock) {
+    color = { r: 15, g: 178, b: 164 };
   }
-  const building = x > 8 && x < 25 && y > 12 && y < 27;
-  const tower = x > 30 && x < 42 && y > 8 && y < 27;
-  if (building || tower) {
-    const wall = (x + y) % 5 === 0;
-    return wall ? { r: 233, g: 190, b: 115 } : { r: 167, g: 104, b: 70 };
+
+  const diagonalWedge = x >= 20 && y >= 0.55 * (x - 20) + 7 && y <= 27;
+  if (diagonalWedge) {
+    color = { r: 35, g: 57, b: 132 };
   }
-  const tree = (x - 5) ** 2 + (y - 19) ** 2 < 40 || (x - 44) ** 2 + (y - 18) ** 2 < 35;
-  if (tree)
-    return {
-      r: 28 + ((x * 7 + y * 3) % 35),
-      g: 92 + ((x * 5 + y * 9) % 75),
-      b: 55 + ((x + y) % 28),
-    };
-  return { r: 104, g: 132, b: 122 };
+
+  const circle = (x - 13) ** 2 + (y - 23) ** 2 <= 38;
+  if (circle) {
+    color = { r: 250, g: 202, b: 36 };
+  }
+
+  const circleOutline = (x - 37) ** 2 + (y - 23) ** 2 >= 20 && (x - 37) ** 2 + (y - 23) ** 2 <= 29;
+  if (circleOutline) {
+    color = { r: 248, g: 241, b: 211 };
+  }
+
+  const fineTexture = x >= 30 && x <= 44 && y >= 25 && y <= 29 && (x + y) % 2 === 0;
+  if (fineTexture) {
+    color = { r: 246, g: 113, b: 38 };
+  }
+
+  return color;
 });
 
 const gradient = makeRaster("gradient", "平滑色彩渐变", 48, 32, (x, y) => {
