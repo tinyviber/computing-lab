@@ -85,6 +85,25 @@ describe("ImageEncodingPage", () => {
     expect(screen.getByText(/没有提交步骤/)).toBeInTheDocument();
   });
 
+  it("turns exploration actions into six unlocked task-sheet evidence items", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
+    setSlider(slider(/空间采样/), 25);
+    await user.click(screen.getByRole("tab", { name: /采样重建/ }));
+    setSlider(slider(/颜色位深/), 2);
+    await user.click(screen.getByRole("tab", { name: /量化重建/ }));
+    await user.click(screen.getByRole("tab", { name: /编码表示/ }));
+    fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }), { clientX: 1, clientY: 1 });
+
+    expect(screen.getByLabelText(/已解锁 6 项探索证据/)).toBeInTheDocument();
+    expect(screen.getByText(/点击一个像素，追踪它最终写入的索引 bits/).closest("li")).toHaveClass(
+      "is-done",
+    );
+    expect(screen.getByText(/为什么真实 PNG\/JPEG 文件大小/).closest("li")).not.toHaveClass(
+      "is-done",
+    );
+  });
+
   it("keeps the sampling view independent from bit-depth quantization", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding?image=gradient&sample=50&bits=1");
