@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("traces mixed Unicode scalars into UTF-8 bytes", async ({ page }) => {
   await page.goto("labs/utf8?scenario=mixed", { waitUntil: "networkidle" });
 
-  await expect(page.getByRole("main", { name: "UTF-8 编码 workspace" })).toBeVisible();
+  await expect(page.getByRole("main", { name: "UTF-8 编码实验区" })).toBeVisible();
   await page.getByRole("combobox", { name: /下一个码点分支/ }).selectOption("1-byte");
   await page.getByRole("spinbutton", { name: /最终字节数/ }).fill("10");
   await page.getByRole("button", { name: "记录预测" }).click();
@@ -16,7 +16,7 @@ test("traces mixed Unicode scalars into UTF-8 bytes", async ({ page }) => {
     /4 个可见码点.*10 个字节/,
   );
 
-  const emoji = page.getByRole("button", { name: /第 4 帧，🙂，U\+1F642，4 字节/ });
+  const emoji = page.getByRole("button", { name: /第 4 个步骤，🙂，U\+1F642，4 字节/ });
   await emoji.focus();
   await page.keyboard.press("Enter");
   await expect(emoji).toHaveAttribute("aria-current", "true");

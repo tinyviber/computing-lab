@@ -26,10 +26,10 @@ function readingLabel(reading: Reading): string {
 function exampleDescription(id: string): string {
   return (
     {
-      "signed-boundary": "在有符号上界附近观察结果。",
-      "carry-only": "把最高位进位与有符号溢出分开观察。",
-      "negative-overflow": "在有符号下界附近观察结果。",
-    }[id] ?? "观察固定宽度下的逐列加法。"
+      "signed-boundary": "有符号上界。",
+      "carry-only": "最高位进位与有符号溢出。",
+      "negative-overflow": "有符号下界。",
+    }[id] ?? "固定宽度逐列加法。"
   );
 }
 
@@ -147,20 +147,14 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
   const examples = getTwosComplementExamples(lesson.width);
 
   return (
-    <LabShell
-      eyebrow="整数 / 01"
-      subtitle="固定宽度字与逐位进位（ripple carry）"
-      title="二进制补码"
-    >
+    <LabShell eyebrow="整数 / 01" subtitle="固定宽度整数与逐位进位" title="二进制补码">
       <div className="twos-course">
         <header className="twos-intro">
-          <p className="eyebrow">参考课程</p>
           <h2>
-            <code>0111 + 0001</code> 的结果应该怎样读？
+            <code>0111 + 0001</code> 的位模式与数值
           </h2>
           <p>
-            这台机器只存 {lesson.width} 个 bit。先观察机器存下的位模式，再比较有符号和无符号读法，
-            解释进位与溢出。
+            这台机器只存 {lesson.width} 个 bit；位模式可按有符号或无符号读取，进位与溢出分别显示。
           </p>
         </header>
 
@@ -168,7 +162,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
           <aside className="twos-controls" aria-label="机器控制">
             <section className="twos-card">
               <p className="eyebrow">机器</p>
-              <h3>选择固定宽度</h3>
+              <h3>选择位宽</h3>
               <SegmentControl<WordWidth>
                 label="字宽"
                 onChange={(width) => dispatch({ type: "set-width", width })}
@@ -236,7 +230,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               <div className="twos-card-heading">
                 <div>
                   <p className="eyebrow">字表示</p>
-                  <h3 id="words-heading">同样的位，可选择当前读法</h3>
+                  <h3 id="words-heading">位模式的读法</h3>
                 </div>
                 <span className="twos-reading-chip">当前读法：{readingLabel(lesson.reading)}</span>
               </div>
@@ -312,7 +306,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               </div>
             </section>
 
-            <section className="twos-evidence-grid" aria-label="结果与数学证据">
+            <section className="twos-evidence-grid" aria-label="结果与计算过程">
               <article className="twos-card twos-result-card">
                 <p className="eyebrow">存储结果</p>
                 <code>{model.result}</code>
@@ -336,7 +330,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               </article>
 
               <article className="twos-card twos-evidence-card" data-carry-out={model.carryOut}>
-                <p className="eyebrow">无符号证据</p>
+                <p className="eyebrow">无符号结果</p>
                 <h3>输出进位：{model.carryOut ? "有" : "无"}</h3>
                 <p>
                   {model.unsigned.left} + {model.unsigned.right} = {model.unsigned.mathematicalSum}
@@ -353,7 +347,7 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
                 className="twos-card twos-evidence-card"
                 data-signed-overflow={model.signed.overflow}
               >
-                <p className="eyebrow">有符号证据</p>
+                <p className="eyebrow">有符号结果</p>
                 <h3>有符号溢出：{model.signed.overflow ? "有" : "无"}</h3>
                 <p>
                   {signedNumber(model.signed.left)} + {signedNumber(model.signed.right)} ={" "}

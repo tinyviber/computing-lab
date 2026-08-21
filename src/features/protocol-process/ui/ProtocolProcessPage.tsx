@@ -24,22 +24,22 @@ const scenarioOptions: readonly {
   {
     value: "ack-loss",
     label: "情境 A",
-    description: "固定消息交换，观察确认与重试的先后关系。",
+    description: "确认丢失后重试。",
   },
   {
     value: "no-loss",
     label: "情境 B",
-    description: "固定消息交换，观察完整的事件序列。",
+    description: "请求和确认均送达。",
   },
   {
     value: "request-loss",
     label: "情境 C",
-    description: "固定消息交换，观察请求尝试的顺序。",
+    description: "请求丢失后重试。",
   },
   {
     value: "receiver-silent",
     label: "情境 D",
-    description: "固定消息交换，观察事件如何走到结束。",
+    description: "接收方不响应，直到耗尽重试。",
   },
 ];
 
@@ -190,7 +190,7 @@ function CounterTable({ snapshot }: { snapshot: ProtocolSnapshot }) {
       <caption>选中事件后的协议计数</caption>
       <thead>
         <tr>
-          <th scope="col">证据</th>
+          <th scope="col">指标</th>
           <th scope="col">数值</th>
         </tr>
       </thead>
@@ -223,7 +223,7 @@ function CounterTable({ snapshot }: { snapshot: ProtocolSnapshot }) {
 function ScenarioComparisonTable({ current }: { current: ProtocolScenarioId }) {
   return (
     <table className="protocol-table">
-      <caption>基于固定证据的情境比较</caption>
+      <caption>情境比较</caption>
       <thead>
         <tr>
           <th scope="col">情境</th>
@@ -258,19 +258,19 @@ function ScenarioComparisonTable({ current }: { current: ProtocolScenarioId }) {
 function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
   if (!frame) {
     return (
-      <section className="protocol-card" aria-label="选中事件证据">
-        <p className="eyebrow">选中证据</p>
+      <section className="protocol-card" aria-label="选中事件结果">
+        <p className="eyebrow">选中结果</p>
         <h3>执行一步，检查队列与时钟</h3>
-        <p>每一步记录一个协议事件、发生时间、结果，以及事件前后的完整队列。</p>
+        <p>每个事件显示时间、结果和前后队列。</p>
       </section>
     );
   }
 
   return (
-    <section className="protocol-card protocol-evidence-card" aria-label="选中事件证据">
+    <section className="protocol-card protocol-evidence-card" aria-label="选中事件结果">
       <div className="protocol-card-heading">
         <div>
-          <p className="eyebrow">选中证据</p>
+          <p className="eyebrow">选中结果</p>
           <h3>
             第 {frame.index + 1} 步 · 时刻 {frame.event.at}
           </h3>
@@ -312,7 +312,7 @@ function ProtocolProcessPageContent({
       <header className="protocol-hero">
         <div>
           <p className="eyebrow">协议过程 · 可靠送达</p>
-          <h2>确认迟到时，发送方能知道什么？</h2>
+          <h2>确认迟到时的发送方状态</h2>
           <p>
             跟踪一条消息经历延迟、丢失、超时、重试、重复抑制与确认的过程。时钟是模拟的，
             每次队列变化都可以检查。
@@ -329,7 +329,7 @@ function ProtocolProcessPageContent({
         <aside className="protocol-controls" aria-label="实验控制">
           <section className="protocol-card">
             <p className="eyebrow">预测</p>
-            <h3>送达会完成吗？</h3>
+            <h3>送达状态</h3>
             <label htmlFor="protocol-prediction">你的预测</label>
             <select
               aria-describedby="protocol-prediction-help"
@@ -368,9 +368,7 @@ function ProtocolProcessPageContent({
               <option value="status-unknown">送达状态仍未知</option>
               <option value="receiver-failed">接收方失败</option>
             </select>
-            <p id="protocol-prediction-help">
-              预测可选，也不会阻止执行。先记录猜测，再用事件记录检查它。
-            </p>
+            <p id="protocol-prediction-help">可先记录预测，再运行。</p>
             <button
               className="protocol-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
@@ -385,7 +383,7 @@ function ProtocolProcessPageContent({
 
           <section className="protocol-card">
             <p className="eyebrow">情境</p>
-            <h3>选择固定故障</h3>
+            <h3>选择情境</h3>
             <label htmlFor="protocol-scenario">消息情境</label>
             <select
               id="protocol-scenario"
@@ -436,15 +434,10 @@ function ProtocolProcessPageContent({
             </button>
           </section>
 
-          <section
-            className="protocol-card protocol-guidance-card"
-            aria-describedby="protocol-guided-help"
-          >
+          <section className="protocol-card protocol-guidance-card">
             <p className="eyebrow">引导检查</p>
-            <h3>找到结果发生变化的地方</h3>
-            <p id="protocol-guided-help">这些按钮只会选中已经存在的证据，不会凭空创建事件。</p>
+            <h3>检查事件</h3>
             <button
-              aria-describedby="protocol-guided-help"
               disabled={!hasFault}
               onClick={() => dispatch({ type: "inspect-first-fault" })}
               type="button"
@@ -499,7 +492,7 @@ function ProtocolProcessPageContent({
 
           <section className="protocol-card protocol-final-card" aria-label="最终协议结果">
             <p className="eyebrow">最终协议结果</p>
-            <h3>最终送达与重试证据</h3>
+            <h3>最终送达与重试结果</h3>
             <p>
               状态：
               <strong>
@@ -520,12 +513,12 @@ function ProtocolProcessPageContent({
                   : `在时刻 ${lesson.machine.terminal.at} 达到最大尝试次数，仍未观察到确认。`}
               </p>
             ) : (
-              <p>运行消息交换后，才能观察它的结束原因。</p>
+              <p>运行消息交换后显示结束原因。</p>
             )}
             {lesson.prediction ? (
               <p role="status">
                 预测：{lesson.prediction === "delivered" ? "会送达" : "会失败"}，预计{" "}
-                {lesson.predictionAttempts} 次；观察结果：{" "}
+                {lesson.predictionAttempts} 次；实际结果：{" "}
                 {lesson.machine.status === "delivered"
                   ? "已送达"
                   : lesson.machine.status === "failed"
@@ -542,7 +535,7 @@ function ProtocolProcessPageContent({
             <section className="protocol-card" aria-label="情境比较">
               <p className="eyebrow">比较情境</p>
               <h3>同一条消息，为什么会有不同结果</h3>
-              <p>比较固定观察结果：超时之后可能成功送达、抑制重复请求，也可能耗尽尝试次数。</p>
+              <p>超时后可能送达、抑制重复请求，或耗尽重试次数。</p>
               <ScenarioComparisonTable current={lesson.scenario} />
             </section>
           ) : null}

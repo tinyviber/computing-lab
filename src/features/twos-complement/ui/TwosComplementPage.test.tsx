@@ -16,7 +16,7 @@ describe("TwosComplementPage", () => {
     const model = deriveIntegerModel({ width: 4, left: "1111", right: "0001" });
     await renderAppAt("/labs/twos-complement?width=4&a=1111&b=0001&reading=unsigned");
 
-    expect(screen.getByRole("main", { name: /二进制补码 workspace/i })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /二进制补码实验区/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "无符号" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "A，第 3 位，1" })).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("TwosComplementPage", () => {
     await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");
 
     const prompt = screen.getByRole("heading", { name: /0111 \+ 0001/ });
-    expect(prompt).toHaveTextContent("结果应该怎样读");
+    expect(prompt).toHaveTextContent("位模式与数值");
     expect(prompt).not.toHaveTextContent("1000");
     expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
   });

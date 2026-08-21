@@ -4,36 +4,6 @@
   background: var(--canvas);
 }
 
-.image-stage-nav {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  max-width: 1440px;
-  margin: 0 auto 18px;
-  padding: 5px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.image-stage {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.image-stage b {
-  color: var(--muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-}
-
 .image-course-intro {
   display: flex;
   align-items: flex-start;
@@ -136,8 +106,7 @@
   color: var(--muted);
 }
 
-.mission-summary-label,
-.mission-summary-description {
+.mission-summary-label {
   display: block;
 }
 
@@ -146,13 +115,6 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.mission-summary-description {
-  margin-top: 4px;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
 }
 
 .mission-card[open] > .mission-summary {
@@ -192,12 +154,6 @@
   line-height: 1.6;
 }
 
-.mission-item .mission-evidence {
-  color: var(--secondary);
-  font-size: 10px;
-  line-height: 1.5;
-}
-
 .deep-dive-card {
   overflow: hidden;
   border-color: #cfe1db;
@@ -234,20 +190,11 @@
   color: var(--muted);
 }
 
-.image-card-description,
-.view-note {
+.image-card-description {
   margin: 6px 0 0;
   color: var(--secondary);
   font-size: 12px;
   line-height: 1.5;
-}
-
-.display-size-chip,
-.view-note {
-  flex: 0 0 auto;
-  color: var(--accent);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
 }
 
 .source-controls {
@@ -630,7 +577,6 @@
   }
 
   .image-course-intro,
-  .image-stage-nav,
   .source-controls,
   .canvas-compare-grid,
   .representation-stage,
@@ -642,12 +588,6 @@
 
   .image-course-intro {
     gap: 16px;
-  }
-
-  .image-stage-nav {
-    align-items: stretch;
-    flex-wrap: wrap;
-    gap: 4px;
   }
 
   .mission-list {

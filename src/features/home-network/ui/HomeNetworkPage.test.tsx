@@ -9,7 +9,7 @@ describe("HomeNetworkPage", () => {
   it("renders the Home Network workspace with semantic controls and SVG text evidence", async () => {
     await renderAppAt("/labs/home-network");
 
-    expect(screen.getByRole("main", { name: "家庭网络探针 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "家庭网络探针实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /inspect device|设备/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /target|目标|目的地/i })).toBeInTheDocument();
@@ -96,7 +96,7 @@ describe("HomeNetworkPage", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: /可选预测/ }), "local");
     await user.click(button(/send probe|probe|发送探测|发送探针/i));
     expect(document.querySelector(".probe-prediction-feedback")).toHaveTextContent(
-      /预测：.*本地 \/ 直接.*观察：本地 \/ 直接.*一致/,
+      /预测：.*本地 \/ 直接.*实际：本地 \/ 直接.*一致/,
     );
 
     await user.selectOptions(
@@ -116,7 +116,7 @@ describe("HomeNetworkPage", () => {
       screen.getByRole("combobox", { name: /inspect device|设备/i }),
       "router",
     );
-    const inspector = screen.getByRole("complementary", { name: /网络设备检查器/ });
+    const inspector = screen.getByRole("complementary", { name: /网络设备信息/ });
 
     expect(within(inspector).queryByLabelText(/默认网关/)).not.toBeInTheDocument();
     expect(inspector).toHaveTextContent(/LAN.*192\.168\.1\.1\/24/i);
@@ -135,7 +135,7 @@ describe("HomeNetworkPage", () => {
     await user.click(button(/send probe|probe|发送探测|发送探针/i));
 
     const feedback = document.querySelector(".probe-prediction-feedback");
-    expect(feedback).toHaveTextContent(/观察：未分类/);
+    expect(feedback).toHaveTextContent(/实际：未分类/);
     expect(feedback).toHaveTextContent(/校验停止：.*IP 地址格式无效/);
     expect(feedback?.textContent).not.toMatch(/observed:\s*(local|remote)/i);
   });

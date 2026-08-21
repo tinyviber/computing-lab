@@ -60,9 +60,9 @@ test("keeps default and legacy image source identities local and truthful", asyn
   await page.getByRole("tab", { name: /采样重建/ }).click();
   const legacyTask = page
     .locator(".mission-item")
-    .filter({ hasText: /观察采样重建/ })
+    .filter({ hasText: /比较采样重建/ })
     .first();
-  await expect(legacyTask).toContainText(/证据已出现/);
+  await expect(legacyTask).toContainText(/相关观察已出现/);
   await page.getByRole("slider", { name: /颜色位深/ }).fill("8");
   await page.getByRole("slider", { name: /采样网格相位/ }).fill("0.75");
   await page.getByRole("tab", { name: /颜色差异图/ }).click();
@@ -99,8 +99,7 @@ test("keeps default and legacy image source identities local and truthful", asyn
 
   await page.getByRole("slider", { name: /空间采样/ }).press("ArrowLeft");
   const evidenceBefore = await task.textContent();
-  await expect(task).toContainText(/证据已出现/);
-  await expect(task).toContainText(/仍需学生记录、描述、计算或解释/);
+  await expect(task).not.toContainText(/结果已出现|仍需你记录、描述、计算或解释/);
   expect(await task.textContent()).toBe(evidenceBefore);
 
   await worksheetSummary.focus();

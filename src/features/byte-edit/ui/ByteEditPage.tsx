@@ -84,12 +84,12 @@ function FrameTrace({
       <div className="be-card-heading">
         <div>
           <p className="eyebrow">编辑记录</p>
-          <h3>每帧应用一次编辑</h3>
+          <h3>编辑记录</h3>
         </div>
-        <span>{frames.length} 帧</span>
+        <span>{frames.length} 次编辑</span>
       </div>
       {frames.length === 0 ? (
-        <p>应用一次字节编辑或加载样例，开始记录。</p>
+        <p>先编辑字节或加载样例</p>
       ) : (
         <ol className="be-trace-list">
           {frames.map((frame) => (
@@ -120,18 +120,18 @@ function FrameTrace({
 function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
   if (!frame) {
     return (
-      <section className="be-card" aria-label="选中字节编辑证据">
-        <p className="eyebrow">选中证据</p>
+      <section className="be-card" aria-label="选中字节编辑结果">
+        <p className="eyebrow">选中结果</p>
         <h3>应用一次编辑，检查结果</h3>
         <p>选中的编辑会显示编辑前后的字节，以及完整序列的解码结果。</p>
       </section>
     );
   }
   return (
-    <section className="be-card" aria-label="选中字节编辑证据">
+    <section className="be-card" aria-label="选中字节编辑结果">
       <div className="be-card-heading">
         <div>
-          <p className="eyebrow">选中证据</p>
+          <p className="eyebrow">选中结果</p>
           <h3>
             {frame.edit.kind === "byte"
               ? `第 ${frame.edit.byteIndex} 个字节 → ${frame.edit.value}`
@@ -142,7 +142,7 @@ function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
       </div>
       {frame.predictedValid !== undefined ? (
         <p role="status">
-          预测：{frame.predictedValid ? "有效" : "无效"}；观察：
+          预测：{frame.predictedValid ? "有效" : "无效"}；实际：
           {frame.decode.valid ? "有效" : "无效"}。
         </p>
       ) : null}
@@ -157,9 +157,7 @@ function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
         </div>
       </dl>
       <DecodeEvidence decode={frame.decode} />
-      {frame.edit.kind === "preset" ? (
-        <p>该样例用于观察解码器如何拒绝或接受固定字节序列。</p>
-      ) : null}
+      {frame.edit.kind === "preset" ? <p>解码器会判断这组字节序列是否有效。</p> : null}
     </section>
   );
 }
@@ -180,9 +178,9 @@ function ByteEditContent({
     <div className="be-page">
       <header className="be-hero">
         <div>
-          <p className="eyebrow">字节编辑 · 有限表示</p>
-          <h2>编辑一个字节时会发生什么？</h2>
-          <p>修改已知 UTF-8 序列中的一个字节，或加载固定样例，观察解码器应用的有效性规则。</p>
+          <p className="eyebrow">字节编辑</p>
+          <h2>编辑 UTF-8 字节</h2>
+          <p>修改 UTF-8 序列中的一个字节，或加载样例，查看解码结果。</p>
         </div>
         <div className="be-fixture-card" aria-label="字节编辑样例">
           <span>样例</span>
@@ -195,7 +193,7 @@ function ByteEditContent({
         <aside className="be-controls" aria-label="字节编辑控制">
           <section className="be-card">
             <p className="eyebrow">预测</p>
-            <h3>编辑后的序列仍有效吗？</h3>
+            <h3>编辑后序列的有效性</h3>
             <label htmlFor="be-prediction">有效性</label>
             <select
               id="be-prediction"
@@ -206,7 +204,7 @@ function ByteEditContent({
               <option value="valid">仍有效</option>
               <option value="invalid">变为无效</option>
             </select>
-            <p id="be-prediction-help">预测可选，也不会阻止编辑。</p>
+            <p id="be-prediction-help">可先记录预测，再编辑。</p>
             <button
               className="be-secondary-button"
               onClick={() => dispatch({ type: "record-prediction" })}
@@ -252,7 +250,7 @@ function ByteEditContent({
           </section>
 
           <section className="be-card">
-            <p className="eyebrow">固定样例</p>
+            <p className="eyebrow">预设样例</p>
             <h3>加载已知序列</h3>
             <div className="be-preset-grid">
               {Object.values(BYTE_EDIT_PRESETS).map((preset) => (

@@ -9,7 +9,7 @@ describe("MonteCarloPage", () => {
   it("renders semantic controls, fixture evidence, and comparison rows", async () => {
     await renderAppAt("/labs/monte-carlo");
 
-    expect(screen.getByRole("main", { name: "蒙特卡洛 π workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "蒙特卡洛 π实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "蒙特卡洛 π" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /最终估计值相对 π 的位置/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("medium");
@@ -34,10 +34,10 @@ describe("MonteCarloPage", () => {
     expect(screen.getByRole("region", { name: /最终蒙特卡洛结果/ })).toHaveTextContent(
       /最终误差为 0\.0616/,
     );
-    expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛结果/ })).toHaveTextContent(
       /第 4 批.*1000 个样本/,
     );
-    const geometry = screen.getByRole("region", { name: /蒙特卡洛几何证据/ });
+    const geometry = screen.getByRole("region", { name: /蒙特卡洛几何结果/ });
     expect(geometry).toHaveTextContent(/当前显示本批 250 个点中的 128 个/);
     expect(geometry).toHaveTextContent(/整批：圆内 198 个、圆外 52 个/);
     expect(geometry).toHaveTextContent(/圆内 \/ 总数.*π \/ 4/);
@@ -68,7 +68,7 @@ describe("MonteCarloPage", () => {
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toHaveTextContent(/2\.944/);
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛结果/ })).toHaveTextContent(/2\.944/);
 
     second.focus();
     await user.keyboard(" ");
@@ -93,10 +93,10 @@ describe("MonteCarloPage", () => {
     try {
       await renderAppAt("/labs/monte-carlo?scenario=small");
       await userEvent.setup().click(button("执行一步"));
-      expect(screen.getByRole("table", { name: /按批次观察收敛/ })).toBeVisible();
+      expect(screen.getByRole("table", { name: /批次收敛/ })).toBeVisible();
       expect(screen.queryByLabelText("最终蒙特卡洛估计值")).not.toBeInTheDocument();
-      expect(screen.getByRole("region", { name: /选中蒙特卡洛证据/ })).toBeVisible();
-      expect(screen.getByRole("region", { name: /蒙特卡洛几何证据/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /选中蒙特卡洛结果/ })).toBeVisible();
+      expect(screen.getByRole("region", { name: /蒙特卡洛几何结果/ })).toBeVisible();
     } finally {
       Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
     }
@@ -109,9 +109,7 @@ describe("MonteCarloPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /蒙特卡洛 π workspace/ })).getByText(
-        /需要多少个随机点才能估计 π/,
-      ),
+      within(screen.getByRole("main", { name: /蒙特卡洛 π实验区/ })).getByText(/随机点估计 π/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Math\.random/i)).not.toBeInTheDocument();
   });

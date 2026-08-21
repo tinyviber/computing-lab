@@ -9,7 +9,7 @@ describe("RelationalDataPage", () => {
   it("renders semantic controls, fixture evidence, and constraint rows", async () => {
     await renderAppAt("/labs/relational-data");
 
-    expect(screen.getByRole("main", { name: "关系数据 workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "关系数据实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "关系数据" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: /行数/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /关系数据情境/ })).toHaveValue("catalog");
@@ -19,9 +19,7 @@ describe("RelationalDataPage", () => {
     expect(screen.queryByRole("table", { name: /查询结果行/ })).not.toBeInTheDocument();
     expect(screen.getByRole("main")).not.toHaveTextContent(/外键问题/);
     await userEvent.setup().click(button("执行一步"));
-    expect(screen.getByRole("table", { name: /固定目录上的约束检查/ })).toHaveTextContent(
-      /失败.*99/,
-    );
+    expect(screen.getByRole("table", { name: /约束检查/ })).toHaveTextContent(/失败.*99/);
     const borrowers = screen.getByRole("table", {
       name: /借阅人源行：NULL 与空字符串的对照/,
     });
@@ -41,10 +39,10 @@ describe("RelationalDataPage", () => {
     expect(screen.getByText(/已记录预测：下一条查询将返回 4 行/)).toBeInTheDocument();
 
     await user.click(button("运行到结束"));
-    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /当前关系数据结果/i })).toHaveTextContent(
       /按借阅人统计借阅数/,
     );
-    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /当前关系数据结果/i })).toHaveTextContent(
       /计算得到的结果：loans 不是表中直接存储的值/,
     );
     const provenance = screen.getByRole("table", {
@@ -70,7 +68,7 @@ describe("RelationalDataPage", () => {
     first.focus();
     await user.keyboard("{Enter}");
     expect(first).toHaveAttribute("aria-current", "true");
-    expect(screen.getByRole("region", { name: /当前关系数据证据/i })).toHaveTextContent(
+    expect(screen.getByRole("region", { name: /当前关系数据结果/i })).toHaveTextContent(
       /The Left Hand of Darkness/,
     );
 
@@ -100,9 +98,7 @@ describe("RelationalDataPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /关系数据 workspace/i })).getByText(
-        /固定的一组行如何回答查询/,
-      ),
+      within(screen.getByRole("main", { name: /关系数据实验区/ })).getByText(/查询结果与来源行/),
     ).toBeInTheDocument();
   });
 
