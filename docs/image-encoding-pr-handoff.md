@@ -80,7 +80,7 @@ Across the three real courses, candidates include local parameter controls, scen
 
 ## 14. Extraction disposition
 
-No `ParameterPanel`, `ComparatorRuntime`, `ExperimentControls`, `VisualizationPanel`, `LessonStepper`, `ImageWorkflow`, or universal inspector was added. Sound, Network, and shared design-system code were not refactored.
+No `ParameterPanel`, `ComparatorRuntime`, `ExperimentControls`, `VisualizationPanel`, `LessonStepper`, `ImageWorkflow`, or universal inspector was added. The pre-existing shared `LabShell` lesson semantics were removed because Image Encoding is the only consumer; its neutral course outline remains feature-local until a second natural consumer establishes a shared navigation invariant. Sound, Network, and shared design-system code were not refactored.
 
 ## 15. Validation handoff
 
@@ -93,6 +93,7 @@ Run the repository gates serially on the affected host, following `.codex/AGENTS
 - `bun run typecheck`;
 - `bun run test:run` with one Vitest worker;
 - `bun run build`;
-- one targeted Image Playwright route check with one worker.
+- root Playwright E2E with one worker;
+- the same Playwright E2E against `/computing-lab/` with one worker.
 
-The final PR should attach the exact command output. The implementation changes `src/features/image-encoding/**`, mechanism-focused route/boundary tests, canonical route examples, architecture/design QA notes, this handoff, and the deployment smoke query. App shell implementation, Sound, Network, backend, and shared lesson primitives remain untouched.
+The final PR should attach the exact command output. This change updates `src/features/image-encoding/**`, the shared shell boundary, mechanism-focused route/boundary tests, architecture/design QA notes, this handoff, and the deployment smoke query. Sound, Network, and backend code remain untouched; no shared lesson runtime is introduced.

@@ -38,7 +38,7 @@ export function HomePage() {
             </p>
             <div className="home-hero-actions">
               <Link className="button button-primary" to={featuredLab.route}>
-                继续图像编码 <span aria-hidden="true">→</span>
+                开始图像编码 <span aria-hidden="true">→</span>
               </Link>
               <a className="button button-secondary" href="#catalog">
                 浏览全部实验

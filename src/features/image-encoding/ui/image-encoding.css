@@ -34,16 +34,6 @@
   font-size: 10px;
 }
 
-.image-stage.is-current {
-  background: var(--accent-soft);
-  color: var(--primary);
-  font-weight: 700;
-}
-
-.image-stage.is-current b {
-  color: var(--accent);
-}
-
 .image-stage-progress {
   margin-left: auto;
   padding: 0 12px;
@@ -241,6 +231,13 @@
   line-height: 16px;
 }
 
+.mission-copy .mission-evidence {
+  margin-top: 5px;
+  color: var(--success);
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .mission-kind {
   padding: 4px 7px;
   border-radius: 999px;
@@ -341,6 +338,10 @@
   color: var(--secondary);
   font-size: 11px;
   line-height: 1.65;
+}
+
+.deep-dive-list details .deep-dive-locked {
+  color: var(--muted);
 }
 
 .image-card-description,
@@ -631,6 +632,14 @@
   padding: 0 20px 18px;
   color: var(--muted);
   font-size: 10px;
+  line-height: 1.55;
+}
+
+.image-gated-notice {
+  margin: 0;
+  padding: 18px 20px 20px;
+  color: var(--muted);
+  font-size: 11px;
   line-height: 1.55;
 }
 

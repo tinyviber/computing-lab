@@ -7,6 +7,7 @@ import {
   type ChangeEvent,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
   type RefObject,
 } from "react";
 import { useSearch } from "@tanstack/react-router";
@@ -40,12 +41,30 @@ type CanvasViewProps = {
 };
 
 type ExplorationTrace = {
-  samplingChanged: boolean;
+  samplingTargetReached: boolean;
   samplingViewed: boolean;
-  bitDepthChanged: boolean;
+  bitDepthTargetReached: boolean;
   quantizationViewed: boolean;
   representationViewed: boolean;
   pixelInspected: boolean;
+};
+
+type MissionTask = {
+  id: string;
+  title: string;
+  detail: string;
+  done: boolean;
+  evidenceUnlocked: boolean;
+  explore: boolean;
+};
+
+const EMPTY_EXPLORATION_TRACE: ExplorationTrace = {
+  samplingTargetReached: false,
+  samplingViewed: false,
+  bitDepthTargetReached: false,
+  quantizationViewed: false,
+  representationViewed: false,
+  pixelInspected: false,
 };
 
 const VIEW_LABELS: Record<ImageView, string> = {
@@ -274,7 +293,7 @@ function MissionList({
   tasks,
   explorationCount,
 }: {
-  tasks: readonly { id: string; title: string; detail: string; done: boolean; explore: boolean }[];
+  tasks: readonly MissionTask[];
   explorationCount: number;
 }) {
   return (
@@ -284,10 +303,10 @@ function MissionList({
           <p className="eyebrow">课堂任务单</p>
           <h3 id="mission-heading">把图像送进一条低带宽通道</h3>
           <p className="image-card-description">
-            下面 10 项任务中，有 6 项可以通过试验台自己解锁；其余留给同伴讨论和最后的书面解释。
+            下面 10 项任务中，有 6 项会在试验台出现相关证据；其余留给同伴讨论和最后的书面解释。
           </p>
         </div>
-        <div className="mission-progress" aria-label={`已解锁 ${explorationCount} 项探索证据`}>
+        <div className="mission-progress" aria-label={`已出现 ${explorationCount} 项探索证据`}>
           <strong>
             {explorationCount}
             <span>/6</span>
@@ -304,9 +323,12 @@ function MissionList({
             <span className="mission-copy">
               <strong>{task.title}</strong>
               <small>{task.detail}</small>
+              {task.evidenceUnlocked ? (
+                <small className="mission-evidence">✓ 相关证据已出现</small>
+              ) : null}
             </span>
             <span className={`mission-kind ${task.explore ? "is-explore" : "is-discuss"}`}>
-              {task.explore ? "探索解锁" : "讨论 / 书面"}
+              {task.explore ? "探索证据" : "讨论 / 书面"}
             </span>
           </li>
         ))}
@@ -314,7 +336,7 @@ function MissionList({
       <div className="mission-footer">
         <span>
           <span className="mission-key mission-key-explore" />{" "}
-          改变参数、切换视图或检查像素后自动记录
+          页面自动记录观察证据；解释与计算仍需自己完成
         </span>
         <span>
           <span className="mission-key mission-key-discuss" /> 不把“看到了”当成“解释清楚了”
@@ -324,7 +346,42 @@ function MissionList({
   );
 }
 
-function DeepDivePanel() {
+function DeepDiveItem({
+  children,
+  number,
+  title,
+  unlocked,
+}: {
+  children: ReactNode;
+  number: string;
+  title: string;
+  unlocked: boolean;
+}) {
+  return (
+    <details>
+      <summary>
+        <span>{number}</span> {title}
+      </summary>
+      {unlocked ? (
+        <p>{children}</p>
+      ) : (
+        <p className="deep-dive-locked">完成相关观察后解锁原理说明。</p>
+      )}
+    </details>
+  );
+}
+
+function DeepDivePanel({
+  payloadEvidenceUnlocked,
+  quantizationEvidenceUnlocked,
+  samplingEvidenceUnlocked,
+  traceEvidenceUnlocked,
+}: {
+  payloadEvidenceUnlocked: boolean;
+  quantizationEvidenceUnlocked: boolean;
+  samplingEvidenceUnlocked: boolean;
+  traceEvidenceUnlocked: boolean;
+}) {
   return (
     <section className="image-card deep-dive-card" aria-labelledby="deep-dive-heading">
       <div className="image-card-heading">
@@ -335,39 +392,36 @@ function DeepDivePanel() {
         <span className="deep-dive-badge">原理</span>
       </div>
       <div className="deep-dive-list">
-        <details open>
-          <summary>
-            <span>01</span> 采样不是“把网页缩小”
-          </summary>
-          <p>
-            编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。试着把采样降到
-            25%，比较两张同尺寸画布。
-          </p>
-        </details>
-        <details>
-          <summary>
-            <span>02</span> 位深描述的是索引状态
-          </summary>
-          <p>
-            当每个采样像素使用 b 位索引时，最多有 2<sup>b</sup> 个调色板状态。位深减半，不等于 RGB
-            三个通道各自减半。
-          </p>
-        </details>
-        <details>
-          <summary>
-            <span>03</span> 一颗像素如何变成 bits
-          </summary>
-          <p>从显示坐标追踪到采样格，再到调色板索引；检查器中的 bit 串就是重建时真正使用的表示。</p>
-        </details>
-        <details>
-          <summary>
-            <span>04</span> 理论载荷不是 PNG 文件大小
-          </summary>
-          <p>
-            本实验计算的是“采样像素数 ×
-            每像素位数”的原始载荷，暂不包含文件头、调色板、元数据和压缩编码。
-          </p>
-        </details>
+        <DeepDiveItem
+          number="01"
+          title="采样后的尺寸和显示尺寸有什么关系？"
+          unlocked={samplingEvidenceUnlocked}
+        >
+          编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。你可以继续比较两张画布。
+        </DeepDiveItem>
+        <DeepDiveItem
+          number="02"
+          title="位深改变后，可用状态如何变化？"
+          unlocked={quantizationEvidenceUnlocked}
+        >
+          当每个采样像素使用 b 位索引时，最多有 2<sup>b</sup> 个调色板状态。位深减半，不等于 RGB
+          三个通道各自减半。
+        </DeepDiveItem>
+        <DeepDiveItem
+          number="03"
+          title="显示像素如何对应到 bits？"
+          unlocked={traceEvidenceUnlocked}
+        >
+          从显示坐标追踪到采样格，再到调色板索引；检查器中的 bit 串就是重建时真正使用的表示。
+        </DeepDiveItem>
+        <DeepDiveItem
+          number="04"
+          title="公式算出的载荷代表什么？"
+          unlocked={payloadEvidenceUnlocked}
+        >
+          本实验计算的是“采样像素数 ×
+          每像素位数”的原始载荷，暂不包含文件头、调色板、元数据和压缩编码。
+        </DeepDiveItem>
       </div>
     </section>
   );
@@ -377,14 +431,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseImageEncodingScenario(search), [search]);
   const [lesson, dispatch] = useReducer(transitionImageLesson, scenario, createImageLessonState);
   const [uploadMessage, setUploadMessage] = useState<string | undefined>();
-  const [trace, setTrace] = useState<ExplorationTrace>({
-    samplingChanged: false,
-    samplingViewed: false,
-    bitDepthChanged: false,
-    quantizationViewed: false,
-    representationViewed: false,
-    pixelInspected: false,
-  });
+  const [trace, setTrace] = useState<ExplorationTrace>(EMPTY_EXPLORATION_TRACE);
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const reconstructionCanvasRef = useRef<HTMLCanvasElement>(null);
   const errorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -408,6 +455,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
+    setTrace(EMPTY_EXPLORATION_TRACE);
   }, [
     scenario.bitDepth,
     scenario.fixture,
@@ -422,12 +470,18 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   const changeSampling = (samplingPercent: number) => {
-    setTrace((current) => ({ ...current, samplingChanged: true }));
+    setTrace((current) => ({
+      ...current,
+      samplingTargetReached: current.samplingTargetReached || samplingPercent < 50,
+    }));
     dispatch({ type: "set-sampling", samplingPercent });
   };
 
   const changeBitDepth = (bitDepth: number) => {
-    setTrace((current) => ({ ...current, bitDepthChanged: true }));
+    setTrace((current) => ({
+      ...current,
+      bitDepthTargetReached: current.bitDepthTargetReached || bitDepth === 2,
+    }));
     dispatch({ type: "set-bit-depth", bitDepth });
   };
 
@@ -442,6 +496,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   const changeFixture = (fixture: ImageFixtureId) => {
+    setTrace(EMPTY_EXPLORATION_TRACE);
     dispatch({
       type: "load-scenario",
       scenario: {
@@ -458,6 +513,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    setTrace(EMPTY_EXPLORATION_TRACE);
     try {
       const source = await readUploadedImage(file);
       dispatch({ type: "load-source", source });
@@ -476,64 +532,69 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const reset = () => {
     dispatch({ type: "reset" });
     setUploadMessage(undefined);
-    setTrace({
-      samplingChanged: false,
-      samplingViewed: false,
-      bitDepthChanged: false,
-      quantizationViewed: false,
-      representationViewed: false,
-      pixelInspected: false,
-    });
+    setTrace(EMPTY_EXPLORATION_TRACE);
   };
 
-  const missionTasks = [
+  const spatialEvidenceUnlocked = trace.samplingTargetReached && trace.samplingViewed;
+  const quantizationEvidenceUnlocked = trace.bitDepthTargetReached && trace.quantizationViewed;
+  const traceEvidenceUnlocked = trace.representationViewed && trace.pixelInspected;
+  const payloadEvidenceUnlocked = trace.representationViewed && trace.bitDepthTargetReached;
+
+  const missionTasks: MissionTask[] = [
     {
       id: "predict",
       title: "先预测：如果采样变少，哪一种信息会先消失？",
       detail: "不要急着打开提示，把预测写在纸上。",
       done: false,
+      evidenceUnlocked: false,
       explore: false,
     },
     {
       id: "sample",
-      title: "把空间采样调到 50% 以下，并记录重建尺寸",
-      detail: "观察编码采样数量减少，但显示画布仍保持同样大小。",
-      done: trace.samplingChanged && lesson.samplingPercent <= 50,
+      title: "把空间采样调到 50% 以下，并记录采样后的宽 × 高",
+      detail: "记录“采样后的宽 × 高”，再和左右两张画布的显示尺寸比较。你发现了什么？",
+      done: trace.samplingTargetReached,
+      evidenceUnlocked: trace.samplingTargetReached,
       explore: true,
     },
     {
       id: "spatial-loss",
-      title: "在“采样重建”视图中圈出一种空间损失",
-      detail: "用一句话说明：它来自采样密度，而不是颜色位深。",
-      done: trace.samplingViewed && trace.samplingChanged,
+      title: "在“采样重建”视图中记录一种变化",
+      detail: "描述你观察到的变化。哪个变量可能造成它？再改变另一个变量验证。",
+      done: false,
+      evidenceUnlocked: spatialEvidenceUnlocked,
       explore: true,
     },
     {
       id: "quantize",
-      title: "把颜色位深调到 2 位，并数一数可用状态",
-      detail: "观察有限调色板，以及颜色渐变如何出现色带。",
-      done: trace.bitDepthChanged && lesson.bitDepth <= 2,
+      title: "把颜色位深调到 2 位",
+      detail: "调到 2 位。数一数现在最多有多少种编码状态，再记录图像变化。",
+      done: trace.bitDepthTargetReached,
+      evidenceUnlocked: trace.bitDepthTargetReached,
       explore: true,
     },
     {
       id: "color-loss",
-      title: "切换到“量化重建”，找出一种颜色损失",
-      detail: "把它和上一项的空间损失区分开。",
-      done: trace.quantizationViewed && trace.bitDepthChanged,
+      title: "切换到“量化重建”，记录一种变化",
+      detail: "描述你看到的变化，再和采样视图中的观察比较。",
+      done: false,
+      evidenceUnlocked: quantizationEvidenceUnlocked,
       explore: true,
     },
     {
       id: "trace-bits",
-      title: "点击一个像素，追踪它最终写入的索引 bits",
-      detail: "完成：显示坐标 → 采样格 → 调色板索引 → 编码值。",
-      done: trace.pixelInspected && trace.representationViewed,
+      title: "打开编码表示并点击一个像素",
+      detail: "再写下检查器里的坐标、索引和 bits，观察它们如何对应。",
+      done: traceEvidenceUnlocked,
+      evidenceUnlocked: traceEvidenceUnlocked,
       explore: true,
     },
     {
       id: "payload",
       title: "用公式核对一遍编码载荷",
-      detail: "采样宽 × 采样高 × 位深，再把 bit 换算成 Byte。",
-      done: trace.representationViewed && trace.bitDepthChanged,
+      detail: "写下采样宽、高、位深和你的计算结果，再与面板比较。",
+      done: false,
+      evidenceUnlocked: payloadEvidenceUnlocked,
       explore: true,
     },
     {
@@ -541,6 +602,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       title: "讨论：同样的载荷，能否换来不同的图像观感？",
       detail: "比较“高采样 + 低位深”和“低采样 + 高位深”。",
       done: false,
+      evidenceUnlocked: false,
       explore: false,
     },
     {
@@ -548,6 +610,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       title: "迁移：为什么真实 PNG/JPEG 文件大小不能直接套用本页公式？",
       detail: "至少指出两个没有被理论载荷包含的部分。",
       done: false,
+      evidenceUnlocked: false,
       explore: false,
     },
     {
@@ -555,23 +618,19 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       title: "最后用 80 字解释：图像编码到底做了哪几次取舍？",
       detail: "不要抄定义，要写出因果链。",
       done: false,
+      evidenceUnlocked: false,
       explore: false,
     },
-  ] as const;
-  const explorationCount = missionTasks.filter((task) => task.explore && task.done).length;
+  ];
+  const explorationCount = missionTasks.filter(
+    (task) => task.explore && task.evidenceUnlocked,
+  ).length;
 
   return (
     <LabShell
       eyebrow="图像 / 01"
       title="图像编码"
       subtitle="采样（sampling）、量化（quantization）与重建（reconstruction）"
-      currentStep="mission"
-      lessonSteps={[
-        { id: "mission", label: "任务单", caption: "先提出预测" },
-        { id: "evidence", label: "观察重建", caption: "改变一个变量" },
-        { id: "trace", label: "追踪 bits", caption: "看见底层表示" },
-        { id: "transfer", label: "迁移解释", caption: "说清楚取舍" },
-      ]}
     >
       <div className="image-course">
         <header className="image-course-intro">
@@ -579,7 +638,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <p className="eyebrow">机制实验</p>
             <h2>从真实图像到有限的像素编码</h2>
             <p>
-              先改变空间采样密度，再限制每个采样像素可使用的颜色状态。重建图像始终保持与原图相同的显示尺寸，方便区分“网页缩小”和“编码后像素化”。
+              先记录当前图像与参数，再一次只改变一个变量。比较图像、状态数量和像素记录，把你看到的变化写下来，再提出解释。
             </p>
           </div>
           <div className="source-meta" aria-label="当前图像来源">
@@ -599,7 +658,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
         </header>
 
         <nav className="image-stage-nav" aria-label="图像编码学习流程">
-          <span className="image-stage is-current">
+          <span className="image-stage">
             <b>01</b>
             <span>任务单</span>
           </span>
@@ -616,7 +675,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <span>迁移解释</span>
           </span>
           <span className="image-stage-progress">
-            <strong>{explorationCount}/6</strong> 个探索证据已解锁
+            <strong>{explorationCount}/6</strong> 个探索证据已出现
           </span>
         </nav>
 
@@ -675,7 +734,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h3 id="compare-heading">原图 → 采样值 → 量化重建</h3>
                   <p className="image-card-description">点击任一图像，检查同一个物理显示坐标。</p>
                 </div>
-                <span className="display-size-chip">显示尺寸相同</span>
+                <span className="display-size-chip">记录两张画布</span>
               </div>
               <div className="canvas-compare-grid">
                 <div>
@@ -692,7 +751,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h4>重建图像</h4>
                   <CanvasView
                     canvasRef={reconstructionCanvasRef}
-                    label="由采样值和量化值重建的图像"
+                    label="重建图像"
                     onPick={chooseCanvasPixel}
                     raster={model.reconstructed}
                     selectedCoordinate={lesson.selectedCoordinate}
@@ -701,14 +760,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               </div>
               <div className="loss-strip">
                 <span>
-                  <b>空间损失</b> {model.sampled.width} × {model.sampled.height} 个编码采样
+                  <b>采样数量</b> {model.sampled.width} × {model.sampled.height} 个编码采样
                 </span>
                 <span>
-                  <b>颜色损失</b> {model.quantized.palette.length} 个状态 · 采样 RGB 误差{" "}
+                  <b>状态数量</b> {model.quantized.palette.length} 个状态 · 采样 RGB 误差{" "}
                   {(model.averageQuantizationError * 100).toFixed(1)}%
                 </span>
                 <span>
-                  <b>发生变化的显示像素</b> {model.changedPixelCount.toLocaleString()}
+                  <b>变化像素</b> {model.changedPixelCount.toLocaleString()}
                 </span>
               </div>
             </section>
@@ -719,7 +778,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <p className="eyebrow">证据视图</p>
                   <h3 id="view-heading">让表示过程可见</h3>
                 </div>
-                <span className="view-note">视图改变观察方式，不改变模型。</span>
+                <span className="view-note">视图用于记录不同观察结果。</span>
               </div>
               <div className="view-tabs" role="tablist" aria-label="图像编码证据视图">
                 {(Object.keys(VIEW_LABELS) as ImageView[]).map((view) => (
@@ -740,12 +799,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <CanvasView
                     canvasRef={errorCanvasRef}
                     errorMap={model.errorMap}
-                    label="像素误差图；橙色越亮表示 RGB 差异越大"
+                    label="像素误差图"
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}
                   />
-                  <p>每个像素的颜色表示源图与重建图之间的 RGB 距离；它不是浏览器文件大小的差异。</p>
+                  <p>比较每个位置的颜色差异，并记录变化集中在哪里。</p>
                 </div>
               ) : (
                 <div className="representation-stage">
@@ -765,8 +824,16 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         style={colorStyle(
                           lesson.view === "sampling" ? pixel.sourceColor : pixel.quantizedColor,
                         )}
-                        aria-label={`采样 ${pixel.sampleIndex + 1}；源色 ${rgbToHex(pixel.sourceColor)}；调色板索引 ${pixel.paletteIndex}；编码值 ${pixel.encodedBits}`}
-                        title={`${pixel.encodedBits} · ${pixel.quantizedHex}`}
+                        aria-label={
+                          trace.representationViewed
+                            ? `采样 ${pixel.sampleIndex + 1}；源色 ${rgbToHex(pixel.sourceColor)}；调色板索引 ${pixel.paletteIndex}；编码值 ${pixel.encodedBits}`
+                            : `采样 ${pixel.sampleIndex + 1}；记录该格颜色`
+                        }
+                        title={
+                          trace.representationViewed
+                            ? `${pixel.encodedBits} · ${pixel.quantizedHex}`
+                            : undefined
+                        }
                       />
                     ))}
                   </div>
@@ -774,12 +841,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     <strong>{VIEW_LABELS[lesson.view]}</strong>
                     <p>
                       {lesson.view === "sampling"
-                        ? "每个格子代表一个保留的空间采样值；格子数量改变的是空间离散化密度。"
+                        ? "记录网格中的格子数量，以及图像中哪些位置发生变化。"
                         : lesson.view === "quantization"
-                          ? "每个格子的颜色来自有限调色板（palette）；降低颜色位深（bit depth）会减少可用状态并产生色带。"
+                          ? "记录状态数量，并观察渐变区域的变化。"
                           : lesson.view === "representation"
-                            ? "这是实际写入的索引表示（index representation）。点击图像后，右侧检查器会显示同一个索引的 bits。"
-                            : "像素网格把采样值、调色板索引与重建颜色并置显示。"}
+                            ? "点击一个像素后，对照检查器记录它的坐标、索引和 bits。"
+                            : "把采样值、状态和重建颜色放在一起记录。"}
                     </p>
                   </div>
                 </div>
@@ -788,7 +855,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
           </div>
 
           <aside className="image-side-column" aria-label="图像编码控制与像素检查器">
-            <DeepDivePanel />
+            <DeepDivePanel
+              payloadEvidenceUnlocked={payloadEvidenceUnlocked}
+              quantizationEvidenceUnlocked={quantizationEvidenceUnlocked}
+              samplingEvidenceUnlocked={spatialEvidenceUnlocked}
+              traceEvidenceUnlocked={traceEvidenceUnlocked}
+            />
             <section
               className="image-card image-parameter-card"
               aria-labelledby="parameter-heading"
@@ -800,7 +872,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
               </div>
               <RangeField
-                description="每个方向保留多少个源图位置。"
+                description="改变采样参数，记录图像和采样数量的变化。"
                 id="sampling-percent"
                 label="空间采样"
                 max={MAX_SAMPLING_PERCENT}
@@ -823,7 +895,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={phaseIsInert ? 0 : lesson.phase}
               />
               <RangeField
-                description="每个采样像素的调色板索引所存储的位数。"
+                description="改变位深，记录状态数量和图像变化。"
                 id="bit-depth"
                 label="颜色位深"
                 max={MAX_BIT_DEPTH}
@@ -842,42 +914,48 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               <div className="image-card-heading">
                 <div>
                   <p className="eyebrow">编码表示</p>
-                  <h3 id="payload-heading">理论原始载荷</h3>
+                  <h3 id="payload-heading">载荷记录</h3>
                 </div>
               </div>
-              <dl className="payload-list">
-                <div>
-                  <dt>采样尺寸</dt>
-                  <dd>
-                    {model.sampled.width} × {model.sampled.height}
-                  </dd>
-                </div>
-                <div>
-                  <dt>采样像素总数</dt>
-                  <dd>{model.sampled.width * model.sampled.height} px</dd>
-                </div>
-                <div>
-                  <dt>有限调色板状态</dt>
-                  <dd>{model.quantized.palette.length} 个可用索引状态</dd>
-                </div>
-                <div>
-                  <dt>原始载荷</dt>
-                  <dd>
-                    {model.rawPayload.width} × {model.rawPayload.height} ×{" "}
-                    {model.rawPayload.bitDepth} = {model.rawPayload.bits} 位
-                  </dd>
-                </div>
-                <div>
-                  <dt>字节换算</dt>
-                  <dd>
-                    ceil({model.rawPayload.bits} / 8) = {model.rawPayload.bytes} 字节
-                  </dd>
-                </div>
-              </dl>
-              <p className="payload-note">
-                这是教学用的理论原始像素载荷，不是 PNG/JPEG
-                文件大小；不包含调色板表、文件头、元数据或编解码压缩。
-              </p>
+              {payloadEvidenceUnlocked ? (
+                <>
+                  <dl className="payload-list">
+                    <div>
+                      <dt>采样尺寸</dt>
+                      <dd>
+                        {model.sampled.width} × {model.sampled.height}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>采样像素总数</dt>
+                      <dd>{model.sampled.width * model.sampled.height} px</dd>
+                    </div>
+                    <div>
+                      <dt>状态数量</dt>
+                      <dd>{model.quantized.palette.length} 个可用索引状态</dd>
+                    </div>
+                    <div>
+                      <dt>原始载荷</dt>
+                      <dd>
+                        {model.rawPayload.width} × {model.rawPayload.height} ×{" "}
+                        {model.rawPayload.bitDepth} = {model.rawPayload.bits} 位
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>字节换算</dt>
+                      <dd>
+                        ceil({model.rawPayload.bits} / 8) = {model.rawPayload.bytes} 字节
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="payload-note">
+                    这是教学用的理论原始像素载荷，不是 PNG/JPEG
+                    文件大小；不包含调色板表、文件头、元数据或编解码压缩。
+                  </p>
+                </>
+              ) : (
+                <p className="image-gated-notice">完成位深和编码表示观察后，这里显示载荷记录。</p>
+              )}
             </section>
 
             <section
@@ -890,66 +968,83 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h3 id="inspector-heading">从一个显示像素追踪到 bits</h3>
                 </div>
               </div>
-              <div className="inspector-selected-pixel">
-                <span className="inspector-swatch" style={colorStyle(inspection.quantizedColor)} />
-                <div>
-                  <strong>
-                    显示坐标（{inspection.sourceX}, {inspection.sourceY}）
-                  </strong>
-                  <small>点击原图或重建图像可切换检查位置。</small>
-                </div>
-              </div>
-              <dl className="pixel-inspection-list">
-                <div>
-                  <dt>原始源色</dt>
-                  <dd>{rgbToHex(inspection.originalColor)}</dd>
-                </div>
-                <div>
-                  <dt>采样格</dt>
-                  <dd>
-                    ({inspection.sampleX}, {inspection.sampleY}) · #{inspection.sampleIndex + 1}
-                  </dd>
-                </div>
-                <div>
-                  <dt>采样值</dt>
-                  <dd>{rgbToHex(inspection.sampledColor)}</dd>
-                </div>
-                <div>
-                  <dt>量化调色板颜色</dt>
-                  <dd>
-                    {rgbToHex(inspection.quantizedColor)} · 索引 {inspection.paletteIndex}
-                  </dd>
-                </div>
-                <div>
-                  <dt>编码值</dt>
-                  <dd>
-                    <code>{inspection.encodedBits}</code> ({model.quantized.bitDepth} bits)
-                  </dd>
-                </div>
-                <div>
-                  <dt>可见 RGB 误差</dt>
-                  <dd>{(inspection.errorMagnitude * 100).toFixed(1)}%</dd>
-                </div>
-              </dl>
+              {traceEvidenceUnlocked ? (
+                <>
+                  <div className="inspector-selected-pixel">
+                    <span
+                      className="inspector-swatch"
+                      style={colorStyle(inspection.quantizedColor)}
+                    />
+                    <div>
+                      <strong>
+                        显示坐标（{inspection.sourceX}, {inspection.sourceY}）
+                      </strong>
+                      <small>点击原图或重建图像可切换检查位置。</small>
+                    </div>
+                  </div>
+                  <dl className="pixel-inspection-list">
+                    <div>
+                      <dt>原始源色</dt>
+                      <dd>{rgbToHex(inspection.originalColor)}</dd>
+                    </div>
+                    <div>
+                      <dt>采样格</dt>
+                      <dd>
+                        ({inspection.sampleX}, {inspection.sampleY}) · #{inspection.sampleIndex + 1}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>采样值</dt>
+                      <dd>{rgbToHex(inspection.sampledColor)}</dd>
+                    </div>
+                    <div>
+                      <dt>量化调色板颜色</dt>
+                      <dd>
+                        {rgbToHex(inspection.quantizedColor)} · 索引 {inspection.paletteIndex}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>编码值</dt>
+                      <dd>
+                        <code>{inspection.encodedBits}</code> ({model.quantized.bitDepth} bits)
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>可见 RGB 误差</dt>
+                      <dd>{(inspection.errorMagnitude * 100).toFixed(1)}%</dd>
+                    </div>
+                  </dl>
+                </>
+              ) : (
+                <p className="image-gated-notice">
+                  打开编码表示并点击一个像素后，这里显示对应记录。
+                </p>
+              )}
             </section>
 
             <section className="image-card palette-card" aria-labelledby="palette-heading">
               <div className="image-card-heading">
                 <div>
                   <p className="eyebrow">调色板 / 索引</p>
-                  <h3 id="palette-heading">有限颜色状态</h3>
+                  <h3 id="palette-heading">状态记录</h3>
                 </div>
-                <span>{model.quantized.palette.length} 个可用状态</span>
+                {trace.bitDepthTargetReached ? (
+                  <span>{model.quantized.palette.length} 个可用状态</span>
+                ) : null}
               </div>
-              <div className="palette-list">
-                {model.quantized.palette.map((entry) => (
-                  <div className="palette-entry" key={entry.index}>
-                    <span className="palette-swatch" style={colorStyle(entry.color)} />
-                    <code>{entry.index.toString(2).padStart(model.quantized.bitDepth, "0")}</code>
-                    <span>{entry.hex}</span>
-                  </div>
-                ))}
-              </div>
+              {trace.bitDepthTargetReached ? (
+                <div className="palette-list">
+                  {model.quantized.palette.map((entry) => (
+                    <div className="palette-entry" key={entry.index}>
+                      <span className="palette-swatch" style={colorStyle(entry.color)} />
+                      <code>{entry.index.toString(2).padStart(model.quantized.bitDepth, "0")}</code>
+                      <span>{entry.hex}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="image-gated-notice">调到 2 位后，这里显示状态记录。</p>
+              )}
             </section>
           </aside>
         </div>

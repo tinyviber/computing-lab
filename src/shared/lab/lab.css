@@ -79,15 +79,6 @@
   font-size: 12px;
 }
 
-.context-progress {
-  padding: 5px 9px;
-  border-radius: 999px;
-  background: #e9f7f0;
-  color: var(--success);
-  font-size: 11px;
-  font-weight: 700;
-}
-
 .mobile-menu-button {
   display: none;
   width: 32px;
@@ -135,8 +126,7 @@
   color: var(--accent);
 }
 
-.lab-list,
-.step-list {
+.lab-list {
   list-style: none;
   margin: 22px 0 0;
   padding: 0;
@@ -190,74 +180,6 @@
   border-top: 1px solid var(--border);
 }
 
-.lesson-path {
-  margin: 28px 8px 0;
-  padding-top: 20px;
-  border-top: 1px solid var(--border);
-}
-
-.lesson-path-heading h3 {
-  margin-top: 5px;
-  color: var(--primary);
-  font-size: 14px;
-}
-
-.lesson-path-list {
-  display: grid;
-  gap: 4px;
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.lesson-path-item {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  gap: 7px;
-  align-items: start;
-  padding: 8px 6px;
-  border-radius: 8px;
-  color: var(--muted);
-}
-
-.lesson-path-item.is-current {
-  background: var(--accent-soft);
-  color: var(--primary);
-}
-
-.lesson-path-index {
-  padding-top: 1px;
-  color: var(--accent);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.lesson-path-item strong,
-.lesson-path-item small {
-  display: block;
-}
-
-.lesson-path-item strong {
-  font-size: 11px;
-  line-height: 16px;
-}
-
-.lesson-path-item small {
-  margin-top: 1px;
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 14px;
-}
-
-.lesson-path-live {
-  padding-top: 2px;
-  color: var(--accent);
-  font-size: 9px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
 .rail-footer strong,
 .rail-footer span:not(.local-dot) {
   display: block;
@@ -267,61 +189,10 @@
   font-size: 12px;
 }
 
-.rail-footer span:not(.local-dot),
-.step-item span:not(.step-marker) {
+.rail-footer span:not(.local-dot) {
   color: var(--secondary);
   font-size: 11px;
   line-height: 17px;
-}
-
-.lesson-steps {
-  margin-top: 26px;
-}
-
-.lesson-steps .step-list {
-  margin-top: 16px;
-}
-
-.step-item {
-  align-items: flex-start;
-  display: flex;
-  gap: 12px;
-  min-height: 68px;
-  padding: 0 8px 22px;
-  position: relative;
-}
-
-.step-item:not(:last-child)::after {
-  position: absolute;
-  top: 25px;
-  left: 18px;
-  width: 1px;
-  height: 26px;
-  background: var(--border);
-  content: "";
-}
-
-.step-marker {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  justify-content: center;
-  position: relative;
-  z-index: 1;
-  width: 20px;
-  height: 20px;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--subtle);
-  color: var(--secondary);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-}
-
-.step-item strong {
-  display: block;
-  font-size: 13px;
-  line-height: 20px;
 }
 
 .workspace {

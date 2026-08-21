@@ -19,7 +19,7 @@ for (const route of routes) {
     await expect(page.locator("h1").first()).toHaveText(route.heading);
     if (route.path === "labs/image-encoding") {
       await expect(page.getByRole("slider", { name: /空间采样/ })).toBeVisible();
-      await expect(page.getByRole("img", { name: /由采样值和量化值重建的图像/ })).toBeVisible();
+      await expect(page.getByRole("img", { name: /重建图像/ })).toBeVisible();
     }
     if (route.path === "labs/home-network") {
       await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
