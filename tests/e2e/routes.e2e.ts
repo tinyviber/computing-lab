@@ -63,6 +63,19 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
   );
 });
 
+test("changes image encoding parameters through keyboard controls", async ({ page }) => {
+  await page.goto("labs/image-encoding", { waitUntil: "networkidle" });
+
+  const sampling = page.getByRole("slider", { name: /空间采样/ });
+  await sampling.press("ArrowLeft");
+  await expect(sampling).toHaveValue("45");
+
+  const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
+  await bitDepth.press("ArrowDown");
+  await bitDepth.press("ArrowDown");
+  await expect(bitDepth).toHaveValue("2");
+});
+
 test("navigates between labs with SPA links and restores back/forward state", async ({ page }) => {
   await page.goto(".", { waitUntil: "networkidle" });
   await page

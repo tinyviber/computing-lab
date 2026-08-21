@@ -552,7 +552,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     {
       id: "sample",
       title: "把空间采样调到 50% 以下，并记录采样后的宽 × 高",
-      detail: "记录“采样后的宽 × 高”，再和左右两张画布的显示尺寸比较。你发现了什么？",
+      detail:
+        "拖动“空间采样”滑杆到低于 50%（例如 25%），记录“采样后的宽 × 高”，再和左右两张画布的显示尺寸比较。你发现了什么？",
       done: trace.samplingTargetReached,
       evidenceUnlocked: trace.samplingTargetReached,
       explore: true,
@@ -568,7 +569,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     {
       id: "quantize",
       title: "把颜色位深调到 2 位",
-      detail: "调到 2 位。数一数现在最多有多少种编码状态，再记录图像变化。",
+      detail: "拖动“颜色位深”滑杆到 2 位。数一数现在最多有多少种编码状态，再记录图像变化。",
       done: trace.bitDepthTargetReached,
       evidenceUnlocked: trace.bitDepthTargetReached,
       explore: true,
@@ -872,7 +873,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
               </div>
               <RangeField
-                description="改变采样参数，记录图像和采样数量的变化。"
+                description="拖动滑杆（也可聚焦后用方向键）改变采样参数，记录图像和采样数量的变化。"
                 id="sampling-percent"
                 label="空间采样"
                 max={MAX_SAMPLING_PERCENT}
@@ -895,7 +896,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={phaseIsInert ? 0 : lesson.phase}
               />
               <RangeField
-                description="改变位深，记录状态数量和图像变化。"
+                description="拖动滑杆（也可聚焦后用方向键）改变位深，记录状态数量和图像变化。"
                 id="bit-depth"
                 label="颜色位深"
                 max={MAX_BIT_DEPTH}

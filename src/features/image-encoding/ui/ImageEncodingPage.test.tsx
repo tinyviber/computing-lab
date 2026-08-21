@@ -63,6 +63,14 @@ function sectionByHeading(name: RegExp, level: 2 | 3): HTMLElement {
 }
 
 describe("ImageEncodingPage", () => {
+  it("makes the first parameter actions explicit", async () => {
+    await renderAppAt("/labs/image-encoding");
+
+    expect(missionItem(/把空间采样调到/)).toHaveTextContent(/拖动.*滑杆.*例如 25%/);
+    expect(missionItem(/把颜色位深调到/)).toHaveTextContent(/拖动.*滑杆到 2 位/);
+    expect(screen.getAllByText(/拖动滑杆（也可聚焦后用方向键）/)).toHaveLength(2);
+  });
+
   it("hydrates the canonical scenario URL and exposes encoded dimensions", async () => {
     await renderAppAt(
       "/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=representation",
