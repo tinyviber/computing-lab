@@ -29,26 +29,27 @@ test("loads the photo scenario without external network or image dependencies", 
   await expect(worksheet).not.toHaveAttribute("open");
   await worksheetSummary.click();
   await expect(worksheet).toHaveAttribute("open", "");
+  await expect(worksheet.locator(".mission-item")).toHaveCount(10);
+  await expect(worksheet.locator("details")).toHaveCount(0);
 
   const task = page
-    .locator(".mission-item details")
+    .locator(".mission-item")
     .filter({ hasText: /空间采样/ })
     .first();
-  const summary = task.locator("summary");
   await expect(task).toBeVisible();
-  await expect(task).not.toHaveAttribute("open");
+  await expect(task.locator("details")).toHaveCount(0);
+  await expect(task).toContainText(/调到 25% 左右/);
 
   await page.getByRole("slider", { name: /空间采样/ }).press("ArrowLeft");
   const evidenceBefore = await task.textContent();
-  await summary.focus();
-  await expect(summary).toBeFocused();
-
-  await summary.press("Enter");
-  await expect(task).toHaveAttribute("open", "");
-  await expect(task.locator("p").first()).toBeVisible();
+  await expect(task).toContainText(/证据已出现/);
+  await expect(task).toContainText(/仍需学生记录、描述、计算或解释/);
   expect(await task.textContent()).toBe(evidenceBefore);
 
-  await summary.press("Space");
-  await expect(task).not.toHaveAttribute("open");
-  expect(await task.textContent()).toBe(evidenceBefore);
+  await worksheetSummary.focus();
+  await expect(worksheetSummary).toBeFocused();
+  await worksheetSummary.press("Space");
+  await expect(worksheet).not.toHaveAttribute("open");
+  await worksheetSummary.press("Enter");
+  await expect(worksheet).toHaveAttribute("open", "");
 });

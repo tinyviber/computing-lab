@@ -13,16 +13,16 @@ function setSlider(element: HTMLElement, value: number) {
 
 const evidenceStatus = /(?:相关)?证据(?:已解锁|已出现|可用)/;
 
-function taskDetails(title: RegExp): HTMLDetailsElement {
-  const task = [...document.querySelectorAll("details")].find((candidate) =>
-    title.test(candidate.querySelector("summary")?.textContent ?? ""),
+function taskItem(title: RegExp): HTMLElement {
+  const task = [...document.querySelectorAll(".mission-item")].find((candidate) =>
+    title.test(candidate.textContent ?? ""),
   );
-  if (!(task instanceof HTMLDetailsElement)) throw new Error(`Task details not found: ${title}`);
+  if (!(task instanceof HTMLElement)) throw new Error(`Task item not found: ${title}`);
   return task;
 }
 
 function expectTaskEvidence(title: RegExp, expected: boolean) {
-  const task = taskDetails(title);
+  const task = taskItem(title);
   if (expected) {
     expect(task).toHaveTextContent(evidenceStatus);
   } else {
@@ -121,27 +121,34 @@ describe("ImageEncodingPage", () => {
     expect(outline).not.toHaveTextContent(/进行中/);
   });
 
-  it("uses native closed task disclosures with keyboard activation and stable evidence", async () => {
+  it("uses one native worksheet disclosure with a direct task list and stable evidence", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
 
-    const task = taskDetails(/空间采样|调整参数/);
-    const summary = task.querySelector("summary");
+    const worksheet = document.querySelector("details.mission-card");
+    if (!(worksheet instanceof HTMLDetailsElement)) throw new Error("Worksheet details not found");
+    const summary = worksheet.querySelector("summary");
     if (!(summary instanceof HTMLElement)) throw new Error("Task summary not found");
-    expect(task).not.toHaveAttribute("open");
-    expect(summary.textContent).toMatch(/空间采样|调整参数/);
+    const task = taskItem(/空间采样|调整参数/);
+    expect(worksheet).not.toHaveAttribute("open");
+    expect(worksheet.querySelectorAll("details")).toHaveLength(0);
+    expect(task).toHaveTextContent(/空间采样|调整参数/);
 
     setSlider(slider(/空间采样/), 45);
     const evidenceBefore = task.textContent;
     summary.focus();
     expect(summary).toHaveFocus();
     await user.click(summary);
-    expect(task).toHaveAttribute("open", "");
+    expect(worksheet).toHaveAttribute("open", "");
+    expect(within(worksheet).getAllByRole("listitem")).toHaveLength(10);
+    expect(worksheet.querySelectorAll("details")).toHaveLength(0);
     expect(task.querySelector("p")).toBeInTheDocument();
+    expect(task).toHaveTextContent(/证据已出现/);
+    expect(task).toHaveTextContent(/仍需学生记录、描述、计算或解释/);
     expect(task.textContent).toBe(evidenceBefore);
 
     await user.click(summary);
-    expect(task).not.toHaveAttribute("open");
+    expect(worksheet).not.toHaveAttribute("open");
     expect(task.textContent).toBe(evidenceBefore);
   });
 

@@ -166,7 +166,7 @@
 }
 
 .mission-item {
-  padding: 0;
+  padding: 12px 0;
   border-top: 1px solid var(--border);
 }
 
@@ -176,31 +176,23 @@
   font-size: 11px;
 }
 
-.mission-item details {
-  padding: 12px 0;
-}
-
-.mission-item summary {
-  cursor: pointer;
+.mission-task-title {
+  display: block;
   color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
 }
 
-.mission-item summary::marker {
-  color: var(--muted);
-}
-
-.mission-item details p {
+.mission-item p {
   max-width: 720px;
-  margin: 7px 0 0 18px;
+  margin: 6px 0 0;
   color: var(--secondary);
   font-size: 11px;
   line-height: 1.6;
 }
 
-.mission-item details .mission-evidence {
+.mission-item .mission-evidence {
   color: var(--secondary);
   font-size: 10px;
   line-height: 1.5;
@@ -654,10 +646,6 @@
     align-items: stretch;
     flex-wrap: wrap;
     gap: 4px;
-  }
-
-  .mission-item {
-    padding: 0;
   }
 
   .mission-list {

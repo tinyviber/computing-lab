@@ -31,7 +31,7 @@ export function HomePage() {
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
-            <p className="eyebrow">INTERACTIVE COMPUTING / 01</p>
+            <p className="eyebrow">计算实验 / 01</p>
             <h1 id="home-title">交互式计算实验</h1>
             <p className="home-lede">
               教师设定任务，学生调整参数、观察证据、记录结果，再用记录解释系统如何工作。
@@ -56,7 +56,7 @@ export function HomePage() {
               ))}
             </div>
             <div className="visual-caption">
-              <span>source raster → reconstruction</span>
+              <span>源图像 → 重建图像</span>
               <strong>采样 · 量化 · bits</strong>
             </div>
           </div>

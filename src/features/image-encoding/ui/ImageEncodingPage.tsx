@@ -292,18 +292,18 @@ function MissionList({ tasks }: { tasks: readonly MissionTask[] }) {
     <details className="image-card mission-card">
       <summary className="mission-summary">
         <span className="mission-summary-label">课堂任务单</span>
-        <span className="mission-summary-description">按需要展开任务，记录观察到的状态。</span>
+        <span className="mission-summary-description">展开后直接查看 10 项任务和证据状态。</span>
       </summary>
       <ol className="mission-list">
         {tasks.map((task) => (
           <li className="mission-item" key={task.id}>
-            <details>
-              <summary>{task.title}</summary>
-              <p>{task.detail}</p>
-              {task.evidenceUnlocked ? (
-                <p className="mission-evidence">观察状态：相关证据已出现。</p>
-              ) : null}
-            </details>
+            <strong className="mission-task-title">{task.title}</strong>
+            <p>{task.detail}</p>
+            {task.evidenceUnlocked ? (
+              <p className="mission-evidence">
+                状态：相关证据已出现；仍需学生记录、描述、计算或解释。
+              </p>
+            ) : null}
           </li>
         ))}
       </ol>
@@ -330,7 +330,7 @@ function DeepDiveItem({
       {unlocked ? (
         <p>{children}</p>
       ) : (
-        <p className="deep-dive-locked">完成相关观察后解锁原理说明。</p>
+        <p className="deep-dive-locked">相关证据出现后，这里显示原理说明。</p>
       )}
     </details>
   );
@@ -892,7 +892,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </p>
                 </>
               ) : (
-                <p className="image-gated-notice">完成位深和编码表示观察后，这里显示载荷记录。</p>
+                <p className="image-gated-notice">相关证据出现后，这里显示载荷记录。</p>
               )}
             </section>
 

@@ -13,6 +13,10 @@ describe("application router integration", () => {
 
     const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
     expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
+    expect(screen.getByText("计算实验 / 01")).toBeInTheDocument();
+    expect(screen.getByText("源图像 → 重建图像")).toBeInTheDocument();
+    expect(screen.queryByText("INTERACTIVE COMPUTING / 01")).not.toBeInTheDocument();
+    expect(screen.queryByText("source raster → reconstruction")).not.toBeInTheDocument();
     for (const legacyPhrase of [
       /不先背结论/,
       /把一个系统拆开/,
