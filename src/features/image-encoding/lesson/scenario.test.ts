@@ -51,6 +51,17 @@ describe("image lesson scenario", () => {
     });
   });
 
+  it.each([
+    ["gradient", "gradient"],
+    ["checkerboard", "checkerboard"],
+  ] as const)("preserves %s as a compatible fixture query", (query, fixture) => {
+    expect(parseImageEncodingScenario(`image=${query}&sample=25&bits=2`)).toMatchObject({
+      fixture,
+      samplingPercent: 25,
+      bitDepth: 2,
+    });
+  });
+
   it("canonicalizes phase from rounded fixture geometry rather than percentage alone", () => {
     expect(parseImageEncodingScenario("image=photo&sample=99&phase=0.8")).toMatchObject({
       fixture: "photo",

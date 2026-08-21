@@ -62,17 +62,51 @@ describe("image lesson state", () => {
     expect(next.initialScenario.fixture).toBe("photo");
   });
 
+  it("resets an uploaded source to the scenario that opened the page", () => {
+    const state = createImageLessonState(parseImageEncodingScenario("image=photo&sample=75"));
+    const uploaded = {
+      ...getImageFixture("gradient"),
+      id: "upload:gradient.png",
+      label: "gradient.png",
+      sourceKind: "upload" as const,
+    };
+    let changed = transitionImageLesson(state, { type: "load-source", source: uploaded });
+    changed = transitionImageLesson(changed, { type: "set-sampling", samplingPercent: 25 });
+    changed = transitionImageLesson(changed, { type: "set-bit-depth", bitDepth: 2 });
+
+    const reset = transitionImageLesson(changed, { type: "reset" });
+    expect(reset).toMatchObject({
+      fixture: "photo",
+      samplingPercent: 75,
+      bitDepth: 4,
+      source: getImageFixture("photo"),
+      initialScenario: state.initialScenario,
+    });
+    expect(reset.source.sourceKind).toBe("fixture");
+  });
+
   it("reset restores the URL scenario baseline rather than a hidden success profile", () => {
-    const scenario = parseImageEncodingScenario("image=checkerboard&sample=25&bits=2&view=error");
+    const scenario = parseImageEncodingScenario(
+      "image=checkerboard&sample=25&phase=0.5&bits=2&view=error",
+    );
     let state = createImageLessonState(scenario);
     state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 90 });
+    state = transitionImageLesson(state, { type: "set-bit-depth", bitDepth: 8 });
+    state = transitionImageLesson(state, { type: "set-phase", phase: 0.75 });
     state = transitionImageLesson(state, { type: "set-view", view: "compare" });
-    state = transitionImageLesson(state, { type: "reset" });
-    expect(state).toMatchObject({
+    state = transitionImageLesson(state, { type: "select-pixel", x: 3, y: 4 });
+    expect(state.initialScenario).toEqual(scenario);
+
+    const reset = transitionImageLesson(state, { type: "reset" });
+    expect(reset).toMatchObject({
       fixture: "checkerboard",
       samplingPercent: 25,
       bitDepth: 2,
+      phase: 0.5,
       view: "error",
+      initialScenario: scenario,
+      selectedCoordinate: { x: 24, y: 16 },
     });
+    expect(reset.source).toBe(getImageFixture("checkerboard"));
   });
 });

@@ -11,7 +11,6 @@ import {
   type RefObject,
 } from "react";
 import { useSearch } from "@tanstack/react-router";
-import type { ImageFixtureId } from "../domain/fixture";
 import {
   deriveImageEncodingModel,
   inspectPixel,
@@ -73,14 +72,19 @@ const VIEW_LABELS: Record<ImageView, string> = {
   error: "颜色差异图",
 };
 
-function imageFixtureLabel(id: ImageFixtureId): string {
-  return {
-    photo: "小猫照片",
-    gradient: "平滑色彩渐变",
-    checkerboard: "细棋盘格",
-    "text-edge": "文字与细线边缘",
-    "pixel-grid": "像素方格",
-  }[id];
+type SourceIdentity = {
+  kindLabel: string;
+  label: string;
+  detail: string;
+};
+
+function getSourceIdentity(source: RasterImage): SourceIdentity {
+  const kindLabel =
+    source.sourceKind === "upload" ? "已上传图像" : source.id === "photo" ? "固定样例" : "兼容样例";
+  const detail = source.sourceDimensions
+    ? `原始 ${source.sourceDimensions.width} × ${source.sourceDimensions.height}；工作栅格 ${source.width} × ${source.height} 像素`
+    : `本地 ${source.width} × ${source.height} 像素；课堂只改变采样和颜色数量。`;
+  return { kindLabel, label: source.label, detail };
 }
 
 export function phaseControlDescription(geometry: SamplingGeometry): string {
@@ -404,6 +408,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       }),
     [lesson.bitDepth, lesson.phase, lesson.samplingPercent, lesson.source],
   );
+  const sourceIdentity = getSourceIdentity(lesson.source);
   const inspection = useMemo(
     () => inspectPixel(model, lesson.selectedCoordinate.x, lesson.selectedCoordinate.y),
     [lesson.selectedCoordinate.x, lesson.selectedCoordinate.y, model],
@@ -560,18 +565,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             </p>
           </div>
           <div className="source-meta" aria-label="当前图像来源">
-            <span>{lesson.source.sourceKind === "upload" ? "已上传图像" : "本地样例"}</span>
-            <strong>
-              {lesson.source.sourceKind === "fixture"
-                ? imageFixtureLabel(lesson.source.id)
-                : lesson.source.label}
-            </strong>
-            <small>
-              {lesson.source.sourceDimensions
-                ? `原始 ${lesson.source.sourceDimensions.width} × ${lesson.source.sourceDimensions.height}；工作栅格 `
-                : ""}
-              {lesson.source.width} × {lesson.source.height} 像素
-            </small>
+            <span>{sourceIdentity.kindLabel}</span>
+            <strong>{sourceIdentity.label}</strong>
+            <small>{sourceIdentity.detail}</small>
           </div>
         </header>
 
@@ -604,14 +600,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h3 id="source-heading">本节使用的图像</h3>
                 </div>
                 <button className="button button-secondary" onClick={reset} type="button">
-                  恢复固定样例
+                  恢复初始情境
                 </button>
               </div>
               <div className="source-controls">
                 <div className="fixed-source">
-                  <span>固定样例</span>
-                  <strong>小猫照片</strong>
-                  <small>本地 48 × 32 像素；课堂只改变采样和颜色数量。</small>
+                  <span>{sourceIdentity.kindLabel}</span>
+                  <strong>{sourceIdentity.label}</strong>
+                  <small>{sourceIdentity.detail}</small>
                 </div>
                 <label className="upload-field">
                   <span>上传教师图像（可选）</span>
