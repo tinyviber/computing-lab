@@ -7,7 +7,15 @@ type LabShellProps = {
   eyebrow: string;
   title: string;
   subtitle: string;
+  lessonSteps?: readonly LessonStep[];
+  currentStep?: string;
   children: ReactNode;
+};
+
+export type LessonStep = {
+  id: string;
+  label: string;
+  caption: string;
 };
 
 type LabNavigationProps = {
@@ -16,6 +24,8 @@ type LabNavigationProps = {
   pathname: string;
   railOpen: boolean;
   setRailOpen: (open: boolean) => void;
+  lessonSteps?: readonly LessonStep[];
+  currentStep?: string;
 };
 
 function LabNavigation({
@@ -24,6 +34,8 @@ function LabNavigation({
   pathname,
   railOpen,
   setRailOpen,
+  lessonSteps,
+  currentStep,
 }: LabNavigationProps) {
   return (
     <aside
@@ -35,8 +47,8 @@ function LabNavigation({
     >
       <div className="rail-heading">
         <div>
-          <p className="eyebrow">计算实验室</p>
-          <h2>实验</h2>
+          <p className="eyebrow">课程空间</p>
+          <h2>实验目录</h2>
         </div>
         <span className="rail-count">{labNavigationItems.length.toString().padStart(2, "0")}</span>
       </div>
@@ -60,6 +72,29 @@ function LabNavigation({
           ))}
         </ul>
       </nav>
+      {lessonSteps ? (
+        <section className="lesson-path" aria-labelledby="lesson-path-title">
+          <div className="lesson-path-heading">
+            <p className="eyebrow">当前章节</p>
+            <h3 id="lesson-path-title">学习路径</h3>
+          </div>
+          <ol className="lesson-path-list">
+            {lessonSteps.map((step, index) => {
+              const isCurrent = currentStep === step.id;
+              return (
+                <li className={`lesson-path-item${isCurrent ? " is-current" : ""}`} key={step.id}>
+                  <span className="lesson-path-index">{String(index + 1).padStart(2, "0")}</span>
+                  <span>
+                    <strong>{step.label}</strong>
+                    <small>{step.caption}</small>
+                  </span>
+                  {isCurrent ? <span className="lesson-path-live">进行中</span> : null}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ) : null}
       <div className="rail-footer">
         <span className="local-dot" aria-hidden="true" />
         <div>
@@ -76,7 +111,14 @@ function RoutedLabNavigation(props: Omit<LabNavigationProps, "pathname">) {
   return <LabNavigation {...props} pathname={pathname} />;
 }
 
-export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) {
+export function LabShell({
+  eyebrow,
+  title,
+  subtitle,
+  lessonSteps,
+  currentStep,
+  children,
+}: LabShellProps) {
   const labNavigationItems = useLabNavigationItems();
   const [railOpen, setRailOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -124,16 +166,19 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
             {railOpen ? "×" : "☰"}
           </button>
           <Link className="brand-mark" to="/" aria-label="计算实验室首页">
-            CL
+            <span className="brand-mark-symbol">⌁</span>
           </Link>
           <div>
             <h1>{title}</h1>
-            <p>计算实验室 · {subtitle}</p>
+            <p>
+              计算实验室 <span aria-hidden="true">/</span> {subtitle}
+            </p>
           </div>
         </div>
         <div className="topbar-context">
-          <span className="context-label">实验</span>
+          <span className="context-label">当前章节</span>
           <span className="context-value">{eyebrow}</span>
+          {lessonSteps ? <span className="context-progress">探索中</span> : null}
         </div>
       </header>
 
@@ -152,6 +197,8 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
           isMobile={isMobile}
           railOpen={railOpen}
           setRailOpen={setRailOpen}
+          lessonSteps={lessonSteps}
+          currentStep={currentStep}
         />
 
         <main className="workspace" aria-label={`${title} workspace`}>
