@@ -11,20 +11,47 @@ function stateAfterSampling() {
   return transitionImageLesson(defaultState(), { type: "set-sampling", samplingPercent: 45 });
 }
 
+function stateAfterEvidence() {
+  let state = defaultState();
+  state = transitionImageLesson(state, { type: "record-sampling-baseline" });
+  state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 45 });
+  state = transitionImageLesson(state, {
+    type: "set-observation-spot",
+    spot: "text-edge",
+  });
+  state = transitionImageLesson(state, {
+    type: "set-observation",
+    observation: "边缘变粗，细节减少。",
+  });
+  return transitionImageLesson(state, { type: "record-sampling-changed" });
+}
+
 function stateAfterPalette() {
-  return transitionImageLesson(defaultState(), {
+  return transitionImageLesson(stateAfterEvidence(), {
     type: "set-color-mode",
     colorMode: "palette",
   });
 }
 
 describe("image lesson state", () => {
-  it("keeps compatibility progress fields without using them as initial UI locks", () => {
+  it("starts with empty evidence and challenge progress", () => {
     expect(defaultState()).toMatchObject({
       colorMode: "rgb24",
       samplingChanged: false,
       colorAdjusted: false,
       calculatorEdited: false,
+      samplingEvidence: {
+        baseline: null,
+        changed: null,
+        observationSpot: "",
+        observation: "",
+      },
+      budgetChallenge: {
+        samplingPercent: 50,
+        colorMode: "rgb24",
+        bitDepth: 4,
+        submitted: false,
+      },
     });
   });
 
@@ -45,12 +72,37 @@ describe("image lesson state", () => {
     ).toMatchObject({ samplingPercent: 100, samplingChanged: true });
   });
 
-  it("allows color mode and bit depth exploration before sampling", () => {
+  it("requires complete sampling evidence before color controls can change", () => {
+    expect(
+      transitionImageLesson(defaultState(), {
+        type: "set-color-mode",
+        colorMode: "palette",
+      }),
+    ).toEqual(defaultState());
+
+    const evidence = stateAfterEvidence();
+    expect(evidence.samplingEvidence.baseline).toMatchObject({
+      samplingPercent: 50,
+      width: 120,
+      height: 80,
+      pixelCount: 9600,
+    });
+    expect(evidence.samplingEvidence.changed).toMatchObject({
+      samplingPercent: 45,
+      width: 108,
+      height: 72,
+      pixelCount: 7776,
+    });
+    expect(evidence.samplingEvidence.baseline?.observationSpot).toBe("text-edge");
+    expect(evidence.samplingEvidence.changed?.observation).toContain("边缘");
+  });
+
+  it("allows color mode and bit depth exploration after sampling evidence", () => {
     const palette = stateAfterPalette();
     expect(palette).toMatchObject({
       colorMode: "palette",
       bitDepth: 4,
-      colorAdjusted: false,
+      colorAdjusted: true,
     });
 
     const lowerBitDepth = transitionImageLesson(palette, {
@@ -59,28 +111,42 @@ describe("image lesson state", () => {
     });
     expect(lowerBitDepth).toMatchObject({ bitDepth: 2, colorAdjusted: true });
 
-    const rgb24 = transitionImageLesson(defaultState(), {
+    const rgb24 = transitionImageLesson(stateAfterEvidence(), {
       type: "set-bit-depth",
       bitDepth: 2,
     });
-    expect(rgb24).toEqual(defaultState());
+    expect(rgb24).toEqual(stateAfterEvidence());
   });
 
-  it("allows phase, view, pixel, and calculator exploration independently", () => {
+  it("gates phase, view, pixel, and calculator actions by lesson progress", () => {
     const initial = defaultState();
-    const phased = transitionImageLesson(initial, { type: "set-phase", phase: 0.6 });
+    expect(transitionImageLesson(initial, { type: "set-phase", phase: 0.6 })).toEqual(initial);
+    expect(transitionImageLesson(initial, { type: "set-view", view: "representation" })).toEqual(
+      initial,
+    );
+    expect(transitionImageLesson(initial, { type: "select-pixel", x: -5, y: 999 })).toEqual(
+      initial,
+    );
+    expect(transitionImageLesson(initial, { type: "edit-calculator-field" })).toEqual(initial);
+
+    const evidence = stateAfterEvidence();
+    const phased = transitionImageLesson(evidence, { type: "set-phase", phase: 0.6 });
     expect(phased.phase).toBe(0.6);
 
-    const viewed = transitionImageLesson(initial, {
+    const viewed = transitionImageLesson(evidence, {
       type: "set-view",
       view: "representation",
     });
     expect(viewed.view).toBe("representation");
 
-    const selected = transitionImageLesson(initial, { type: "select-pixel", x: -5, y: 999 });
+    const selected = transitionImageLesson(evidence, { type: "select-pixel", x: -5, y: 999 });
     expect(selected.selectedCoordinate).toEqual({ x: 0, y: 159 });
 
-    const calculated = transitionImageLesson(initial, { type: "edit-calculator-field" });
+    const colored = transitionImageLesson(evidence, {
+      type: "set-color-mode",
+      colorMode: "palette",
+    });
+    const calculated = transitionImageLesson(colored, { type: "edit-calculator-field" });
     expect(calculated.calculatorEdited).toBe(true);
   });
 
@@ -116,7 +182,7 @@ describe("image lesson state", () => {
   });
 
   it("clears compatibility progress when resetting to the initial scenario", () => {
-    let state = stateAfterSampling();
+    let state = stateAfterEvidence();
     state = transitionImageLesson(state, { type: "set-color-mode", colorMode: "palette" });
     state = transitionImageLesson(state, { type: "set-bit-depth", bitDepth: 2 });
     state = transitionImageLesson(state, { type: "edit-calculator-field" });
@@ -129,12 +195,14 @@ describe("image lesson state", () => {
       samplingChanged: false,
       colorAdjusted: false,
       calculatorEdited: false,
+      samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
+      budgetChallenge: { submitted: false, submittedSignature: "" },
       view: "compare",
     });
   });
 
   it("clears compatibility progress when loading a different URL scenario", () => {
-    let state = stateAfterSampling();
+    let state = stateAfterEvidence();
     state = transitionImageLesson(state, { type: "set-color-mode", colorMode: "palette" });
     state = transitionImageLesson(state, { type: "set-bit-depth", bitDepth: 2 });
     state = transitionImageLesson(state, { type: "edit-calculator-field" });
@@ -152,11 +220,13 @@ describe("image lesson state", () => {
       samplingChanged: false,
       colorAdjusted: false,
       calculatorEdited: false,
+      samplingEvidence: { baseline: null, changed: null },
+      budgetChallenge: { submitted: false, submittedSignature: "" },
     });
   });
 
   it("clears progress and transient upload state when loading a source", () => {
-    let changed = stateAfterSampling();
+    let changed = stateAfterEvidence();
     changed = transitionImageLesson(changed, { type: "set-color-mode", colorMode: "palette" });
     changed = transitionImageLesson(changed, { type: "set-bit-depth", bitDepth: 2 });
     changed = transitionImageLesson(changed, { type: "edit-calculator-field" });
@@ -177,6 +247,8 @@ describe("image lesson state", () => {
       samplingChanged: false,
       colorAdjusted: false,
       calculatorEdited: false,
+      samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
+      budgetChallenge: { submitted: false, submittedSignature: "" },
       colorMode: "rgb24",
       view: "compare",
       decodeError: undefined,
@@ -185,7 +257,7 @@ describe("image lesson state", () => {
   });
 
   it("keeps the current experiment when a decode error is recorded", () => {
-    let edited = stateAfterSampling();
+    let edited = stateAfterEvidence();
     edited = transitionImageLesson(edited, { type: "set-color-mode", colorMode: "palette" });
     edited = transitionImageLesson(edited, { type: "set-bit-depth", bitDepth: 2 });
     edited = transitionImageLesson(edited, { type: "edit-calculator-field" });
@@ -201,6 +273,47 @@ describe("image lesson state", () => {
       colorAdjusted: true,
       calculatorEdited: true,
       decodeError: "所选图像无法解码。",
+    });
+  });
+
+  it("keeps the budget challenge outside the four knowledge steps and invalidates submission on edits", () => {
+    let state = stateAfterEvidence();
+    state = transitionImageLesson(state, { type: "set-color-mode", colorMode: "palette" });
+    state = transitionImageLesson(state, { type: "edit-calculator-field" });
+    state = transitionImageLesson(state, { type: "set-challenge-sampling", samplingPercent: 25 });
+    state = transitionImageLesson(state, {
+      type: "set-challenge-readability",
+      readability: "yes",
+    });
+    state = transitionImageLesson(state, {
+      type: "set-challenge-tradeoff",
+      tradeoff: "降低采样比例，保留目标轮廓。",
+    });
+    state = transitionImageLesson(state, {
+      type: "set-challenge-acknowledged",
+      acknowledged: true,
+    });
+    state = transitionImageLesson(state, {
+      type: "submit-budget-challenge",
+      signature: "challenge-1",
+      accepted: true,
+    });
+
+    expect(state.budgetChallenge).toMatchObject({
+      samplingPercent: 25,
+      readability: "yes",
+      submitted: true,
+      submittedSignature: "challenge-1",
+    });
+
+    const edited = transitionImageLesson(state, {
+      type: "set-challenge-sampling",
+      samplingPercent: 20,
+    });
+    expect(edited.budgetChallenge).toMatchObject({
+      samplingPercent: 20,
+      submitted: false,
+      submittedSignature: "",
     });
   });
 });

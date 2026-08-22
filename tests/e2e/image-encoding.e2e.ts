@@ -28,10 +28,10 @@ test("runs one image-encoding feedback loop without external network access", as
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
   await expectSourceIdentity(page, "固定样例", "小猫插图");
   await expect(page.getByText("小猫插图").first()).toBeVisible();
-  await expect(page.locator("select")).toHaveCount(0);
+  await expect(page.locator("select")).toHaveCount(1);
   await expect(page.getByRole("slider", { name: /空间采样/ })).toBeEnabled();
   await expect(page.getByRole("slider", { name: /颜色位深/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
   const budget = page.locator('[data-budget="baseline-25-percent"]');
   await expect(budget).toHaveAttribute("data-budget", "baseline-25-percent");
   await expect(budget).not.toContainText(/理论原始|平均 RGB|采样率/);
@@ -59,6 +59,7 @@ test("runs one image-encoding feedback loop without external network access", as
 
   const currentBits = page.locator('[data-metric="current-raw-bits"]');
   const before = await currentBits.textContent();
+  await page.getByRole("button", { name: "记录基准" }).click();
   const sampling = page.getByRole("slider", { name: /空间采样/ });
   await sampling.focus();
   for (let index = 0; index < 5; index += 1) await sampling.press("ArrowLeft");
@@ -71,6 +72,10 @@ test("runs one image-encoding feedback loop without external network access", as
   await expect(budget).toHaveAttribute("data-budget-state", "within");
   await expect(budget).toContainText(/空间够用/);
 
+  await page.getByRole("combobox", { name: "同一观察位置" }).selectOption("text-edge");
+  await page.getByRole("textbox", { name: /学生观察/ }).fill("边缘变粗，细节减少。");
+  await page.getByRole("button", { name: "记录改变后的结果" }).click();
+  await expect(page.getByText("采样证据已形成，颜色表示已解锁。")).toBeVisible();
   await page.getByRole("button", { name: "调色板", exact: true }).click();
   const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
   await bitDepth.focus();
@@ -93,7 +98,7 @@ test("keeps fixture, legacy URL, upload, reset, and canvas behavior", async ({ p
     { waitUntil: "networkidle" },
   );
   await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
-  await expect(page.getByRole("tab", { name: /编码表示/ })).toBeEnabled();
+  await expect(page.getByRole("tab", { name: /编码表示/ })).toBeDisabled();
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
   await expect(page.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "48");
 

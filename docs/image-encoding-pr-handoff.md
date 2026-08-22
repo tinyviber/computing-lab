@@ -2,16 +2,17 @@
 
 ## 1. Guided course model
 
-Image Encoding keeps its feature-local raster model, but the UI now presents one four-task sequential flow:
+Image Encoding keeps its feature-local raster model, but the UI now presents one four-task sequential flow plus an extra challenge:
 
 ```text
-1. change sampling percent
+1. form sampling evidence: baseline + changed snapshot + same observation spot + observation sentence
    → 2. choose palette/original color and adjust palette bit depth
    → 3. edit calculator inputs and calculate raw data quantity
    → 4. discuss the boundary between raw data and actual file size
+   → extra challenge: stay within a fixed 20 KB theoretical rawBytes budget
 ```
 
-The sampling-percent range and upload input are enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection becomes available; after task 2, the calculator becomes available; after task 3, the static file-format boundary discussion becomes visible.
+The sampling-percent range, source comparison, evidence card, and upload input are enabled on first load. Color controls, phase/view controls, and pixel inspection actions are event-guarded until the evidence structure is complete. After task 1, color controls unlock; after task 2, the raw-data calculator unlocks; after task 3, the static file-format boundary and extra challenge appear. The extra challenge is not a fifth knowledge step.
 
 The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set progress.
 
@@ -22,8 +23,12 @@ The initial color representation is RGB24. Explicit `color=rgb24` links and old 
 - `samplingChanged`
 - `colorAdjusted`
 - `calculatorEdited`
+- `samplingEvidence` with baseline/changed dimensions, pixel counts, observation spot, and observation text
+- `budgetChallenge` with sampling, color mode, bit depth, readability judgment, trade-off explanation, acknowledgement, and submission signature
 
-Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering a palette bit depth greater than one completes task 2, while selecting a palette at one bit completes the legal minimum-depth scenario. Editing any calculator field completes task 3. Task 4 is a static discussion boundary and has no operational completion flag. Locked direct actions return the existing state.
+Reducer actions enforce the sequence. Sampling evidence is complete only when both snapshots belong to the same source, their normalized sampling values differ, the same observation spot is selected, and the observation text is non-empty. The observation is not judged against a unique answer. Selecting RGB24 or the palette, or changing palette bit depth after evidence, completes task 2. Editing calculator width or height completes task 3. Task 4 is a discussion boundary and has no completion button. Locked direct actions return the existing state.
+
+The budget challenge uses a fixed `20 KB = 20,480 bytes` budget. Its pass condition is theoretical `rawBytes <= 20,480`, a selected observation spot and readability judgment, a non-empty trade-off explanation, and explicit acknowledgement that rawBytes is not the actual PNG/JPEG/WebP file size. It does not create files, read `Blob.size`, or compare formats.
 
 Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
 
@@ -33,7 +38,7 @@ Scenario load, reset, and successful upload clear progress. Upload also resets t
 
 1. `sampleImage` computes sampled dimensions and representative source coordinates.
 2. `quantizeSampledImage` either maps each sampled value to the nearest entry in the deterministic nested RGB codebook or preserves each sampled RGB channel directly in RGB24 mode.
-3. Palette indices are formatted as exactly `bitDepth` bits; RGB24 values use 8 bits per channel. Adding a palette bit only adds codebook entries and cannot increase nearest-color error for the same sampled image.
+3. In palette mode, `bitDepth` is the number of bits for one per-pixel color index. The codebook contains at most `2 ** bitDepth` colors, so b=2/4/8 means at most 4/16/256 colors; it is not b bits per RGB channel and not a JPEG parameter. Palette indices are formatted as exactly `bitDepth` bits; RGB24 values use 8 bits per channel.
 4. `reconstructImage` expands each quantized sample cell over the source-sized display raster.
 5. `deriveImageEncodingModel` keeps sampled-RGB quantization error separate from source-to-reconstruction error, compares source and reconstruction into an error map, and calculates the theoretical raw payload.
 

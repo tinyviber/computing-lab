@@ -38,6 +38,31 @@ function changeSampling(value = "45") {
   return sampling;
 }
 
+function completeSamplingEvidence() {
+  fireEvent.click(screen.getByRole("button", { name: "记录基准" }));
+  changeSampling("45");
+  fireEvent.change(screen.getByRole("combobox", { name: "同一观察位置" }), {
+    target: { value: "text-edge" },
+  });
+  fireEvent.change(screen.getByRole("textbox", { name: /学生观察/ }), {
+    target: { value: "边缘变粗，细节减少。" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "记录改变后的结果" }));
+}
+
+function completeColorStep() {
+  completeSamplingEvidence();
+  fireEvent.click(screen.getByRole("button", { name: "调色板", exact: true }));
+}
+
+function completeCalculatorStep() {
+  completeColorStep();
+  const calculator = sectionByHeading(/数据量计算/, 3);
+  fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
+    target: { value: "3" },
+  });
+}
+
 describe("ImageEncodingPage", () => {
   it("renders one unified mission with natural budget and meaning copy", async () => {
     await renderAppAt("/labs/image-encoding");
@@ -62,9 +87,9 @@ describe("ImageEncodingPage", () => {
     expect(metric("raw-bytes-delta")).toHaveTextContent(/字节/);
     expect(metric("current-sampled-pixels")).toHaveTextContent(/个/);
     expect(metric("changed-pixels")).toHaveTextContent(/个/);
-    const formatBoundary = sectionByHeading(/联系实际文件格式/, 3);
-    expect(formatBoundary).toHaveTextContent(/PNG.*JPEG.*WebP/);
-    expect(formatBoundary).toHaveTextContent(/实际文件大小/);
+    expect(screen.queryByRole("heading", { name: /联系实际文件格式/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /编码预算挑战/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /采样侦探卡/ })).toBeInTheDocument();
     expect(document.querySelectorAll(".lesson-flow-item")).toHaveLength(0);
     expect(document.querySelectorAll('[data-metric="budget-raw-bits"]')).toHaveLength(1);
     expect(document.querySelectorAll('[data-metric="current-raw-bits"]')).toHaveLength(1);
@@ -74,17 +99,17 @@ describe("ImageEncodingPage", () => {
     expect(document.querySelector('[data-budget-state="over"]')).toBeInTheDocument();
   });
 
-  it("keeps controls independently usable and shows neutral observation guidance", async () => {
+  it("keeps the next controls locked until evidence exists", async () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(slider(/空间采样/)).toBeEnabled();
-    expect(slider(/采样网格相位/)).toBeEnabled();
+    expect(slider(/采样网格相位/)).toBeDisabled();
     expect(slider(/颜色位深/)).toBeDisabled();
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toBeEnabled();
-    expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true);
+    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toBeDisabled();
+    expect(screen.getAllByRole("tab").every((tab) => tab.hasAttribute("disabled"))).toBe(true);
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
-      expect(input).toBeEnabled();
+      expect(input).toBeDisabled();
     }
     expect(feedback("observation")).toHaveTextContent(/占用空间|颜色变化/);
   });
@@ -112,6 +137,7 @@ describe("ImageEncodingPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
 
+    completeSamplingEvidence();
     await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
     expect(slider(/颜色位深/)).toBeEnabled();
     const initialCurrentBits = metric("current-raw-bits").textContent;
@@ -125,6 +151,7 @@ describe("ImageEncodingPage", () => {
   it("keeps formula and format-boundary explanation visible without claiming file size", async () => {
     await renderAppAt("/labs/image-encoding");
 
+    completeCalculatorStep();
     const calculator = sectionByHeading(/数据量计算/, 3);
     const width = within(calculator).getByRole("spinbutton", { name: "宽度（像素）" });
     fireEvent.change(width, { target: { value: "3" } });
@@ -187,6 +214,43 @@ describe("ImageEncodingPage", () => {
     fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }));
     expect(screen.getByText("编码值").parentElement).toHaveTextContent(/24 bits|bits/);
     expect(screen.getByRole("heading", { name: /RGB 颜色/ })).toBeInTheDocument();
+  });
+
+  it("forms evidence before unlocking color and completes the raw-byte budget challenge", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
+
+    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
+    completeSamplingEvidence();
+    expect(screen.getByText("采样证据已形成，颜色表示已解锁。")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
+
+    await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
+    const calculator = sectionByHeading(/数据量计算/, 3);
+    fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
+      target: { value: "3" },
+    });
+
+    const challenge = sectionByHeading(/编码预算挑战/, 3);
+    const challengeSampling = within(challenge).getByRole("slider", { name: /挑战采样比例/ });
+    fireEvent.change(challengeSampling, { target: { value: "25" } });
+    fireEvent.change(within(challenge).getByRole("combobox", { name: "观察区域是否仍可辨认" }), {
+      target: { value: "yes" },
+    });
+    fireEvent.change(within(challenge).getByRole("textbox", { name: /我的取舍说明/ }), {
+      target: { value: "降低采样比例，保留同一观察位置的轮廓。" },
+    });
+    fireEvent.click(
+      within(challenge).getByRole("checkbox", {
+        name: /我知道 rawBytes 是理论原始像素数据量/,
+      }),
+    );
+    await user.click(within(challenge).getByRole("button", { name: "提交挑战方案" }));
+
+    expect(challenge).toHaveTextContent(/挑战完成：你在理论数据量和局部细节之间做出了选择/);
+    expect(challenge).toHaveTextContent(/20KB = 20,480 bytes/);
+    expect(challenge).toHaveTextContent(/rawBytes/);
+    expect(challenge).not.toHaveTextContent(/Blob\.size|实际 PNG.*文件大小测量/);
   });
 
   it("preserves current experiment on failed upload and resets after a successful upload", async () => {
