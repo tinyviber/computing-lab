@@ -50,7 +50,9 @@ describe("image lesson state", () => {
         samplingPercent: 50,
         colorMode: "rgb24",
         bitDepth: 4,
-        submitted: false,
+        readability: "",
+        tradeoff: "",
+        acknowledged: false,
       },
     });
   });
@@ -72,13 +74,12 @@ describe("image lesson state", () => {
     ).toMatchObject({ samplingPercent: 100, samplingChanged: true });
   });
 
-  it("requires complete sampling evidence before color controls can change", () => {
-    expect(
-      transitionImageLesson(defaultState(), {
-        type: "set-color-mode",
-        colorMode: "palette",
-      }),
-    ).toEqual(defaultState());
+  it("records sampling evidence without turning it into a navigation gate", () => {
+    const paletteBeforeEvidence = transitionImageLesson(defaultState(), {
+      type: "set-color-mode",
+      colorMode: "palette",
+    });
+    expect(paletteBeforeEvidence).toMatchObject({ colorMode: "palette", colorAdjusted: true });
 
     const evidence = stateAfterEvidence();
     expect(evidence.samplingEvidence.baseline).toMatchObject({
@@ -97,7 +98,7 @@ describe("image lesson state", () => {
     expect(evidence.samplingEvidence.changed?.observation).toContain("边缘");
   });
 
-  it("allows color mode and bit depth exploration after sampling evidence", () => {
+  it("keeps color mode, bit depth, phase, view, pixel, and calculator independent", () => {
     const palette = stateAfterPalette();
     expect(palette).toMatchObject({
       colorMode: "palette",
@@ -111,38 +112,20 @@ describe("image lesson state", () => {
     });
     expect(lowerBitDepth).toMatchObject({ bitDepth: 2, colorAdjusted: true });
 
-    const rgb24 = transitionImageLesson(stateAfterEvidence(), {
-      type: "set-bit-depth",
-      bitDepth: 2,
-    });
-    expect(rgb24).toEqual(stateAfterEvidence());
-  });
-
-  it("gates phase, view, pixel, and calculator actions by lesson progress", () => {
     const initial = defaultState();
-    expect(transitionImageLesson(initial, { type: "set-phase", phase: 0.6 })).toEqual(initial);
-    expect(transitionImageLesson(initial, { type: "set-view", view: "representation" })).toEqual(
-      initial,
-    );
-    expect(transitionImageLesson(initial, { type: "select-pixel", x: -5, y: 999 })).toEqual(
-      initial,
-    );
-    expect(transitionImageLesson(initial, { type: "edit-calculator-field" })).toEqual(initial);
-
-    const evidence = stateAfterEvidence();
-    const phased = transitionImageLesson(evidence, { type: "set-phase", phase: 0.6 });
+    const phased = transitionImageLesson(initial, { type: "set-phase", phase: 0.6 });
     expect(phased.phase).toBe(0.6);
 
-    const viewed = transitionImageLesson(evidence, {
+    const viewed = transitionImageLesson(initial, {
       type: "set-view",
       view: "representation",
     });
     expect(viewed.view).toBe("representation");
 
-    const selected = transitionImageLesson(evidence, { type: "select-pixel", x: -5, y: 999 });
+    const selected = transitionImageLesson(initial, { type: "select-pixel", x: -5, y: 999 });
     expect(selected.selectedCoordinate).toEqual({ x: 0, y: 159 });
 
-    const colored = transitionImageLesson(evidence, {
+    const colored = transitionImageLesson(initial, {
       type: "set-color-mode",
       colorMode: "palette",
     });
@@ -196,7 +179,14 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       calculatorEdited: false,
       samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
-      budgetChallenge: { submitted: false, submittedSignature: "" },
+      budgetChallenge: {
+        samplingPercent: 50,
+        colorMode: "rgb24",
+        bitDepth: 4,
+        readability: "",
+        tradeoff: "",
+        acknowledged: false,
+      },
       view: "compare",
     });
   });
@@ -221,7 +211,7 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       calculatorEdited: false,
       samplingEvidence: { baseline: null, changed: null },
-      budgetChallenge: { submitted: false, submittedSignature: "" },
+      budgetChallenge: { readability: "", tradeoff: "", acknowledged: false },
     });
   });
 
@@ -248,7 +238,7 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       calculatorEdited: false,
       samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
-      budgetChallenge: { submitted: false, submittedSignature: "" },
+      budgetChallenge: { readability: "", tradeoff: "", acknowledged: false },
       colorMode: "rgb24",
       view: "compare",
       decodeError: undefined,
@@ -276,10 +266,8 @@ describe("image lesson state", () => {
     });
   });
 
-  it("keeps the budget challenge outside the four knowledge steps and invalidates submission on edits", () => {
-    let state = stateAfterEvidence();
-    state = transitionImageLesson(state, { type: "set-color-mode", colorMode: "palette" });
-    state = transitionImageLesson(state, { type: "edit-calculator-field" });
+  it("keeps the budget challenge optional and free of submit runtime", () => {
+    let state = defaultState();
     state = transitionImageLesson(state, { type: "set-challenge-sampling", samplingPercent: 25 });
     state = transitionImageLesson(state, {
       type: "set-challenge-readability",
@@ -293,27 +281,13 @@ describe("image lesson state", () => {
       type: "set-challenge-acknowledged",
       acknowledged: true,
     });
-    state = transitionImageLesson(state, {
-      type: "submit-budget-challenge",
-      signature: "challenge-1",
-      accepted: true,
-    });
 
     expect(state.budgetChallenge).toMatchObject({
       samplingPercent: 25,
       readability: "yes",
-      submitted: true,
-      submittedSignature: "challenge-1",
+      tradeoff: "降低采样比例，保留目标轮廓。",
+      acknowledged: true,
     });
-
-    const edited = transitionImageLesson(state, {
-      type: "set-challenge-sampling",
-      samplingPercent: 20,
-    });
-    expect(edited.budgetChallenge).toMatchObject({
-      samplingPercent: 20,
-      submitted: false,
-      submittedSignature: "",
-    });
+    expect(state.calculatorEdited).toBe(false);
   });
 });

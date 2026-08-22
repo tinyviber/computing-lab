@@ -162,37 +162,6 @@
   color: var(--secondary);
 }
 
-.image-flow {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
-  margin: 0 20px 16px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--subtle);
-}
-
-.image-flow span {
-  padding: 5px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.image-flow span.is-current {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.image-flow span.is-done {
-  border-color: #a7d2bf;
-  background: rgb(47 124 96 / 7%);
-  color: var(--success);
-}
-
 .sampling-evidence-card {
   overflow: hidden;
   border-color: #cfe1db;
@@ -261,7 +230,7 @@
 }
 
 .evidence-status.is-complete,
-.challenge-status.is-complete {
+.challenge-status.is-positive {
   border-left-color: var(--success);
   background: rgb(47 124 96 / 7%);
 }
@@ -413,11 +382,6 @@
   color: var(--success);
 }
 
-.calculator-card.is-locked {
-  border-style: dashed;
-}
-
-.calculator-lock-note,
 .boundary-warning,
 .palette-model-note {
   margin: 0;

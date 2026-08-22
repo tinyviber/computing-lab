@@ -41,11 +41,7 @@ export type ImageBudgetChallenge = {
   readability: ChallengeReadability;
   tradeoff: string;
   acknowledged: boolean;
-  submitted: boolean;
-  submittedSignature: string;
 };
-
-export const IMAGE_BUDGET_BYTES = 20 * 1024;
 
 export type ImageLessonState = ImageScenarioState & {
   source: RasterImage;
@@ -78,7 +74,6 @@ export type ImageLessonAction =
   | { type: "set-challenge-readability"; readability: ChallengeReadability }
   | { type: "set-challenge-tradeoff"; tradeoff: string }
   | { type: "set-challenge-acknowledged"; acknowledged: boolean }
-  | { type: "submit-budget-challenge"; signature: string; accepted: boolean }
   | { type: "load-source"; source: RasterImage }
   | { type: "decode-error"; message: string }
   | { type: "reset" };
@@ -133,8 +128,6 @@ function emptyBudgetChallenge(): ImageBudgetChallenge {
     readability: "",
     tradeoff: "",
     acknowledged: false,
-    submitted: false,
-    submittedSignature: "",
   };
 }
 
@@ -178,10 +171,6 @@ function withEvidenceField(
     baseline: evidence.baseline ? { ...evidence.baseline, [field]: value } : null,
     changed: evidence.changed ? { ...evidence.changed, [field]: value } : null,
   } as SamplingEvidence;
-}
-
-function invalidateChallenge(challenge: ImageBudgetChallenge): ImageBudgetChallenge {
-  return { ...challenge, submitted: false, submittedSignature: "" };
 }
 
 function stateForSource(scenario: ImageScenarioState, source: RasterImage): ImageLessonState {
@@ -238,9 +227,7 @@ export function transitionImageLesson(
       };
     }
     case "set-bit-depth": {
-      if (state.colorMode !== "palette" || !isSamplingEvidenceComplete(state.samplingEvidence)) {
-        return state;
-      }
+      if (state.colorMode !== "palette") return state;
       const bitDepth = normalizeBitDepth(action.bitDepth);
       if (bitDepth === state.bitDepth) return state;
       return {
@@ -250,7 +237,6 @@ export function transitionImageLesson(
       };
     }
     case "set-color-mode": {
-      if (!isSamplingEvidenceComplete(state.samplingEvidence)) return state;
       const colorMode = normalizeColorMode(action.colorMode);
       return {
         ...state,
@@ -259,7 +245,6 @@ export function transitionImageLesson(
       };
     }
     case "set-phase":
-      if (!isSamplingEvidenceComplete(state.samplingEvidence)) return state;
       return {
         ...state,
         phase: canonicalPhaseForSource(
@@ -269,10 +254,8 @@ export function transitionImageLesson(
         ),
       };
     case "set-view":
-      if (!isSamplingEvidenceComplete(state.samplingEvidence)) return state;
       return { ...state, view: action.view };
     case "select-pixel":
-      if (!isSamplingEvidenceComplete(state.samplingEvidence)) return state;
       return {
         ...state,
         selectedCoordinate: {
@@ -281,7 +264,6 @@ export function transitionImageLesson(
         },
       };
     case "edit-calculator-field":
-      if (!state.colorAdjusted) return state;
       return { ...state, calculatorEdited: true };
     case "set-observation-spot":
       return {
@@ -315,67 +297,52 @@ export function transitionImageLesson(
         },
       };
     case "set-challenge-sampling":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          samplingPercent: normalizeSamplingPercent(action.samplingPercent),
-        }),
-      };
-    case "set-challenge-color-mode":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          colorMode: normalizeColorMode(action.colorMode),
-        }),
-      };
-    case "set-challenge-bit-depth":
-      if (!state.calculatorEdited || state.budgetChallenge.colorMode !== "palette") return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          bitDepth: normalizeBitDepth(action.bitDepth),
-        }),
-      };
-    case "set-challenge-readability":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          readability: action.readability,
-        }),
-      };
-    case "set-challenge-tradeoff":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          tradeoff: action.tradeoff,
-        }),
-      };
-    case "set-challenge-acknowledged":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        budgetChallenge: invalidateChallenge({
-          ...state.budgetChallenge,
-          acknowledged: action.acknowledged,
-        }),
-      };
-    case "submit-budget-challenge":
-      if (!state.calculatorEdited) return state;
       return {
         ...state,
         budgetChallenge: {
           ...state.budgetChallenge,
-          submitted: action.accepted,
-          submittedSignature: action.accepted ? action.signature : "",
+          samplingPercent: normalizeSamplingPercent(action.samplingPercent),
+        },
+      };
+    case "set-challenge-color-mode":
+      return {
+        ...state,
+        budgetChallenge: {
+          ...state.budgetChallenge,
+          colorMode: normalizeColorMode(action.colorMode),
+        },
+      };
+    case "set-challenge-bit-depth":
+      if (state.budgetChallenge.colorMode !== "palette") return state;
+      return {
+        ...state,
+        budgetChallenge: {
+          ...state.budgetChallenge,
+          bitDepth: normalizeBitDepth(action.bitDepth),
+        },
+      };
+    case "set-challenge-readability":
+      return {
+        ...state,
+        budgetChallenge: {
+          ...state.budgetChallenge,
+          readability: action.readability,
+        },
+      };
+    case "set-challenge-tradeoff":
+      return {
+        ...state,
+        budgetChallenge: {
+          ...state.budgetChallenge,
+          tradeoff: action.tradeoff,
+        },
+      };
+    case "set-challenge-acknowledged":
+      return {
+        ...state,
+        budgetChallenge: {
+          ...state.budgetChallenge,
+          acknowledged: action.acknowledged,
         },
       };
     case "load-source":

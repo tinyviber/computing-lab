@@ -34,7 +34,6 @@ import {
 import { parseImageEncodingScenario } from "../lesson/scenario";
 import {
   createImageLessonState,
-  IMAGE_BUDGET_BYTES,
   isSamplingEvidenceComplete,
   transitionImageLesson,
   type ImageLessonAction,
@@ -540,7 +539,7 @@ function SamplingEvidenceCard({
           ? "两次快照已记录：请选择同一观察位置。"
           : !evidence.observation.trim()
             ? "位置已选择：请填写一句学生观察。"
-            : "采样证据已形成，颜色表示已解锁。";
+            : "采样证据已形成：两组对照和观察记录完整，可继续比较颜色表示。";
 
   return (
     <section
@@ -637,17 +636,19 @@ function SamplingEvidenceCard({
 }
 
 function BudgetChallengeCard({
+  budgetBits,
+  budgetBytes,
   challenge,
   challengeModel,
-  challengeSignature,
   dispatch,
   onPick,
   selectedCoordinate,
   spot,
 }: {
+  budgetBits: number;
+  budgetBytes: number;
   challenge: ImageBudgetChallenge;
   challengeModel: ImageEncodingModel;
-  challengeSignature: string;
   dispatch: (action: ImageLessonAction) => void;
   onPick: (coordinate: { x: number; y: number }) => void;
   selectedCoordinate: { x: number; y: number };
@@ -655,40 +656,30 @@ function BudgetChallengeCard({
 }) {
   const rawBytes = challengeModel.rawPayload.bytes;
   const rawBits = challengeModel.rawPayload.bits;
-  const withinBudget = rawBytes <= IMAGE_BUDGET_BYTES;
+  const withinBudget = rawBits <= budgetBits;
   const hasTradeoff = challenge.tradeoff.trim().length > 0;
-  const canSubmit =
-    withinBudget &&
-    Boolean(spot) &&
-    Boolean(challenge.readability) &&
-    hasTradeoff &&
-    challenge.acknowledged;
-  const submitted = challenge.submitted && challenge.submittedSignature === challengeSignature;
-  const status = submitted
-    ? "挑战完成：你在理论数据量和局部细节之间做出了选择。请注意：本挑战不测量实际文件大小。"
-    : rawBytes > IMAGE_BUDGET_BYTES && !hasTradeoff
-      ? "预算超出；还需要补充取舍说明。"
-      : rawBytes > IMAGE_BUDGET_BYTES
-        ? "取舍说明已完成，但 rawBytes 超出预算。"
-        : !spot
-          ? "请先在采样侦探卡选择观察位置。"
-          : !challenge.readability
-            ? "请选择观察区域是否仍可辨认。"
-            : !hasTradeoff
-              ? "预算达成，但还需要补充取舍说明。"
-              : !challenge.acknowledged
-                ? "请确认 rawBytes 是理论原始像素数据量，不是实际 PNG/JPEG/WebP 文件大小。"
-                : "条件已具备，点击提交挑战方案。";
+  const status = !withinBudget
+    ? "预算超出：继续调整采样比例或颜色表示。"
+    : !spot
+      ? "先在采样侦探卡选择同一观察位置，再比较目标细节。"
+      : !challenge.readability
+        ? "预算内；请选择观察区域是否仍可辨认。"
+        : challenge.readability === "no"
+          ? "预算内，但目标细节暂不可辨认：继续调整方案。"
+          : !hasTradeoff
+            ? "预算内，且你判断目标细节仍可辨认；请记录取舍说明。"
+            : !challenge.acknowledged
+              ? "预算内，且你判断目标细节仍可辨认；可确认 rawBytes 只是理论原始像素数据量。"
+              : "预算内，且你判断目标细节仍可辨认；取舍说明已记录。";
 
   return (
     <section className="image-card budget-challenge-card" aria-labelledby="challenge-heading">
       <div className="image-card-heading">
         <div>
-          <p className="eyebrow">主流程完成后的扩展任务</p>
+          <p className="eyebrow">可选扩展任务</p>
           <h3 id="challenge-heading">编码预算挑战：在有限数据量内保留目标细节</h3>
           <p className="image-card-description">
-            这不是第五个知识步骤。用同一张图和同一观察位置，尝试让理论 rawBytes 不超过
-            20KB，再说明你的取舍。
+            这不是第五个知识步骤。用同一张图和同一观察位置，尝试在当前源图基准理论数据量的四分之一内保留目标细节；边调边看反馈。
           </p>
         </div>
         <span className="image-card-heading-note">额外挑战</span>
@@ -696,7 +687,8 @@ function BudgetChallengeCard({
       <div className="challenge-layout">
         <div className="challenge-controls">
           <div className="challenge-budget-note">
-            理论 rawBytes 预算：<strong>20 KB = 20,480 bytes</strong>
+            理论预算：基准 rawBits 的 25% = <strong>{budgetBits.toLocaleString()} bits</strong>（约{" "}
+            {budgetBytes.toLocaleString()} bytes）
           </div>
           <RangeField
             description="挑战方案的采样比例；宽、高由当前图像和比例共同决定。"
@@ -715,6 +707,7 @@ function BudgetChallengeCard({
             <span>颜色表示</span>
             <div className="image-color-mode-options">
               <button
+                aria-label="预算挑战颜色 RGB24"
                 aria-pressed={challenge.colorMode === "rgb24"}
                 className="button button-secondary"
                 onClick={() => dispatch({ type: "set-challenge-color-mode", colorMode: "rgb24" })}
@@ -723,6 +716,7 @@ function BudgetChallengeCard({
                 RGB24
               </button>
               <button
+                aria-label="预算挑战颜色方案"
                 aria-pressed={challenge.colorMode === "palette"}
                 className="button button-secondary"
                 onClick={() => dispatch({ type: "set-challenge-color-mode", colorMode: "palette" })}
@@ -792,27 +786,17 @@ function BudgetChallengeCard({
             />
             我知道 rawBytes 是理论原始像素数据量，不是实际 PNG/JPEG/WebP 文件大小。
           </label>
-          <button
-            className="button button-primary"
-            onClick={() =>
-              dispatch({
-                type: "submit-budget-challenge",
-                signature: challengeSignature,
-                accepted: canSubmit,
-              })
-            }
-            type="button"
+          <p
+            className={`challenge-status${withinBudget && challenge.readability === "yes" ? " is-positive" : ""}`}
+            role="status"
           >
-            提交挑战方案
-          </button>
-          <p className={`challenge-status${submitted ? " is-complete" : ""}`} role="status">
             {status}
           </p>
         </div>
         <div className="challenge-preview">
           <h4>挑战重建图像（同一张源图）</h4>
           <CanvasView
-            label="预算挑战重建图像"
+            label="预算挑战预览"
             onPick={onPick}
             raster={challengeModel.reconstructed}
             selectedCoordinate={selectedCoordinate}
@@ -843,10 +827,11 @@ function BudgetChallengeCard({
         </div>
       </dl>
       <p className={`challenge-budget-state${withinBudget ? " is-within" : ""}`}>
-        预算：20KB = 20,480 bytes · {withinBudget ? "当前在预算内" : "当前超出预算"}
+        预算：基准理论数据量的 25% · {withinBudget ? "当前在预算内" : "当前超出预算"}
       </p>
       <p className="payload-note">
-        本挑战只使用理论 rawBytes，不生成或测量实际 PNG、JPEG、WebP 文件，也不比较哪种格式更好。
+        本挑战只使用理论 rawBits/rawBytes，不生成或测量实际 PNG、JPEG、WebP
+        文件，也不比较哪种格式更好。
       </p>
     </section>
   );
@@ -897,7 +882,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     () => compareImageEncodingSummaries(currentSummary, baselineSummary),
     [baselineSummary, currentSummary],
   );
-  const samplingEvidenceReady = isSamplingEvidenceComplete(lesson.samplingEvidence);
   const challengeModel = useMemo(
     () =>
       deriveImageEncodingModel(lesson.source, {
@@ -913,13 +897,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       lesson.source,
     ],
   );
-  const challengeSignature = JSON.stringify({
-    source: lesson.source.id,
-    spot: lesson.samplingEvidence.observationSpot,
-    samplingPercent: lesson.budgetChallenge.samplingPercent,
-    colorMode: lesson.budgetChallenge.colorMode,
-    bitDepth: lesson.budgetChallenge.bitDepth,
-  });
   const budgetBits = Math.floor(baselineSummary.rawBits * 0.25);
   const budgetBytes = Math.ceil(budgetBits / 8);
   const withinBudget = currentSummary.rawBits <= budgetBits;
@@ -974,12 +951,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   const changeBitDepth = (bitDepth: number) => {
-    if (!samplingEvidenceReady || lesson.colorMode !== "palette") return;
+    if (lesson.colorMode !== "palette") return;
     dispatch({ type: "set-bit-depth", bitDepth });
   };
 
   const changeColorMode = (colorMode: ImageColorMode) => {
-    if (!samplingEvidenceReady) return;
     dispatch({ type: "set-color-mode", colorMode });
   };
 
@@ -1059,28 +1035,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
                 <span className={`mission-budget-badge${withinBudget ? " is-within" : ""}`}>
                   {withinBudget ? "空间够用" : "空间不够"}
-                </span>
-              </div>
-              <div className="image-flow" aria-label="实验教学进度">
-                <span className={samplingEvidenceReady ? "is-done" : "is-current"}>
-                  1 · 空间采样证据
-                </span>
-                <span
-                  className={
-                    lesson.colorAdjusted ? "is-done" : samplingEvidenceReady ? "is-current" : ""
-                  }
-                >
-                  2 · 颜色表示
-                </span>
-                <span
-                  className={
-                    lesson.calculatorEdited ? "is-done" : lesson.colorAdjusted ? "is-current" : ""
-                  }
-                >
-                  3 · 原始数据量计算
-                </span>
-                <span className={lesson.calculatorEdited ? "is-current" : ""}>
-                  4 · 文件大小边界
                 </span>
               </div>
               <div className="mission-feedback-grid" aria-label="当前实验反馈">
@@ -1260,11 +1214,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <button
                     aria-selected={lesson.view === view}
                     className={`view-tab${lesson.view === view ? " is-active" : ""}`}
-                    disabled={!samplingEvidenceReady}
                     key={view}
-                    onClick={() => {
-                      if (samplingEvidenceReady) changeView(view);
-                    }}
+                    onClick={() => changeView(view)}
                     role="tab"
                     type="button"
                   >
@@ -1347,12 +1298,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 ]}
               />
               <RangeField
-                description={
-                  samplingEvidenceReady
-                    ? phaseControlDescription(phaseGeometry)
-                    : "完成采样侦探卡后，可观察采样网格相位。"
-                }
-                disabled={phaseIsInert || !samplingEvidenceReady}
+                description={phaseControlDescription(phaseGeometry)}
+                disabled={phaseIsInert}
                 id="sampling-phase"
                 label="采样网格相位"
                 max={MAX_PHASE}
@@ -1370,7 +1317,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     ? "每个通道保留 8 位"
                     : `最多 ${2 ** lesson.bitDepth} 种调色板颜色`
                 }
-                disabled={lesson.colorMode === "rgb24" || !samplingEvidenceReady}
+                disabled={lesson.colorMode === "rgb24"}
                 displayValue={lesson.colorMode === "rgb24" ? "24 位" : undefined}
                 id="bit-depth"
                 label="颜色位深"
@@ -1382,17 +1329,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={lesson.bitDepth}
                 marks={[1, 2, 4, 8].map((value) => ({ value, label: `${value} 位` }))}
               />
-              <div
-                className={`image-color-mode${samplingEvidenceReady ? "" : " is-locked"}`}
-                role="group"
-                aria-label="颜色表示"
-              >
+              <div className="image-color-mode" role="group" aria-label="颜色表示">
                 <span>颜色表示</span>
                 <div className="image-color-mode-options">
                   <button
                     aria-pressed={lesson.colorMode !== "rgb24"}
                     className="button button-secondary"
-                    disabled={!samplingEvidenceReady}
                     onClick={() => changeColorMode("palette")}
                     type="button"
                   >
@@ -1401,7 +1343,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <button
                     aria-pressed={lesson.colorMode === "rgb24"}
                     className="button button-secondary"
-                    disabled={!samplingEvidenceReady}
                     onClick={() => changeColorMode("rgb24")}
                     type="button"
                   >
@@ -1463,10 +1404,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               </p>
             </section>
 
-            <section
-              className={`image-card calculator-card${lesson.colorAdjusted ? "" : " is-locked"}`}
-              aria-labelledby="calculator-heading"
-            >
+            <section className="image-card calculator-card" aria-labelledby="calculator-heading">
               <div className="image-card-heading">
                 <div>
                   <p className="eyebrow">辅助观察</p>
@@ -1479,7 +1417,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   宽度（像素）
                   <input
                     aria-describedby="calculator-help"
-                    disabled={!lesson.colorAdjusted}
                     inputMode="numeric"
                     min="1"
                     onChange={(event) => {
@@ -1494,7 +1431,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   高度（像素）
                   <input
                     aria-describedby="calculator-help"
-                    disabled={!lesson.colorAdjusted}
                     inputMode="numeric"
                     min="1"
                     onChange={(event) => {
@@ -1506,19 +1442,21 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   />
                 </label>
                 <label>
-                  每像素位数（当前颜色表示）
+                  每像素位数
                   <input
                     aria-describedby="calculator-help"
-                    disabled={!lesson.colorAdjusted}
-                    readOnly
-                    type="text"
+                    inputMode="numeric"
+                    min="1"
+                    max="32"
+                    onChange={(event) => {
+                      setCalculatorBitsPerPixel(event.target.value);
+                      editCalculatorField();
+                    }}
+                    type="number"
                     value={calculatorBitsPerPixel}
                   />
                 </label>
               </div>
-              {!lesson.colorAdjusted ? (
-                <p className="calculator-lock-note">完成第二步颜色表示后，编辑宽、高进入第三步。</p>
-              ) : null}
               <p className="calculator-formula" id="calculator-help">
                 原始位数 = 宽度 × 高度 × 每像素位数；原始字节 = 原始位数 ÷ 8 后向上取整。
               </p>
@@ -1542,39 +1480,34 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               </p>
             </section>
 
-            {lesson.calculatorEdited ? (
-              <>
-                <section className="image-card image-format-card" aria-labelledby="format-heading">
-                  <div className="image-card-heading">
-                    <div>
-                      <p className="eyebrow">第四步 · 文件大小边界</p>
-                      <h3 id="format-heading">联系实际文件格式</h3>
-                    </div>
-                    <span className="image-card-heading-note">可讨论</span>
-                  </div>
-                  <div className="format-boundary-copy">
-                    <p>原始像素数据量可以由宽 × 高 × 每像素位数准确计算。</p>
-                    <p>
-                      <strong>思考：</strong>
-                      为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小？
-                    </p>
-                    <p>实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响。</p>
-                    <p className="boundary-warning">
-                      本步骤没有格式选择控件，也不测量实际文件大小。
-                    </p>
-                  </div>
-                </section>
-                <BudgetChallengeCard
-                  challenge={lesson.budgetChallenge}
-                  challengeModel={challengeModel}
-                  challengeSignature={challengeSignature}
-                  dispatch={dispatch}
-                  onPick={chooseCanvasPixel}
-                  selectedCoordinate={lesson.selectedCoordinate}
-                  spot={lesson.samplingEvidence.observationSpot}
-                />
-              </>
-            ) : null}
+            <section className="image-card image-format-card" aria-labelledby="format-heading">
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">边界讨论</p>
+                  <h3 id="format-heading">联系实际文件格式</h3>
+                </div>
+                <span className="image-card-heading-note">可讨论</span>
+              </div>
+              <div className="format-boundary-copy">
+                <p>原始像素数据量可以由宽 × 高 × 每像素位数准确计算。</p>
+                <p>
+                  <strong>思考：</strong>
+                  为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小？
+                </p>
+                <p>实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响。</p>
+                <p className="boundary-warning">这里不生成文件，也不测量实际文件大小。</p>
+              </div>
+            </section>
+            <BudgetChallengeCard
+              budgetBits={budgetBits}
+              budgetBytes={budgetBytes}
+              challenge={lesson.budgetChallenge}
+              challengeModel={challengeModel}
+              dispatch={dispatch}
+              onPick={chooseCanvasPixel}
+              selectedCoordinate={lesson.selectedCoordinate}
+              spot={lesson.samplingEvidence.observationSpot}
+            />
 
             <section
               className="image-card image-inspector-card"
