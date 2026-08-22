@@ -310,7 +310,7 @@ describe("image encoding domain model", () => {
   });
 
   it("uses width × height × bits and rounds raw bytes up", () => {
-    const calculation = calculateImageEncoding(3, 3, 5, "png");
+    const calculation = calculateImageEncoding(3, 3, 5);
     expect(calculation).toMatchObject({
       width: 3,
       height: 3,
@@ -318,11 +318,9 @@ describe("image encoding domain model", () => {
       pixelCount: 9,
       rawBits: 45,
       rawBytes: 6,
-      format: "png",
-      formatLabel: "PNG",
     });
     expect(calculation).not.toHaveProperty("classroomBytes");
-    expect(calculateImageEncoding(1, 1, 1, "raw").rawBytes).toBe(1);
+    expect(calculateImageEncoding(1, 1, 1).rawBytes).toBe(1);
   });
 
   it("clamps invalid calculator inputs and format aliases at the domain boundary", () => {
@@ -335,18 +333,17 @@ describe("image encoding domain model", () => {
     expect(normalizeImageEncodingFormat("jpg")).toBe("jpeg");
     expect(normalizeImageEncodingFormat("unknown")).toBe("raw");
 
-    expect(calculateImageEncoding(0, -2, 0, normalizeImageEncodingFormat("jpg"))).toMatchObject({
+    expect(calculateImageEncoding(0, -2, 0)).toMatchObject({
       width: 1,
       height: 1,
       bitsPerPixel: 1,
       rawBits: 1,
       rawBytes: 1,
-      format: "jpeg",
     });
   });
 
   it("keeps calculator boundaries exact for large valid inputs", () => {
-    expect(calculateImageEncoding(10000, 10000, 32, "webp")).toMatchObject({
+    expect(calculateImageEncoding(10000, 10000, 32)).toMatchObject({
       width: 10000,
       height: 10000,
       bitsPerPixel: 32,

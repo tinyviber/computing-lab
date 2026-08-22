@@ -74,6 +74,17 @@ test("walks the sequential image-encoding flow without external network access",
   await bitDepth.press("ArrowLeft");
   await expect(bitDepth).toHaveValue("1");
 
+  const calculator = page.locator("section[aria-labelledby=calculator-heading]");
+  const width = calculator.getByRole("spinbutton", { name: "宽度（像素）" });
+  const height = calculator.getByRole("spinbutton", { name: "高度（像素）" });
+  const bits = calculator.getByRole("spinbutton", { name: "每像素位数" });
+  await expect(width).toBeEnabled();
+  await expect(height).toBeEnabled();
+  await expect(bits).toBeEnabled();
+  await width.fill("3");
+  await height.fill("3");
+  await bits.fill("5");
+
   const png = page.getByRole("button", { name: "PNG", exact: true });
   await expect(png).toBeEnabled();
   await png.click();
@@ -88,22 +99,15 @@ test("walks the sequential image-encoding flow without external network access",
     /教学估算/,
   );
 
-  const calculator = page.locator("section[aria-labelledby=calculator-heading]");
-  const width = calculator.getByRole("spinbutton", { name: "宽度（像素）" });
-  const height = calculator.getByRole("spinbutton", { name: "高度（像素）" });
-  const bits = calculator.getByRole("spinbutton", { name: "每像素位数" });
-  await expect(width).toBeEnabled();
-  await expect(height).toBeEnabled();
-  await expect(bits).toBeEnabled();
-  await width.fill("3");
-  await height.fill("3");
-  await bits.fill("5");
   await expect(calculator).toContainText("原始位数 = 宽度 × 高度 × 每像素位数");
   await expect(calculator).toContainText("3 × 3 × 5 = 45 位");
   await expect(calculator).toContainText("45 ÷ 8 后向上取整 = 6 字节");
   await expect(calculator).toContainText("压缩格式的实际大小取决于图像内容和编码器设置");
   await expect(
-    page.locator(".lesson-flow-item").filter({ hasText: "4. 用当前表示计算数据量" }),
+    page.locator(".lesson-flow-item").filter({ hasText: "3. 计算原始数据量" }),
+  ).toContainText("已完成");
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "4. 了解文件格式边界" }),
   ).toContainText("已完成");
 
   const reset = page.locator('section[aria-labelledby="source-heading"] button');
@@ -114,6 +118,24 @@ test("walks the sequential image-encoding flow without external network access",
   await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
   await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
   await expect(calculator.getByRole("spinbutton", { name: "宽度（像素）" })).toBeDisabled();
-  await expect(page.getByText("完成第 3 步并选择格式后解锁。")).toBeVisible();
+  await expect(page.getByText("完成第 2 步后解锁。")).toBeVisible();
   expect(nonLocalRequests).toEqual([]);
+});
+
+test("allows a bits=1 scenario to complete color adjustment", async ({ page }) => {
+  await page.goto("labs/image-encoding?bits=1", { waitUntil: "networkidle" });
+
+  const sampling = page.getByRole("slider", { name: /空间采样/ });
+  await sampling.focus();
+  await sampling.press("ArrowLeft");
+  await expect(sampling).toHaveValue("45");
+
+  await page.getByRole("button", { name: "调色板", exact: true }).click();
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "2. 调整颜色表示" }),
+  ).toContainText("已完成");
+  await expect(
+    page.locator('section[aria-labelledby="calculator-heading"] input').first(),
+  ).toBeEnabled();
+  await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
 });

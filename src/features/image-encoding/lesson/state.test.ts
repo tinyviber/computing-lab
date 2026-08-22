@@ -22,6 +22,10 @@ function stateReadyForFormat() {
   return transitionImageLesson(stateAfterColor(), { type: "set-bit-depth", bitDepth: 2 });
 }
 
+function stateAfterCalculator() {
+  return transitionImageLesson(stateReadyForFormat(), { type: "edit-calculator-field" });
+}
+
 describe("image lesson state", () => {
   it("starts locked with original RGB24 color and no progress", () => {
     const state = defaultState();
@@ -94,7 +98,7 @@ describe("image lesson state", () => {
     expect(bitDepth).toMatchObject({ bitDepth: 2, colorAdjusted: true });
   });
 
-  it("unlocks format selection only after color adjustment", () => {
+  it("unlocks format selection only after raw data calculation", () => {
     const initial = defaultState();
     expect(transitionImageLesson(initial, { type: "select-format", format: "png" })).toMatchObject({
       selectedFormat: "raw",
@@ -106,7 +110,11 @@ describe("image lesson state", () => {
       transitionImageLesson(afterSampling, { type: "select-format", format: "png" }),
     ).toMatchObject({ selectedFormat: "raw", formatSelected: false });
 
-    const selected = transitionImageLesson(stateReadyForFormat(), {
+    expect(
+      transitionImageLesson(stateReadyForFormat(), { type: "select-format", format: "png" }),
+    ).toMatchObject({ selectedFormat: "raw", formatSelected: false });
+
+    const selected = transitionImageLesson(stateAfterCalculator(), {
       type: "select-format",
       format: "webp",
     });
@@ -120,15 +128,44 @@ describe("image lesson state", () => {
     const initial = defaultState();
     expect(transitionImageLesson(initial, { type: "edit-calculator-field" })).toEqual(initial);
 
-    const selected = transitionImageLesson(stateReadyForFormat(), {
-      type: "select-format",
-      format: "png",
+    const edited = transitionImageLesson(stateReadyForFormat(), {
+      type: "edit-calculator-field",
     });
-    expect(selected.calculatorEdited).toBe(false);
+    expect(edited).toMatchObject({ formatSelected: false, calculatorEdited: true });
 
-    const edited = transitionImageLesson(selected, { type: "edit-calculator-field" });
-    expect(edited).toMatchObject({ formatSelected: true, calculatorEdited: true });
+    const selected = transitionImageLesson(edited, { type: "select-format", format: "png" });
+    expect(selected).toMatchObject({ formatSelected: true, calculatorEdited: true });
   });
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])(
+    "lets a legal %s-bit scenario complete the color step and continue",
+    (bits) => {
+      const initial = createImageLessonState(
+        parseImageEncodingScenario(`image=photo&bits=${bits}`),
+      );
+      const sampled = transitionImageLesson(initial, { type: "set-sampling", samplingPercent: 45 });
+      const palette = transitionImageLesson(sampled, {
+        type: "set-color-mode",
+        colorMode: "palette",
+      });
+      const adjusted =
+        bits === 1
+          ? palette
+          : transitionImageLesson(palette, { type: "set-bit-depth", bitDepth: bits - 1 });
+
+      expect(adjusted).toMatchObject({
+        colorMode: "palette",
+        colorAdjusted: true,
+      });
+      const calculated = transitionImageLesson(adjusted, {
+        type: "edit-calculator-field",
+      });
+      expect(calculated).toMatchObject({ calculatorEdited: true });
+      expect(
+        transitionImageLesson(calculated, { type: "select-format", format: "png" }),
+      ).toMatchObject({ formatSelected: true });
+    },
+  );
 
   it("guards phase and view until sampling, then preserves their domain behavior", () => {
     const initial = defaultState();
@@ -145,7 +182,7 @@ describe("image lesson state", () => {
   });
 
   it("clears progress when resetting to the initial scenario", () => {
-    const changed = transitionImageLesson(stateReadyForFormat(), {
+    const changed = transitionImageLesson(stateAfterCalculator(), {
       type: "select-format",
       format: "png",
     });
@@ -165,7 +202,7 @@ describe("image lesson state", () => {
   });
 
   it("clears progress when loading a different URL scenario", () => {
-    const changed = transitionImageLesson(stateReadyForFormat(), {
+    const changed = transitionImageLesson(stateAfterCalculator(), {
       type: "select-format",
       format: "png",
     });
@@ -192,7 +229,7 @@ describe("image lesson state", () => {
 
   it("clears progress and transient upload state when loading a source", () => {
     const changed = transitionImageLesson(
-      transitionImageLesson(stateReadyForFormat(), { type: "select-format", format: "jpeg" }),
+      transitionImageLesson(stateAfterCalculator(), { type: "select-format", format: "jpeg" }),
       { type: "decode-error", message: "old upload error" },
     );
     const uploaded = {
@@ -219,7 +256,7 @@ describe("image lesson state", () => {
   });
 
   it("keeps the current experiment when a decode error is recorded", () => {
-    const selected = transitionImageLesson(stateReadyForFormat(), {
+    const selected = transitionImageLesson(stateAfterCalculator(), {
       type: "select-format",
       format: "png",
     });

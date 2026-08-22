@@ -7,11 +7,11 @@ Image Encoding keeps its feature-local raster model, but the UI now presents one
 ```text
 1. change sampling percent
    → 2. choose palette/original color and adjust palette bit depth
-   → 3. choose raw, PNG, JPG/JPEG, or WebP
-   → 4. edit calculator inputs and compare data quantities
+   → 3. edit calculator inputs and calculate raw data quantity
+   → 4. choose raw, PNG, JPG/JPEG, or WebP
 ```
 
-The sampling-percent range and upload input are enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, format choices, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection becomes available; after task 2, format choices become available; after task 3, the calculator becomes available.
+The sampling-percent range and upload input are enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, format choices, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection becomes available; after task 2, the calculator becomes available; after task 3, format choices become available.
 
 The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set progress.
 
@@ -25,7 +25,7 @@ The initial color representation is RGB24. Explicit `color=rgb24` links and old 
 - `selectedFormat`
 - `calculatorEdited`
 
-Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering the palette bit depth completes task 2. Selecting any supported format completes task 3. Locked direct actions return the existing state.
+Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering a palette bit depth greater than one completes task 2, while selecting a palette at one bit completes the legal minimum-depth scenario. Editing any calculator field completes task 3; selecting any supported format completes task 4. Locked direct actions return the existing state.
 
 Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24 and the format to raw. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
 

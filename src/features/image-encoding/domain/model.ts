@@ -101,8 +101,6 @@ export type ImageEncodingCalculation = {
   pixelCount: number;
   rawBits: number;
   rawBytes: number;
-  format: ImageEncodingFormat;
-  formatLabel: string;
 };
 
 export type ImageEncodingModel = {
@@ -555,14 +553,12 @@ export function calculateImageEncoding(
   widthInput: number,
   heightInput: number,
   bitsPerPixelInput: number,
-  formatInput: ImageEncodingFormat | "jpg",
 ): ImageEncodingCalculation {
   const width = normalizeCalculatorDimension(widthInput);
   const height = normalizeCalculatorDimension(heightInput);
   const bitsPerPixel = normalizeCalculatorBitsPerPixel(bitsPerPixelInput);
   const rawBits = width * height * bitsPerPixel;
   const rawBytes = Math.ceil(rawBits / 8);
-  const format = normalizeImageEncodingFormat(formatInput);
   return {
     width,
     height,
@@ -570,8 +566,6 @@ export function calculateImageEncoding(
     pixelCount: width * height,
     rawBits,
     rawBytes,
-    format,
-    formatLabel: imageFormatLabel(format),
   };
 }
 

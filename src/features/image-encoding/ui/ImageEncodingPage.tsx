@@ -581,8 +581,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     phaseGeometry.y.sampledSize >= phaseGeometry.y.sourceSize;
   const visualControlsUnlocked = lesson.samplingChanged;
   const colorControlsUnlocked = lesson.samplingChanged;
-  const formatControlsUnlocked = lesson.colorAdjusted;
-  const calculatorUnlocked = lesson.formatSelected;
+  const formatControlsUnlocked = lesson.calculatorEdited;
+  const calculatorUnlocked = lesson.colorAdjusted;
 
   const calculator = useMemo(
     () =>
@@ -590,9 +590,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
         Number(calculatorWidth),
         Number(calculatorHeight),
         Number(calculatorBitsPerPixel),
-        lesson.selectedFormat,
       ),
-    [calculatorBitsPerPixel, calculatorHeight, calculatorWidth, lesson.selectedFormat],
+    [calculatorBitsPerPixel, calculatorHeight, calculatorWidth],
   );
   useEffect(() => {
     setCalculatorWidth(String(model.sampled.width));
@@ -686,23 +685,26 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     {
       id: "color",
       title: "2. 调整颜色表示",
-      detail: "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。",
+      detail:
+        lesson.initialScenario.bitDepth === MIN_BIT_DEPTH
+          ? "切换到调色板，观察 1 位颜色表示怎样保留更少的颜色。"
+          : "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。",
       available: lesson.samplingChanged,
       complete: lesson.colorAdjusted,
     },
     {
-      id: "format",
-      title: "3. 选择图像格式",
-      detail: "选择未压缩 / 原始、PNG、JPG / JPEG 或 WebP。",
+      id: "calculator",
+      title: "3. 计算原始数据量",
+      detail: "编辑宽度、高度或每像素位数，查看原始位数和原始字节。",
       available: lesson.colorAdjusted,
-      complete: lesson.formatSelected,
+      complete: lesson.calculatorEdited,
     },
     {
-      id: "calculator",
-      title: "4. 用当前表示计算数据量",
-      detail: "至少编辑一个计算器字段，查看原始位数和原始字节。",
-      available: lesson.formatSelected,
-      complete: lesson.calculatorEdited,
+      id: "format",
+      title: "4. 了解文件格式边界",
+      detail: "选择格式；实际文件大小取决于图像内容和编码器设置。",
+      available: lesson.calculatorEdited,
+      complete: lesson.formatSelected,
     },
   ];
 
@@ -980,53 +982,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
                 <p className="image-control-guide">
                   {colorControlsUnlocked
-                    ? "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。"
+                    ? lesson.bitDepth === MIN_BIT_DEPTH
+                      ? "当前已经是最低的 1 位；切换到调色板即可完成这一步。"
+                      : "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。"
                     : "完成第 1 步后解锁颜色表示。"}
                 </p>
               </div>
-            </section>
-
-            <section
-              className={`image-card image-format-card${formatControlsUnlocked ? "" : " is-locked"}`}
-              aria-labelledby="format-heading"
-              aria-disabled={!formatControlsUnlocked}
-            >
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">第 3 步</p>
-                  <h3 id="format-heading">选择图像格式</h3>
-                </div>
-                <span className="image-card-heading-note">
-                  {!formatControlsUnlocked
-                    ? "已锁定"
-                    : lesson.formatSelected
-                      ? imageFormatLabel(lesson.selectedFormat)
-                      : "请选择"}
-                </span>
-              </div>
-              <div
-                className={`format-options${formatControlsUnlocked ? "" : " is-locked"}`}
-                role="group"
-                aria-label="图像格式"
-              >
-                {IMAGE_FORMAT_PROFILES.map((profile) => (
-                  <button
-                    aria-pressed={lesson.formatSelected && lesson.selectedFormat === profile.format}
-                    className="format-option"
-                    disabled={!formatControlsUnlocked}
-                    key={profile.format}
-                    onClick={() => changeFormat(profile.format)}
-                    type="button"
-                  >
-                    {profile.label}
-                  </button>
-                ))}
-              </div>
-              <p className="format-lock-note">
-                {formatControlsUnlocked
-                  ? "选择一种格式后，进入第 4 步计算。PNG、JPG / JPEG 和 WebP 的实际大小取决于图像内容和编码器设置。"
-                  : "完成第 2 步后解锁格式选择。"}
-              </p>
             </section>
 
             <section className="image-card image-payload-card" aria-labelledby="payload-heading">
@@ -1067,7 +1028,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </dl>
                   <p className="payload-note">
                     这里显示的是像素数据的原始位数。PNG、JPG / JPEG 和 WebP
-                    的实际文件大小取决于图像内容、 编码器设置、文件头、
+                    的实际文件大小取决于图像内容、编码器设置、文件头、
                     {model.quantized.colorMode === "palette" ? "颜色表、" : ""}元数据和具体实现。
                   </p>
                 </>
@@ -1083,11 +1044,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">第 4 步</p>
+                  <p className="eyebrow">第 3 步</p>
                   <h3 id="calculator-heading">数据量计算</h3>
                 </div>
                 <span className="image-card-heading-note">
-                  {calculatorUnlocked ? calculator.formatLabel : "已锁定"}
+                  {calculatorUnlocked ? "原始像素数据" : "已锁定"}
                 </span>
               </div>
               <div className={`calculator-fields${calculatorUnlocked ? "" : " is-locked"}`}>
@@ -1165,8 +1126,51 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </p>
                 </>
               ) : (
-                <p className="image-gated-notice">完成第 3 步并选择格式后解锁。</p>
+                <p className="image-gated-notice">完成第 2 步后解锁。</p>
               )}
+            </section>
+
+            <section
+              className={`image-card image-format-card${formatControlsUnlocked ? "" : " is-locked"}`}
+              aria-labelledby="format-heading"
+              aria-disabled={!formatControlsUnlocked}
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">第 4 步</p>
+                  <h3 id="format-heading">选择图像格式</h3>
+                </div>
+                <span className="image-card-heading-note">
+                  {!formatControlsUnlocked
+                    ? "已锁定"
+                    : lesson.formatSelected
+                      ? imageFormatLabel(lesson.selectedFormat)
+                      : "请选择"}
+                </span>
+              </div>
+              <div
+                className={`format-options${formatControlsUnlocked ? "" : " is-locked"}`}
+                role="group"
+                aria-label="图像格式"
+              >
+                {IMAGE_FORMAT_PROFILES.map((profile) => (
+                  <button
+                    aria-pressed={lesson.formatSelected && lesson.selectedFormat === profile.format}
+                    className="format-option"
+                    disabled={!formatControlsUnlocked}
+                    key={profile.format}
+                    onClick={() => changeFormat(profile.format)}
+                    type="button"
+                  >
+                    {profile.label}
+                  </button>
+                ))}
+              </div>
+              <p className="format-lock-note">
+                {formatControlsUnlocked
+                  ? "选择一种格式，查看格式边界。PNG、JPG / JPEG 和 WebP 的实际大小取决于图像内容和编码器设置。"
+                  : "完成第 3 步后解锁格式边界。"}
+              </p>
             </section>
 
             <section
@@ -1272,7 +1276,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </div>
                 )
               ) : (
-                <p className="image-gated-notice">切换到调色板并调低颜色位深后解锁。</p>
+                <p className="image-gated-notice">
+                  {lesson.initialScenario.bitDepth === MIN_BIT_DEPTH
+                    ? "切换到调色板后解锁。"
+                    : "切换到调色板并调低颜色位深后解锁。"}
+                </p>
               )}
             </section>
           </aside>

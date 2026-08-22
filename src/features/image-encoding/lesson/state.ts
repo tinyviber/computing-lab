@@ -2,6 +2,7 @@ import { getImageFixture } from "../domain/fixture";
 import type { ImageEncodingFormat, RasterImage } from "../domain/model";
 import {
   isSamplingPhaseInert,
+  MIN_BIT_DEPTH,
   normalizeImageEncodingFormat,
   normalizeColorMode,
   normalizeBitDepth,
@@ -145,6 +146,8 @@ export function transitionImageLesson(
       return {
         ...state,
         colorMode,
+        colorAdjusted:
+          state.colorAdjusted || (colorMode === "palette" && state.bitDepth === MIN_BIT_DEPTH),
       };
     }
     case "set-phase":
@@ -170,14 +173,14 @@ export function transitionImageLesson(
       };
     case "select-format":
     case "set-format":
-      if (!state.colorAdjusted) return state;
+      if (!state.calculatorEdited) return state;
       return {
         ...state,
         selectedFormat: normalizeImageEncodingFormat(action.format),
         formatSelected: true,
       };
     case "edit-calculator-field":
-      if (!state.formatSelected) return state;
+      if (!state.colorAdjusted) return state;
       return { ...state, calculatorEdited: true };
     case "load-source":
       return resetAfterSourceUpload(state, normalizeImage(action.source));
