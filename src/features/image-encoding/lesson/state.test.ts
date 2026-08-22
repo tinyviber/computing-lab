@@ -22,7 +22,7 @@ describe("image lesson state", () => {
 
   it("canonicalizes phase against actual rounded geometry", () => {
     const state = createImageLessonState(
-      parseImageEncodingScenario("image=photo&sample=99&phase=0.8"),
+      parseImageEncodingScenario("image=checkerboard&sample=99&phase=0.8"),
     );
     expect(state.samplingPercent).toBe(99);
     expect(state.phase).toBe(0);

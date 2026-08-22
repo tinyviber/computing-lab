@@ -6,6 +6,7 @@ import {
   MIN_BIT_DEPTH,
   MIN_PHASE,
   MIN_SAMPLING_PERCENT,
+  normalizeColorMode,
   isSamplingPhaseInert,
   normalizeBitDepth,
   normalizePhase,
@@ -21,6 +22,7 @@ export type ImageScenarioState = {
   bitDepth: number;
   phase: number;
   view: ImageView;
+  colorMode?: "palette" | "rgb24";
 };
 
 export const DEFAULT_IMAGE_SCENARIO: ImageScenarioState = {
@@ -113,12 +115,20 @@ export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageSce
     firstInteger(params, ["bits", "bitDepth"]) ??
       (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
   );
+  const colorMode = normalizeColorMode(params.get("color") ?? params.get("colorMode"));
   const phase = canonicalPhaseForFixture(
     fixture,
     samplingPercent,
     firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase,
   );
-  return { fixture, samplingPercent, bitDepth, phase, view: viewFromParams(params) };
+  return {
+    fixture,
+    samplingPercent,
+    bitDepth,
+    phase,
+    view: viewFromParams(params),
+    ...(colorMode === "rgb24" ? { colorMode } : {}),
+  };
 }
 
 export function serializeImageEncodingScenario(state: ImageScenarioState): string {
@@ -131,6 +141,7 @@ export function serializeImageEncodingScenario(state: ImageScenarioState): strin
     canonicalPhaseForFixture(state.fixture, samplingPercent, state.phase).toFixed(2),
   );
   params.set("bits", String(normalizeBitDepth(state.bitDepth)));
+  if (state.colorMode === "rgb24") params.set("color", "rgb24");
   params.set("view", state.view);
   return params.toString();
 }

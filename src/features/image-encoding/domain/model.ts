@@ -16,7 +16,10 @@ export type ImageEncodingOptions = {
   samplingPercent: number;
   bitDepth: number;
   phase: number;
+  colorMode?: ImageColorMode;
 };
+
+export type ImageColorMode = "palette" | "rgb24";
 
 export type SampledPixel = {
   sampleX: number;
@@ -66,6 +69,7 @@ export type QuantizedRepresentation = {
   pixels: readonly QuantizedPixel[];
   palette: readonly PaletteEntry[];
   bitDepth: number;
+  colorMode: ImageColorMode;
   requestedPhase: number;
 };
 
@@ -113,6 +117,7 @@ export const MIN_SAMPLING_PERCENT = 10;
 export const MAX_SAMPLING_PERCENT = 100;
 export const MIN_BIT_DEPTH = 1;
 export const MAX_BIT_DEPTH = 8;
+export const RGB24_BIT_DEPTH = 24;
 export const MIN_PHASE = 0;
 export const MAX_PHASE = 0.99;
 
@@ -130,6 +135,10 @@ export function normalizeSamplingPercent(value: number): number {
 
 export function normalizeBitDepth(value: number): number {
   return clamp(Math.round(finiteOr(value, 4)), MIN_BIT_DEPTH, MAX_BIT_DEPTH);
+}
+
+export function normalizeColorMode(value: unknown): ImageColorMode {
+  return value === "rgb24" ? "rgb24" : "palette";
 }
 
 export function normalizePhase(value: number): number {
@@ -382,7 +391,33 @@ export function quantizeColorToPalette(
 export function quantizeSampledImage(
   sampled: SampledRepresentation,
   bitDepth: number,
+  colorMode: ImageColorMode = "palette",
 ): QuantizedRepresentation {
+  if (normalizeColorMode(colorMode) === "rgb24") {
+    const pixels = sampled.pixels.map((pixel) => {
+      const color = normalizeRgb(pixel.sourceColor);
+      const encodedBits = [color.r, color.g, color.b]
+        .map((channelValue) => channelValue.toString(2).padStart(8, "0"))
+        .join("");
+      return {
+        ...pixel,
+        paletteIndex: 0,
+        encodedBits,
+        quantizedColor: color,
+        quantizedHex: rgbToHex(color),
+      };
+    });
+    return {
+      width: sampled.width,
+      height: sampled.height,
+      pixels,
+      palette: [],
+      bitDepth: RGB24_BIT_DEPTH,
+      colorMode: "rgb24",
+      requestedPhase: sampled.requestedPhase,
+    };
+  }
+
   const safeBits = normalizeBitDepth(bitDepth);
   const palette = buildPalette(sampled.pixels, safeBits);
   const pixels = sampled.pixels.map((pixel) => {
@@ -401,6 +436,7 @@ export function quantizeSampledImage(
     pixels,
     palette,
     bitDepth: safeBits,
+    colorMode: "palette",
     requestedPhase: sampled.requestedPhase,
   };
 }
@@ -438,7 +474,7 @@ export function reconstructImage(
 }
 
 export function rawPayload(width: number, height: number, bitDepth: number): RawPayload {
-  const safeBits = normalizeBitDepth(bitDepth);
+  const safeBits = bitDepth === RGB24_BIT_DEPTH ? RGB24_BIT_DEPTH : normalizeBitDepth(bitDepth);
   const bits = Math.max(1, Math.floor(width)) * Math.max(1, Math.floor(height)) * safeBits;
   return { width, height, bitDepth: safeBits, bits, bytes: Math.ceil(bits / 8) };
 }
@@ -449,7 +485,7 @@ export function deriveImageEncodingModel(
 ): ImageEncodingModel {
   const source = normalizeImage(sourceInput);
   const sampled = sampleImage(source, options);
-  const quantized = quantizeSampledImage(sampled, options.bitDepth);
+  const quantized = quantizeSampledImage(sampled, options.bitDepth, options.colorMode);
   const reconstructed = reconstructImage(source, quantized);
   const errorMap = source.pixels.map((sourceColor, index) => {
     const reconstructedColor = reconstructed.pixels[index] ?? { r: 0, g: 0, b: 0 };

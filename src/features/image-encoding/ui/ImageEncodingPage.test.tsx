@@ -55,8 +55,10 @@ describe("ImageEncodingPage", () => {
 
     expect(screen.getByRole("main")).not.toHaveTextContent(/教师|学生/);
     expect(screen.getByRole("main")).toHaveTextContent(/调到 25% 左右/);
-    expect(screen.getByRole("main")).toHaveTextContent(/更新图像/);
-    expect(screen.getAllByText(/拖动滑杆（也可聚焦后用方向键）/)).toHaveLength(2);
+    expect(screen.getByRole("main")).toHaveTextContent(/当前图片 240 × 160 像素/);
+    expect(screen.getByRole("main")).toHaveTextContent(/120 × 80 个采样/);
+    expect(screen.queryByText(/拖动滑杆（也可聚焦后用方向键）/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/控件会立即更新采样表示与重建图像/)).not.toBeInTheDocument();
   });
 
   it("does not expose progress, exploration-score, or game-like legend copy", async () => {
@@ -80,7 +82,7 @@ describe("ImageEncodingPage", () => {
   });
 
   it("uses rounded per-axis geometry to explain or disable phase", async () => {
-    await renderAppAt("/labs/image-encoding?image=photo&sample=99&phase=0.8");
+    await renderAppAt("/labs/image-encoding?image=checkerboard&sample=99&phase=0.8");
     expect(slider(/采样网格相位/)).toHaveValue("0");
     expect(slider(/采样网格相位/)).toBeDisabled();
     expect(screen.getByText(/两个方向都已达到原图采样密度/)).toBeInTheDocument();
@@ -114,7 +116,7 @@ describe("ImageEncodingPage", () => {
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: /本节使用的图像/ })).toBeInTheDocument();
-    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(screen.getAllByText("小猫插图")).toHaveLength(2);
     expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
     expect(
       screen.getByRole("heading", { level: 3, name: /把一个像素拆成数字/ }),
@@ -129,10 +131,10 @@ describe("ImageEncodingPage", () => {
     const meta = sourceSurface(".source-meta");
     const fixedSource = sourceSurface(".source-controls .fixed-source");
     expect(meta.querySelector("span")).toHaveTextContent("固定样例");
-    expect(meta.querySelector("strong")).toHaveTextContent("小猫照片");
+    expect(meta.querySelector("strong")).toHaveTextContent("小猫插图");
     expect(fixedSource.querySelector("span")).toHaveTextContent("固定样例");
-    expect(fixedSource.querySelector("strong")).toHaveTextContent("小猫照片");
-    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(fixedSource.querySelector("strong")).toHaveTextContent("小猫插图");
+    expect(screen.getAllByText("小猫插图")).toHaveLength(2);
   });
 
   it.each([
@@ -151,7 +153,7 @@ describe("ImageEncodingPage", () => {
       expect(meta.querySelector("strong")).toHaveTextContent(label);
       expect(fixedSource.querySelector("span")).toHaveTextContent("兼容样例");
       expect(fixedSource.querySelector("strong")).toHaveTextContent(label);
-      expect(screen.queryByText("小猫照片")).not.toBeInTheDocument();
+      expect(screen.queryByText("小猫插图")).not.toBeInTheDocument();
       expect(screen.queryByRole("combobox", { name: /素材|样例|来源/ })).not.toBeInTheDocument();
       expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
       expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
@@ -200,10 +202,10 @@ describe("ImageEncodingPage", () => {
     await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=4");
     const source = screen.getByRole("img", { name: /原始源图像/ });
     const reconstructed = screen.getByRole("img", { name: /重建图像/ });
-    expect(source).toHaveAttribute("width", "48");
-    expect(source).toHaveAttribute("height", "32");
-    expect(reconstructed).toHaveAttribute("width", "48");
-    expect(reconstructed).toHaveAttribute("height", "32");
+    expect(source).toHaveAttribute("width", "240");
+    expect(source).toHaveAttribute("height", "160");
+    expect(reconstructed).toHaveAttribute("width", "240");
+    expect(reconstructed).toHaveAttribute("height", "160");
   });
 
   it("updates sampling and quantization independently with live evidence", async () => {
@@ -212,7 +214,22 @@ describe("ImageEncodingPage", () => {
     expect(slider(/空间采样/)).toHaveValue("25");
     setSlider(slider(/颜色位深/), 2);
     expect(slider(/颜色位深/)).toHaveValue("2");
-    expect(screen.getByText(/控件会立即更新采样表示与重建图像/)).toBeInTheDocument();
+    expect(screen.getByText(/60 × 40 个采样/)).toBeInTheDocument();
+    expect(screen.getByText(/最多 4 种调色板颜色/)).toBeInTheDocument();
+  });
+
+  it("offers an original-color mode with an exact full-density comparison", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding?sample=100&bits=4");
+
+    await user.click(screen.getByRole("button", { name: "原色（RGB 24 位）" }));
+
+    expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(document.querySelector(".loss-strip")).toHaveTextContent(/原色 RGB 24 位/);
+    expect(document.querySelector(".loss-strip")).toHaveTextContent(/变化像素 0/);
   });
 
   it("requires strict real slider targets and keeps target evidence sticky", async () => {
@@ -326,7 +343,7 @@ describe("ImageEncodingPage", () => {
     expect(sourceSurface(".source-controls .fixed-source")).toHaveTextContent(
       /兼容样例.*平滑色彩渐变/s,
     );
-    expect(screen.queryByText("小猫照片")).not.toBeInTheDocument();
+    expect(screen.queryByText("小猫插图")).not.toBeInTheDocument();
     expectTaskEvidence(/空间采样/, false);
     expectTaskEvidence(/颜色位深/, false);
     expectTaskEvidence(/采样重建/, false);

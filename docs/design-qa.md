@@ -33,9 +33,9 @@ The existing `vercel_design.md` reference is preserved as-is. This screen intent
 - The course is continuous: the fixed kitten sample, optional teacher upload, sampling, phase, color count, view changes, and pixel inspection update observations immediately. There is no workflow step, submit, retry, success/failure, or unique target profile.
 - Sampling is constrained to `10..100%`; bit depth is constrained to `1..8`; phase is constrained to `0..0.99`. Per-axis rounded geometry is authoritative: when both axes already match source density, phase canonicalizes to `0` and the control is disabled; when only one axis is full density, the control remains active and identifies the fixed axis.
 - Source and reconstructed canvases retain the same source display dimensions. The reconstructed raster is generated from sampled/quantized cells and is not CSS resizing.
-- The first release visibly offers one fixed kitten photograph. Older gradient, checkerboard, text-edge, and pixel-grid fixtures remain behind compatible deep links for repeatable tests; they are not shown as a choice list. Upload decode errors are feature-local alerts; uploaded pixels stay in memory.
-- The representation grid is a read-only dynamic sampled grid with accessible cell labels containing sample index, source color, palette index, and encoded bits.
-- The pixel inspector shows source coordinate, sample cell, sampled value, palette entry/index, exact bit string, and RGB error used by the reconstruction.
+- The first release visibly offers one fixed kitten illustration at `240 × 160`. Older gradient, checkerboard, text-edge, and pixel-grid fixtures remain behind compatible deep links for repeatable tests; they are not shown as a choice list. Upload decode errors are feature-local alerts; uploaded pixels stay in memory.
+- The representation view uses an accessible DOM grid for small samples and Canvas for larger samples; both show sampled color and encoded values.
+- The pixel inspector shows source coordinate, sample cell, sampled value, RGB color or palette index, exact bit string, and RGB error used by the reconstruction.
 - The error view renders per-pixel RGB difference evidence; raw payload uses `sampledWidth × sampledHeight × bitDepth` and explicitly does not claim browser file size.
 
 ## Visual checks

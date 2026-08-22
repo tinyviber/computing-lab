@@ -8,8 +8,8 @@ Image Encoding is a static, continuous exploration of a two-dimensional represen
 source raster
   → spatial sampling
   → sampled representation
-  → indexed color quantization
-  → encoded palette indices / bits
+  → indexed color quantization or direct RGB24 encoding
+  → encoded color values / bits
   → same-size reconstruction
   → visible spatial and color loss
 ```
@@ -21,7 +21,7 @@ The feature keeps source image, sampled representation, quantized representation
 - **Sampling**: choose or upload a real image, reduce spatial sampling, keep the reconstructed display the same physical size, observe pixel blocks, then inspect sampled width × height and a local coordinate.
 - **Quantization**: keep sampling fixed, reduce bit depth, observe finite palette states and banding, then inspect the color and index bits of one displayed pixel.
 - **Combined trade-off**: compare sampling-heavy/low-color and sampling-light/high-color profiles with similar raw payloads; the goal is to explain different loss types, not find one answer.
-- **Pixel-to-bits**: click a source or reconstructed pixel and follow source coordinate → sample cell → sampled value → palette entry → encoded index → exact bit string.
+- **Pixel-to-bits**: click a source or reconstructed pixel and follow source coordinate → sample cell → sampled value → color value → exact bit string.
 - **Phase evidence**: move the sampling grid phase on high-frequency fixtures such as checkerboard and text-edge; phase changes which source positions are retained. Downsampled axes use periodic edge wrapping so every sampled cell remains live; a full-density axis is fixed at zero phase and remains an identity baseline. The feature exposes per-axis effective phase to the control: both full-density axes disable it at `0`; one full-density axis leaves it active and labels that axis as fixed.
 - **Error evidence**: switch to the local RGB error map to see where reconstruction differs from the source.
 
@@ -30,8 +30,8 @@ The feature keeps source image, sampled representation, quantized representation
 `RasterImage` is decoded in the feature UI/adapter. Pure domain calculations then run:
 
 1. `sampleImage` computes sampled dimensions and representative source coordinates.
-2. `quantizeSampledImage` selects the first `2^bitDepth` entries from a deterministic nested RGB codebook, then maps each sampled value to its nearest available palette index. The codebook is independent of sampling, so changing spatial resolution does not arbitrarily rebuild the color states.
-3. Each index is formatted as exactly `bitDepth` bits; adding a bit only adds codebook entries and cannot increase nearest-color error for the same sampled image.
+2. `quantizeSampledImage` either maps each sampled value to the nearest entry in the deterministic nested RGB codebook or preserves each sampled RGB channel directly in RGB24 mode.
+3. Palette indices are formatted as exactly `bitDepth` bits; RGB24 values use 8 bits per channel. Adding a palette bit only adds codebook entries and cannot increase nearest-color error for the same sampled image.
 4. `reconstructImage` expands each quantized sample cell over the source-sized display raster.
 5. `deriveImageEncodingModel` keeps sampled-RGB quantization error separate from source-to-reconstruction error, compares source and reconstruction into an error map, and calculates raw payload.
 
@@ -41,7 +41,7 @@ The browser adapter decodes an uploaded image with `Image` + an offscreen canvas
 
 ## 5. Fixed classroom sample
 
-The visible built-in choice is one small kitten photograph, stored as a deterministic 48 × 32 RGB raster in the repository. A cat silhouette against a dark background, light fur edges, and two differently colored eyes create changes that remain easy to see when sampling is reduced or the color count is lowered. The source, CC0 license, resize step, and local-storage decision are recorded in [docs/image-encoding-optimization.md](image-encoding-optimization.md).
+The visible built-in choice is one small kitten illustration, stored as a deterministic 240 × 160 RGB raster in the repository. A cat silhouette against a dark background, light fur edges, and two differently colored eyes create changes that remain easy to see when sampling is reduced or the color count is lowered. The generated local source and storage decision are recorded in [docs/image-encoding-optimization.md](image-encoding-optimization.md).
 
 Older fixtures remain addressable through `image=gradient`, `image=checkerboard`, `image=text-edge`, and `image=pixel-grid` for compatibility and targeted tests, but the classroom UI does not present a long list of choices.
 
@@ -51,7 +51,7 @@ The domain produces a sampled raster with fewer encoded cells but a reconstructe
 
 ## 6. Quantization definition
 
-The first release uses indexed color with a deterministic nested RGB codebook. A bit depth of `b` exposes the first `2^b` codebook entries; each sampled RGB value maps to the nearest available entry by squared/euclidean RGB distance, with ties retaining the lower palette index. The index is the encoded value and is padded to exactly `b` bits. Because the codebook prefixes are nested, increasing bit depth cannot increase quantization error for the same sampled representation, while the sampled values still cannot recover information discarded by spatial sampling.
+Palette mode uses indexed color with a deterministic nested RGB codebook. A bit depth of `b` exposes the first `2^b` codebook entries; each sampled RGB value maps to the nearest available entry by squared/euclidean RGB distance, with ties retaining the lower palette index. RGB24 mode preserves each sampled channel directly as 8 bits. Because the codebook prefixes are nested, increasing palette bit depth cannot increase quantization error for the same sampled representation, while the sampled values still cannot recover information discarded by spatial sampling.
 
 ## 7. Theoretical raw payload
 
@@ -60,7 +60,7 @@ rawPayloadBits = sampledWidth × sampledHeight × bitDepth
 rawPayloadBytes = ceil(rawPayloadBits / 8)
 ```
 
-These are theoretical pixel payload values. They are explicitly not browser PNG/JPEG file sizes and exclude palette tables, headers, metadata, container overhead, and codec compression.
+These are theoretical pixel payload values. They are explicitly not browser PNG/JPEG file sizes and exclude headers, metadata, container overhead, and codec compression; palette mode also excludes its color table.
 
 ## 8. Precedent patterns used
 
