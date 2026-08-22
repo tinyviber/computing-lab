@@ -62,10 +62,10 @@ describe("application router integration", () => {
   it("hydrates the photo source through the canonical image query", async () => {
     await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare");
 
-    expect(screen.getAllByText("小猫照片")).toHaveLength(2);
+    expect(screen.getAllByText("小猫插图")).toHaveLength(2);
     expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "32");
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
   });
 
   it.each([
@@ -170,7 +170,7 @@ describe("application router integration", () => {
 
   it("changes image lesson state when the same route receives a new search", async () => {
     const { router } = await renderAppAt("/labs/image-encoding");
-    expect(screen.getByRole("grid", { name: /24 × 16 编码采样网格/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /120 × 80 编码采样网格/ })).toBeInTheDocument();
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
     expect(screen.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
     expect(screen.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");

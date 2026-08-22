@@ -38,16 +38,16 @@ function colorDistance(first: RGB, second: RGB): number {
 }
 
 describe("photo image fixture", () => {
-  it("is a deterministic 48 by 32 RGB raster with stable pixel signatures", () => {
+  it("is a deterministic 240 by 160 RGB raster with stable pixel signatures", () => {
     const photo = getImageFixture("photo");
 
     expect(photo).toMatchObject({
       id: "photo",
       sourceKind: "fixture",
-      width: 48,
-      height: 32,
+      width: 240,
+      height: 160,
     });
-    expect(photo.pixels).toHaveLength(48 * 32);
+    expect(photo.pixels).toHaveLength(240 * 160);
     expect([
       pixelAt(0, 0),
       pixelAt(0, 12),
@@ -56,12 +56,12 @@ describe("photo image fixture", () => {
       pixelAt(5, 19),
       pixelAt(47, 31),
     ]).toEqual([
-      { r: 102, g: 66, b: 53 },
-      { r: 9, g: 1, b: 2 },
-      { r: 99, g: 67, b: 58 },
-      { r: 230, g: 243, b: 254 },
-      { r: 17, g: 11, b: 8 },
-      { r: 146, g: 121, b: 105 },
+      { r: 127, g: 124, b: 119 },
+      { r: 133, g: 124, b: 121 },
+      { r: 133, g: 125, b: 120 },
+      { r: 134, g: 126, b: 120 },
+      { r: 133, g: 126, b: 120 },
+      { r: 139, g: 130, b: 123 },
     ]);
   });
 
@@ -78,11 +78,13 @@ describe("photo image fixture", () => {
       colorCounts.set(key, (colorCounts.get(key) ?? 0) + 1);
     }
     expect(colorCounts.size).toBeGreaterThan(1000);
-    expect(Math.max(...colorCounts.values())).toBeLessThanOrEqual(20);
+    expect(Math.max(...colorCounts.values())).toBeLessThanOrEqual(1000);
 
     const skyColumn = Array.from({ length: 13 }, (_, y) => pixelAt(0, y));
-    expect(new Set(skyColumn.map((pixel) => pixel.b)).size).toBeGreaterThanOrEqual(8);
-    expect(skyColumn[0]?.b).toBeGreaterThan(skyColumn.at(-1)?.b ?? 0);
+    expect(new Set(skyColumn.map((pixel) => pixel.b)).size).toBeGreaterThanOrEqual(4);
+    expect(Math.max(...skyColumn.map((pixel) => pixel.b))).toBeGreaterThan(
+      Math.min(...skyColumn.map((pixel) => pixel.b)),
+    );
 
     const contrastPixels = photo.pixels.filter((pixel) => channelRange(pixel) >= 40);
     expect(contrastPixels.length).toBeGreaterThanOrEqual(150);
@@ -118,9 +120,15 @@ describe("photo image fixture", () => {
       bitDepth: 8,
       phase: 0,
     });
+    const original = deriveImageEncodingModel(photo, {
+      samplingPercent: 100,
+      bitDepth: 4,
+      colorMode: "rgb24",
+      phase: 0,
+    });
 
-    expect(sample25.sampled).toMatchObject({ width: 12, height: 8 });
-    expect(sample100.sampled).toMatchObject({ width: 48, height: 32 });
+    expect(sample25.sampled).toMatchObject({ width: 60, height: 40 });
+    expect(sample100.sampled).toMatchObject({ width: 240, height: 160 });
     expect(sample25.rawPayload.bits).toBeLessThan(sample100.rawPayload.bits);
     expect(sample25.averageError).toBeGreaterThan(sample100.averageError);
 
@@ -128,5 +136,9 @@ describe("photo image fixture", () => {
     expect(bits8.quantized.palette).toHaveLength(256);
     expect(bits2.rawPayload.bits).toBeLessThan(bits8.rawPayload.bits);
     expect(bits2.averageQuantizationError).toBeGreaterThan(bits8.averageQuantizationError);
+    expect(original.quantized.bitDepth).toBe(24);
+    expect(original.averageError).toBe(0);
+    expect(original.changedPixelCount).toBe(0);
+    expect(original.reconstructed.pixels).toEqual(photo.pixels);
   });
 });

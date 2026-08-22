@@ -2,6 +2,7 @@ import { getImageFixture } from "../domain/fixture";
 import type { RasterImage } from "../domain/model";
 import {
   isSamplingPhaseInert,
+  normalizeColorMode,
   normalizeBitDepth,
   normalizeImage,
   normalizePhase,
@@ -22,6 +23,7 @@ export type ImageLessonAction =
   | { type: "load-scenario"; scenario: ImageScenarioState }
   | { type: "set-sampling"; samplingPercent: number }
   | { type: "set-bit-depth"; bitDepth: number }
+  | { type: "set-color-mode"; colorMode: "palette" | "rgb24" }
   | { type: "set-phase"; phase: number }
   | { type: "set-view"; view: ImageView }
   | { type: "select-pixel"; x: number; y: number }
@@ -47,6 +49,7 @@ function normalizeScenario(scenario: ImageScenarioState, source: RasterImage): I
     ...scenario,
     samplingPercent,
     bitDepth: normalizeBitDepth(scenario.bitDepth),
+    ...(normalizeColorMode(scenario.colorMode) === "rgb24" ? { colorMode: "rgb24" as const } : {}),
     phase: canonicalPhaseForSource(source, samplingPercent, scenario.phase),
   };
 }
@@ -79,6 +82,8 @@ export function transitionImageLesson(
     }
     case "set-bit-depth":
       return { ...state, bitDepth: normalizeBitDepth(action.bitDepth) };
+    case "set-color-mode":
+      return { ...state, colorMode: normalizeColorMode(action.colorMode) };
     case "set-phase":
       return {
         ...state,

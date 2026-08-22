@@ -313,10 +313,7 @@ function ProtocolProcessPageContent({
         <div>
           <p className="eyebrow">协议过程 · 可靠送达</p>
           <h2>确认迟到时的发送方状态</h2>
-          <p>
-            跟踪一条消息经历延迟、丢失、超时、重试、重复抑制与确认的过程。时钟是模拟的，
-            每次队列变化都可以检查。
-          </p>
+          <p>跟踪一条消息经历延迟、丢失、超时、重试、重复抑制与确认的过程。时钟是模拟的。</p>
         </div>
         <div className="protocol-message-card" aria-label="消息定义">
           <span>消息</span>

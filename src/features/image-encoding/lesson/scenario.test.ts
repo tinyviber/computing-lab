@@ -24,6 +24,21 @@ describe("image lesson scenario", () => {
     });
   });
 
+  it("round-trips the original-color mode without changing palette bit depth", () => {
+    const state = parseImageEncodingScenario(
+      "image=photo&sample=100&bits=4&color=rgb24&view=compare",
+    );
+    expect(state).toMatchObject({
+      fixture: "photo",
+      samplingPercent: 100,
+      bitDepth: 4,
+      colorMode: "rgb24",
+    });
+    expect(serializeImageEncodingScenario(state)).toBe(
+      "image=photo&sample=100&phase=0.00&bits=4&color=rgb24&view=compare",
+    );
+  });
+
   it("defaults and clamps malformed values without accepting a workflow state", () => {
     expect(
       parseImageEncodingScenario("image=nope&sample=999&phase=-2&bits=99&view=submit"),
@@ -63,20 +78,20 @@ describe("image lesson scenario", () => {
   });
 
   it("canonicalizes phase from rounded fixture geometry rather than percentage alone", () => {
-    expect(parseImageEncodingScenario("image=photo&sample=99&phase=0.8")).toMatchObject({
-      fixture: "photo",
+    expect(parseImageEncodingScenario("image=checkerboard&sample=99&phase=0.8")).toMatchObject({
+      fixture: "checkerboard",
       samplingPercent: 99,
       phase: 0,
     });
     expect(
       serializeImageEncodingScenario({
-        fixture: "photo",
+        fixture: "checkerboard",
         samplingPercent: 99,
         phase: 0.8,
         bitDepth: 4,
         view: "compare",
       }),
-    ).toBe("image=photo&sample=99&phase=0.00&bits=4&view=compare");
+    ).toBe("image=checkerboard&sample=99&phase=0.00&bits=4&view=compare");
   });
 
   it("serializes only reproducible configuration", () => {

@@ -24,6 +24,9 @@ import {
   MIN_BIT_DEPTH,
   MIN_PHASE,
   MIN_SAMPLING_PERCENT,
+  RGB24_BIT_DEPTH,
+  type ImageColorMode,
+  type QuantizedPixel,
 } from "../domain/model";
 import { parseImageEncodingScenario } from "../lesson/scenario";
 import { createImageLessonState, transitionImageLesson, type ImageView } from "../lesson/state";
@@ -83,7 +86,7 @@ function getSourceIdentity(source: RasterImage): SourceIdentity {
     source.sourceKind === "upload" ? "已上传图像" : source.id === "photo" ? "固定样例" : "兼容样例";
   const detail = source.sourceDimensions
     ? `原始 ${source.sourceDimensions.width} × ${source.sourceDimensions.height}；工作栅格 ${source.width} × ${source.height} 像素`
-    : `本地 ${source.width} × ${source.height} 像素；课堂只改变采样和颜色数量。`;
+    : `当前图片 ${source.width} × ${source.height} 像素`;
   return { kindLabel, label: source.label, detail };
 }
 
@@ -192,6 +195,136 @@ function clickCoordinate(event: MouseEvent<HTMLCanvasElement>, raster: RasterIma
   return { x: Math.floor(x), y: Math.floor(y) };
 }
 
+const DOM_GRID_LIMIT = 4096;
+
+function drawRepresentation(
+  canvas: HTMLCanvasElement,
+  pixels: readonly QuantizedPixel[],
+  width: number,
+  height: number,
+  view: ImageView,
+) {
+  const context = canvas.getContext("2d");
+  if (!context) return;
+  canvas.width = width;
+  canvas.height = height;
+  const image = context.createImageData(width, height);
+  pixels.forEach((pixel, index) => {
+    const color = view === "sampling" ? pixel.sourceColor : pixel.quantizedColor;
+    const offset = index * 4;
+    image.data[offset] = color.r;
+    image.data[offset + 1] = color.g;
+    image.data[offset + 2] = color.b;
+    image.data[offset + 3] = 255;
+  });
+  context.putImageData(image, 0, 0);
+}
+
+function LargeRepresentationCanvas({
+  pixels,
+  width,
+  height,
+  view,
+  onPick,
+}: {
+  pixels: readonly QuantizedPixel[];
+  width: number;
+  height: number;
+  view: ImageView;
+  onPick: (coordinate: { x: number; y: number }) => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  useEffect(() => {
+    if (canvasRef.current) drawRepresentation(canvasRef.current, pixels, width, height, view);
+  }, [height, pixels, view, width]);
+
+  return (
+    <div className="representation-canvas-frame">
+      <canvas
+        aria-label={`${width} × ${height} 编码采样网格；点击检查采样格`}
+        className="representation-canvas"
+        height={height}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const sampleX = Math.min(
+            width - 1,
+            Math.max(0, Math.floor(((event.clientX - rect.left) / rect.width) * width)),
+          );
+          const sampleY = Math.min(
+            height - 1,
+            Math.max(0, Math.floor(((event.clientY - rect.top) / rect.height) * height)),
+          );
+          const pixel = pixels[sampleY * width + sampleX];
+          if (pixel) onPick({ x: pixel.sourceX, y: pixel.sourceY });
+        }}
+        ref={canvasRef}
+        role="img"
+        tabIndex={0}
+        width={width}
+      />
+      <span className="canvas-caption">
+        {width} × {height} 个编码采样
+      </span>
+    </div>
+  );
+}
+
+function RepresentationGrid({
+  pixels,
+  width,
+  height,
+  view,
+  revealed,
+  colorMode,
+  onPick,
+}: {
+  pixels: readonly QuantizedPixel[];
+  width: number;
+  height: number;
+  view: ImageView;
+  revealed: boolean;
+  colorMode: ImageColorMode;
+  onPick: (coordinate: { x: number; y: number }) => void;
+}) {
+  if (pixels.length > DOM_GRID_LIMIT) {
+    return (
+      <LargeRepresentationCanvas
+        height={height}
+        onPick={onPick}
+        pixels={pixels}
+        view={view}
+        width={width}
+      />
+    );
+  }
+  return (
+    <div
+      className="representation-grid"
+      role="grid"
+      aria-label={`${width} × ${height} 编码采样网格`}
+      style={{ gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))` }}
+    >
+      {pixels.map((pixel) => (
+        <div
+          className="representation-cell"
+          key={pixel.sampleIndex}
+          role="gridcell"
+          style={colorStyle(view === "sampling" ? pixel.sourceColor : pixel.quantizedColor)}
+          aria-label={
+            revealed
+              ? `采样 ${pixel.sampleIndex + 1}；源色 ${rgbToHex(pixel.sourceColor)}；${
+                  colorMode === "rgb24" ? "原色 RGB" : `调色板索引 ${pixel.paletteIndex}`
+                }；编码值 ${pixel.encodedBits}`
+              : `采样 ${pixel.sampleIndex + 1}；选择该格查看颜色`
+          }
+          onClick={() => onPick({ x: pixel.sourceX, y: pixel.sourceY })}
+          title={revealed ? `${pixel.encodedBits} · ${pixel.quantizedHex}` : undefined}
+        />
+      ))}
+    </div>
+  );
+}
+
 function readUploadedImage(file: File): Promise<RasterImage> {
   return new Promise((resolve, reject) => {
     if (typeof Image === "undefined" || typeof URL.createObjectURL !== "function") {
@@ -252,6 +385,7 @@ function RangeField({
   step,
   unit,
   description,
+  marks,
   disabled = false,
   onChange,
 }: {
@@ -263,6 +397,7 @@ function RangeField({
   step: number;
   unit: string;
   description: string;
+  marks?: readonly { value: number; label: string }[];
   disabled?: boolean;
   onChange: (value: number) => void;
 }) {
@@ -286,6 +421,15 @@ function RangeField({
         type="range"
         value={value}
       />
+      {marks ? (
+        <div className="range-marks" aria-hidden="true">
+          {marks.map((mark) => (
+            <span key={mark.value} style={{ left: `${((mark.value - min) / (max - min)) * 100}%` }}>
+              {mark.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
       <p id={`${id}-help`}>{description}</p>
     </div>
   );
@@ -332,11 +476,13 @@ function DeepDiveItem({
 }
 
 function DeepDivePanel({
+  colorMode,
   payloadEvidenceUnlocked,
   quantizationEvidenceUnlocked,
   samplingEvidenceUnlocked,
   traceEvidenceUnlocked,
 }: {
+  colorMode: ImageColorMode;
   payloadEvidenceUnlocked: boolean;
   quantizationEvidenceUnlocked: boolean;
   samplingEvidenceUnlocked: boolean;
@@ -356,26 +502,35 @@ function DeepDivePanel({
           title="采样后的尺寸和显示尺寸有什么关系？"
           unlocked={samplingEvidenceUnlocked}
         >
-          编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。你可以继续比较两张画布。
+          编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。
         </DeepDiveItem>
         <DeepDiveItem
           number="02"
-          title="位深改变后，可用颜色数怎样变化？"
+          title={colorMode === "rgb24" ? "原色 RGB 怎样记录？" : "位深改变后，可用颜色数怎样变化？"}
           unlocked={quantizationEvidenceUnlocked}
         >
-          当每个采样像素使用 b 位索引时，最多有 2<sup>b</sup> 个调色板状态。位深减半，不等于 RGB
-          三个通道各自减半。
+          {colorMode === "rgb24" ? (
+            "每个采样点直接记录三个 8 位颜色通道。"
+          ) : (
+            <>
+              当每个采样像素使用 b 位索引时，最多有 2<sup>b</sup> 个调色板状态。位深减半，不等于 RGB
+              三个通道各自减半。
+            </>
+          )}
         </DeepDiveItem>
         <DeepDiveItem number="03" title="一个像素怎样变成数字？" unlocked={traceEvidenceUnlocked}>
-          从显示位置找到采样格，再看它对应的颜色编号和二进制数字；检查器中的数字就是还原图像时使用的表示。
+          从显示位置找到采样格，再看它对应的
+          {colorMode === "rgb24" ? "RGB 颜色和二进制数字" : "颜色编号和二进制数字"}
+          ；详情中的数字就是还原图像时使用的表示。
         </DeepDiveItem>
         <DeepDiveItem
           number="04"
           title="公式算出的原始数据量代表什么？"
           unlocked={payloadEvidenceUnlocked}
         >
-          本实验计算的是“采样像素数 ×
-          每像素位数”的原始数据量，暂不包含文件头、颜色表、元数据和压缩编码。
+          {colorMode === "rgb24"
+            ? "采样像素数 × 每像素位数；不包含文件头、元数据和压缩编码。"
+            : "采样像素数 × 每像素位数；不包含文件头、颜色表、元数据和压缩编码。"}
         </DeepDiveItem>
       </div>
     </section>
@@ -396,8 +551,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
         samplingPercent: lesson.samplingPercent,
         bitDepth: lesson.bitDepth,
         phase: lesson.phase,
+        colorMode: lesson.colorMode,
       }),
-    [lesson.bitDepth, lesson.phase, lesson.samplingPercent, lesson.source],
+    [lesson.bitDepth, lesson.colorMode, lesson.phase, lesson.samplingPercent, lesson.source],
   );
   const sourceIdentity = getSourceIdentity(lesson.source);
   const inspection = useMemo(
@@ -414,6 +570,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setTrace(EMPTY_EXPLORATION_TRACE);
   }, [
     scenario.bitDepth,
+    scenario.colorMode,
     scenario.fixture,
     scenario.phase,
     scenario.samplingPercent,
@@ -439,6 +596,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       bitDepthTargetReached: current.bitDepthTargetReached || bitDepth === 2,
     }));
     dispatch({ type: "set-bit-depth", bitDepth });
+  };
+
+  const changeColorMode = (colorMode: ImageColorMode) => {
+    dispatch({ type: "set-color-mode", colorMode });
   };
 
   const changeView = (view: ImageView) => {
@@ -582,7 +743,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 <label className="upload-field">
                   <span>上传图片（可选）</span>
                   <input accept="image/*" onChange={handleUpload} type="file" />
-                  <small>解码仅在本地进行；上传像素不会写入 URL。</small>
                 </label>
               </div>
               {uploadMessage ? (
@@ -632,7 +792,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <b>采样数量</b> {model.sampled.width} × {model.sampled.height} 个编码采样
                 </span>
                 <span>
-                  <b>可用颜色数</b> {model.quantized.palette.length} 个 · 采样 RGB 误差{" "}
+                  <b>颜色表示</b>{" "}
+                  {model.quantized.colorMode === "rgb24"
+                    ? `原色 RGB ${RGB24_BIT_DEPTH} 位`
+                    : `${model.quantized.palette.length} 个调色板颜色 · 采样 RGB 误差`}{" "}
                   {(model.averageQuantizationError * 100).toFixed(1)}%
                 </span>
                 <span>
@@ -676,35 +839,15 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
               ) : (
                 <div className="representation-stage">
-                  <div
-                    className="representation-grid"
-                    role="grid"
-                    aria-label={`${model.quantized.width} × ${model.quantized.height} 编码采样网格`}
-                    style={{
-                      gridTemplateColumns: `repeat(${model.quantized.width}, minmax(0, 1fr))`,
-                    }}
-                  >
-                    {model.quantized.pixels.map((pixel) => (
-                      <div
-                        className="representation-cell"
-                        key={pixel.sampleIndex}
-                        role="gridcell"
-                        style={colorStyle(
-                          lesson.view === "sampling" ? pixel.sourceColor : pixel.quantizedColor,
-                        )}
-                        aria-label={
-                          trace.representationViewed
-                            ? `采样 ${pixel.sampleIndex + 1}；源色 ${rgbToHex(pixel.sourceColor)}；调色板索引 ${pixel.paletteIndex}；编码值 ${pixel.encodedBits}`
-                            : `采样 ${pixel.sampleIndex + 1}；选择该格查看颜色`
-                        }
-                        title={
-                          trace.representationViewed
-                            ? `${pixel.encodedBits} · ${pixel.quantizedHex}`
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </div>
+                  <RepresentationGrid
+                    colorMode={model.quantized.colorMode}
+                    height={model.quantized.height}
+                    onPick={chooseCanvasPixel}
+                    pixels={model.quantized.pixels}
+                    revealed={trace.representationViewed}
+                    view={lesson.view}
+                    width={model.quantized.width}
+                  />
                   <div className="representation-copy">
                     <strong>{VIEW_LABELS[lesson.view]}</strong>
                     <p>
@@ -713,7 +856,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         : lesson.view === "quantization"
                           ? "比较可用颜色数与渐变区域变化。"
                           : lesson.view === "representation"
-                            ? "点击像素，查看位置、颜色编号和二进制编码。"
+                            ? `点击像素，查看位置、${
+                                model.quantized.colorMode === "rgb24" ? "RGB 颜色" : "颜色编号"
+                              }和二进制编码。`
                             : "比较采样值、颜色编号和还原颜色。"}
                     </p>
                   </div>
@@ -724,6 +869,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
           <aside className="image-side-column" aria-label="图像编码控制与像素检查器">
             <DeepDivePanel
+              colorMode={model.quantized.colorMode}
               payloadEvidenceUnlocked={payloadEvidenceUnlocked}
               quantizationEvidenceUnlocked={quantizationEvidenceUnlocked}
               samplingEvidenceUnlocked={spatialEvidenceUnlocked}
@@ -740,7 +886,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
               </div>
               <RangeField
-                description="拖动滑杆（也可聚焦后用方向键）改变采样参数，更新图像和采样数量。"
+                description={`${model.sampled.width} × ${model.sampled.height} 个采样`}
                 id="sampling-percent"
                 label="空间采样"
                 max={MAX_SAMPLING_PERCENT}
@@ -749,6 +895,13 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 step={5}
                 unit="%"
                 value={lesson.samplingPercent}
+                marks={[
+                  { value: 10, label: "10%" },
+                  { value: 25, label: "25%" },
+                  { value: 50, label: "50%" },
+                  { value: 75, label: "75%" },
+                  { value: 100, label: "100%" },
+                ]}
               />
               <RangeField
                 description={phaseControlDescription(phaseGeometry)}
@@ -763,7 +916,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={phaseIsInert ? 0 : lesson.phase}
               />
               <RangeField
-                description="拖动滑杆（也可聚焦后用方向键）改变颜色数量，更新颜色数和图像。"
+                description={
+                  lesson.colorMode === "rgb24"
+                    ? "每个通道保留 8 位"
+                    : `最多 ${2 ** lesson.bitDepth} 种调色板颜色`
+                }
+                disabled={lesson.colorMode === "rgb24"}
                 id="bit-depth"
                 label="颜色位深"
                 max={MAX_BIT_DEPTH}
@@ -772,8 +930,29 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 step={1}
                 unit=" 位"
                 value={lesson.bitDepth}
+                marks={[1, 2, 4, 8].map((value) => ({ value, label: `${value} 位` }))}
               />
-              <p className="control-note">控件会立即更新采样表示与重建图像。</p>
+              <div className="image-color-mode" role="group" aria-label="颜色表示">
+                <span>颜色表示</span>
+                <div className="image-color-mode-options">
+                  <button
+                    aria-pressed={lesson.colorMode !== "rgb24"}
+                    className="button button-secondary"
+                    onClick={() => changeColorMode("palette")}
+                    type="button"
+                  >
+                    调色板
+                  </button>
+                  <button
+                    aria-pressed={lesson.colorMode === "rgb24"}
+                    className="button button-secondary"
+                    onClick={() => changeColorMode("rgb24")}
+                    type="button"
+                  >
+                    原色（RGB 24 位）
+                  </button>
+                </div>
+              </div>
             </section>
 
             <section className="image-card image-payload-card" aria-labelledby="payload-heading">
@@ -798,7 +977,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     </div>
                     <div>
                       <dt>可用颜色数</dt>
-                      <dd>{model.quantized.palette.length} 个可用颜色编号</dd>
+                      <dd>
+                        {model.quantized.colorMode === "rgb24"
+                          ? "16,777,216 种 RGB 颜色状态"
+                          : `${model.quantized.palette.length} 个可用颜色编号`}
+                      </dd>
                     </div>
                     <div>
                       <dt>原始数据量</dt>
@@ -815,8 +998,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     </div>
                   </dl>
                   <p className="payload-note">
-                    这里计算的是理论原始像素数据量，不是 PNG/JPEG
-                    文件大小；不包含调色板表、文件头、元数据或编解码压缩。
+                    理论像素数据量，不是 PNG/JPEG 文件大小；不含
+                    {model.quantized.colorMode === "palette" ? "调色板表、" : ""}
+                    文件头、元数据或编解码压缩。
                   </p>
                 </>
               ) : (
@@ -864,9 +1048,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <dd>{rgbToHex(inspection.sampledColor)}</dd>
                     </div>
                     <div>
-                      <dt>量化调色板颜色</dt>
+                      <dt>
+                        {model.quantized.colorMode === "rgb24" ? "RGB 颜色" : "量化调色板颜色"}
+                      </dt>
                       <dd>
-                        {rgbToHex(inspection.quantizedColor)} · 索引 {inspection.paletteIndex}
+                        {rgbToHex(inspection.quantizedColor)}
+                        {model.quantized.colorMode === "rgb24"
+                          ? " · 原色 RGB"
+                          : ` · 索引 ${inspection.paletteIndex}`}
                       </dd>
                     </div>
                     <div>
@@ -889,23 +1078,37 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card palette-card" aria-labelledby="palette-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">颜色表 / 编号</p>
-                  <h3 id="palette-heading">颜色编号</h3>
+                  <p className="eyebrow">
+                    {model.quantized.colorMode === "rgb24" ? "原色 RGB" : "颜色表 / 编号"}
+                  </p>
+                  <h3 id="palette-heading">
+                    {model.quantized.colorMode === "rgb24" ? "RGB 颜色" : "颜色编号"}
+                  </h3>
                 </div>
                 {trace.bitDepthTargetReached ? (
-                  <span>{model.quantized.palette.length} 个可用颜色</span>
+                  <span>
+                    {model.quantized.colorMode === "rgb24"
+                      ? "原色 RGB 24 位"
+                      : `${model.quantized.palette.length} 个可用颜色`}
+                  </span>
                 ) : null}
               </div>
               {trace.bitDepthTargetReached ? (
-                <div className="palette-list">
-                  {model.quantized.palette.map((entry) => (
-                    <div className="palette-entry" key={entry.index}>
-                      <span className="palette-swatch" style={colorStyle(entry.color)} />
-                      <code>{entry.index.toString(2).padStart(model.quantized.bitDepth, "0")}</code>
-                      <span>{entry.hex}</span>
-                    </div>
-                  ))}
-                </div>
+                model.quantized.colorMode === "rgb24" ? (
+                  <p className="image-neutral-notice">原色 RGB 直接保留每个通道的 8 位值。</p>
+                ) : (
+                  <div className="palette-list">
+                    {model.quantized.palette.map((entry) => (
+                      <div className="palette-entry" key={entry.index}>
+                        <span className="palette-swatch" style={colorStyle(entry.color)} />
+                        <code>
+                          {entry.index.toString(2).padStart(model.quantized.bitDepth, "0")}
+                        </code>
+                        <span>{entry.hex}</span>
+                      </div>
+                    ))}
+                  </div>
+                )
               ) : (
                 <p className="image-gated-notice">颜色位深调到 2 位后解锁。</p>
               )}

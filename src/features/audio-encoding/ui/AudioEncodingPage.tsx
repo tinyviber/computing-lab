@@ -258,9 +258,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div className="section-heading">
             <div>
               <h2 id="sound-heading">采样、量化与重建</h2>
-              <p className="section-description">
-                数值来自本地示例。图表按每一步推进；试听使用 48 kHz。
-              </p>
+              <p className="section-description">试听使用 48 kHz。</p>
             </div>
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>

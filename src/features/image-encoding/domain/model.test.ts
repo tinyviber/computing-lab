@@ -18,17 +18,17 @@ describe("image encoding domain model", () => {
   it("turns 50% spatial sampling into independent encoded dimensions", () => {
     const dimensions = sampledDimensions(source, 50);
     const sampled = sampleImage(source, { samplingPercent: 50, phase: 0 });
-    expect(dimensions).toEqual({ width: 24, height: 16 });
-    expect(sampled.pixels).toHaveLength(24 * 16);
-    expect(sampled.width * sampled.height).toBe(384);
-    expect(source.width).toBe(48);
-    expect(source.height).toBe(32);
+    expect(dimensions).toEqual({ width: 120, height: 80 });
+    expect(sampled.pixels).toHaveLength(120 * 80);
+    expect(sampled.width * sampled.height).toBe(9600);
+    expect(source.width).toBe(240);
+    expect(source.height).toBe(160);
   });
 
   it("keeps reconstruction at source display size instead of resizing the encoded grid", () => {
     const model = deriveImageEncodingModel(source, { samplingPercent: 25, bitDepth: 4, phase: 0 });
-    expect(model.sampled.width).toBe(12);
-    expect(model.sampled.height).toBe(8);
+    expect(model.sampled.width).toBe(60);
+    expect(model.sampled.height).toBe(40);
     expect(model.reconstructed.width).toBe(source.width);
     expect(model.reconstructed.height).toBe(source.height);
     expect(model.reconstructed.pixels).toHaveLength(source.width * source.height);
@@ -59,6 +59,37 @@ describe("image encoding domain model", () => {
     expect(sampled.pixels.map((pixel) => [pixel.sourceX, pixel.sourceY])).toEqual(
       source.pixels.map((_, index) => [index % source.width, Math.floor(index / source.width)]),
     );
+  });
+
+  it("keeps an RGB 24-bit full-density reconstruction identical to the source", () => {
+    const model = deriveImageEncodingModel(source, {
+      samplingPercent: 100,
+      bitDepth: 4,
+      colorMode: "rgb24",
+      phase: 0.8,
+    });
+
+    expect(model.quantized.colorMode).toBe("rgb24");
+    expect(model.quantized.bitDepth).toBe(24);
+    expect(model.quantized.palette).toHaveLength(0);
+    expect(model.averageQuantizationError).toBe(0);
+    expect(model.averageError).toBe(0);
+    expect(model.changedPixelCount).toBe(0);
+    expect(model.reconstructed.pixels).toEqual(source.pixels);
+    expect(model.rawPayload.bits).toBe(240 * 160 * 24);
+  });
+
+  it("keeps RGB colors exact while lower sampling still changes spatial detail", () => {
+    const model = deriveImageEncodingModel(source, {
+      samplingPercent: 50,
+      bitDepth: 2,
+      colorMode: "rgb24",
+      phase: 0,
+    });
+
+    expect(model.averageQuantizationError).toBe(0);
+    expect(model.averageError).toBeGreaterThan(0);
+    expect(model.quantized.palette).toHaveLength(0);
   });
 
   it("keeps every phase-shifted sample live and invertible", () => {
@@ -256,8 +287,8 @@ describe("image encoding domain model", () => {
       phase: 0,
     });
     const color = deriveImageEncodingModel(source, { samplingPercent: 100, bitDepth: 2, phase: 0 });
-    expect(spatial.rawPayload.bits).toBe(12 * 8 * 8);
-    expect(color.rawPayload.bits).toBe(48 * 32 * 2);
+    expect(spatial.rawPayload.bits).toBe(60 * 40 * 8);
+    expect(color.rawPayload.bits).toBe(240 * 160 * 2);
     expect(spatial.sampled.width).not.toBe(color.sampled.width);
     expect(spatial.quantized.bitDepth).not.toBe(color.quantized.bitDepth);
   });

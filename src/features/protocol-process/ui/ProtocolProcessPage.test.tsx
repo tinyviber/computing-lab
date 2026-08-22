@@ -115,9 +115,7 @@ describe("ProtocolProcessPage", () => {
       expect(document.querySelector(selector)).toBeNull();
     }
     expect(
-      within(screen.getByRole("main", { name: /可靠送达实验区/ })).getByText(
-        /时钟是模拟的，\s*每次队列变化都可以检查/,
-      ),
+      within(screen.getByRole("main", { name: /可靠送达实验区/ })).getByText(/时钟是模拟的/),
     ).toBeInTheDocument();
   });
 

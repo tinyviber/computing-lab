@@ -142,7 +142,7 @@ describe("Sound reference UI", () => {
       /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
     );
     expect(firstRender).not.toMatch(/位深/);
-    expect(firstRender).toMatch(/数值来自本地示例/);
+    expect(firstRender).toMatch(/试听使用 48 kHz/);
     expect(firstRender).toMatch(/量化位数（bit depth）/);
     expect(screen.getByRole("group", { name: "分析模式" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "混叠（aliasing）" })).toBeInTheDocument();

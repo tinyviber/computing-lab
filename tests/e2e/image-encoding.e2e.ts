@@ -28,11 +28,11 @@ test("keeps default and legacy image source identities local and truthful", asyn
   });
   expect(nonLocalRequests).toEqual([]);
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
-  await expectSourceIdentity(page, "固定样例", "小猫照片");
-  await expect(page.getByText("小猫照片").first()).toBeVisible();
+  await expectSourceIdentity(page, "固定样例", "小猫插图");
+  await expect(page.getByText("小猫插图").first()).toBeVisible();
   await expect(page.locator("select")).toHaveCount(0);
-  await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
-  await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "32");
+  await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
+  await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
 
   for (const [fixture, label] of [
     ["gradient", "平滑色彩渐变"],
@@ -42,7 +42,7 @@ test("keeps default and legacy image source identities local and truthful", asyn
       waitUntil: "networkidle",
     });
     await expectSourceIdentity(page, "兼容样例", label);
-    await expect(page.getByText("小猫照片")).toHaveCount(0);
+    await expect(page.getByText("小猫插图")).toHaveCount(0);
     await expect(page.locator("select")).toHaveCount(0);
     await expect(page.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeVisible();
     await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");

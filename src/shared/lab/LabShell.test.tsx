@@ -27,7 +27,7 @@ describe("LabShell", () => {
     await renderAppAt("/labs/image-encoding");
 
     const main = screen.getByRole("main", { name: /图像编码实验区/ });
-    expect(main).toContainElement(screen.getByRole("grid"));
+    expect(main).toContainElement(screen.getByRole("img", { name: /120 × 80 编码采样网格/ }));
     expect(main.querySelector("#lab-navigation")).toBeNull();
     expect(main.querySelector(".lab-visualization")).toBeNull();
     expect(main.querySelector(".lab-controls")).toBeNull();
