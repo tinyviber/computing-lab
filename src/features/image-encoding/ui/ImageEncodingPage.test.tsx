@@ -39,7 +39,7 @@ function changeSampling(value = "45") {
 }
 
 describe("ImageEncodingPage", () => {
-  it("renders one unified mission with fixed 25% theoretical raw-pixel budget", async () => {
+  it("renders one unified mission with natural budget and meaning copy", async () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
@@ -47,10 +47,24 @@ describe("ImageEncodingPage", () => {
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("小猫插图")).toHaveLength(2);
-    expect(budget()).toHaveTextContent(/25%/);
-    expect(budget()).toHaveTextContent(/理论原始|像素数据量/);
+    expect(screen.getByText("这次要做什么")).toBeInTheDocument();
+    expect(budget()).toHaveAttribute("data-budget", "baseline-25-percent");
+    expect(budget()).not.toHaveTextContent(/理论原始|平均 RGB|采样率/);
+    expect(budget()).toHaveTextContent(/原来的四分之一以内/);
+    expect(budget()).toHaveTextContent(/平均颜色变化（不是清晰度评分）/);
+    expect(budget()).toHaveTextContent(/空间不够/);
+    expect(budget()).toHaveAttribute("data-budget-state", "over");
+    expect(metric("budget-raw-bits")).toHaveTextContent(/位/);
+    expect(metric("current-raw-bits")).toHaveTextContent(/位/);
+    expect(metric("raw-bits-delta")).toHaveTextContent(/位/);
+    expect(metric("budget-raw-bytes")).toHaveTextContent(/字节/);
+    expect(metric("current-raw-bytes")).toHaveTextContent(/字节/);
+    expect(metric("raw-bytes-delta")).toHaveTextContent(/字节/);
+    expect(metric("current-sampled-pixels")).toHaveTextContent(/个/);
+    expect(metric("changed-pixels")).toHaveTextContent(/个/);
     const formatBoundary = sectionByHeading(/联系实际文件格式/, 3);
     expect(formatBoundary).toHaveTextContent(/PNG.*JPEG.*WebP/);
+    expect(formatBoundary).toHaveTextContent(/实际文件大小/);
     expect(document.querySelectorAll(".lesson-flow-item")).toHaveLength(0);
     expect(document.querySelectorAll('[data-metric="budget-raw-bits"]')).toHaveLength(1);
     expect(document.querySelectorAll('[data-metric="current-raw-bits"]')).toHaveLength(1);
@@ -72,7 +86,7 @@ describe("ImageEncodingPage", () => {
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
       expect(input).toBeEnabled();
     }
-    expect(feedback("observation")).toHaveTextContent(/观察|数据量|颜色差异/);
+    expect(feedback("observation")).toHaveTextContent(/占用空间|颜色变化/);
   });
 
   it("updates current metrics and meaning feedback when sampling changes", async () => {
@@ -87,7 +101,11 @@ describe("ImageEncodingPage", () => {
     expect(metric("raw-bits-delta").textContent).not.toBe(initialDelta);
     expect(metric("average-error").textContent).not.toBe(initialError);
     expect(metric("current-sampled-pixels")).toHaveTextContent(/108 × 72|7,776|7776/);
-    expect(feedback("judgment")).toHaveTextContent(/数据量|颜色差异/);
+    expect(feedback("judgment")).toHaveTextContent(/占用的?空间|颜色变化/);
+
+    changeSampling("25");
+    expect(budget()).toHaveAttribute("data-budget-state", "within");
+    expect(budget()).toHaveTextContent(/空间够用/);
   });
 
   it("updates color metrics without requiring a sampling step", async () => {
@@ -101,7 +119,7 @@ describe("ImageEncodingPage", () => {
 
     expect(metric("current-raw-bits").textContent).not.toBe(initialCurrentBits);
     expect(metric("average-error")).toHaveTextContent(/\d/);
-    expect(feedback("judgment")).toHaveTextContent(/数据量|颜色差异/);
+    expect(feedback("judgment")).toHaveTextContent(/占用的?空间|颜色变化/);
   });
 
   it("keeps formula and format-boundary explanation visible without claiming file size", async () => {
@@ -110,9 +128,11 @@ describe("ImageEncodingPage", () => {
     const calculator = sectionByHeading(/数据量计算/, 3);
     const width = within(calculator).getByRole("spinbutton", { name: "宽度（像素）" });
     fireEvent.change(width, { target: { value: "3" } });
-    expect(calculator).toHaveTextContent(/原始位数|原始数据量/);
+    expect(calculator).toHaveTextContent(/宽度.*高度.*每像素位数/);
+    expect(calculator).toHaveTextContent(/字节/);
     const formatBoundary = sectionByHeading(/联系实际文件格式/, 3);
     expect(formatBoundary).toHaveTextContent(/PNG.*JPEG.*WebP/);
+    expect(formatBoundary).toHaveTextContent(/实际文件大小/);
     expect(screen.queryByText(/教学估算/)).not.toBeInTheDocument();
   });
 
