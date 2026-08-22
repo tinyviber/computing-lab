@@ -166,14 +166,13 @@ export type ProtocolFrame = {
 3. Step through the first request and inspect the queue/time evidence.
 4. In `ack-loss`, inspect the first lost acknowledgment and then the timeout. The receiver already accepted the message, so timeout is not proof of receiver failure.
 5. Step through retry and duplicate suppression.
-6. Run to completion and reconcile final status, attempts, accepted count, duplicate count, acknowledgment count, and simulated time.
+6. Continue with **Step** until terminal and reconcile final status, attempts, accepted count, duplicate count, acknowledgment count, and simulated time.
 7. Compare the fixed result table across all four scenarios, especially `ack-loss` versus `receiver-silent`.
 
-Guided controls are local and non-blocking:
+Optional prediction is local and non-blocking. The lesson has no submit, check, score, or run-all gate; every transition is one learner-visible semantic event:
 
-- **Inspect first fault** selects the first dropped or receiver-unavailable event when present;
-- **Inspect retry** selects the timeout frame when present;
-- an unavailable target is disabled and leaves selection unchanged.
+- selecting any event in the semantic ordered list projects that event's before/after queue and counters;
+- timeout evidence explicitly states that missing acknowledgment leaves delivery status uncertain.
 
 ## Accessibility requirements
 
@@ -184,8 +183,7 @@ Guided controls are local and non-blocking:
 - render captioned/scoped queue tables for the selected before/after snapshots, including due tick, event, attempt, and insertion sequence;
 - render counters, terminal status, fault explanation, and time as text rather than color or animation;
 - provide a labeled prediction control with optional, non-blocking feedback;
-- provide direct accessible descriptions for disabled guided controls;
-- keep Step, Run, Reset, scenario selection, and trace selection keyboard-operable;
+- keep Step, Reset, scenario selection, and trace selection keyboard-operable;
 - test a real narrow viewport in Playwright in addition to semantic jsdom tests.
 
 ## Independent test oracle and review gates
@@ -208,8 +206,7 @@ Required domain tests:
 Required lesson/UI tests:
 
 - prediction remains optional;
-- Step and Run project the domain trace without a second event oracle;
-- first-fault and retry guided selection/no-op behavior;
+- Step projects the domain trace without a second event oracle;
 - selected queue versus final status labels are unambiguous;
 - keyboard trace selection and `aria-current`;
 - fixture switching/reset-to-URL-baseline;

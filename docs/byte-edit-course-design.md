@@ -41,6 +41,8 @@ Six fixed edit presets over the mixed bytes demonstrate the validity rules:
 
 Prediction is optional and non-blocking. There is no submit/check gate, score, or hidden validation workflow.
 
+The UI renders every current byte as an indexed byte tile (hex plus decimal value). After each intervention it compares the complete resulting sequence with the exact original fixture bytes. This exact-original repair comparison is feedback only: it reports equality, length mismatch, and differing indices without blocking another edit. Truncated and overlong sequences remain diagnostics; they are not repair tasks with a completion gate.
+
 ## Domain contract
 
 The feature owns a pure UTF-8 decoder and edit machine under `src/features/byte-edit/domain/**`:

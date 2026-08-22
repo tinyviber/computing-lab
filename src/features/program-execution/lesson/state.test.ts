@@ -5,6 +5,19 @@ import type { ProgramExecutionScenario } from "./scenario";
 
 const scenario: ProgramExecutionScenario = { fixture: "sum-1-to-3" };
 
+type DiscriminatedPrediction = {
+  kind: "assignment" | "condition" | "print";
+  [key: string]: unknown;
+};
+
+function predictionOf(state: ReturnType<typeof createProgramExecutionLessonState>) {
+  return (
+    state as ReturnType<typeof createProgramExecutionLessonState> & {
+      prediction?: DiscriminatedPrediction;
+    }
+  ).prediction;
+}
+
 function reduce(
   state: ReturnType<typeof createProgramExecutionLessonState>,
   ...actions: Parameters<typeof transitionProgramExecutionLesson>[1][]
@@ -15,16 +28,54 @@ function reduce(
 describe("program execution lesson state", () => {
   it("keeps prediction separate and permits non-blocking execution", () => {
     const initial = createProgramExecutionLessonState(scenario);
-    const predicted = reduce(
+    const recorded = reduce(
       initial,
       { type: "set-prediction-draft", value: "6" },
       { type: "record-prediction" },
-      { type: "step" },
     );
+    const predicted = reduce(recorded, { type: "step" });
 
-    expect(predicted.prediction).toBe(6);
+    expect(predictionOf(recorded)).toEqual(expect.objectContaining({ kind: "assignment" }));
+    expect(predicted.predictionFeedback?.prediction).toEqual(
+      expect.objectContaining({ kind: "assignment" }),
+    );
+    expect(predicted.predictionDraft).toBe("");
     expect(predicted.frames).toHaveLength(1);
     expect(predicted.machine.output).toEqual([]);
+  });
+
+  it("records discriminated predictions for assignment, condition, and print controls", () => {
+    let state = createProgramExecutionLessonState(scenario);
+
+    state = reduce(
+      state,
+      { type: "set-prediction-draft", value: "0" },
+      { type: "record-prediction" },
+    );
+    expect(predictionOf(state)).toEqual(expect.objectContaining({ kind: "assignment" }));
+
+    state = reduce(state, { type: "step" }, { type: "step" });
+    state = reduce(
+      state,
+      { type: "set-prediction-draft", value: "真" },
+      { type: "record-prediction" },
+    );
+    expect(predictionOf(state)).toEqual(expect.objectContaining({ kind: "condition" }));
+
+    state = reduce(state, ...Array.from({ length: 10 }, () => ({ type: "step" as const })));
+    expect(state.predictionFeedback?.actual).toEqual(
+      expect.objectContaining({ kind: "condition", result: true }),
+    );
+    state = reduce(
+      state,
+      { type: "set-prediction-draft", value: "6" },
+      { type: "record-prediction" },
+    );
+    expect(predictionOf(state)).toEqual(expect.objectContaining({ kind: "print" }));
+    state = reduce(state, { type: "step" });
+    expect(state.predictionFeedback?.actual).toEqual(
+      expect.objectContaining({ kind: "print", value: 6 }),
+    );
   });
 
   it("runs through the expected local trace without borrowing runProgram as an oracle", () => {
@@ -89,7 +140,7 @@ describe("program execution lesson state", () => {
     );
     expect(completed.fixture).toBe("zero-iterations");
     expect(completed.frames).toEqual([]);
-    expect(completed.prediction).toBeUndefined();
+    expect(predictionOf(completed)).toBeUndefined();
     expect(completed.machine.status).toBe("running");
 
     const reset = reduce(completed, { type: "reset" });
@@ -106,8 +157,8 @@ describe("program execution lesson state", () => {
         { type: "set-prediction-draft", value },
         { type: "record-prediction" },
       );
-      expect(invalid.prediction).toBeUndefined();
-      expect(invalid.predictionMessage).toMatch(/whole-number/i);
+      expect(predictionOf(invalid)).toBeUndefined();
+      expect(invalid.predictionMessage).toMatch(/安全整数/);
       expect(invalid.machine).toEqual(initial.machine);
       expect(invalid.frames).toEqual([]);
     }
@@ -117,9 +168,16 @@ describe("program execution lesson state", () => {
     const complete = reduce(createProgramExecutionLessonState(scenario), { type: "run-all" });
     const afterStep = reduce(complete, { type: "step" });
     const afterRun = reduce(complete, { type: "run-all" });
+    const terminalDraft = reduce(
+      complete,
+      { type: "set-prediction-draft", value: "6" },
+      { type: "step" },
+    );
 
     expect(afterStep).toEqual(complete);
     expect(afterRun).toEqual(complete);
+    expect(terminalDraft.predictionDraft).toBe("");
+    expect(terminalDraft.predictionFeedback).toEqual(complete.predictionFeedback);
   });
 
   it("keeps step-limit and runtime-error terminal states idempotent", () => {

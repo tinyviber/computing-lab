@@ -36,6 +36,50 @@
   line-height: 20px;
 }
 
+.network-mission-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(180px, 0.8fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--subtle);
+}
+
+.network-mission-card strong,
+.network-mission-card span {
+  display: block;
+}
+
+.network-mission-card strong {
+  margin-top: 5px;
+  color: var(--primary);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.network-mission-card span {
+  margin-top: 4px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.network-mission-status {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid var(--warning);
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.network-mission-status.is-solved {
+  border-color: var(--success);
+  color: var(--primary);
+}
+
 .scenario-chip,
 .source-chip,
 .network-metric,
@@ -609,6 +653,36 @@
     monospace;
 }
 
+.network-why {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--border);
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.network-why summary {
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.network-why ol {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.network-why li strong,
+.network-why li span {
+  display: block;
+}
+
+.network-why li span {
+  color: var(--muted);
+}
+
 .history-card {
   padding-bottom: 18px;
 }
@@ -756,6 +830,11 @@
   .network-card-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .network-mission-card {
+    grid-template-columns: 1fr;
+    gap: 12px;
   }
   .network-card-heading > .source-chip {
     margin: 0;

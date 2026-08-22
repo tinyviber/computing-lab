@@ -2,11 +2,15 @@ import { describe, expect, it } from "vitest";
 import { createProtocolLessonState, transitionProtocolLesson } from "./state";
 
 describe("protocol lesson state", () => {
-  const scenario = { scenario: "ack-loss" as const };
   const reduce = transitionProtocolLesson;
+  function runToEnd(state: ReturnType<typeof createProtocolLessonState>) {
+    let current = state;
+    while (current.machine.status === "running") current = reduce(current, { type: "step" });
+    return current;
+  }
 
-  it("keeps prediction optional and records a valid outcome", () => {
-    const initial = createProtocolLessonState(scenario);
+  it("keeps prediction optional and records timeout uncertainty", () => {
+    const initial = createProtocolLessonState({ scenario: "ack-loss" });
     const invalid = reduce(initial, { type: "record-prediction" });
     const prepared = reduce(
       reduce(reduce(initial, { type: "set-prediction-draft", value: "delivered" }), {
@@ -16,72 +20,70 @@ describe("protocol lesson state", () => {
       { type: "set-timeout-conclusion-draft", value: "status-unknown" },
     );
     const recorded = reduce(prepared, { type: "record-prediction" });
-
     expect(invalid.prediction).toBeUndefined();
-    expect(invalid.predictionMessage).toMatch(/choose/i);
-    expect(recorded.prediction).toBe("delivered");
-    expect(recorded.predictionMessage).toMatch(/recorded/i);
-  });
-
-  it("uses one domain step per lesson frame and runs the expected retry trace", () => {
-    const initial = createProtocolLessonState(scenario);
-    const first = reduce(initial, { type: "step" });
-    const complete = reduce(initial, { type: "run-all" });
-
-    expect(first.frames).toHaveLength(1);
-    expect(first.frames[0].event.kind).toBe("send-request");
-    expect(complete.frames).toHaveLength(9);
-    expect(complete.frames[0].event.kind).toBe("send-request");
-    expect(complete.frames.at(-1)?.event.kind).toBe("deliver-ack");
-    expect(complete.selectedFrameIndex).toBe(8);
-  });
-
-  it("selects guided fault and retry evidence only when present", () => {
-    const initial = createProtocolLessonState(scenario);
-    const before = reduce(initial, { type: "inspect-first-fault" });
-    const complete = reduce(initial, { type: "run-all" });
-    const fault = reduce(complete, { type: "inspect-first-fault" });
-    const retry = reduce(complete, { type: "inspect-retry" });
-    const noLoss = reduce(initial, { type: "set-scenario", scenario: "no-loss" });
-    const noLossComplete = reduce(noLoss, { type: "run-all" });
-    const noFault = reduce(noLossComplete, { type: "inspect-first-fault" });
-
-    expect(before).toBe(initial);
-    expect(fault.selectedFrameIndex).toBe(3);
-    expect(retry.selectedFrameIndex).toBe(4);
-    expect(noFault).toBe(noLossComplete);
-
-    const silent = reduce(reduce(initial, { type: "set-scenario", scenario: "receiver-silent" }), {
-      type: "run-all",
+    expect(recorded).toMatchObject({
+      prediction: "delivered",
+      predictionAttempts: 2,
+      timeoutConclusion: "status-unknown",
     });
-    expect(reduce(silent, { type: "inspect-first-fault" }).selectedFrameIndex).toBe(1);
   });
 
-  it("clears frames and transient prediction state on scenario switch and reset", () => {
-    const initial = createProtocolLessonState(scenario);
-    const changed = reduce(
-      reduce(reduce(initial, { type: "set-prediction-draft", value: "delivered" }), {
-        type: "record-prediction",
-      }),
-      { type: "run-all" },
+  it.each([
+    ["no-loss", ["send-request", "deliver-request", "send-ack", "deliver-ack"], "delivered"],
+    [
+      "request-loss",
+      ["send-request", "timeout", "send-request", "deliver-request", "send-ack", "deliver-ack"],
+      "delivered",
+    ],
+    [
+      "ack-loss",
+      [
+        "send-request",
+        "deliver-request",
+        "send-ack",
+        "deliver-ack",
+        "timeout",
+        "send-request",
+        "deliver-request",
+        "send-ack",
+        "deliver-ack",
+      ],
+      "delivered",
+    ],
+    [
+      "receiver-silent",
+      ["send-request", "deliver-request", "timeout", "send-request", "deliver-request", "timeout"],
+      "failed",
+    ],
+  ] as const)("projects %s as a complete semantic event sequence", (scenario, kinds, status) => {
+    const complete = runToEnd(createProtocolLessonState({ scenario }));
+    expect(complete.frames.map((frame) => frame.event.kind)).toEqual(kinds);
+    expect(complete.machine.status).toBe(status);
+    expect(complete.selectedFrameIndex).toBe(kinds.length - 1);
+    expect(complete.frames.every((frame) => frame.after.now === frame.event.at)).toBe(true);
+  });
+
+  it("keeps retry duplicate evidence distinct from request loss", () => {
+    const ackLoss = runToEnd(createProtocolLessonState({ scenario: "ack-loss" }));
+    const requestLoss = runToEnd(createProtocolLessonState({ scenario: "request-loss" }));
+    expect(ackLoss.frames.some((frame) => frame.event.outcome === "duplicate-suppressed")).toBe(
+      true,
     );
-    const switched = reduce(changed, { type: "set-scenario", scenario: "request-loss" });
-    const reset = reduce(changed, { type: "reset" });
-
-    expect(switched.frames).toEqual([]);
-    expect(switched.scenario).toBe("request-loss");
-    expect(switched.prediction).toBeUndefined();
-    expect(reset.scenario).toBe("ack-loss");
-    expect(reset.frames).toEqual([]);
-    expect(reset.prediction).toBeUndefined();
+    expect(requestLoss.frames.some((frame) => frame.event.outcome === "duplicate-suppressed")).toBe(
+      false,
+    );
+    expect(ackLoss.machine.duplicateCount).toBe(1);
+    expect(requestLoss.machine.duplicateCount).toBe(0);
   });
 
-  it("keeps terminal stepping and repeated run idempotent", () => {
-    const complete = reduce(createProtocolLessonState(scenario), { type: "run-all" });
-    const afterStep = reduce(complete, { type: "step" });
-    const afterRun = reduce(complete, { type: "run-all" });
-
-    expect(afterStep).toBe(complete);
-    expect(afterRun).toBe(complete);
+  it("does not require prediction before stepping and restores the original URL scenario", () => {
+    const initial = createProtocolLessonState({ scenario: "request-loss" });
+    const stepped = reduce(initial, { type: "step" });
+    const changed = reduce(stepped, { type: "set-scenario", scenario: "no-loss" });
+    const reset = reduce(changed, { type: "reset" });
+    expect(stepped.frames).toHaveLength(1);
+    expect(changed.frames).toEqual([]);
+    expect(reset.scenario).toBe("request-loss");
+    expect(reset.prediction).toBeUndefined();
   });
 });

@@ -31,6 +31,25 @@ test("traces fixed queries, provenance, and the catalog rules", async ({ page })
   await expect(query2).toHaveAttribute("aria-current", "true");
 });
 
+test("selects an aggregate result and exposes linked source fields without a gate", async ({
+  page,
+}) => {
+  await page.goto("labs/relational-data?scenario=catalog", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "执行一步" }).click();
+  await page.getByRole("button", { name: /查询 1：全部图书/ }).click();
+  await expect(page.getByRole("table", { name: /查询结果行/ })).toContainText(/The Left Hand/);
+
+  await page.getByRole("button", { name: "运行到结束" }).click();
+  await page.getByRole("button", { name: /查询 4：按借阅人统计借阅数/ }).click();
+  await page.getByRole("button", { name: /NULL.*选择结果行 row-3/ }).click();
+  await expect(page.getByRole("region", { name: "选中结果的来源表" })).toContainText(
+    /结果行 row-3 的来源/,
+  );
+  await expect(page.locator("tr.is-source-row")).toHaveCount(3);
+  await expect(page.locator("td.is-source-field")).toHaveCount(5);
+  await expect(page.getByRole("button", { name: /submit|score|check/i })).toHaveCount(0);
+});
+
 test.describe("responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 

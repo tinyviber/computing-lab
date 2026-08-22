@@ -75,6 +75,67 @@
   text-transform: uppercase;
 }
 
+.sound-focus-card {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 18px;
+  padding: 16px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-panel);
+  background: var(--subtle);
+}
+
+.sound-focus-card h3 {
+  margin-top: 5px;
+  color: var(--primary);
+  font-size: 15px;
+}
+
+.sound-focus-card p:not(.eyebrow) {
+  margin-top: 7px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.sound-focus-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.sound-focus-action {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 88px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.sound-focus-action:hover,
+.sound-focus-action[aria-pressed="true"] {
+  border-color: var(--accent);
+  background: #eaf0ff;
+}
+
+.sound-focus-action strong {
+  font-size: 12px;
+}
+
+.sound-focus-action span {
+  color: var(--secondary);
+  font-size: 10px;
+  line-height: 15px;
+}
+
 .sound-panel {
   overflow: hidden;
   border: 1px solid var(--border);
@@ -384,6 +445,10 @@
 }
 
 @media (max-width: 767px) {
+  .sound-focus-card {
+    grid-template-columns: 1fr;
+  }
+
   .sound-plot-stage {
     height: 240px;
     padding: 20px 14px;

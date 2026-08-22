@@ -37,6 +37,11 @@ export type ByteEditFrame = {
   edit: ByteEditEdit;
   predictedValid?: boolean;
   decode: DecodeResult;
+  originalComparison: {
+    exact: boolean;
+    differingByteIndices: readonly number[];
+    lengthMatches: boolean;
+  };
 };
 
 export type ByteEditStepResult = {
@@ -230,6 +235,10 @@ export function stepByteEdit(
       ? machine.bytes.map((value, index) => (index === edit.byteIndex ? edit.value : value))
       : cloneBytes(edit.preset === "original" ? scenario.bytes : presets[edit.preset].bytes);
   const after = snapshot({ bytes: nextBytes });
+  const differingByteIndices = Array.from(
+    { length: Math.max(nextBytes.length, scenario.bytes.length) },
+    (_, index) => index,
+  ).filter((index) => nextBytes[index] !== scenario.bytes[index]);
   return {
     machine: { bytes: nextBytes },
     frame: {
@@ -239,6 +248,11 @@ export function stepByteEdit(
       edit,
       predictedValid,
       decode: decodeUtf8(nextBytes),
+      originalComparison: {
+        exact: differingByteIndices.length === 0,
+        differingByteIndices,
+        lengthMatches: nextBytes.length === scenario.bytes.length,
+      },
     },
   };
 }

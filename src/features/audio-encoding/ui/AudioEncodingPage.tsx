@@ -21,6 +21,17 @@ const MODE_LABELS: Record<SoundMode, string> = {
   quantization: "量化（quantization）",
 };
 
+const MODE_GUIDE: Record<Exclude<SoundMode, "compare">, { title: string; description: string }> = {
+  aliasing: {
+    title: "采样率实验",
+    description: "调低采样率，先听高频分量如何折叠，再用 Nyquist 证据解释。",
+  },
+  quantization: {
+    title: "位深实验",
+    description: "调低位深，先听重建失真，再用量化级别与误差解释。",
+  },
+};
+
 const VIEW_LABELS: Record<SoundView, string> = {
   compare: "对照",
   samples: "采样点",
@@ -262,6 +273,29 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>
+
+          <section className="sound-focus-card" aria-label="主要实验入口">
+            <div>
+              <p className="eyebrow">先做一个实验</p>
+              <h3>先听差异，再看波形证据</h3>
+              <p>选择一个入口，试听原始信号与重建信号，再调整对应参数。</p>
+            </div>
+            <div className="sound-focus-actions" role="group" aria-label="主要分析入口">
+              {(Object.keys(MODE_GUIDE) as Array<Exclude<SoundMode, "compare">>).map((mode) => (
+                <button
+                  aria-label={MODE_GUIDE[mode].title}
+                  aria-pressed={state.mode === mode}
+                  className="sound-focus-action"
+                  key={mode}
+                  onClick={() => dispatch({ type: "set-mode", mode })}
+                  type="button"
+                >
+                  <strong>{MODE_GUIDE[mode].title}</strong>
+                  <span>{MODE_GUIDE[mode].description}</span>
+                </button>
+              ))}
+            </div>
+          </section>
 
           <div className="sound-panel sound-plot-panel">
             <div className="sound-panel-header">

@@ -8,6 +8,21 @@ describe("UTF-8 scenario", () => {
     expect(parseUtf8Scenario({ scenario: "cjk" })).toEqual({ scenario: "cjk" });
   });
 
+  it("ignores transient lesson state while preserving first-value URL semantics", () => {
+    expect(parseUtf8Scenario("scenario=ascii&scenario=emoji&frame=3&prediction=4-byte")).toEqual({
+      scenario: "ascii",
+    });
+    expect(
+      serializeUtf8Scenario({
+        scenario: "ascii",
+        frames: [{ index: 0 }],
+        selectedFrameIndex: 0,
+        predictionBranch: "1-byte",
+        predictionBytes: 1,
+      } as never),
+    ).toBe("scenario=ascii");
+  });
+
   it("serializes only non-default fixtures", () => {
     expect(serializeUtf8Scenario({ scenario: "mixed" })).toBe("");
     expect(serializeUtf8Scenario({ scenario: "emoji" })).toBe("scenario=emoji");

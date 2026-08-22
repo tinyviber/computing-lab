@@ -1,4 +1,5 @@
-export type Utf8ScenarioId = "ascii" | "accent" | "cjk" | "emoji" | "mixed";
+export type Utf8ScenarioId =
+  "ascii" | "accent" | "cjk" | "emoji" | "mixed" | "boundary-1-2" | "boundary-2-3" | "boundary-3-4";
 
 export type Utf8Scenario = {
   id: Utf8ScenarioId;

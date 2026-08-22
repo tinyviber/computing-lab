@@ -12,7 +12,12 @@ import {
   type ProbeTarget,
 } from "../domain/model";
 import { parseHomeNetworkScenario } from "../lesson/scenario";
-import { createHomeNetworkLessonState, transitionHomeNetworkLesson } from "../lesson/state";
+import {
+  createHomeNetworkLessonState,
+  homeNetworkConfigMatchesLatestProbe,
+  homeNetworkMissionSolved,
+  transitionHomeNetworkLesson,
+} from "../lesson/state";
 import "./home-network.css";
 
 const NODE_POSITIONS: Record<NetworkDeviceId, { x: number; y: number }> = {
@@ -93,6 +98,49 @@ function deviceAddress(device: NetworkDevice | typeof INTERNET_ENDPOINT): string
   return device.id === "router" ? device.lanIp : device.ip;
 }
 
+const SCENARIO_COPY: Record<string, { symptom: string; task: string }> = {
+  "first-home-setup": {
+    symptom: "电脑和打印机刚接入同一个家庭网络。",
+    task: "确认局部网络可以直接送达。",
+  },
+  "static-printer": {
+    symptom: "电脑能看到家庭网络，但打印请求没有完成。",
+    task: "找出请求第一次停止的位置，再修好它。",
+  },
+  "remote-internet": {
+    symptom: "局域网设备正常，电脑正在尝试访问外部网络。",
+    task: "判断何时需要网关、路由和 NAT。",
+  },
+  "wrong-gateway": {
+    symptom: "电脑可以使用局域网，但外部页面打不开。",
+    task: "从首个失败证据反推正确配置。",
+  },
+  "duplicate-ip": {
+    symptom: "打印机偶尔回应，网络中的地址记录互相矛盾。",
+    task: "用 ARP 证据定位不稳定的地址。",
+  },
+  "invalid-config": {
+    symptom: "打印请求还没离开电脑，配置就已经可疑。",
+    task: "先修正地址，再验证完整路径。",
+  },
+};
+
+const SCENARIO_LABELS: Record<string, string> = {
+  "first-home-setup": "情境 A",
+  "static-printer": "情境 B",
+  "remote-internet": "情境 C",
+  "wrong-gateway": "情境 D",
+  "duplicate-ip": "情境 E",
+  "invalid-config": "情境 F",
+};
+
+const WHY_EVENT_KINDS = new Set<ProbeEvent["kind"]>([
+  "arp-next-hop",
+  "route-lookup",
+  "nat-request",
+  "reverse-nat",
+]);
+
 function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseHomeNetworkScenario(search), [search]);
   const [lesson, dispatch] = useReducer(
@@ -109,6 +157,8 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
     lesson.selectedDevice === "internet" ? INTERNET_ENDPOINT : lesson.config[lesson.selectedDevice];
   const networkDevices = [lesson.config.router, lesson.config.laptop, lesson.config.printer];
   const selectedTrace = lesson.selectedTrace;
+  const selectedTraceWhyEvents =
+    selectedTrace?.events.filter((event) => WHY_EVENT_KINDS.has(event.kind)) ?? [];
   const selectedFailure = selectedTrace?.firstFailure;
   const latestProbe = lesson.probeHistory[lesson.probeHistory.length - 1];
   const comparisonTrace =
@@ -131,6 +181,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
       : "远程 / 路由器"
     : "未分类";
   const validationReasonCode = selectedTrace?.firstFailure?.reasonCode;
+  const scenarioCopy = SCENARIO_COPY[lesson.scenario] ?? SCENARIO_COPY["static-printer"];
+  const scenarioLabel = SCENARIO_LABELS[lesson.scenario] ?? "当前情境";
+  const missionSolved = homeNetworkMissionSolved(lesson);
 
   const editField = (field: "ip" | "prefix" | "gateway", value: string) => {
     if (lesson.selectedDevice === "laptop" || lesson.selectedDevice === "printer") {
@@ -147,11 +200,39 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             <h2>找出数据包第一次被拦住的地方</h2>
             <p>家庭局域网使用 192.168.1.0/24。</p>
           </div>
-          <div className="scenario-chip" aria-label={`预设情境 ${lesson.scenario}`}>
-            <span>预设</span>
-            <strong>{lesson.scenario}</strong>
+          <div className="scenario-chip" aria-label="当前家庭网络情境">
+            <span>当前情境</span>
+            <strong>{scenarioLabel}</strong>
           </div>
         </header>
+
+        <section aria-label="当前任务" className="network-mission-card">
+          <div>
+            <p className="eyebrow">症状</p>
+            <strong>{scenarioCopy.symptom}</strong>
+          </div>
+          <div>
+            <p className="eyebrow">目标</p>
+            <strong>{probeTargetLabel(lesson.target)}</strong>
+            <span>{scenarioCopy.task}</span>
+          </div>
+          <p
+            aria-live="polite"
+            className={`network-mission-status${missionSolved ? " is-solved" : ""}`}
+          >
+            {missionSolved
+              ? "验证成功：最新探针已送达。"
+              : !latestProbe
+                ? "先发送一次探针，观察第一个失败。"
+                : latestProbe.target !== lesson.target
+                  ? "目标已改变；再次发送探针验证当前路径。"
+                  : !homeNetworkConfigMatchesLatestProbe(lesson)
+                    ? "配置已改变；再次发送探针验证。"
+                    : latestProbe.outcome === "delivered"
+                      ? "路径已送达；可以比较这次探针的证据。"
+                      : `仍未修复：最新探针在${latestProbe.firstFailure ? reasonLabel(latestProbe.firstFailure.reasonCode) : "路径完成前"}停止。`}
+          </p>
+        </section>
 
         <div className="network-workspace">
           <section className="network-canvas-card" aria-labelledby="topology-heading">
@@ -530,6 +611,31 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
                 </div>
               ) : null}
             </section>
+            <details className="network-why">
+              <summary>为什么？查看 ARP、路由与 NAT 证据</summary>
+              {selectedTrace ? (
+                selectedTraceWhyEvents.length ? (
+                  <ol>
+                    {selectedTraceWhyEvents.map((event) => (
+                      <li key={event.id}>
+                        <strong>{eventKindLabel(event.kind)}</strong>
+                        <span>{reasonLabel(event.reasonCode)}</span>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p>
+                    本次探针在
+                    {selectedTrace.firstFailure
+                      ? reasonLabel(selectedTrace.firstFailure.reasonCode)
+                      : "路径完成前"}
+                    停止，暂无 ARP、路由或 NAT 事件。
+                  </p>
+                )
+              ) : (
+                <p>发送探针后，这里会按事件顺序解释下一跳。</p>
+              )}
+            </details>
           </aside>
         </div>
 

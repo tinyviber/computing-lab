@@ -29,7 +29,14 @@ export type RelationalQueryRow = {
 export type RelationalProvenanceRow = {
   resultRowId: string;
   sourceIds: readonly string[];
+  sourceRefs: readonly RelationalSourceReference[];
   note: string;
+};
+
+export type RelationalSourceReference = {
+  table: string;
+  rowId: string;
+  columns: readonly string[];
 };
 
 export type RelationalQueryResult = {
@@ -140,6 +147,14 @@ function findRowByValue(
   return current.rows.find((row) => sameRelationalValue(row.values[column], value));
 }
 
+function sourceRef(
+  tableName: string,
+  row: RelationalRow,
+  columns: readonly string[],
+): RelationalSourceReference {
+  return { table: tableName, rowId: row.id, columns: [...columns] };
+}
+
 function projectAllBooks(scenario: RelationalScenario): RelationalQueryResult {
   const books = table(scenario, "books");
   const rows = books.rows.map((row, index) => ({
@@ -156,6 +171,13 @@ function projectAllBooks(scenario: RelationalScenario): RelationalQueryResult {
     provenance: rows.map((row, index) => ({
       resultRowId: row.id,
       sourceIds: [books.rows[index].id],
+      sourceRefs: [
+        sourceRef(
+          "books",
+          books.rows[index],
+          books.columns.map((column) => column.name),
+        ),
+      ],
       note: "project",
     })),
   };
@@ -176,6 +198,7 @@ function filterAvailableBooks(scenario: RelationalScenario): RelationalQueryResu
     provenance: rows.map((row, index) => ({
       resultRowId: row.id,
       sourceIds: [matched[index].id],
+      sourceRefs: [sourceRef("books", matched[index], ["available"])],
       note: "filter available",
     })),
   };
@@ -202,6 +225,11 @@ function joinOverdueLoans(scenario: RelationalScenario): RelationalQueryResult {
           due: loan.values.due,
         },
         source: [loan.id, borrower.id, book.id],
+        sourceRefs: [
+          sourceRef("loans", loan, ["borrower_id", "book_id", "due"]),
+          sourceRef("borrowers", borrower, ["id", "name"]),
+          sourceRef("books", book, ["id", "title"]),
+        ],
       };
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== undefined);
@@ -213,9 +241,10 @@ function joinOverdueLoans(scenario: RelationalScenario): RelationalQueryResult {
       "Each overdue loan is joined with its borrower and book; the provenance names all three source rows.",
     columns: ["loan", "borrower", "book", "due"],
     rows: rows.map(({ id, values }) => ({ id, values })),
-    provenance: rows.map(({ id, source }) => ({
+    provenance: rows.map(({ id, source, sourceRefs }) => ({
       resultRowId: id,
       sourceIds: source,
+      sourceRefs,
       note: "join",
     })),
   };
@@ -227,16 +256,40 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
   const books = table(scenario, "books");
   const counts = new Map<
     string,
-    { name: RelationalValue; sourceIds: string[]; loanCount: number }
+    {
+      name: RelationalValue;
+      sourceIds: string[];
+      sourceRefs: RelationalSourceReference[];
+      loanCount: number;
+    }
   >();
   for (const loan of loans.rows) {
     const borrower = findRowByValue(borrowers, "id", loan.values.borrower_id);
     const book = findRowByValue(books, "id", loan.values.book_id);
     if (!borrower || !book) continue;
     const borrowerName = borrower.values.name;
-    const existing = counts.get(borrower.id) ?? { name: borrowerName, sourceIds: [], loanCount: 0 };
+    const existing = counts.get(borrower.id) ?? {
+      name: borrowerName,
+      sourceIds: [],
+      sourceRefs: [],
+      loanCount: 0,
+    };
     for (const sourceId of [loan.id, borrower.id, book.id]) {
       if (!existing.sourceIds.includes(sourceId)) existing.sourceIds.push(sourceId);
+    }
+    for (const ref of [
+      sourceRef("loans", loan, ["borrower_id", "book_id"]),
+      sourceRef("borrowers", borrower, ["id", "name"]),
+      sourceRef("books", book, ["id"]),
+    ]) {
+      const current = existing.sourceRefs.find(
+        (candidate) => candidate.table === ref.table && candidate.rowId === ref.rowId,
+      );
+      if (current) {
+        current.columns = [...new Set([...current.columns, ...ref.columns])];
+      } else {
+        existing.sourceRefs.push(ref);
+      }
     }
     existing.loanCount += 1;
     counts.set(borrower.id, existing);
@@ -257,6 +310,7 @@ function aggregateBorrowerCounts(scenario: RelationalScenario): RelationalQueryR
     provenance: rows.map((row, index) => ({
       resultRowId: row.id,
       sourceIds: entries[index].sourceIds,
+      sourceRefs: entries[index].sourceRefs,
       note: "aggregate over join; stable union of participating loan, borrower, and book rows",
     })),
   };
@@ -334,7 +388,11 @@ function cloneMachine(machine: RelationalMachine): RelationalMachine {
     results: machine.results.map((result) => ({
       ...result,
       rows: result.rows.map((row) => ({ ...row, values: { ...row.values } })),
-      provenance: result.provenance.map((entry) => ({ ...entry, sourceIds: [...entry.sourceIds] })),
+      provenance: result.provenance.map((entry) => ({
+        ...entry,
+        sourceIds: [...entry.sourceIds],
+        sourceRefs: entry.sourceRefs.map((ref) => ({ ...ref, columns: [...ref.columns] })),
+      })),
     })),
   };
 }

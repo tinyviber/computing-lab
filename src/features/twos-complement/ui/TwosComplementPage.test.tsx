@@ -12,9 +12,34 @@ function evidenceCards() {
 }
 
 describe("TwosComplementPage", () => {
+  it("starts in 4-bit progressive disclosure with sign conflict before carry details", async () => {
+    await renderAppAt("/labs/twos-complement");
+    expect(screen.getByRole("main", { name: /二进制补码实验区/ })).not.toHaveTextContent(
+      /\b(signed|unsigned)\b/,
+    );
+    expect(screen.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "8 位（展开后）" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "符号位与大小的冲突" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "结果与计算过程" })).not.toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
+    expect(screen.getByRole("button", { name: "8 位" })).toBeEnabled();
+    expect(screen.getByRole("region", { name: "结果与计算过程" })).toBeInTheDocument();
+  });
+
+  it("keeps the fixed-width domain result while changing only the active reading", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");
+    await user.click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
+    expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "无符号" }));
+    expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
+    expect(screen.getByText(/按无符号.*存储为/)).toBeInTheDocument();
+  });
+
   it("hydrates a direct URL with its canonical word, reading, and model evidence", async () => {
     const model = deriveIntegerModel({ width: 4, left: "1111", right: "0001" });
     await renderAppAt("/labs/twos-complement?width=4&a=1111&b=0001&reading=unsigned");
+    await userEvent.setup().click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
 
     expect(screen.getByRole("main", { name: /二进制补码实验区/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
@@ -35,6 +60,7 @@ describe("TwosComplementPage", () => {
 
   it("keeps the stored result as a hook without putting it in the prompt", async () => {
     await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");
+    await userEvent.setup().click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
 
     const prompt = screen.getByRole("heading", { name: /0111 \+ 0001/ });
     expect(prompt).toHaveTextContent("位模式与数值");
@@ -46,6 +72,7 @@ describe("TwosComplementPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/twos-complement?width=4&a=0111&b=0001&reading=signed");
 
+    await user.click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
     await user.click(screen.getByRole("button", { name: "8 位" }));
     expect(screen.getByRole("button", { name: "A，第 7 位，0" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "A，第 0 位，1" })).toBeInTheDocument();
@@ -73,6 +100,7 @@ describe("TwosComplementPage", () => {
     await user.click(screen.getByRole("button", { name: /恢复初始情境/ }));
     expect(screen.getByRole("button", { name: "A，第 0 位，1" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "有符号" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
     expect(screen.getByText("1000", { selector: ".twos-result-card code" })).toBeInTheDocument();
   });
 
@@ -80,6 +108,7 @@ describe("TwosComplementPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/twos-complement?width=8&a=00000000&b=00000000&reading=signed");
 
+    await user.click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
     await user.click(screen.getByRole("button", { name: /^127 \+ 1/ }));
     expect(
       screen.getByText("10000000", { selector: ".twos-result-card code" }),

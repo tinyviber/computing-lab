@@ -115,4 +115,46 @@ describe("RelationalDataPage", () => {
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
   });
+
+  it("selects a result row and highlights its provenance source rows and fields", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/relational-data?scenario=catalog");
+    await user.click(button("运行到结束"));
+    await user.click(screen.getByRole("button", { name: /查询 4：按借阅人统计借阅数/ }));
+
+    const resultRow = screen.getByRole("button", { name: /NULL.*选择结果行 row-3/ });
+    await user.click(resultRow);
+    expect(resultRow).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("table", { name: /哪些原始记录产生了每条结果/ })).toHaveTextContent(
+      /row-3.*loan-4, person-3, book-1/,
+    );
+
+    const sourceTables = screen.getByRole("region", { name: "选中结果的来源表" });
+    expect(sourceTables).toHaveTextContent(/结果行 row-3 的来源/);
+    expect(sourceTables.querySelectorAll("tr.is-source-row")).toHaveLength(3);
+    expect(sourceTables.querySelectorAll("td.is-source-field")).toHaveLength(5);
+    expect(sourceTables).toHaveTextContent(/loan-4/);
+  });
+
+  it("shows empty-result evidence without requiring submit, score, or run-all", async () => {
+    await renderAppAt("/labs/relational-data");
+    await userEvent.setup().click(button("执行一步"));
+
+    expect(screen.getByRole("table", { name: /查询结果行/ })).toHaveTextContent(/The Left Hand/);
+    expect(screen.queryByRole("button", { name: /submit|score|check/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/提交答案|得分|评分/)).not.toBeInTheDocument();
+  });
+
+  it("restores the URL-selected initial state after result exploration", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/relational-data?scenario=catalog");
+    await user.click(button("运行到结束"));
+    await user.click(screen.getByRole("button", { name: /查询 4：按借阅人统计借阅数/ }));
+    await user.click(screen.getByRole("button", { name: /Ada.*选择结果行 row-1/ }));
+    await user.click(button("恢复进入页面时的初始状态"));
+
+    expect(screen.getByRole("combobox", { name: /关系数据情境/ })).toHaveValue("catalog");
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.queryByRole("table", { name: /查询结果行/ })).not.toBeInTheDocument();
+  });
 });

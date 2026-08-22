@@ -213,6 +213,26 @@
   font-size: 12px;
 }
 
+.twos-sign-conflict-card {
+  padding: 18px 20px;
+}
+
+.twos-sign-conflict-card p {
+  color: var(--secondary);
+  line-height: 1.6;
+}
+
+.twos-reveal-button {
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
 .twos-example-list button:hover,
 .twos-reset:hover,
 .twos-bit-button:hover {

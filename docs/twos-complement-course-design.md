@@ -33,9 +33,10 @@
 1. **设定机器**：在 4-bit/8-bit segment 中选择 word width。初始为 4 bit，旁边始终显示 unsigned 与 signed range。宽度变化不会让 JavaScript 整数自动扩张：lesson 用当前 reading 保持两个 operand 的值，signed 情况 sign-extend，unsigned 情况 zero-extend；超出新的 range 时仍由 word 的低位定义结果。
 2. **操纵 word**：A 与 B 的每个 bit 都是键盘可触发的 button，并标示 bit position / current value。点击后立即重算，不存在 submit step。
 3. **读同一结果**：signed/unsigned segmented reading 控制 primary sentence，但 result card 同时保留另一种 interpretation，因此切换不会伪装成改变 bits。
-4. **观察 computation**：从低位向高位的 ripple trace 显示每列 carry-in、A、B、result；最高列右侧单独保留 carry-out（“width 外、未存入”）。
-5. **验证边界**：快捷例子按当前 width 提供 signed-boundary、carry-only 与 negative-overflow：4-bit 分别是 `0111 + 0001`、`1111 + 0001`、`1000 + 1111`；8-bit 分别是 `01111111 + 00000001`、`11111111 + 00000001`、`10000000 + 11111111`。它们不是练习关卡，也不写入 URL。
-6. **复位**：恢复 URL 初始 scenario，而不是全局固定 default。
+4. **先处理符号冲突**：默认从 4-bit 开始，先显示 sign bit、signed magnitude/range 与结果字的 unsigned/signed 两种读法。只有 learner 主动展开后，才显示 carry columns、carry-out 与 signed overflow。
+5. **观察 computation**：展开后，从低位向高位的 ripple trace 显示每列 carry-in、A、B、result；最高列右侧单独保留 carry-out（“width 外、未存入”）。
+6. **验证边界**：快捷例子按当前 width 提供 signed-boundary、carry-only 与 negative-overflow：4-bit 分别是 `0111 + 0001`、`1111 + 0001`、`1000 + 1111`；8-bit 分别是 `01111111 + 00000001`、`11111111 + 00000001`、`10000000 + 11111111`。它们不是练习关卡，也不写入 URL。
+7. **复位**：恢复 URL 初始 scenario，而不是全局固定 default；重新复位也会收起进阶证据。
 
 直接 drag carry、十进制 text-input 反推 bits、连续动画和问答评分被排除：它们会增加操作或 assessment 状态，而不能增强这节课要观察的核心计算关系。
 
@@ -83,10 +84,10 @@ Canonical serialization always emits the normalized finite width, exact-width lo
 ### Reducer state
 
 ```text
-{ width, left, right, reading, initialScenario }
+{ width, left, right, reading, initialScenario, detailsRevealed }
 ```
 
-Actions: `load-scenario`, `set-width`, `toggle-bit` (operand plus MSB-first index), `set-reading`, `apply-example`, `reset`.
+Actions: `load-scenario`, `set-width`, `toggle-bit` (operand plus MSB-first index), `set-reading`, `reveal-details`, `apply-example`, `reset`. `detailsRevealed` is transient UI disclosure state and is not serialized. User interaction never supplies or overrides domain answers; the domain model remains the sole source of arithmetic correctness.
 
 Examples are in the local lesson layer and are width-native: at 4 bit, signed-boundary is `0111+0001`, carry-only is `1111+0001`, and negative-overflow is `1000+1111`; at 8 bit, they are `01111111+00000001`, `11111111+00000001`, and `10000000+11111111`. They are local guided entry points, not URL schema.
 

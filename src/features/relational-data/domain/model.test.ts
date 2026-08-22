@@ -224,6 +224,48 @@ describe("Relational Data domain", () => {
     ).toThrow(/invalid.*borrower_id/i);
   });
 
+  it("represents empty, aggregate, NULL, FK, and link outcomes independently", () => {
+    const scenario = getRelationalScenario("catalog");
+    const empty = {
+      ...scenario,
+      tables: scenario.tables.map((table) =>
+        table.name === "books"
+          ? {
+              ...table,
+              rows: table.rows.map((row) => ({
+                ...row,
+                values: { ...row.values, available: false },
+              })),
+            }
+          : table,
+      ),
+    };
+
+    const available = runRelationalQuery("available-books", empty);
+    const overdue = runRelationalQuery("overdue-loans", scenario);
+    const aggregate = runRelationalQuery("borrower-counts", scenario);
+
+    expect(available.rows).toEqual([]);
+    expect(available.provenance).toEqual([]);
+    expect(overdue.rows[0].values).toMatchObject({ borrower: "Ada", book: "A Wizard of Earthsea" });
+    expect(overdue.provenance[0].sourceRefs).toEqual([
+      { table: "loans", rowId: "loan-1", columns: ["borrower_id", "book_id", "due"] },
+      { table: "borrowers", rowId: "person-1", columns: ["id", "name"] },
+      { table: "books", rowId: "book-3", columns: ["id", "title"] },
+    ]);
+    expect(aggregate.rows).toContainEqual({ id: "row-3", values: { borrower: null, loans: 1 } });
+    expect(aggregate.provenance.find((entry) => entry.resultRowId === "row-3")?.sourceIds).toEqual([
+      "loan-4",
+      "person-3",
+      "book-1",
+    ]);
+    expect(
+      validateRelational(scenario).find((result) => result.id === "loans-book-fk"),
+    ).toMatchObject({
+      passed: false,
+    });
+  });
+
   it("keeps snapshots and result evidence independent", () => {
     const result = runRelational(getRelationalScenario("catalog"));
     const firstAfter = result.frames[0].after as {

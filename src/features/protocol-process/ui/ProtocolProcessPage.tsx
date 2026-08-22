@@ -116,8 +116,8 @@ function TraceList({
     <section className="protocol-card protocol-trace-card" aria-label="协议事件记录">
       <div className="protocol-card-heading">
         <div>
-          <p className="eyebrow">事件队列记录</p>
-          <h3>逐个检查已安排的事件</h3>
+          <p className="eyebrow">语义事件列表</p>
+          <h3>按因果顺序观察协议事件</h3>
         </div>
         <span className="protocol-trace-count">{frames.length} 个事件</span>
       </div>
@@ -278,6 +278,14 @@ function SelectedEvidence({ frame }: { frame?: ProtocolFrame }) {
         <span className="protocol-event-chip">{eventKindLabel(frame.event.kind)}</span>
       </div>
       <p className="protocol-explanation">{eventExplanation(frame.event)}</p>
+      {frame.event.kind === "timeout" ? (
+        <p className="protocol-uncertainty" role="note">
+          超时只说明确认尚未被发送方观察到；它不能证明接收方没有收到请求。
+          {frame.event.outcome === "retry-scheduled"
+            ? " 因此系统安排重试。"
+            : " 本次重试额度已耗尽。"}
+        </p>
+      ) : null}
       <div className="protocol-event-evidence" role="note">
         <strong>事件结果</strong>
         <span>
@@ -302,11 +310,6 @@ function ProtocolProcessPageContent({
   dispatch: Dispatch<Parameters<typeof transitionProtocolLesson>[1]>;
 }) {
   const selectedFrame = lesson.frames.find((frame) => frame.index === lesson.selectedFrameIndex);
-  const hasFault = lesson.frames.some(
-    (frame) => frame.event.outcome === "dropped" || frame.event.outcome === "receiver-unavailable",
-  );
-  const hasRetry = lesson.frames.some((frame) => frame.event.kind === "timeout");
-
   return (
     <div className="protocol-page">
       <header className="protocol-hero">
@@ -404,50 +407,20 @@ function ProtocolProcessPageContent({
           <section className="protocol-card protocol-action-card">
             <p className="eyebrow">推进</p>
             <h3>推进协议过程</h3>
-            <div className="protocol-action-row">
-              <button
-                className="protocol-primary-button"
-                disabled={lesson.machine.status !== "running"}
-                onClick={() => dispatch({ type: "step" })}
-                type="button"
-              >
-                执行一步
-              </button>
-              <button
-                className="protocol-secondary-button"
-                disabled={lesson.machine.status !== "running"}
-                onClick={() => dispatch({ type: "run-all" })}
-                type="button"
-              >
-                运行到结束
-              </button>
-            </div>
+            <button
+              className="protocol-primary-button"
+              disabled={lesson.machine.status !== "running"}
+              onClick={() => dispatch({ type: "step" })}
+              type="button"
+            >
+              执行下一个事件
+            </button>
             <button
               className="protocol-reset-button"
               onClick={() => dispatch({ type: "reset" })}
               type="button"
             >
               恢复初始情境
-            </button>
-          </section>
-
-          <section className="protocol-card protocol-guidance-card">
-            <p className="eyebrow">引导检查</p>
-            <h3>检查事件</h3>
-            <button
-              disabled={!hasFault}
-              onClick={() => dispatch({ type: "inspect-first-fault" })}
-              type="button"
-            >
-              检查第一个故障
-            </button>
-            <button
-              aria-describedby="protocol-guided-help"
-              disabled={!hasRetry}
-              onClick={() => dispatch({ type: "inspect-retry" })}
-              type="button"
-            >
-              检查重试
             </button>
           </section>
         </aside>

@@ -31,4 +31,19 @@ describe("program execution scenario", () => {
       "fixture=sum-1-to-3",
     );
   });
+
+  it("ignores transient execution state and keeps serializer/parser round trips stable", () => {
+    const encoded = serializeProgramExecutionScenario({
+      fixture: "off-by-one",
+      frames: [{ index: 0 }],
+      selectedFrameIndex: 0,
+      prediction: { kind: "condition", value: true },
+      machine: { status: "completed" },
+    } as never);
+
+    expect(encoded).toBe("fixture=off-by-one");
+    expect(parseProgramExecutionScenario(`${encoded}&fixture=zero-iterations`)).toEqual({
+      fixture: "off-by-one",
+    });
+  });
 });

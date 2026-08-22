@@ -31,10 +31,7 @@ export type ProtocolLessonAction =
   | { type: "set-timeout-conclusion-draft"; value: string }
   | { type: "record-prediction" }
   | { type: "step" }
-  | { type: "run-all" }
   | { type: "select-frame"; index: number }
-  | { type: "inspect-first-fault" }
-  | { type: "inspect-retry" }
   | { type: "set-scenario"; scenario: ProtocolScenarioId }
   | { type: "reset" };
 
@@ -71,17 +68,6 @@ function advance(state: ProtocolLessonState): ProtocolLessonState {
   };
 }
 
-function runAll(state: ProtocolLessonState): ProtocolLessonState {
-  let current = state;
-  const stepBudget = getProtocolScenario(current.scenario).maxAttempts * 5;
-  for (let index = 0; index < stepBudget && current.machine.status === "running"; index += 1) {
-    const next = advance(current);
-    if (next === current) break;
-    current = next;
-  }
-  return current;
-}
-
 function predictionResult(value: string): ProtocolPrediction | undefined {
   return value === "delivered" || value === "failed" ? value : undefined;
 }
@@ -98,14 +84,6 @@ function selectFrame(state: ProtocolLessonState, index: number): ProtocolLessonS
   return state.frames.some((frame) => frame.index === index)
     ? { ...state, selectedFrameIndex: index }
     : state;
-}
-
-function inspectFrame(
-  state: ProtocolLessonState,
-  predicate: (frame: ProtocolFrame) => boolean,
-): ProtocolLessonState {
-  const frame = state.frames.find(predicate);
-  return frame ? { ...state, selectedFrameIndex: frame.index } : state;
 }
 
 export function transitionProtocolLesson(
@@ -139,18 +117,8 @@ export function transitionProtocolLesson(
     }
     case "step":
       return advance(state);
-    case "run-all":
-      return runAll(state);
     case "select-frame":
       return selectFrame(state, action.index);
-    case "inspect-first-fault":
-      return inspectFrame(
-        state,
-        (frame) =>
-          frame.event.outcome === "dropped" || frame.event.outcome === "receiver-unavailable",
-      );
-    case "inspect-retry":
-      return inspectFrame(state, (frame) => frame.event.kind === "timeout");
     case "set-scenario":
       return {
         ...createProtocolLessonState({ scenario: action.scenario }),

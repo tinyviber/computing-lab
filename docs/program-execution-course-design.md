@@ -185,11 +185,13 @@ This feature does not claim that the local frame contract matches Network events
 
 The feature-owned scenario is `?fixture=sum-1-to-3|zero-iterations|off-by-one`. Parsing uses `URLSearchParams.get("fixture")`, therefore the first repeated query value wins; URL decoding is handled by `URLSearchParams`; an absent, empty, malformed, or unknown first value falls back to `sum-1-to-3`; extra query keys are ignored. Serialization emits only `fixture=<canonical-id>`, with no pipe-delimited multi-value syntax. Selected frame, prediction, and execution history are transient.
 
-Lesson state owns the immutable initial scenario, selected fixture/program, current machine, local frames, selected frame index, prediction draft, optional numeric prediction, and a local prediction-input message. Actions are `load-scenario`, `set-fixture`, `set-prediction-draft`, `record-prediction`, `step`, `run-all`, `select-frame`, `inspect-focus`, and `reset`.
+Lesson state owns the immutable initial scenario, selected fixture/program, current machine, local frames, selected frame index, current prediction target, prediction draft, optional discriminated prediction, prediction feedback, and a local prediction-input message. Actions are `load-scenario`, `set-fixture`, `set-prediction-draft`, `record-prediction`, `step`, `run-all`, `select-frame`, `inspect-focus`, and `reset`.
 
 - `set-fixture` selects a new fixture and clears frames, selection, prediction, and machine history;
 - `reset` returns to the original URL scenario captured by `load-scenario`, even after a fixture switch;
-- recording a blank, non-integer, or unsafe prediction leaves execution unchanged and exposes a feature-local text message;
+- the current control determines the prediction target: assignment predicts a variable value, while-condition predicts `true`/`false`, and print predicts an integer output;
+- recording a blank, malformed, or unsafe prediction leaves execution unchanged and exposes a feature-local text message;
+- Step compares a prediction only with the matching current control event, stores prediction/actual/match evidence, and then advances the target to the returned machine control;
 - prediction is optional and non-blocking: Step and Run remain available without it;
 - selecting an invalid frame leaves state unchanged;
 - `inspect-focus("variable-change")` selects the first loop-body assignment frame; `inspect-focus("loop-stop")` selects the first false condition frame. If the requested target does not exist (before execution, in a zero-iteration trace, or after an error), the action is a no-op and preserves the current selection. These two guided controls are a small feature-specific causal checkpoint, not a generic inspector or submit workflow;
@@ -200,11 +202,11 @@ No global status, phase, score, submit gate, or completion workflow is introduce
 
 ## Learner trajectory
 
-1. Read the fixed program and record an optional numeric output prediction.
+1. Read the fixed program and record an optional prediction for the current assignment, while condition, or output event.
 2. Use Step through initialization, the first true loop condition, and both body assignments. The two adjacent body-assignment frames make `total: 0 → 1` and then `i: 1 → 2` explicit; **Inspect variable change** is enabled once those frames exist and selects the first of the pair.
 3. Run to the end, then use **Inspect loop stop** to select the false condition and read `4 <= 3 → false`; the body is skipped because the next check uses the updated `i`.
 4. Observe output `[6]` and normal program completion after the final print.
-5. Reconcile the prediction with the actual output and final environment.
+5. Reconcile each prediction with its matching before/after event and then inspect final output/environment.
 6. Switch to zero-iteration or off-by-one and compare the causal evidence.
 
 The endpoint is understanding mutation and stopping cause, not merely seeing output.
@@ -220,7 +222,7 @@ The endpoint is understanding mutation and stopping cause, not merely seeing out
 - output is a labeled `<output>`;
 - changed values are expressed as text (`total: 1 → 3`), not color alone;
 - terminal reason and loop-exit explanation are text and remain available without animation;
-- prediction validation uses a named text message, while the feature remains non-blocking;
+- prediction target, discriminated input, prediction/actual comparison, and named validation text remain visible without blocking execution;
 - guided focus controls are disabled before their target frame exists and expose an accessible explanation; once enabled, they select the local target frame without manufacturing evidence;
 - the selected-frame environment table is explicitly labeled as the state after that frame, while the separate final-result card is explicitly labeled as final program output/status, so selecting an earlier frame cannot create an ambiguous mixed observation.
 

@@ -27,11 +27,20 @@ describe("ProgramExecutionPage", () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/program-execution");
 
-    await user.type(screen.getByRole("spinbutton", { name: /预测输出值/ }), "6");
+    await user.type(screen.getByRole("spinbutton", { name: /输入安全整数/ }), "0");
     await user.click(button("记录预测"));
     expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
-    for (let index = 0; index < 5; index += 1) await user.click(button("执行一步"));
+    await user.click(button("执行一步"));
+    expect(screen.getByText(/预测 0；实际 0。一致/)).toBeInTheDocument();
+    await user.click(button("执行一步"));
+    expect(button("真")).toHaveAttribute("aria-pressed", "false");
+    await user.click(button("真"));
+    expect(button("真")).toHaveAttribute("aria-pressed", "true");
+    await user.click(button("记录预测"));
+    await user.click(button("执行一步"));
+    expect(screen.getByText(/预测 真；实际 真。一致/)).toBeInTheDocument();
+    for (let index = 0; index < 2; index += 1) await user.click(button("执行一步"));
     expect(button("检查变量变化")).toBeEnabled();
     await user.click(button("检查变量变化"));
 
@@ -47,7 +56,6 @@ describe("ProgramExecutionPage", () => {
       /这次检查跳过循环体/,
     );
     expect(screen.getByRole("status", { name: /程序输出/i })).toHaveTextContent("6");
-    expect(screen.getByText(/预测：6；实际值：6/)).toBeInTheDocument();
     expect(screen.getByText(/程序已完成/)).toBeInTheDocument();
   });
 
@@ -137,8 +145,11 @@ describe("ProgramExecutionPage", () => {
     }
     expect(
       within(screen.getByRole("main", { name: /程序执行实验区/ })).getByText(
-        /程序包含赋值、while 条件和输出/,
+        /先预测当前赋值、循环条件或输出/,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /程序执行实验区/ })).not.toHaveTextContent(
+      /\b(true|false|Prediction|Enter|before|after|Step|Run|while)\b/,
+    );
   });
 });

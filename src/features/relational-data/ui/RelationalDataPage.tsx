@@ -112,7 +112,15 @@ function formatRelationalValue(value: RelationalValue | undefined): string {
   return String(value);
 }
 
-function ResultTable({ result }: { result: RelationalQueryResult }) {
+function ResultTable({
+  result,
+  selectedResultRowId,
+  onSelect,
+}: {
+  result: RelationalQueryResult;
+  selectedResultRowId?: string;
+  onSelect: (rowId: string) => void;
+}) {
   return (
     <table className="rd-table">
       <caption>查询结果行</caption>
@@ -132,9 +140,23 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
           </tr>
         ) : (
           result.rows.map((row) => (
-            <tr key={row.id}>
-              {result.columns.map((column) => (
-                <td key={column}>{formatRelationalValue(row.values[column])}</td>
+            <tr className={selectedResultRowId === row.id ? "is-result-selected" : ""} key={row.id}>
+              {result.columns.map((column, index) => (
+                <td key={column}>
+                  {index === 0 ? (
+                    <button
+                      aria-pressed={selectedResultRowId === row.id}
+                      className="rd-result-select"
+                      onClick={() => onSelect(row.id)}
+                      type="button"
+                    >
+                      {formatRelationalValue(row.values[column])}
+                      <span className="rd-sr-only">（选择结果行 {row.id}）</span>
+                    </button>
+                  ) : (
+                    formatRelationalValue(row.values[column])
+                  )}
+                </td>
               ))}
             </tr>
           ))
@@ -144,7 +166,13 @@ function ResultTable({ result }: { result: RelationalQueryResult }) {
   );
 }
 
-function ProvenanceTable({ result }: { result: RelationalQueryResult }) {
+function ProvenanceTable({
+  result,
+  selectedResultRowId,
+}: {
+  result: RelationalQueryResult;
+  selectedResultRowId?: string;
+}) {
   return (
     <table className="rd-table">
       <caption>哪些原始记录产生了每条结果</caption>
@@ -162,7 +190,10 @@ function ProvenanceTable({ result }: { result: RelationalQueryResult }) {
           </tr>
         ) : (
           result.provenance.map((entry) => (
-            <tr key={entry.resultRowId}>
+            <tr
+              className={selectedResultRowId === entry.resultRowId ? "is-result-selected" : ""}
+              key={entry.resultRowId}
+            >
               <th scope="row">{entry.resultRowId}</th>
               <td>{entry.sourceIds.join(", ") || "—"}</td>
               <td>{provenanceNote(entry.note)}</td>
@@ -171,6 +202,69 @@ function ProvenanceTable({ result }: { result: RelationalQueryResult }) {
         )}
       </tbody>
     </table>
+  );
+}
+
+function SourceTables({
+  scenario,
+  result,
+  selectedResultRowId,
+}: {
+  scenario: ReturnType<typeof getRelationalScenario>;
+  result: RelationalQueryResult;
+  selectedResultRowId?: string;
+}) {
+  const refs =
+    result.provenance.find((entry) => entry.resultRowId === selectedResultRowId)?.sourceRefs ?? [];
+  const refFor = (table: string, rowId: string) =>
+    refs.find((ref) => ref.table === table && ref.rowId === rowId);
+  return (
+    <section className="rd-source-card" aria-label="选中结果的来源表">
+      <div className="rd-card-heading">
+        <div>
+          <p className="eyebrow">来源证据</p>
+          <h3>
+            {selectedResultRowId ? `结果行 ${selectedResultRowId} 的来源` : "选择结果行查看来源"}
+          </h3>
+        </div>
+      </div>
+      {scenario.tables.map((table) => (
+        <div key={table.name}>
+          <h4>{tableLabel(table.name)}</h4>
+          <table className="rd-table rd-source-table">
+            <caption>{table.name}：由 provenance 引用的行和字段高亮</caption>
+            <thead>
+              <tr>
+                <th scope="col">行</th>
+                {table.columns.map((column) => (
+                  <th key={column.name} scope="col">
+                    {column.name}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {table.rows.map((row) => {
+                const ref = refFor(table.name, row.id);
+                return (
+                  <tr className={ref ? "is-source-row" : ""} key={row.id}>
+                    <th scope="row">{row.id}</th>
+                    {table.columns.map((column) => (
+                      <td
+                        className={ref?.columns.includes(column.name) ? "is-source-field" : ""}
+                        key={column.name}
+                      >
+                        {formatRelationalValue(row.values[column.name])}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -220,7 +314,15 @@ function FrameTrace({
   );
 }
 
-function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
+function SelectedEvidence({
+  frame,
+  selectedResultRowId,
+  onSelectResultRow,
+}: {
+  frame?: RelationalFrame;
+  selectedResultRowId?: string;
+  onSelectResultRow: (rowId: string) => void;
+}) {
   if (!frame) {
     return (
       <section className="rd-card" aria-label="当前关系数据结果">
@@ -250,8 +352,12 @@ function SelectedEvidence({ frame }: { frame?: RelationalFrame }) {
           计算得到的结果：{derivedColumns.join(", ")} 不是表中直接存储的值。
         </p>
       ) : null}
-      <ResultTable result={frame.result} />
-      <ProvenanceTable result={frame.result} />
+      <ResultTable
+        result={frame.result}
+        onSelect={onSelectResultRow}
+        selectedResultRowId={selectedResultRowId}
+      />
+      <ProvenanceTable result={frame.result} selectedResultRowId={selectedResultRowId} />
     </section>
   );
 }
@@ -452,7 +558,18 @@ function RelationalContent({
             onSelect={(index) => dispatch({ type: "select-frame", index })}
             selectedFrameIndex={lesson.selectedFrameIndex}
           />
-          <SelectedEvidence frame={selectedFrame} />
+          <SelectedEvidence
+            frame={selectedFrame}
+            onSelectResultRow={(rowId) => dispatch({ type: "select-result-row", rowId })}
+            selectedResultRowId={lesson.selectedResultRowId}
+          />
+          {selectedFrame ? (
+            <SourceTables
+              result={selectedFrame.result}
+              scenario={scenario}
+              selectedResultRowId={lesson.selectedResultRowId}
+            />
+          ) : null}
           {lesson.frames.length > 0 ? <ConstraintsPanel scenario={scenario} /> : null}
           <section className="rd-card" aria-label="预测与实际对照">
             <p className="eyebrow">对照</p>

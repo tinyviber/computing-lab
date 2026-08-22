@@ -191,4 +191,45 @@ describe("Byte Edit domain", () => {
     expect(() => createByteEditMachine({ ...scenario, bytes: [0x41, 0xc3] })).toThrow(/encoding/i);
     expect(() => createByteEditMachine({ ...scenario, title: "" })).toThrow(/title/i);
   });
+
+  it("reports exact-original comparison as feedback without changing decode validity", () => {
+    const scenario = getByteEditScenario("mixed");
+    const machine = createByteEditMachine(scenario);
+    const changed = stepByteEdit(
+      machine,
+      scenario,
+      { kind: "byte", byteIndex: 0, value: 0x42 },
+      BYTE_EDIT_PRESETS,
+    );
+    const restored = stepByteEdit(
+      changed.machine,
+      scenario,
+      { kind: "preset", preset: "original" },
+      BYTE_EDIT_PRESETS,
+    );
+    expect(changed.frame.originalComparison).toMatchObject({ exact: false, lengthMatches: true });
+    expect(changed.frame.decode.valid).toBe(true);
+    expect(restored.frame.originalComparison).toMatchObject({
+      exact: true,
+      lengthMatches: true,
+      differingByteIndices: [],
+    });
+    expect(restored.frame.decode).toMatchObject({ valid: true, characters: "Aé猫🙂" });
+  });
+
+  it.each([
+    ["truncated", "missing continuation byte"],
+    ["overlong", "overlong encoding"],
+  ] as const)("keeps %s diagnosis independent from original comparison", (preset, reason) => {
+    const scenario = getByteEditScenario("mixed");
+    const result = stepByteEdit(
+      createByteEditMachine(scenario),
+      scenario,
+      { kind: "preset", preset },
+      BYTE_EDIT_PRESETS,
+    );
+    expect(result.frame.decode).toMatchObject({ valid: false, reason });
+    expect(result.frame.originalComparison.exact).toBe(false);
+    expect(result.frame.originalComparison.lengthMatches).toBe(preset === "overlong");
+  });
 });

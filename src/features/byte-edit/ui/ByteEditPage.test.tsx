@@ -43,6 +43,36 @@ describe("ByteEditPage", () => {
     expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
       /预测：无效；实际：无效/,
     );
+    expect(screen.getByRole("list", { name: "编辑后的字节 tiles" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
+      /与原始字节序列仍有差异.*长度一致/,
+    );
+    expect(screen.getByRole("main", { name: "字节编辑实验区" })).not.toHaveTextContent(
+      /exact original/,
+    );
+  });
+
+  it("keeps exact-original repair as feedback while diagnosis remains the gate", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/byte-edit");
+    await user.click(button("截断序列"));
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
+      /缺少后续字节/,
+    );
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(/长度不同/);
+    await user.click(button("原始序列"));
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
+      /与原始字节序列完全一致/,
+    );
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
+      /有效 UTF-8/,
+    );
+    expect(
+      screen.queryByRole("button", { name: /bit|nibble|submit|score|run-all/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("main", { name: "字节编辑实验区" })).not.toHaveTextContent(
+      /exact original|nibble|submit|score|run-all/i,
+    );
   });
 
   it("selects frames with keyboard activation and exposes aria-current", async () => {
@@ -71,13 +101,13 @@ describe("ByteEditPage", () => {
 
   it("loads presets and resets to the original URL scenario", async () => {
     const user = userEvent.setup();
-    await renderAppAt("/labs/byte-edit?scenario=emoji");
-    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("emoji");
+    await renderAppAt("/labs/byte-edit?scenario=mixed");
+    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("mixed");
 
     await user.click(button("过长编码 A"));
-    expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/过长编码/);
+    expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(/过长编码/);
     await user.click(button("恢复初始情境"));
-    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("emoji");
+    expect(screen.getByRole("combobox", { name: /字节编辑样例/ })).toHaveValue("mixed");
     expect(screen.getByRole("region", { name: /当前字节序列/ })).toHaveTextContent(/有效 UTF-8/);
   });
 

@@ -196,4 +196,15 @@ describe("Sound orthogonal reducer", () => {
       loop: { startMs: 125, endMs: 875 },
     });
   });
+
+  it("keeps reset and terminal transport transitions idempotent", () => {
+    let state = transition(initial(), { type: "play" });
+    state = transition(state, { type: "tick", deltaMs: 1000 });
+    const reset = transition(state, { type: "reset" });
+
+    expect(transition(reset, { type: "reset" })).toEqual(reset);
+    expect(transition(state, { type: "stop" })).toEqual(
+      transition(transition(state, { type: "stop" }), { type: "stop" }),
+    );
+  });
 });

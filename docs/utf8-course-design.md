@@ -10,26 +10,29 @@ This course is not a general text editor, Unicode encyclopedia, or generic bit-g
 
 ## Fixtures
 
-| ID       | Text     | Code points                    | Expected byte lengths |
-| -------- | -------- | ------------------------------ | --------------------- |
-| `ascii`  | `A`      | `U+0041`                       | `1`                   |
-| `accent` | `é`      | `U+00E9`                       | `2`                   |
-| `cjk`    | `猫`     | `U+732B`                       | `3`                   |
-| `emoji`  | `🙂`     | `U+1F642`                      | `4`                   |
-| `mixed`  | `Aé猫🙂` | `U+0041 U+00E9 U+732B U+1F642` | `1 + 2 + 3 + 4 = 10`  |
+| ID             | Text             | Code points                    | Expected byte lengths |
+| -------------- | ---------------- | ------------------------------ | --------------------- |
+| `ascii`        | `A`              | `U+0041`                       | `1`                   |
+| `accent`       | `é`              | `U+00E9`                       | `2`                   |
+| `cjk`          | `猫`             | `U+732B`                       | `3`                   |
+| `emoji`        | `🙂`             | `U+1F642`                      | `4`                   |
+| `mixed`        | `Aé猫🙂`         | `U+0041 U+00E9 U+732B U+1F642` | `1 + 2 + 3 + 4 = 10`  |
+| `boundary-1-2` | `U+007F U+0080`  | `U+007F U+0080`                | `1 + 2`               |
+| `boundary-2-3` | `U+07FF U+0800`  | `U+07FF U+0800`                | `2 + 3`               |
+| `boundary-3-4` | `U+FFFF U+10000` | `U+FFFF U+10000`               | `3 + 4`               |
 
 The mixed fixture is the default because it makes visible-character count (`4`) and byte count (`10`) diverge.
 
-The domain oracle also tests exact branch boundaries `U+007F/U+0080`, `U+07FF/U+0800`, and `U+FFFF/U+10000`, plus surrogate-adjacent rejection (`U+D7FF`, `U+D800`, `U+DFFF`, `U+E000`). These boundary cases are not additional learner fixtures; they protect the representation rule.
+The learner can now choose exact branch-boundary fixtures `U+007F/U+0080`, `U+07FF/U+0800`, and `U+FFFF/U+10000`. They make the byte-count jump observable without putting the answer in ordinary source-fixture descriptions. The domain also protects surrogate-adjacent rejection (`U+D7FF`, `U+D800`, `U+DFFF`, `U+E000`).
 
 ## Learner trajectory
 
 1. Read the mixed text and optionally predict the byte length of the next code point and the final byte count.
-2. Choose a fixed fixture.
+2. Choose a fixed text fixture or one of the three boundary comparisons.
 3. Step through one code point at a time.
 4. Inspect the scalar value, Unicode code point, encoding branch, template bits, resulting bytes, and cumulative output.
 5. Run to completion and compare visible code-point count with byte count.
-6. Switch to ASCII, accent, CJK, and emoji to identify the four UTF-8 ranges.
+6. Switch to ASCII, accent, CJK, emoji, and the boundary fixtures to identify the four UTF-8 ranges.
 
 Prediction is optional and non-blocking. There is no arbitrary text input, submit/check gate, score, or hidden validation workflow.
 
@@ -80,7 +83,7 @@ The selected frame must make the transformation path inspectable without replay:
 - visible character and scalar value;
 - Unicode code point in hexadecimal and binary;
 - selected byte-length branch;
-- template bits with code-point payload placement;
+- template bits with code-point payload placement and explicit payload groups;
 - resulting decimal and binary bytes;
 - cumulative byte count and visible code-point count;
 - before/after output bytes.
@@ -89,7 +92,7 @@ The UI renders semantic source text, a real byte table, labeled output, and text
 
 ## Independent test oracle and review gate
 
-Tests hand-author exact bytes, branch, binary byte strings, frame boundaries, and cumulative output for all five learner fixtures, plus the exact branch boundaries and surrogate-adjacent invalid values. They separately test invalid scalar values, output snapshot independence, scenario fallback, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
+Tests hand-author exact bytes, branch, binary byte strings, frame boundaries, and cumulative output for all learner fixtures, including the three boundary comparisons and surrogate-adjacent invalid values. They separately test invalid scalar values, output snapshot independence, scenario fallback, prediction handling, keyboard frame selection, completion idempotence, and narrow viewport evidence.
 
 The design must explicitly answer:
 

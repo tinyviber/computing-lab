@@ -141,7 +141,7 @@ describe("Sound reference UI", () => {
     expect(firstRender).not.toMatch(
       /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
     );
-    expect(firstRender).not.toMatch(/位深/);
+    expect(firstRender).toMatch(/位深实验/);
     expect(firstRender).toMatch(/试听使用 48 kHz/);
     expect(firstRender).toMatch(/量化位数（bit depth）/);
     expect(screen.getByRole("group", { name: "分析模式" })).toBeInTheDocument();
@@ -248,6 +248,23 @@ describe("Sound reference UI", () => {
     const quantizationEvidence = screen.getByTestId("sound-quantization-evidence");
     expect(quantizationEvidence).toBeInTheDocument();
     expect(within(quantizationEvidence).getByText(/量化结果/)).toBeInTheDocument();
+  });
+
+  it("keeps aliasing and quantization evidence text-addressable after mode changes", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?source=high-pulse&sampleRate=8000&mode=aliasing");
+
+    await user.click(screen.getByRole("button", { name: /混叠.*aliasing/ }));
+    expect(screen.getByTestId("sound-aliasing-evidence")).toHaveTextContent(
+      /奈奎斯特|Nyquist|混叠|aliased/i,
+    );
+    expect(screen.getByRole("img", { name: /波形图/ })).toHaveAccessibleName();
+
+    await user.click(screen.getByRole("button", { name: /量化.*quantization/ }));
+    expect(screen.getByTestId("sound-quantization-evidence")).toHaveTextContent(
+      /量化级别|位数|quantization/i,
+    );
+    expect(screen.getByTestId("sound-audio-status")).toHaveTextContent(/已停止|就绪|ready/i);
   });
 
   it("keeps compare overlay and A/B audition selection as separate evidence", async () => {

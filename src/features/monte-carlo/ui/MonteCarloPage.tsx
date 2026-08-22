@@ -213,30 +213,6 @@ function MonteCarloContent({
       <div className="mc-layout">
         <aside className="mc-controls" aria-label="蒙特卡洛实验控制">
           <section className="mc-card">
-            <p className="eyebrow">预测</p>
-            <h3>最终估计值</h3>
-            <label htmlFor="mc-prediction">最终估计值相对 π 的位置</label>
-            <select
-              id="mc-prediction"
-              onChange={(event) => dispatch({ type: "set-prediction", value: event.target.value })}
-              value={lesson.predictionDraft}
-            >
-              <option value="">请选择</option>
-              <option value="above">高于 π</option>
-              <option value="below">低于 π</option>
-            </select>
-            <p id="mc-prediction-help">可先记录预测，再采样。</p>
-            <button
-              className="mc-secondary-button"
-              onClick={() => dispatch({ type: "record-prediction" })}
-              type="button"
-            >
-              记录预测
-            </button>
-            {lesson.predictionMessage ? <p role="status">预测已记录；采样仍可继续。</p> : null}
-          </section>
-
-          <section className="mc-card">
             <p className="eyebrow">样例</p>
             <h3>选择样本规模</h3>
             <label htmlFor="mc-scenario">蒙特卡洛样例</label>
@@ -344,12 +320,6 @@ function MonteCarloContent({
                   相对 π = {Math.PI.toFixed(4)} 的最终误差为{" "}
                   {errorText(Math.abs(finalEstimate - Math.PI))}。
                 </p>
-                {lesson.prediction ? (
-                  <p role="status">
-                    预测：最终值{lesson.prediction === "above" ? "高于" : "低于"} π；实际估计值{" "}
-                    {estimateText(finalEstimate)}（{finalEstimate > Math.PI ? "高于" : "低于"} π）。
-                  </p>
-                ) : null}
               </>
             )}
           </section>
