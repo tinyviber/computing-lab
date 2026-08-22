@@ -628,15 +628,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setUploadMessage(undefined);
   };
 
-  const prediction =
-    lesson.colorMode === "rgb24"
-      ? "可切换到调色板，观察颜色精度和数据量代价如何变化。"
-      : currentSummary.sampledPixelCount !== baselineSummary.sampledPixelCount
-        ? "继续调采样率，观察空间细节与数据量的交换。"
-        : "可降低位深，观察颜色层次与误差的交换。";
+  const observationPrompt =
+    "观察原图与重建图，再用数据量和平均 RGB 颜色差异判断代价；下一步由你选择。";
   const judgment = withinBudget
     ? summaryDelta.averageError > 0
-      ? "已进入理论数据量预算，但重建误差高于初始情境。"
+      ? "已进入理论数据量预算，但平均 RGB 颜色差异高于初始情境。"
       : "已进入理论数据量预算，可继续寻找更清晰的方案。"
     : summaryDelta.rawBits < 0
       ? "数据量相对初始情境下降，但仍超过固定预算。"
@@ -711,7 +707,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>视觉误差</span>
+                  <span>平均 RGB 颜色差异</span>
                   <strong data-metric="average-error">
                     {(currentSummary.averageError * 100).toFixed(1)}%
                   </strong>
@@ -745,8 +741,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               <p className="mission-judgment" data-feedback="judgment">
                 {judgment}
               </p>
-              <p className="mission-prediction" data-feedback="prediction">
-                下一步方向提示：{prediction}
+              <p className="mission-observation" data-feedback="observation">
+                观察提示：{observationPrompt}
               </p>
               <p className="payload-note">
                 预算与数据量均指理论原始像素数据，不是 PNG、JPEG 或 WebP 的实际文件大小。
@@ -831,7 +827,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <b>颜色表示</b>{" "}
                   {model.quantized.colorMode === "rgb24"
                     ? `原色 RGB ${RGB24_BIT_DEPTH} 位`
-                    : `${model.quantized.palette.length} 个调色板颜色 · 采样 RGB 误差`}{" "}
+                    : `${model.quantized.palette.length} 个调色板颜色 · 采样 RGB 颜色差异`}{" "}
                   {(model.averageQuantizationError * 100).toFixed(1)}%
                 </span>
                 <span>
@@ -866,7 +862,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <CanvasView
                     canvasRef={errorCanvasRef}
                     errorMap={model.errorMap}
-                    label="像素误差图"
+                    label="像素颜色差异图"
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}

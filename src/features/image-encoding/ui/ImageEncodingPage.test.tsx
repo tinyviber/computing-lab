@@ -25,10 +25,8 @@ function budget(): HTMLElement {
   return element;
 }
 
-function feedback(kind: "judgment" | "prediction"): HTMLElement {
-  const element = document.querySelector(
-    `[data-feedback="${kind}"]`,
-  );
+function feedback(kind: "judgment" | "observation"): HTMLElement {
+  const element = document.querySelector(`[data-feedback="${kind}"]`);
   if (!(element instanceof HTMLElement)) throw new Error(`Feedback not found: ${kind}`);
   return element;
 }
@@ -62,7 +60,7 @@ describe("ImageEncodingPage", () => {
     expect(document.querySelector('[data-budget-state="over"]')).toBeInTheDocument();
   });
 
-  it("keeps controls independently usable and shows directional prediction", async () => {
+  it("keeps controls independently usable and shows neutral observation guidance", async () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(slider(/空间采样/)).toBeEnabled();
@@ -74,7 +72,7 @@ describe("ImageEncodingPage", () => {
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
       expect(input).toBeEnabled();
     }
-    expect(feedback("prediction")).toHaveTextContent(/颜色|数据量|数据代价|误差|采样/);
+    expect(feedback("observation")).toHaveTextContent(/观察|数据量|颜色差异/);
   });
 
   it("updates current metrics and meaning feedback when sampling changes", async () => {
@@ -89,7 +87,7 @@ describe("ImageEncodingPage", () => {
     expect(metric("raw-bits-delta").textContent).not.toBe(initialDelta);
     expect(metric("average-error").textContent).not.toBe(initialError);
     expect(metric("current-sampled-pixels")).toHaveTextContent(/108 × 72|7,776|7776/);
-    expect(feedback("judgment")).toHaveTextContent(/数据量|误差/);
+    expect(feedback("judgment")).toHaveTextContent(/数据量|颜色差异/);
   });
 
   it("updates color metrics without requiring a sampling step", async () => {
@@ -103,7 +101,7 @@ describe("ImageEncodingPage", () => {
 
     expect(metric("current-raw-bits").textContent).not.toBe(initialCurrentBits);
     expect(metric("average-error")).toHaveTextContent(/\d/);
-    expect(feedback("judgment")).toHaveTextContent(/数据量|误差/);
+    expect(feedback("judgment")).toHaveTextContent(/数据量|颜色差异/);
   });
 
   it("keeps formula and format-boundary explanation visible without claiming file size", async () => {

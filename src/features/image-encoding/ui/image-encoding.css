@@ -145,7 +145,7 @@
 }
 
 .mission-judgment,
-.mission-prediction {
+.mission-observation {
   margin: 14px 20px 0;
   padding: 10px 12px;
   border-left: 3px solid var(--accent);
@@ -155,7 +155,7 @@
   line-height: 1.55;
 }
 
-.mission-prediction {
+.mission-observation {
   margin-top: 8px;
   border-left-color: var(--success);
   background: transparent;

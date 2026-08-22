@@ -33,7 +33,7 @@ test("runs one image-encoding feedback loop without external network access", as
   await expect(page.getByRole("slider", { name: /颜色位深/ })).toBeDisabled();
   await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
   await expect(page.locator('[data-budget="baseline-25-percent"]')).toContainText(/25%/);
-  await expect(page.locator('[data-feedback="prediction"]')).toBeVisible();
+  await expect(page.locator('[data-feedback="observation"]')).toBeVisible();
   await expect(page.locator('[data-feedback="judgment"]')).toBeVisible();
   await expect(page.locator('[data-metric="current-raw-bits"]')).toBeVisible();
   await expect(page.locator('[data-metric="raw-bits-delta"]')).toBeVisible();
@@ -53,7 +53,7 @@ test("runs one image-encoding feedback loop without external network access", as
   await expect(page.locator('[data-metric="current-sampled-pixels"]')).toContainText(
     /60 × 40|2400/,
   );
-  await expect(page.locator('[data-feedback="judgment"]')).toContainText(/数据量|误差/);
+  await expect(page.locator('[data-feedback="judgment"]')).toContainText(/数据量|颜色差异/);
 
   await page.getByRole("button", { name: "调色板", exact: true }).click();
   const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
