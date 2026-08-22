@@ -28,7 +28,7 @@ test("runs one image-encoding feedback loop without external network access", as
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
   await expectSourceIdentity(page, "固定样例", "小猫插图");
   await expect(page.getByText("小猫插图").first()).toBeVisible();
-  await expect(page.locator("select")).toHaveCount(0);
+  await expect(page.locator("select")).toHaveCount(2);
   await expect(page.getByRole("slider", { name: /空间采样/ })).toBeEnabled();
   await expect(page.getByRole("slider", { name: /颜色位深/ })).toBeDisabled();
   await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();

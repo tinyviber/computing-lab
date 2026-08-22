@@ -272,6 +272,21 @@ describe("image encoding domain model", () => {
     expect(inspection.quantizedColor).toEqual(quantized.quantizedColor);
   });
 
+  it("uses no more than 2^b reconstructed colors for palette encoding", () => {
+    for (const bitDepth of [2, 4, 8]) {
+      const model = deriveImageEncodingModel(source, {
+        samplingPercent: 50,
+        bitDepth,
+        colorMode: "palette",
+        phase: 0,
+      });
+      const usedColors = new Set(model.quantized.pixels.map((pixel) => pixel.quantizedHex));
+      expect(usedColors.size).toBeLessThanOrEqual(2 ** bitDepth);
+      expect(model.rawPayload.bitDepth).toBe(bitDepth);
+      expect(model.rawPayload.bits).toBe(model.sampled.width * model.sampled.height * bitDepth);
+    }
+  });
+
   it("calculates raw payload and byte conversion without browser file size", () => {
     expect(rawPayload(24, 16, 3)).toEqual({
       width: 24,
