@@ -11,6 +11,7 @@ describe("HomeNetworkPage", () => {
 
     expect(screen.getByRole("main", { name: "家庭网络探针实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "当前任务" })).toHaveTextContent(/症状|目标/);
     expect(screen.getByRole("combobox", { name: /inspect device|设备/i })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /target|目标|目的地/i })).toBeInTheDocument();
     expect(screen.getAllByText(/源设备|学习电脑/).length).toBeGreaterThan(0);
@@ -58,6 +59,7 @@ describe("HomeNetworkPage", () => {
     await user.click(button(/send probe|probe|发送探测|发送探针/i));
     const trace = () => screen.getByRole("region", { name: /事件链|causal trace|trace/i });
     const failedTrace = trace().textContent;
+    expect(screen.getByRole("region", { name: "当前任务" })).toHaveTextContent(/仍未修复/);
 
     const printerIp = screen.getByRole("textbox", {
       name: /ipv4 address|ip.*地址/i,
@@ -138,6 +140,9 @@ describe("HomeNetworkPage", () => {
     expect(feedback).toHaveTextContent(/实际：未分类/);
     expect(feedback).toHaveTextContent(/校验停止：.*IP 地址格式无效/);
     expect(feedback?.textContent).not.toMatch(/observed:\s*(local|remote)/i);
+    const why = screen.getByText("为什么？查看 ARP、路由与 NAT 证据").closest("details");
+    expect(why).not.toBeNull();
+    expect(why as HTMLElement).toHaveTextContent(/暂无 ARP、路由或 NAT 事件/);
   });
 
   it("does not expose the legacy phase/submit/check surface or shared panel classes", async () => {

@@ -32,11 +32,11 @@ Step 4 is the derived-cell lesson: the count is computed, the missing book row e
 1. Read the fixture (three tables, row counts, one `NULL` name, one empty string, and one broken loan).
 2. Optionally predict how many rows the next query will return.
 3. Step one query at a time.
-4. Inspect the result table plus provenance: which source rows matched a filter, which pairs joined, and which group keys produced derived counts.
+4. Select a result row and inspect the result table plus provenance: the referenced source rows and fields are highlighted for filters, joins, and aggregate groups.
 5. Run to completion and compare predicted vs actual row counts.
 6. Inspect the constraint panel: unique id, year range, `name IS NOT NULL`, and both foreign keys. `NULL` fails the not-null check; `""` passes because it is present text; the broken loan fails the book foreign key.
 
-Prediction is optional and non-blocking. There is no arbitrary SQL input, submit/check gate, score, or hidden validation workflow.
+Prediction is optional and non-blocking. There is no arbitrary SQL input, editable database, submit/check gate, score, or hidden validation workflow. Before running, the page exposes a clear no-result state; an empty oracle result renders an empty result row and empty provenance state without creating a selectable row. Reset restores the canonical URL scenario baseline.
 
 ## Domain contract
 
@@ -55,6 +55,19 @@ export type RelationalQueryResult = {
   provenance: readonly RelationalProvenanceRow[];
 };
 
+export type RelationalSourceReference = {
+  table: string;
+  rowId: string;
+  columns: readonly string[];
+};
+
+export type RelationalProvenanceRow = {
+  resultRowId: string;
+  sourceIds: readonly string[];
+  sourceRefs: readonly RelationalSourceReference[];
+  note: string;
+};
+
 export type RelationalMachine = {
   nextQueryIndex: number;
   status: "running" | "complete";
@@ -66,6 +79,7 @@ export type RelationalMachine = {
 
 - column names and typed values;
 - one provenance row per result row naming the exact source row ids that produced it (matched rows for filters, matched pair ids for joins, and a stable union of every participating loan, borrower, and book row for aggregate groups);
+- `sourceRefs` alongside the ids, naming source table, row, and contributing fields; the UI uses these references—not positional or text matching—to highlight source evidence;
 - a textual explanation of the operation (project / filter / join / aggregate).
 
 `stepRelational(machine, scenario)` runs the next query in the fixed sequence and returns fresh before/after snapshots plus the result. `runRelational` folds the same step. A complete machine is an identity-preserving no-op.
@@ -79,8 +93,11 @@ The selected frame must make query results explainable without replay:
 - query title, description, and predicted/actual row count;
 - result table with columns and typed values;
 - provenance rows naming source row ids;
+- selectable result rows tracked as `selectedResultRowId`; selecting one highlights its provenance source rows and fields across the three fixture tables;
 - derived cells (aggregate counts) flagged as computed;
 - before/after result lists.
+
+The empty result path is deliberate: result and provenance tables show “no rows” and the selection action is unavailable. Aggregate results preserve NULL as a typed value, missing foreign-key links are absent from join output but remain visible in the constraint/source evidence, and a selected aggregate row highlights every participating source reference.
 
 The UI renders a semantic query trace, selected-query evidence, a fixed borrower source table that labels `NULL` and `""`, a constraint panel, and a predicted-vs-actual comparison table. It does not use a generic table, validator, or query component.
 

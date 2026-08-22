@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useReducer, type Dispatch } from "react";
 import { useSearch } from "@tanstack/react-router";
 import { LabShell } from "../../../shared/lab/LabShell";
-import { type Utf8ByteEvidence, type Utf8Frame, type Utf8ScenarioId } from "../domain";
+import {
+  getUtf8Scenario,
+  type Utf8ByteEvidence,
+  type Utf8Frame,
+  type Utf8ScenarioId,
+} from "../domain";
 import { parseUtf8Scenario } from "../lesson/scenario";
 import { createUtf8LessonState, transitionUtf8Lesson, type Utf8LessonState } from "../lesson/state";
 import "./utf8.css";
@@ -12,10 +17,25 @@ const scenarioOptions: readonly { value: Utf8ScenarioId; label: string; descript
     label: "混合文本",
     description: "包含 ASCII、带重音拉丁字母、CJK 与表情符号。",
   },
-  { value: "ascii", label: "ASCII", description: "一个码点可以放入一个字节。" },
-  { value: "accent", label: "带重音拉丁字母", description: "一个两字节的 UTF-8 序列。" },
-  { value: "cjk", label: "CJK 字符", description: "一个三字节的 UTF-8 序列。" },
-  { value: "emoji", label: "表情符号", description: "一个四字节的 UTF-8 序列。" },
+  { value: "ascii", label: "ASCII", description: "一个固定的 ASCII 码点。" },
+  { value: "accent", label: "带重音拉丁字母", description: "一个带重音的拉丁码点。" },
+  { value: "cjk", label: "CJK 字符", description: "一个 CJK 码点。" },
+  { value: "emoji", label: "表情符号", description: "一个表情符号码点。" },
+  {
+    value: "boundary-1-2",
+    label: "U+007F ↔ U+0080",
+    description: "比较两个相邻的 Unicode 范围。",
+  },
+  {
+    value: "boundary-2-3",
+    label: "U+07FF ↔ U+0800",
+    description: "比较两个相邻的 Unicode 范围。",
+  },
+  {
+    value: "boundary-3-4",
+    label: "U+FFFF ↔ U+10000",
+    description: "比较两个相邻的 Unicode 范围。",
+  },
 ];
 
 function codePointLabel(codePoint: number): string {
@@ -24,6 +44,20 @@ function codePointLabel(codePoint: number): string {
 
 function branchLabel(branch: Utf8Frame["evidence"]["branch"]): string {
   return `${branch.split("-")[0]} 字节分支`;
+}
+
+function payloadBits(frame: Utf8Frame): string {
+  const binary = frame.evidence.codePointBinary;
+  switch (frame.evidence.branch) {
+    case "1-byte":
+      return binary.slice(-7);
+    case "2-byte":
+      return `${binary.slice(-11, -6)} ${binary.slice(-6)}`;
+    case "3-byte":
+      return `${binary.slice(-16, -12)} ${binary.slice(-12, -6)} ${binary.slice(-6)}`;
+    case "4-byte":
+      return `${binary.slice(-21, -18)} ${binary.slice(-18, -12)} ${binary.slice(-12, -6)} ${binary.slice(-6)}`;
+  }
 }
 
 function evidenceExplanation(frame: Utf8Frame): string {
@@ -140,6 +174,10 @@ function SelectedEvidence({ frame }: { frame?: Utf8Frame }) {
           <dd className="utf8-mono">{frame.evidence.template}</dd>
         </div>
         <div>
+          <dt>填入模板的数据位</dt>
+          <dd className="utf8-mono">{payloadBits(frame)}</dd>
+        </div>
+        <div>
           <dt>步骤前输出</dt>
           <dd className="utf8-mono">{frame.before.bytes.join(" ") || "—"}</dd>
         </div>
@@ -162,7 +200,13 @@ function Utf8Content({
 }) {
   const selectedFrame = lesson.frames.find((frame) => frame.index === lesson.selectedFrameIndex);
   const option = scenarioOptions.find((candidate) => candidate.value === lesson.scenario)!;
-  const visibleCount = [...getText(lesson.scenario)].length;
+  const source = getUtf8Scenario(lesson.scenario);
+  const visibleCount = source.codePoints.length;
+  const sourceDisplay =
+    lesson.scenario.startsWith("boundary-") ||
+    source.codePoints.some((codePoint) => codePoint < 0x20 || codePoint === 0x7f)
+      ? source.codePoints.map(codePointLabel).join(" · ")
+      : source.text;
   return (
     <div className="utf8-page">
       <header className="utf8-hero">
@@ -173,8 +217,10 @@ function Utf8Content({
         </div>
         <div className="utf8-source-card" aria-label="UTF-8 源文本">
           <span>源文本</span>
-          <strong>{getText(lesson.scenario)}</strong>
-          <small>{option.description}</small>
+          <strong>{sourceDisplay}</strong>
+          <small>
+            {source.title} · {source.codePoints.map(codePointLabel).join(" · ")}
+          </small>
         </div>
       </header>
 
@@ -320,10 +366,6 @@ function Utf8Content({
       </div>
     </div>
   );
-}
-
-function getText(scenario: Utf8ScenarioId): string {
-  return { ascii: "A", accent: "é", cjk: "猫", emoji: "🙂", mixed: "Aé猫🙂" }[scenario];
 }
 
 export function Utf8Page() {

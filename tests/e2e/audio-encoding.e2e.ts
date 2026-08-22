@@ -78,6 +78,44 @@ test.describe("Sound reference trajectories", () => {
     await expect(page.locator(".sound-error-line")).toBeVisible();
   });
 
+  test("keeps aliasing and quantization explanations available as separate evidence", async ({
+    page,
+  }) => {
+    await page.goto("labs/audio-encoding?source=high-pulse&sampleRate=8000&mode=aliasing", {
+      waitUntil: "networkidle",
+    });
+
+    await expect(page.getByTestId("sound-aliasing-evidence")).toContainText(
+      /奈奎斯特|Nyquist|混叠|aliased/i,
+    );
+    await page.getByRole("button", { name: "量化（quantization）" }).click();
+    await expect(page.getByTestId("sound-quantization-evidence")).toContainText(
+      /量化级别|位数|quantization/i,
+    );
+    await expect(page.getByTestId("sound-audio-status")).toContainText(/已停止|就绪|ready/i);
+  });
+
+  test("keeps visual transport available when browser audio is unavailable", async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(window, "AudioContext", {
+        configurable: true,
+        value: undefined,
+      });
+      Object.defineProperty(window, "webkitAudioContext", {
+        configurable: true,
+        value: undefined,
+      });
+    });
+    await page.goto("labs/audio-encoding?source=pure440", { waitUntil: "networkidle" });
+
+    await page.getByRole("button", { name: "播放" }).click();
+    await expect(page.getByTestId("sound-audio-status")).toContainText(/仅视觉播放|音频不可用/);
+    await page.getByRole("button", { name: /前进 100 毫秒/ }).click();
+    await expect
+      .poll(async () => Number(await page.locator("#sound-cursor").inputValue()))
+      .toBeGreaterThanOrEqual(100);
+  });
+
   test("keeps zoomed sample markers and cursor in the plot's local time coordinate", async ({
     page,
   }) => {
@@ -171,5 +209,21 @@ test.describe("Sound reference trajectories", () => {
     await expect(cursorLine).toHaveCount(1);
     expect(Number(await cursorLine.getAttribute("x1"))).toBeGreaterThan(45);
     expect(Number(await cursorLine.getAttribute("x1"))).toBeLessThan(55);
+  });
+});
+
+test.describe("Sound responsive evidence", () => {
+  test.use({ viewport: { width: 520, height: 900 } });
+
+  test("keeps A/B transport and visual evidence usable on a narrow viewport", async ({ page }) => {
+    await page.goto("labs/audio-encoding?source=pure440&mode=aliasing", {
+      waitUntil: "networkidle",
+    });
+
+    await expect(page.getByRole("main", { name: /声音编码实验区|声音编码/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "原始信号" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "重建信号" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "播放" })).toBeVisible();
+    await expect(page.getByRole("img", { name: /波形图/ })).toBeVisible();
   });
 });

@@ -23,6 +23,7 @@ describe("UTF-8 domain", () => {
   it("hand-checks scalar evidence, byte binaries, and frame boundaries for every fixture", () => {
     const expected = {
       ascii: {
+        codePoints: [0x41],
         branches: ["1-byte"],
         binaries: ["000000000000001000001"],
         templates: ["0xxxxxxx"],
@@ -30,6 +31,7 @@ describe("UTF-8 domain", () => {
         after: [[65]],
       },
       accent: {
+        codePoints: [0xe9],
         branches: ["2-byte"],
         binaries: ["000000000000011101001"],
         templates: ["110xxxxx 10xxxxxx"],
@@ -42,6 +44,7 @@ describe("UTF-8 domain", () => {
         after: [[195, 169]],
       },
       cjk: {
+        codePoints: [0x732b],
         branches: ["3-byte"],
         binaries: ["000000111001100101011"],
         templates: ["1110xxxx 10xxxxxx 10xxxxxx"],
@@ -55,6 +58,7 @@ describe("UTF-8 domain", () => {
         after: [[231, 140, 171]],
       },
       emoji: {
+        codePoints: [0x1f642],
         branches: ["4-byte"],
         binaries: ["000011111011001000010"],
         templates: ["11110xxx 10xxxxxx 10xxxxxx 10xxxxxx"],
@@ -69,6 +73,7 @@ describe("UTF-8 domain", () => {
         after: [[240, 159, 153, 130]],
       },
       mixed: {
+        codePoints: [0x41, 0xe9, 0x732b, 0x1f642],
         branches: ["1-byte", "2-byte", "3-byte", "4-byte"],
         binaries: [
           "000000000000001000001",
@@ -107,10 +112,71 @@ describe("UTF-8 domain", () => {
           [65, 195, 169, 231, 140, 171, 240, 159, 153, 130],
         ],
       },
+      "boundary-1-2": {
+        codePoints: [0x7f, 0x80],
+        branches: ["1-byte", "2-byte"],
+        binaries: ["000000000000001111111", "000000000000010000000"],
+        templates: ["0xxxxxxx", "110xxxxx 10xxxxxx"],
+        bytes: [
+          [{ decimal: 127, binary: "01111111" }],
+          [
+            { decimal: 194, binary: "11000010" },
+            { decimal: 128, binary: "10000000" },
+          ],
+        ],
+        after: [[127], [127, 194, 128]],
+      },
+      "boundary-2-3": {
+        codePoints: [0x7ff, 0x800],
+        branches: ["2-byte", "3-byte"],
+        binaries: ["000000000011111111111", "000000000100000000000"],
+        templates: ["110xxxxx 10xxxxxx", "1110xxxx 10xxxxxx 10xxxxxx"],
+        bytes: [
+          [
+            { decimal: 223, binary: "11011111" },
+            { decimal: 191, binary: "10111111" },
+          ],
+          [
+            { decimal: 224, binary: "11100000" },
+            { decimal: 160, binary: "10100000" },
+            { decimal: 128, binary: "10000000" },
+          ],
+        ],
+        after: [
+          [223, 191],
+          [223, 191, 224, 160, 128],
+        ],
+      },
+      "boundary-3-4": {
+        codePoints: [0xffff, 0x10000],
+        branches: ["3-byte", "4-byte"],
+        binaries: ["000001111111111111111", "000010000000000000000"],
+        templates: ["1110xxxx 10xxxxxx 10xxxxxx", "11110xxx 10xxxxxx 10xxxxxx 10xxxxxx"],
+        bytes: [
+          [
+            { decimal: 239, binary: "11101111" },
+            { decimal: 191, binary: "10111111" },
+            { decimal: 191, binary: "10111111" },
+          ],
+          [
+            { decimal: 240, binary: "11110000" },
+            { decimal: 144, binary: "10010000" },
+            { decimal: 128, binary: "10000000" },
+            { decimal: 128, binary: "10000000" },
+          ],
+        ],
+        after: [
+          [239, 191, 191],
+          [239, 191, 191, 240, 144, 128, 128],
+        ],
+      },
     } as const;
 
     for (const id of Object.keys(expected) as Array<keyof typeof expected>) {
       const result = runUtf8(getUtf8Scenario(id));
+      expect(result.frames.map((frame) => frame.evidence.codePoint)).toEqual(
+        expected[id].codePoints,
+      );
       expect(result.frames.map((frame) => frame.evidence.branch)).toEqual(expected[id].branches);
       expect(result.frames.map((frame) => frame.evidence.codePointBinary)).toEqual(
         expected[id].binaries,
@@ -128,14 +194,64 @@ describe("UTF-8 domain", () => {
   });
 
   it("checks exact UTF-8 branch boundaries", () => {
-    expect(encodeCodePoint(0x7f).bytes.map((byte) => byte.decimal)).toEqual([0x7f]);
-    expect(encodeCodePoint(0x80).bytes.map((byte) => byte.decimal)).toEqual([0xc2, 0x80]);
-    expect(encodeCodePoint(0x7ff).bytes.map((byte) => byte.decimal)).toEqual([0xdf, 0xbf]);
-    expect(encodeCodePoint(0x800).bytes.map((byte) => byte.decimal)).toEqual([0xe0, 0xa0, 0x80]);
-    expect(encodeCodePoint(0xffff).bytes.map((byte) => byte.decimal)).toEqual([0xef, 0xbf, 0xbf]);
-    expect(encodeCodePoint(0x10000).bytes.map((byte) => byte.decimal)).toEqual([
-      0xf0, 0x90, 0x80, 0x80,
-    ]);
+    const expected = [
+      {
+        codePoint: 0x7f,
+        branch: "1-byte",
+        codePointBinary: "000000000000001111111",
+        template: "0xxxxxxx",
+        bytes: [0x7f],
+      },
+      {
+        codePoint: 0x80,
+        branch: "2-byte",
+        codePointBinary: "000000000000010000000",
+        template: "110xxxxx 10xxxxxx",
+        bytes: [0xc2, 0x80],
+      },
+      {
+        codePoint: 0x7ff,
+        branch: "2-byte",
+        codePointBinary: "000000000011111111111",
+        template: "110xxxxx 10xxxxxx",
+        bytes: [0xdf, 0xbf],
+      },
+      {
+        codePoint: 0x800,
+        branch: "3-byte",
+        codePointBinary: "000000000100000000000",
+        template: "1110xxxx 10xxxxxx 10xxxxxx",
+        bytes: [0xe0, 0xa0, 0x80],
+      },
+      {
+        codePoint: 0xffff,
+        branch: "3-byte",
+        codePointBinary: "000001111111111111111",
+        template: "1110xxxx 10xxxxxx 10xxxxxx",
+        bytes: [0xef, 0xbf, 0xbf],
+      },
+      {
+        codePoint: 0x10000,
+        branch: "4-byte",
+        codePointBinary: "000010000000000000000",
+        template: "11110xxx 10xxxxxx 10xxxxxx 10xxxxxx",
+        bytes: [0xf0, 0x90, 0x80, 0x80],
+      },
+    ] as const;
+
+    for (const boundary of expected) {
+      const evidence = encodeCodePoint(boundary.codePoint);
+      expect(evidence).toMatchObject({
+        codePoint: boundary.codePoint,
+        branch: boundary.branch,
+        codePointBinary: boundary.codePointBinary,
+        template: boundary.template,
+      });
+      expect(evidence.bytes.map((byte) => byte.decimal)).toEqual(boundary.bytes);
+      expect(evidence.bytes.map((byte) => byte.binary)).toEqual(
+        boundary.bytes.map((byte) => byte.toString(2).padStart(8, "0")),
+      );
+    }
   });
 
   it("rejects invalid scalar values and malformed scenarios", () => {

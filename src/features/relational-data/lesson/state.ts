@@ -13,6 +13,7 @@ export type RelationalLessonState = {
   machine: ReturnType<typeof createRelationalMachine>;
   frames: RelationalFrame[];
   selectedFrameIndex?: number;
+  selectedResultRowId?: string;
   predictionDraft: string;
   predictionMessage?: string;
   prediction?: number;
@@ -24,6 +25,7 @@ export type RelationalLessonAction =
   | { type: "step" }
   | { type: "run-all" }
   | { type: "select-frame"; index: number }
+  | { type: "select-result-row"; rowId: string }
   | { type: "set-scenario"; scenario: RelationalScenarioId }
   | { type: "sync-url-scenario"; scenario: RelationalScenarioId }
   | { type: "reset" };
@@ -37,6 +39,7 @@ export function createRelationalLessonState(
     machine: createRelationalMachine(getRelationalScenario(scenario.scenario)),
     frames: [],
     selectedFrameIndex: undefined,
+    selectedResultRowId: undefined,
     predictionDraft: "",
     predictionMessage: undefined,
     prediction: undefined,
@@ -55,6 +58,7 @@ function advance(state: RelationalLessonState): RelationalLessonState {
     machine: result.machine,
     frames: [...state.frames, result.frame],
     selectedFrameIndex: result.frame.index,
+    selectedResultRowId: undefined,
   };
 }
 
@@ -97,8 +101,14 @@ export function transitionRelationalLesson(
       return runAll(state);
     case "select-frame":
       return state.frames.some((frame) => frame.index === action.index)
-        ? { ...state, selectedFrameIndex: action.index }
+        ? { ...state, selectedFrameIndex: action.index, selectedResultRowId: undefined }
         : state;
+    case "select-result-row": {
+      const frame = state.frames.find((candidate) => candidate.index === state.selectedFrameIndex);
+      return frame?.result.rows.some((row) => row.id === action.rowId)
+        ? { ...state, selectedResultRowId: action.rowId }
+        : state;
+    }
     case "set-scenario":
       return {
         ...createRelationalLessonState({ scenario: action.scenario }),

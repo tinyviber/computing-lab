@@ -103,7 +103,7 @@ describe("application router integration", () => {
       "protocol process lesson",
       "/labs/protocol-process?scenario=request-loss",
       /可靠送达实验区/,
-      /运行到结束|消息情境/,
+      /执行下一个事件|消息情境/,
     ],
     ["UTF-8 lesson", "/labs/utf8?scenario=emoji", /UTF-8 编码实验区/, /运行到结束|UTF-8 样例/],
     [
@@ -138,8 +138,12 @@ describe("application router integration", () => {
     } else if (_name === "program execution lesson") {
       expect(screen.getByRole("button", { name: "执行一步" })).toBeInTheDocument();
       expect(screen.getByRole("list", { name: "程序步骤" })).toBeInTheDocument();
+    } else if (_name === "two's-complement lesson") {
+      await userEvent.setup().click(screen.getByRole("button", { name: "展开进位与溢出证据" }));
+      expect(screen.getByRole("heading", { level: 3, name: expected })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "A，第 3 位，0" })).toBeInTheDocument();
     } else if (_name === "protocol process lesson") {
-      expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "执行下一个事件" })).toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: /消息情境/i })).toHaveValue("request-loss");
     } else if (_name === "UTF-8 lesson") {
       expect(screen.getByRole("button", { name: "运行到结束" })).toBeInTheDocument();

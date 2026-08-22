@@ -11,23 +11,16 @@ describe("MonteCarloPage", () => {
 
     expect(screen.getByRole("main", { name: "蒙特卡洛 π实验区" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 1, name: "蒙特卡洛 π" })).toBeInTheDocument();
-    expect(screen.getByRole("combobox", { name: /最终估计值相对 π 的位置/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("medium");
+    expect(screen.getAllByText(/种子 2024/)[0]).toHaveTextContent(/10,000/);
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
     expect(screen.getByRole("table", { name: "样例比较" })).toHaveTextContent(/3\.1448.*3\.1328/i);
   });
 
-  it("supports prediction, convergence evidence, and the final estimate", async () => {
+  it("supports convergence evidence and the final estimate", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/monte-carlo?scenario=small");
-
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: /最终估计值相对 π 的位置/ }),
-      "below",
-    );
-    await user.click(button("记录预测"));
-    expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
     await user.click(button("运行到结束"));
     expect(screen.getByLabelText("最终蒙特卡洛估计值")).toHaveTextContent("3.08");
@@ -112,5 +105,33 @@ describe("MonteCarloPage", () => {
       within(screen.getByRole("main", { name: /蒙特卡洛 π实验区/ })).getByText(/随机点估计 π/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Math\.random/i)).not.toBeInTheDocument();
+  });
+
+  it("shows cumulative hit, pi estimate, and error evidence after one step without a gate", async () => {
+    await renderAppAt("/labs/monte-carlo?scenario=small");
+    await userEvent.setup().click(button("执行一步"));
+
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛结果/ })).toHaveTextContent(
+      /批次后圆内计数.*184.*当前估计值.*2\.9440.*当前误差.*0\.1976/s,
+    );
+    expect(screen.getByRole("table", { name: /批次收敛/ })).toHaveTextContent(
+      /250.*184.*2\.9440.*0\.1976/s,
+    );
+    expect(screen.queryByRole("button", { name: /submit|score|check/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/提交答案|得分|评分|运行全部/)).not.toBeInTheDocument();
+  });
+
+  it("restores the URL-selected fixture after interactive changes", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/monte-carlo?scenario=large");
+    await user.selectOptions(screen.getByRole("combobox", { name: /蒙特卡洛样例/ }), "small");
+    await user.click(button("执行一步"));
+    await user.click(button("恢复初始情境"));
+
+    expect(screen.getByRole("combobox", { name: /蒙特卡洛样例/ })).toHaveValue("large");
+    expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
+    expect(screen.getByRole("region", { name: /选中蒙特卡洛结果/ })).toHaveTextContent(
+      /执行一步，检查一个批次/,
+    );
   });
 });

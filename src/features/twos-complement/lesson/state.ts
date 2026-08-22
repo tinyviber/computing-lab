@@ -6,6 +6,7 @@ export type { TwosComplementExample } from "./examples";
 
 export type TwosComplementLessonState = TwosComplementScenario & {
   initialScenario: TwosComplementScenario;
+  detailsRevealed: boolean;
 };
 
 export type TwosComplementLessonAction =
@@ -13,6 +14,7 @@ export type TwosComplementLessonAction =
   | { type: "set-width"; width: WordWidth }
   | { type: "toggle-bit"; operand: "left" | "right"; msbIndex: number }
   | { type: "set-reading"; reading: Reading }
+  | { type: "reveal-details" }
   | { type: "apply-example"; example: TwosComplementExample }
   | { type: "reset" };
 
@@ -23,7 +25,7 @@ function cloneScenario(scenario: TwosComplementScenario): TwosComplementScenario
 export function createTwosComplementLessonState(
   scenario: TwosComplementScenario,
 ): TwosComplementLessonState {
-  return { ...scenario, initialScenario: cloneScenario(scenario) };
+  return { ...scenario, initialScenario: cloneScenario(scenario), detailsRevealed: false };
 }
 
 export function transitionTwosComplementLesson(
@@ -48,6 +50,8 @@ export function transitionTwosComplementLesson(
       };
     case "set-reading":
       return { ...state, reading: action.reading };
+    case "reveal-details":
+      return { ...state, detailsRevealed: true };
     case "apply-example": {
       const { words } = getTwosComplementExample(state.width, action.example);
       return {

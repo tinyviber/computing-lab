@@ -36,6 +36,25 @@ describe("home network scenario URL contract", () => {
     ).toMatchObject({ scenario: "static-printer", target: "internet" });
   });
 
+  it("uses preset targets for every known scenario and falls back for an invalid target", () => {
+    expect(parseHomeNetworkScenario("scenario=first-home-setup&target=invalid")).toMatchObject({
+      scenario: "first-home-setup",
+      target: "printer",
+    });
+    expect(parseHomeNetworkScenario("scenario=remote-internet&target=invalid")).toMatchObject({
+      scenario: "remote-internet",
+      target: "internet",
+    });
+    expect(parseHomeNetworkScenario("scenario=duplicate-ip")).toMatchObject({
+      scenario: "duplicate-ip",
+      target: "printer",
+    });
+    expect(parseHomeNetworkScenario("scenario=wrong-gateway")).toMatchObject({
+      scenario: "wrong-gateway",
+      target: "internet",
+    });
+  });
+
   it("falls back to laptop for an invalid source and ignores unknown runtime keys", () => {
     const result = parseHomeNetworkScenario(
       "source=not-a-device&source=laptop&history=probe-1&cursor=3&prediction=remote&probeId=probe-1&config.gateway=10.0.0.1",

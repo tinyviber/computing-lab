@@ -80,6 +80,54 @@ describe("Monte Carlo domain", () => {
     expect(medium.error).toBeLessThan(rows.find((row) => row.id === "small")!.error);
   });
 
+  it("keeps fixed seed × N fixtures deterministic with an independent count oracle", () => {
+    const fixtures = [
+      { seed: 42, samples: 1_000, batchSize: 250, inside: 770 },
+      { seed: 2_024, samples: 10_000, batchSize: 250, inside: 7_862 },
+      { seed: 11, samples: 10_000, batchSize: 250, inside: 7_832 },
+      { seed: 271_828, samples: 100_000, batchSize: 250, inside: 78_503 },
+    ] as const;
+
+    for (const fixture of fixtures) {
+      const scenario = {
+        id: "small" as const,
+        title: `oracle-${fixture.seed}`,
+        ...fixture,
+      };
+      const first = runMonteCarlo(scenario);
+      const second = runMonteCarlo(scenario);
+
+      expect(second).toEqual(first);
+      expect(first.machine).toMatchObject({
+        samplesDrawn: fixture.samples,
+        inside: fixture.inside,
+        status: "complete",
+      });
+      expect(first.frames.at(-1)).toMatchObject({
+        sampleCount: fixture.samples,
+        insideCount: fixture.inside,
+        estimate: (4 * fixture.inside) / fixture.samples,
+        error: Math.abs((4 * fixture.inside) / fixture.samples - Math.PI),
+      });
+      expect(first.frames.every((frame) => frame.points.length <= 128)).toBe(true);
+    }
+  });
+
+  it("makes the seed part of the stream while keeping N and batch evidence explicit", () => {
+    const base = { id: "small" as const, title: "fixed", samples: 1_000, batchSize: 250 };
+    const seed42 = runMonteCarlo({ ...base, seed: 42 });
+    const seed11 = runMonteCarlo({ ...base, seed: 11 });
+
+    expect(seed42.frames.map((frame) => frame.sampleCount)).toEqual([250, 500, 750, 1_000]);
+    expect(seed42.frames.map((frame) => frame.insideCount)).toEqual([184, 375, 572, 770]);
+    expect(seed11.machine.samplesDrawn).toBe(1_000);
+    expect(seed11.machine.inside).not.toBe(seed42.machine.inside);
+    expect(seed11.frames.flatMap((frame) => frame.points)).toHaveLength(512);
+    expect(
+      seed11.frames.flatMap((frame) => frame.points).every((point) => point.sampleIndex >= 0),
+    ).toBe(true);
+  });
+
   it("rejects malformed scenarios and preserves terminal identity", () => {
     const scenario = getMonteCarloScenario("small");
     expect(() => runMonteCarlo({ ...scenario, seed: -1 })).toThrow(/seed/i);

@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { createNetworkConfig } from "../domain/model";
 import { parseHomeNetworkScenario } from "./scenario";
-import { createHomeNetworkLessonState, transitionHomeNetworkLesson } from "./state";
+import {
+  createHomeNetworkLessonState,
+  homeNetworkConfigMatchesLatestProbe,
+  homeNetworkMissionSolved,
+  transitionHomeNetworkLesson,
+} from "./state";
 
 describe("home network lesson reducer", () => {
   it("does not append history for edits, snapshots each probe, and reset clears history", () => {
@@ -14,6 +19,7 @@ describe("home network lesson reducer", () => {
       selectedDevice: "laptop",
       probeHistory: [],
     });
+    expect(homeNetworkMissionSolved(state)).toBe(false);
 
     state = transitionHomeNetworkLesson(state, {
       type: "edit-config",
@@ -47,12 +53,39 @@ describe("home network lesson reducer", () => {
       [state.probeHistory[0].id]: undefined,
       [state.probeHistory[1].id]: undefined,
     });
+    expect(homeNetworkMissionSolved(state)).toBe(true);
+    expect(homeNetworkConfigMatchesLatestProbe(state)).toBe(true);
 
     state = transitionHomeNetworkLesson(state, { type: "reset" });
     expect(state.probeHistory).toEqual([]);
     expect(state.selectedTrace).toBeUndefined();
     expect(state.selectedEvent).toBeUndefined();
     expect(state.probePredictions).toEqual({});
+    expect(homeNetworkMissionSolved(state)).toBe(false);
+    expect(homeNetworkConfigMatchesLatestProbe(state)).toBe(false);
+  });
+
+  it("keeps missionSolved lesson-local and requires a successful re-probe after editing", () => {
+    const scenario = parseHomeNetworkScenario("scenario=static-printer&target=printer");
+    let state = createHomeNetworkLessonState(scenario);
+
+    state = transitionHomeNetworkLesson(state, { type: "probe" });
+    expect(state.probeHistory[0].outcome).toBe("blocked");
+    expect(homeNetworkMissionSolved(state)).toBe(false);
+    expect(homeNetworkConfigMatchesLatestProbe(state)).toBe(true);
+
+    state = transitionHomeNetworkLesson(state, {
+      type: "edit-config",
+      device: "printer",
+      field: "ip",
+      value: "192.168.1.30",
+    });
+    expect(homeNetworkMissionSolved(state)).toBe(false);
+
+    state = transitionHomeNetworkLesson(state, { type: "probe" });
+    expect(state.probeHistory[1].outcome).toBe("delivered");
+    expect(homeNetworkMissionSolved(state)).toBe(true);
+    expect(state.probeHistory).toHaveLength(2);
   });
 
   it("stores optional path predictions by immutable probe id", () => {
@@ -70,5 +103,20 @@ describe("home network lesson reducer", () => {
     expect(state.probePredictions[firstProbe.id]).toBe("local");
     expect(state.probePredictions[secondProbe.id]).toBe("remote");
     expect(firstProbe.events[0].id).not.toBe(secondProbe.events[0].id);
+  });
+
+  it("is idempotent for unknown trace and event selections", () => {
+    const initial = createHomeNetworkLessonState(parseHomeNetworkScenario(""));
+    const afterUnknownTrace = transitionHomeNetworkLesson(initial, {
+      type: "select-trace",
+      probeId: "missing-probe",
+    });
+    const afterUnknownEvent = transitionHomeNetworkLesson(initial, {
+      type: "select-event",
+      eventId: "missing-event",
+    });
+
+    expect(afterUnknownTrace).toBe(initial);
+    expect(afterUnknownEvent).toBe(initial);
   });
 });

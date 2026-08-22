@@ -49,6 +49,21 @@ const DECODE_REASON_LABELS: Record<string, string> = {
 const hexBytes = (bytes: readonly number[]) =>
   bytes.map((value) => value.toString(16).padStart(2, "0")).join(" ");
 
+function ByteTiles({ bytes, label }: { bytes: readonly number[]; label: string }) {
+  return (
+    <div className="be-byte-tiles" aria-label={label} role="list">
+      {bytes.length === 0 ? <span className="be-empty-tile">空序列</span> : null}
+      {bytes.map((value, index) => (
+        <span className="be-byte-tile" key={`${index}-${value}`} role="listitem">
+          <small>#{index}</small>
+          <strong>{value.toString(16).padStart(2, "0").toUpperCase()}</strong>
+          <span>{value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function DecodeEvidence({ decode }: { decode: ReturnType<typeof decodeUtf8> }) {
   return decode.valid ? (
     <p className="be-valid" role="status">
@@ -156,6 +171,20 @@ function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
           <dd className="be-mono">{hexBytes(frame.after.bytes)}</dd>
         </div>
       </dl>
+      <div className="be-original-comparison" role="status">
+        <strong>
+          {frame.originalComparison.exact
+            ? "与 exact original 完全一致"
+            : "与 exact original 仍有差异"}
+        </strong>
+        <span>
+          {frame.originalComparison.lengthMatches ? "长度一致" : "长度不同"}
+          {frame.originalComparison.differingByteIndices.length > 0
+            ? `；差异索引：${frame.originalComparison.differingByteIndices.join(", ")}`
+            : "。"}
+        </span>
+      </div>
+      <ByteTiles bytes={frame.after.bytes} label="编辑后的字节 tiles" />
       <DecodeEvidence decode={frame.decode} />
       {frame.edit.kind === "preset" ? <p>解码器会判断这组字节序列是否有效。</p> : null}
     </section>
@@ -255,6 +284,7 @@ function ByteEditContent({
             <div className="be-preset-grid">
               {Object.values(BYTE_EDIT_PRESETS).map((preset) => (
                 <button
+                  disabled={lesson.scenario !== "mixed"}
                   key={preset.id}
                   className="be-preset-button"
                   onClick={() => dispatch({ type: "apply-preset", preset: preset.id })}
@@ -264,6 +294,9 @@ function ByteEditContent({
                 </button>
               ))}
             </div>
+            {lesson.scenario !== "mixed" ? (
+              <p>固定诊断预设针对“混合文本”字节；当前样例仍可逐字节编辑。</p>
+            ) : null}
           </section>
 
           <section className="be-card">
@@ -301,6 +334,7 @@ function ByteEditContent({
             <div>
               <p className="eyebrow">当前序列</p>
               <strong className="be-mono">{hexBytes(lesson.machine.bytes)}</strong>
+              <ByteTiles bytes={lesson.machine.bytes} label="当前字节 tiles" />
             </div>
             <DecodeEvidence decode={currentDecode} />
           </section>

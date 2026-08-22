@@ -77,6 +77,42 @@ export function createHomeNetworkLessonState(
   };
 }
 
+function sameNetworkConfig(left: NetworkConfig, right: NetworkConfig): boolean {
+  return (
+    left.router.lanIp === right.router.lanIp &&
+    left.router.lanPrefix === right.router.lanPrefix &&
+    left.router.wanIp === right.router.wanIp &&
+    left.router.wanPrefix === right.router.wanPrefix &&
+    left.router.connectedRoutes.join("|") === right.router.connectedRoutes.join("|") &&
+    left.laptop.ip === right.laptop.ip &&
+    left.laptop.prefix === right.laptop.prefix &&
+    left.laptop.gateway === right.laptop.gateway &&
+    left.printer.ip === right.printer.ip &&
+    left.printer.prefix === right.printer.prefix &&
+    left.printer.gateway === right.printer.gateway
+  );
+}
+
+/**
+ * Mission state belongs to the lesson, not the network probe domain. A repair
+ * only counts after the current target was probed successfully with the
+ * current editable configuration.
+ */
+export function homeNetworkConfigMatchesLatestProbe(state: HomeNetworkLessonState): boolean {
+  const latestProbe = state.probeHistory[state.probeHistory.length - 1];
+  return Boolean(latestProbe && sameNetworkConfig(latestProbe.configSnapshot, state.config));
+}
+
+export function homeNetworkMissionSolved(state: HomeNetworkLessonState): boolean {
+  const latestProbe = state.probeHistory[state.probeHistory.length - 1];
+  return Boolean(
+    latestProbe &&
+    latestProbe.target === state.target &&
+    latestProbe.outcome === "delivered" &&
+    homeNetworkConfigMatchesLatestProbe(state),
+  );
+}
+
 function updateConfig(
   config: NetworkConfig,
   device: HostDeviceId,

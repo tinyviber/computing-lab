@@ -1,38 +1,36 @@
 import { expect, test } from "@playwright/test";
 
-test("traces acknowledgment loss, timeout, retry, and duplicate suppression", async ({ page }) => {
-  await page.goto("labs/protocol-process?scenario=ack-loss", { waitUntil: "networkidle" });
+async function runToEnd(page: import("@playwright/test").Page) {
+  const next = page.getByRole("button", { name: "执行下一个事件" });
+  while (await next.isEnabled()) await next.click();
+}
 
-  await expect(page.getByRole("main", { name: "可靠送达实验区" })).toBeVisible();
-  await page.getByRole("combobox", { name: "你的预测" }).selectOption("delivered");
-  await page.getByRole("button", { name: "记录预测" }).click();
-  await page.getByRole("button", { name: "运行到结束" }).click();
-
-  await page.getByRole("button", { name: "检查第一个故障" }).click();
-  await expect(page.getByRole("region", { name: "选中事件结果" })).toContainText(/时刻 5.*已丢失/);
-  await page.getByRole("button", { name: "检查重试" }).click();
-  await expect(page.getByRole("region", { name: "选中事件结果" })).toContainText(
-    /第 2 次请求重试|第 2 次尝试/,
-  );
-  await expect(page.getByRole("region", { name: "最终协议结果" })).toContainText(
-    /状态：已送达.*尝试次数：2.*重复抑制：1/,
-  );
-
-  const finalFrame = page.getByRole("button", { name: /第 9 步.*时刻 10.*送达确认/ });
-  await finalFrame.focus();
-  await page.keyboard.press("Enter");
-  await expect(finalFrame).toHaveAttribute("aria-current", "true");
+test("keeps semantic trace and queue projection aligned across all four scenarios", async ({
+  page,
+}) => {
+  for (const scenario of ["no-loss", "request-loss", "ack-loss", "receiver-silent"]) {
+    await page.goto(`labs/protocol-process?scenario=${scenario}`, { waitUntil: "networkidle" });
+    await runToEnd(page);
+    await expect(page.getByRole("region", { name: "协议事件记录" })).toContainText(/个事件/);
+    await expect(page.getByRole("table", { name: /之前的队列/ })).toBeVisible();
+    await expect(page.getByRole("table", { name: /之后的队列/ })).toBeVisible();
+    await expect(page.getByRole("region", { name: "最终协议结果" })).toBeVisible();
+  }
 });
 
-test.describe("responsive evidence", () => {
-  test.use({ viewport: { width: 520, height: 900 } });
+test("makes timeout uncertainty, retry, and duplicate evidence inspectable", async ({ page }) => {
+  await page.goto("labs/protocol-process?scenario=ack-loss", { waitUntil: "networkidle" });
+  await runToEnd(page);
+  await page.getByRole("button", { name: /超时/ }).click();
+  await expect(page.getByRole("region", { name: "选中事件结果" })).toContainText(
+    /不能证明接收方没有收到请求/,
+  );
+  await expect(page.getByRole("region", { name: "最终协议结果" })).toContainText(/重复抑制：1/);
+});
 
-  test("keeps queue and status evidence usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/protocol-process?scenario=no-loss", { waitUntil: "networkidle" });
-
-    await expect(page.getByRole("main", { name: "可靠送达实验区" })).toBeVisible();
-    await page.getByRole("button", { name: "执行一步" }).click();
-    await expect(page.getByRole("table", { name: "选中事件后的协议计数" })).toBeVisible();
-    await expect(page.getByRole("region", { name: "最终协议结果" })).toBeVisible();
-  });
+test("restores the initial URL scenario", async ({ page }) => {
+  await page.goto("labs/protocol-process?scenario=request-loss", { waitUntil: "networkidle" });
+  await page.getByRole("combobox", { name: "消息情境" }).selectOption("no-loss");
+  await page.getByRole("button", { name: "恢复初始情境" }).click();
+  await expect(page.getByRole("combobox", { name: "消息情境" })).toHaveValue("request-loss");
 });

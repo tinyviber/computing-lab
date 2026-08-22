@@ -51,4 +51,18 @@ describe("Relational lesson state", () => {
     expect(reduce(complete, { type: "step" })).toBe(complete);
     expect(reduce(complete, { type: "run-all" })).toBe(complete);
   });
+
+  it("selects only a result row from the selected frame and clears it on frame changes", () => {
+    const complete = reduce(createRelationalLessonState({ scenario: "catalog" }), {
+      type: "run-all",
+    });
+    const selected = reduce(complete, { type: "select-frame", index: 3 });
+    const row = reduce(selected, { type: "select-result-row", rowId: "row-3" });
+    const invalid = reduce(row, { type: "select-result-row", rowId: "missing" });
+    const changed = reduce(row, { type: "select-frame", index: 0 });
+
+    expect(row.selectedResultRowId).toBe("row-3");
+    expect(invalid).toBe(row);
+    expect(changed.selectedResultRowId).toBeUndefined();
+  });
 });

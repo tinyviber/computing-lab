@@ -74,6 +74,33 @@ describe("Utf8Page", () => {
     expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("emoji");
   });
 
+  it("makes adjacent branch boundaries inspectable without revealing the answer in fixture labels", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/utf8?scenario=boundary-1-2");
+
+    const source = screen.getByLabelText("UTF-8 源文本");
+    expect(source).toHaveTextContent(/U\+007F.*U\+0080/);
+    expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("boundary-1-2");
+    expect(screen.getByRole("option", { name: /U\+007F ↔ U\+0080/ })).not.toHaveTextContent(
+      /1 字节|2 字节.*序列/,
+    );
+
+    await user.click(button("运行到结束"));
+    const second = screen.getByRole("button", { name: /U\+0080.*2 字节/ });
+    expect(second).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: /选中 UTF-8 结果/ })).toHaveTextContent(
+      /U\+0080.*110xxxxx 10xxxxxx.*194.*128/s,
+    );
+
+    const first = screen.getByRole("button", { name: /U\+007F.*1 字节/ });
+    first.focus();
+    await user.keyboard("{Enter}");
+    expect(first).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: /选中 UTF-8 结果/ })).toHaveTextContent(
+      /U\+007F.*0xxxxxxx.*127/s,
+    );
+  });
+
   it("keeps semantic evidence available at a narrow viewport", async () => {
     const originalWidth = window.innerWidth;
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 520 });

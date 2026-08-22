@@ -8,6 +8,7 @@ test("explores a fixed-width two's-complement overflow trajectory", async ({ pag
   await expect(page.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A，第 3 位，0" })).toBeVisible();
 
+  await page.getByRole("button", { name: "展开进位与溢出证据" }).click();
   await page.getByRole("button", { name: "8 位" }).click();
   await expect(page.getByRole("button", { name: "A，第 7 位，0" })).toBeVisible();
   await page.getByRole("button", { name: "A，第 0 位，1" }).click();
@@ -34,5 +35,23 @@ test("explores a fixed-width two's-complement overflow trajectory", async ({ pag
   await page.getByRole("button", { name: "恢复初始情境", exact: true }).click();
   await expect(page.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A，第 0 位，1" })).toBeVisible();
+  await page.getByRole("button", { name: "展开进位与溢出证据" }).click();
   await expect(result).toHaveText("1000");
+});
+
+test("uses 4-bit progressive disclosure and preserves the domain result across readings", async ({
+  page,
+}) => {
+  await page.goto("labs/twos-complement", { waitUntil: "networkidle" });
+  await expect(page.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "8 位（展开后）" })).toBeDisabled();
+  await expect(page.getByRole("heading", { name: "符号位与大小的冲突" })).toBeVisible();
+  await page.getByRole("button", { name: "展开进位与溢出证据" }).click();
+  await expect(page.getByRole("button", { name: "8 位" })).toBeEnabled();
+
+  const result = page.locator(".twos-result-card code");
+  const before = await result.textContent();
+  await page.getByRole("button", { name: "无符号" }).click();
+  await expect(result).toHaveText(before ?? "");
+  await expect(page.getByText(/按无符号.*存储为/)).toBeVisible();
 });

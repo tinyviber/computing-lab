@@ -1,7 +1,47 @@
 import { describe, expect, it } from "vitest";
-import { createNetworkConfig, validateNetwork } from "./model";
+import { createNetworkConfig, runHomeNetworkProbe, validateNetwork } from "./model";
 
 describe("home network domain model", () => {
+  it("keeps hand-authored probe facts for all six learner scenarios", () => {
+    const expected = {
+      "first-home-setup": { target: "printer", outcome: "delivered", firstFailure: undefined },
+      "static-printer": { target: "printer", outcome: "blocked", firstFailure: "no-route" },
+      "remote-internet": { target: "internet", outcome: "delivered", firstFailure: undefined },
+      "wrong-gateway": {
+        target: "internet",
+        outcome: "blocked",
+        firstFailure: "gateway-unresolved",
+      },
+      "duplicate-ip": {
+        target: "printer",
+        outcome: "blocked",
+        firstFailure: "duplicate-address",
+      },
+      "invalid-config": { target: "printer", outcome: "blocked", firstFailure: "invalid-ip" },
+    } as const;
+
+    const scenarios = {
+      "first-home-setup": createNetworkConfig(),
+      "static-printer": createNetworkConfig({ printer: { ip: "192.168.2.30", prefix: "24" } }),
+      "remote-internet": createNetworkConfig(),
+      "wrong-gateway": createNetworkConfig({ laptop: { gateway: "192.168.1.254" } }),
+      "duplicate-ip": createNetworkConfig({ printer: { ip: "192.168.1.10" } }),
+      "invalid-config": createNetworkConfig({ printer: { ip: "not-an-ip" } }),
+    } as const;
+
+    for (const scenario of Object.keys(expected) as Array<keyof typeof expected>) {
+      const result = runHomeNetworkProbe(
+        scenarios[scenario],
+        expected[scenario].target,
+        "laptop",
+        1,
+      );
+
+      expect(result.outcome, scenario).toBe(expected[scenario].outcome);
+      expect(result.firstFailure?.reasonCode, scenario).toBe(expected[scenario].firstFailure);
+    }
+  });
+
   it("accepts the canonical fixed topology", () => {
     expect(validateNetwork(createNetworkConfig())).toEqual({ valid: true, issues: [] });
   });

@@ -6,6 +6,9 @@ import { parseProgramExecutionScenario } from "../lesson/scenario";
 import {
   createProgramExecutionLessonState,
   transitionProgramExecutionLesson,
+  type ProgramPrediction,
+  type ProgramPredictionFeedback,
+  type ProgramPredictionTarget,
 } from "../lesson/state";
 import "./program-execution.css";
 
@@ -54,20 +57,52 @@ function eventKindLabel(kind: ExecutionFrame["eventKind"]): string {
 }
 
 function frameExplanation(frame: ExecutionFrame): string {
+  const terminalSuffix = frame.terminal ? ` ${frame.terminal.message}` : "";
   if (frame.condition) {
-    return frame.condition.enteredBody
-      ? "条件为真，下一步进入循环体。"
-      : "条件为假，循环体在这次检查中被跳过。";
+    return `${
+      frame.condition.enteredBody
+        ? "条件为真，下一步进入循环体。"
+        : "条件为假，循环体在这次检查中被跳过。"
+    }${terminalSuffix}`;
   }
   if (frame.assignment) {
-    return `执行 ${frame.assignment.variable} = ${frame.assignment.expressionText}；变量已更新。`;
+    return `执行 ${frame.assignment.variable} = ${frame.assignment.expressionText}；变量已更新。${terminalSuffix}`;
   }
-  if (frame.print) return `执行输出语句，产生 ${frame.print.value}。`;
-  return frame.runtimeError ? "程序执行遇到运行错误。" : "程序到达结束状态。";
+  if (frame.print) return `执行输出语句，产生 ${frame.print.value}。${terminalSuffix}`;
+  return (
+    frame.terminal?.message ??
+    (frame.runtimeError ? "程序执行遇到运行错误。" : "程序到达结束状态。")
+  );
 }
 
 function terminalMessage(reason: string): string {
-  return reason === "program-complete" ? "程序已完成。" : "程序执行结束。";
+  if (reason === "program-complete") return "程序已完成。";
+  if (reason === "step-limit") return "已达到 64 步安全上限，无法证明程序终止。";
+  return "程序因运行时错误停止。";
+}
+
+function statusLabel(status: string): string {
+  if (status === "running") return "运行中";
+  if (status === "completed") return "已完成";
+  if (status === "step-limit") return "达到安全上限";
+  return "运行错误";
+}
+
+function predictionTargetLabel(target: ProgramPredictionTarget | undefined): string {
+  if (!target) return "程序已终止，没有下一条语句。";
+  if (target.kind === "assignment")
+    return `第 ${target.sourceLine} 行：预测 ${target.variable} 的新值`;
+  if (target.kind === "condition") return `第 ${target.sourceLine} 行：预测 while 条件的真假`;
+  return `第 ${target.sourceLine} 行：预测输出值`;
+}
+
+function predictionValueText(prediction: ProgramPrediction): string {
+  if (prediction.kind === "condition") return prediction.result ? "true" : "false";
+  return String(prediction.value);
+}
+
+function predictionFeedbackText(feedback: ProgramPredictionFeedback): string {
+  return `预测 ${predictionValueText(feedback.prediction)}；实际 ${predictionValueText(feedback.actual)}。${feedback.matches ? "一致。" : "不一致，请查看 before / after 证据。"}`;
 }
 
 function frameAccessibleName(frame: ExecutionFrame): string {
@@ -276,8 +311,24 @@ function FrameEvidence({
           </span>
         </div>
       ) : null}
-      {frame.loopExit ? <p className="program-loop-exit">循环在此处结束。</p> : null}
-      {frame.runtimeError ? <p className="program-runtime-error">程序执行遇到运行错误。</p> : null}
+      {frame.loopExit ? (
+        <p className="program-loop-exit">
+          {frame.loopExit.message} 这是循环退出，不一定是整个程序结束。
+        </p>
+      ) : null}
+      {frame.terminal ? (
+        <p
+          className={
+            frame.terminal.reason === "program-complete"
+              ? "program-complete-message"
+              : "program-runtime-error"
+          }
+        >
+          {frame.terminal.message}
+        </p>
+      ) : frame.runtimeError ? (
+        <p className="program-runtime-error">{frame.runtimeError.message}</p>
+      ) : null}
       <BeforeAfterTable frame={frame} variables={variables} />
     </section>
   );
@@ -300,20 +351,21 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
   const loopStopAvailable = lesson.frames.some(
     (frame) => frame.eventKind === "while-condition" && frame.condition?.result === false,
   );
+  const predictionTarget = lesson.predictionTarget;
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
   }, [scenario.fixture]);
 
   const terminal = lesson.machine.terminal;
-  const observedOutput = lesson.machine.output[0];
-
   return (
     <LabShell eyebrow="程序设计 / 01" subtitle="循环与变量追踪" title="程序执行">
       <div className="program-course">
         <header className="program-intro">
-          <h2>循环执行与最终输出</h2>
-          <p>程序包含赋值、while 条件和输出；执行记录显示变量变化与循环结束原因。</p>
+          <h2>预测下一状态，逐行执行</h2>
+          <p>
+            先预测当前赋值、while 条件或输出，再执行一步，对照 before / after 状态与循环结束原因。
+          </p>
         </header>
 
         <div className="program-layout">
@@ -346,28 +398,33 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
 
             <section className="program-card">
               <p className="eyebrow">预测</p>
-              <h3>预测输出</h3>
+              <h3>预测下一条语句</h3>
+              <p className="program-prediction-target">{predictionTargetLabel(predictionTarget)}</p>
               <label className="program-field-label" htmlFor="program-prediction">
-                预测输出值
+                {predictionTarget?.kind === "condition" ? "输入 true 或 false" : "输入安全整数"}
               </label>
               <div className="program-prediction-row">
                 <input
                   id="program-prediction"
                   inputMode="numeric"
-                  type="number"
+                  type={predictionTarget?.kind === "condition" ? "text" : "number"}
                   onChange={(event) =>
                     dispatch({ type: "set-prediction-draft", value: event.target.value })
                   }
                   value={lesson.predictionDraft}
                 />
-                <button onClick={() => dispatch({ type: "record-prediction" })} type="button">
+                <button
+                  disabled={!predictionTarget}
+                  onClick={() => dispatch({ type: "record-prediction" })}
+                  type="button"
+                >
                   记录预测
                 </button>
               </div>
-              <p className="program-help-text">可先记录预测，再执行。</p>
+              <p className="program-help-text">预测可选；Step 和 Run 都不会等待或阻塞预测。</p>
               {lesson.predictionMessage ? (
                 <p aria-live="polite" className="program-prediction-message">
-                  预测已记录；你仍可继续执行。
+                  {lesson.predictionMessage}
                 </p>
               ) : null}
             </section>
@@ -421,11 +478,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                     <h3>这一步之后的变量</h3>
                   </div>
                   <span className="program-control-chip">
-                    {displaySnapshot.status === "running"
-                      ? "运行中"
-                      : displaySnapshot.status === "completed"
-                        ? "已完成"
-                        : "运行错误"}
+                    {statusLabel(displaySnapshot.status)}
                   </span>
                 </div>
                 <EnvironmentTable
@@ -464,12 +517,9 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
                 ) : (
                   <p className="program-help-text">程序仍在运行。</p>
                 )}
-                {lesson.prediction !== undefined && lesson.machine.status === "completed" ? (
+                {lesson.predictionFeedback ? (
                   <p className="program-prediction-result">
-                    预测：{lesson.prediction}；实际值：{observedOutput}。{" "}
-                    {lesson.prediction === observedOutput
-                      ? "预测与实际一致。"
-                      : "比较选中结果，找到第一次分歧。"}
+                    {predictionFeedbackText(lesson.predictionFeedback)}
                   </p>
                 ) : null}
               </div>
