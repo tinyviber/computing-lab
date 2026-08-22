@@ -108,6 +108,26 @@ export type ImageEncodingModel = {
   rawPayload: RawPayload;
 };
 
+export type ImageEncodingSummary = {
+  sampledWidth: number;
+  sampledHeight: number;
+  sampledPixelCount: number;
+  rawBits: number;
+  rawBytes: number;
+  averageError: number;
+  changedPixelCount: number;
+};
+
+export type ImageEncodingSummaryDelta = {
+  sampledWidth: number;
+  sampledHeight: number;
+  sampledPixelCount: number;
+  rawBits: number;
+  rawBytes: number;
+  averageError: number;
+  changedPixelCount: number;
+};
+
 export type PixelInspection = {
   sourceX: number;
   sourceY: number;
@@ -570,6 +590,33 @@ export function deriveImageEncodingModel(
     averageQuantizationError,
     changedPixelCount: errorMap.filter((error) => error.magnitude > 0).length,
     rawPayload: rawPayload(sampled.width, sampled.height, quantized.bitDepth),
+  };
+}
+
+export function summarizeImageEncodingModel(model: ImageEncodingModel): ImageEncodingSummary {
+  return {
+    sampledWidth: model.sampled.width,
+    sampledHeight: model.sampled.height,
+    sampledPixelCount: model.sampled.width * model.sampled.height,
+    rawBits: model.rawPayload.bits,
+    rawBytes: model.rawPayload.bytes,
+    averageError: model.averageError,
+    changedPixelCount: model.changedPixelCount,
+  };
+}
+
+export function compareImageEncodingSummaries(
+  current: ImageEncodingSummary,
+  baseline: ImageEncodingSummary,
+): ImageEncodingSummaryDelta {
+  return {
+    sampledWidth: current.sampledWidth - baseline.sampledWidth,
+    sampledHeight: current.sampledHeight - baseline.sampledHeight,
+    sampledPixelCount: current.sampledPixelCount - baseline.sampledPixelCount,
+    rawBits: current.rawBits - baseline.rawBits,
+    rawBytes: current.rawBytes - baseline.rawBytes,
+    averageError: current.averageError - baseline.averageError,
+    changedPixelCount: current.changedPixelCount - baseline.changedPixelCount,
   };
 }
 

@@ -13,39 +13,35 @@ function sectionByHeading(name: RegExp, level: 2 | 3): HTMLElement {
   return section;
 }
 
-function flowItem(title: RegExp): HTMLElement {
-  const item = [...document.querySelectorAll(".lesson-flow-item")].find((candidate) =>
-    title.test(candidate.textContent ?? ""),
-  );
-  if (!(item instanceof HTMLElement)) throw new Error(`Lesson step not found: ${title}`);
-  return item;
+function metric(name: string): HTMLElement {
+  const element = document.querySelector(`[data-metric="${name}"]`);
+  if (!(element instanceof HTMLElement)) throw new Error(`Metric not found: ${name}`);
+  return element;
 }
 
-function changeSampling() {
+function budget(): HTMLElement {
+  const element = document.querySelector('[data-budget="baseline-25-percent"]');
+  if (!(element instanceof HTMLElement)) throw new Error("Budget indicator not found");
+  return element;
+}
+
+function feedback(kind: "judgment" | "prediction"): HTMLElement {
+  const element = document.querySelector(
+    `[data-feedback="${kind}"]`,
+  );
+  if (!(element instanceof HTMLElement)) throw new Error(`Feedback not found: ${kind}`);
+  return element;
+}
+
+function changeSampling(value = "45") {
   const sampling = slider(/空间采样/);
   sampling.focus();
-  fireEvent.change(sampling, { target: { value: "45" } });
+  fireEvent.change(sampling, { target: { value } });
   return sampling;
 }
 
-async function unlockCalculator(user: ReturnType<typeof userEvent.setup>) {
-  changeSampling();
-  await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
-  const bitDepth = slider(/颜色位深/);
-  fireEvent.change(bitDepth, { target: { value: "2" } });
-  return bitDepth;
-}
-
-async function unlockBoundary(user: ReturnType<typeof userEvent.setup>) {
-  await unlockCalculator(user);
-  const calculator = sectionByHeading(/数据量计算/, 3);
-  fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
-    target: { value: "119" },
-  });
-}
-
 describe("ImageEncodingPage", () => {
-  it("renders the local source, geometry, and four-step classroom flow", async () => {
+  it("renders one unified mission with fixed 25% theoretical raw-pixel budget", async () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
@@ -53,206 +49,144 @@ describe("ImageEncodingPage", () => {
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("小猫插图")).toHaveLength(2);
-    expect(screen.getByText("四步操作")).toBeInTheDocument();
-    expect(document.querySelectorAll(".lesson-flow-item")).toHaveLength(4);
-    expect(document.querySelectorAll(".mission-item")).toHaveLength(0);
-    expect(screen.getByRole("main")).toHaveTextContent(/当前图片 240 × 160 像素/);
-    expect(screen.getByRole("main")).toHaveTextContent(/120 × 80 个采样/);
-    expect(screen.getByRole("main")).not.toHaveTextContent(/证据|通关|载荷/);
-    expect(screen.getByRole("main")).not.toHaveTextContent(/0\s*\/\s*6|10\s*项/);
+    expect(budget()).toHaveTextContent(/25%/);
+    expect(budget()).toHaveTextContent(/理论原始|像素数据量/);
+    const formatBoundary = sectionByHeading(/联系实际文件格式/, 3);
+    expect(formatBoundary).toHaveTextContent(/PNG.*JPEG.*WebP/);
+    expect(document.querySelectorAll(".lesson-flow-item")).toHaveLength(0);
+    expect(document.querySelectorAll('[data-metric="budget-raw-bits"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-metric="current-raw-bits"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-metric="raw-bits-delta"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-metric="average-error"]')).toHaveLength(1);
+    expect(document.querySelectorAll('[data-metric="changed-pixels"]')).toHaveLength(1);
+    expect(document.querySelector('[data-budget-state="over"]')).toBeInTheDocument();
   });
 
-  it("starts with only spatial sampling enabled and human-readable lock copy", async () => {
+  it("keeps controls independently usable and shows directional prediction", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    expect(slider(/空间采样/)).not.toBeDisabled();
-    expect(slider(/采样网格相位/)).toBeDisabled();
+    expect(slider(/空间采样/)).toBeEnabled();
+    expect(slider(/采样网格相位/)).toBeEnabled();
     expect(slider(/颜色位深/)).toBeDisabled();
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    const rgb24 = screen.getByRole("button", { name: "原色（RGB 24 位）" });
-    expect(rgb24).toBeDisabled();
-    expect(rgb24).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByLabelText(/上传图片（可选）/)).toBeEnabled();
-    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
-    for (const tab of screen.getAllByRole("tab")) expect(tab).toBeDisabled();
-    for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
-      expect(input).toBeDisabled();
-    }
-    expect(screen.getByText("完成第 1 步后解锁颜色表示。")).toBeInTheDocument();
-    expect(screen.getByText("完成第 3 步后，这个边界问题会显示在这里。")).toBeInTheDocument();
-    expect(screen.getByText("完成第 2 步后解锁。")).toBeInTheDocument();
-  });
-
-  it("unlocks color controls after a sampling interaction", async () => {
-    await renderAppAt("/labs/image-encoding");
-
-    const sampling = changeSampling();
-    expect(sampling).toHaveValue("45");
-    expect(flowItem(/1\. 改变空间采样百分比/)).toHaveTextContent("已完成");
-    expect(flowItem(/2\. 调整颜色表示/)).toHaveTextContent("进行中");
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).not.toBeDisabled();
-    expect(slider(/采样网格相位/)).not.toBeDisabled();
+    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toBeEnabled();
     expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true);
+    for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
+      expect(input).toBeEnabled();
+    }
+    expect(feedback("prediction")).toHaveTextContent(/颜色|数据量|数据代价|误差|采样/);
   });
 
-  it("reveals the format boundary only after raw data calculation", async () => {
-    const user = userEvent.setup();
+  it("updates current metrics and meaning feedback when sampling changes", async () => {
     await renderAppAt("/labs/image-encoding");
+
+    const initialCurrentBits = metric("current-raw-bits").textContent;
+    const initialDelta = metric("raw-bits-delta").textContent;
+    const initialError = metric("average-error").textContent;
     changeSampling();
 
-    await user.click(screen.getByRole("button", { name: "原色（RGB 24 位）" }));
+    expect(metric("current-raw-bits").textContent).not.toBe(initialCurrentBits);
+    expect(metric("raw-bits-delta").textContent).not.toBe(initialDelta);
+    expect(metric("average-error").textContent).not.toBe(initialError);
+    expect(metric("current-sampled-pixels")).toHaveTextContent(/108 × 72|7,776|7776/);
+    expect(feedback("judgment")).toHaveTextContent(/数据量|误差/);
+  });
+
+  it("updates color metrics without requiring a sampling step", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
 
     await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
-    expect(slider(/颜色位深/)).not.toBeDisabled();
+    expect(slider(/颜色位深/)).toBeEnabled();
+    const initialCurrentBits = metric("current-raw-bits").textContent;
     fireEvent.change(slider(/颜色位深/), { target: { value: "2" } });
-    expect(flowItem(/2\. 调整颜色表示/)).toHaveTextContent("已完成");
-    expect(flowItem(/3\. 计算原始数据量/)).toHaveTextContent("进行中");
-    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
+
+    expect(metric("current-raw-bits").textContent).not.toBe(initialCurrentBits);
+    expect(metric("average-error")).toHaveTextContent(/\d/);
+    expect(feedback("judgment")).toHaveTextContent(/数据量|误差/);
+  });
+
+  it("keeps formula and format-boundary explanation visible without claiming file size", async () => {
+    await renderAppAt("/labs/image-encoding");
 
     const calculator = sectionByHeading(/数据量计算/, 3);
-    fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
-      target: { value: "119" },
-    });
-    const boundary = sectionByHeading(/联系实际文件格式/, 3);
-    expect(boundary).toHaveTextContent(/原始像素数据量可以由宽 × 高 × 每像素位数准确计算/);
-    expect(boundary).toHaveTextContent(/为什么这个结果不能直接当作 PNG、JPEG 或 WebP/);
-    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
-  });
-
-  it("lets a bits=1 scenario complete the color step", async () => {
-    const user = userEvent.setup();
-    await renderAppAt("/labs/image-encoding?bits=1");
-    changeSampling();
-    expect(screen.getByText("切换到调色板后解锁。")).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
-
-    expect(flowItem(/2\. 调整颜色表示/)).toHaveTextContent("已完成");
-    expect(
-      screen.getByText("当前已经是最低的 1 位；切换到调色板即可完成这一步。"),
-    ).toBeInTheDocument();
-    expect(
-      within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", {
-        name: "宽度（像素）",
-      }),
-    ).toBeEnabled();
-  });
-
-  it("shows a discussion prompt instead of a format completion control", async () => {
-    const user = userEvent.setup();
-    await renderAppAt("/labs/image-encoding");
-    await unlockBoundary(user);
-
-    const boundary = sectionByHeading(/联系实际文件格式/, 3);
-    expect(boundary).toHaveTextContent(
-      /实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响/,
-    );
-    expect(boundary).toHaveTextContent("可讨论");
-    expect(boundary.querySelectorAll("button")).toHaveLength(0);
-    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
-    expect(flowItem(/4\. 联系实际文件格式/)).not.toHaveTextContent("已完成");
-  });
-
-  it("unlocks an accessible editable calculator with the explicit formula", async () => {
-    const user = userEvent.setup();
-    await renderAppAt("/labs/image-encoding");
-    await unlockBoundary(user);
-
-    const calculator = sectionByHeading(/数据量计算/, 3);
-    expect(flowItem(/3\. 计算原始数据量/)).toHaveTextContent("已完成");
     const width = within(calculator).getByRole("spinbutton", { name: "宽度（像素）" });
-    const height = within(calculator).getByRole("spinbutton", { name: "高度（像素）" });
-    const bits = within(calculator).getByRole("spinbutton", { name: "每像素位数" });
-    expect(width).not.toBeDisabled();
-    expect(height).not.toBeDisabled();
-    expect(bits).not.toBeDisabled();
-
     fireEvent.change(width, { target: { value: "3" } });
-    fireEvent.change(height, { target: { value: "3" } });
-    fireEvent.change(bits, { target: { value: "5" } });
-    expect(width).toHaveValue(3);
-    expect(height).toHaveValue(3);
-    expect(bits).toHaveValue(5);
-    expect(calculator).toHaveTextContent(/原始位数 = 宽度 × 高度 × 每像素位数/);
-    expect(calculator).toHaveTextContent(/3 × 3 × 5 = 45 位/);
-    expect(calculator).toHaveTextContent(/45 ÷ 8 后向上取整 = 6 字节/);
-    expect(calculator).toHaveTextContent(/压缩格式的实际大小取决于图像内容和编码器设置/);
-    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
+    expect(calculator).toHaveTextContent(/原始位数|原始数据量/);
+    const formatBoundary = sectionByHeading(/联系实际文件格式/, 3);
+    expect(formatBoundary).toHaveTextContent(/PNG.*JPEG.*WebP/);
+    expect(screen.queryByText(/教学估算/)).not.toBeInTheDocument();
   });
 
-  it("does not let a URL deep link bypass the sequential locks", async () => {
-    await renderAppAt(
-      "/labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&color=palette&view=representation",
+  it("keeps URL fixtures, phase normalization, tabs, and same-size canvases", async () => {
+    const { router } = await renderAppAt(
+      "/labs/image-encoding?image=checkerboard&sample=99&phase=0.8",
     );
+    expect(slider(/采样网格相位/)).toHaveValue("0");
+    expect(slider(/采样网格相位/)).toBeDisabled();
 
-    expect(slider(/空间采样/)).toHaveValue("25");
-    expect(slider(/颜色位深/)).toBeDisabled();
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(screen.getByRole("tab", { name: /编码表示/ })).toBeDisabled();
-    expect(
-      within(sectionByHeading(/数据量计算/, 3)).getByText("完成第 2 步后解锁。"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/原始位数 = 宽度 × 高度 × 每像素位数/)).not.toBeInTheDocument();
-    expect(flowItem(/1\. 改变空间采样百分比/)).toHaveTextContent("进行中");
-    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("待解锁");
-  });
-
-  it("clears progress on reset, URL scenario changes, and upload attempts", async () => {
-    const user = userEvent.setup();
-    const { router } = await renderAppAt("/labs/image-encoding");
-    await unlockBoundary(user);
-
-    const reset = within(sectionByHeading(/本节使用的图像/, 3)).getByRole("button", {
-      name: "恢复初始情境",
+    const narrowGeometry = samplingGeometry(
+      {
+        id: "narrow-ui-source",
+        label: "Narrow UI source",
+        sourceKind: "upload",
+        width: 3,
+        height: 20,
+        pixels: Array.from({ length: 60 }, () => ({ r: 0, g: 0, b: 0 })),
+      },
+      { samplingPercent: 90, phase: 0.8 },
+    );
+    expect(narrowGeometry).toMatchObject({
+      x: { sourceSize: 3, sampledSize: 3, effectivePhase: 0 },
+      y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
     });
-    await user.click(reset);
-    expect(slider(/空间采样/)).toHaveValue("50");
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
-    expect(
-      within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", { name: "宽度（像素）" }),
-    ).toBeDisabled();
+    expect(phaseControlDescription(narrowGeometry)).toContain("相位固定为 0");
 
-    changeSampling();
-    await navigateApp(
-      router,
-      "/labs/image-encoding?image=gradient&sample=25&color=palette&bits=2&view=representation",
-    );
-    expect(slider(/空间采样/)).toHaveValue("25");
-    expect(flowItem(/1\. 改变空间采样百分比/)).toHaveTextContent("进行中");
+    for (const [fixture, label] of [
+      ["gradient", "平滑色彩渐变"],
+      ["checkerboard", "细棋盘格"],
+    ] as const) {
+      await navigateApp(
+        router,
+        `/labs/image-encoding?image=${fixture}&sample=25&bits=2&view=representation`,
+      );
+      expect(screen.getAllByText(label)).toHaveLength(2);
+      expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
+      expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
+      expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "48");
+    }
+  });
 
+  it("keeps source and reconstruction at the same display size and exposes pixel details", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=4");
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
+    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
+    expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "240");
+    expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("height", "160");
+
+    await user.click(screen.getByRole("tab", { name: /编码表示/ }));
+    fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }));
+    expect(screen.getByText("编码值").parentElement).toHaveTextContent(/24 bits|bits/);
+    expect(screen.getByRole("heading", { name: /RGB 颜色/ })).toBeInTheDocument();
+  });
+
+  it("preserves current experiment on failed upload and resets after a successful upload", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
     changeSampling();
-    await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
-    fireEvent.change(slider(/颜色位深/), { target: { value: "1" } });
-    fireEvent.change(
-      within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", {
-        name: "宽度（像素）",
-      }),
-      { target: { value: "119" } },
-    );
+
     const upload = screen.getByLabelText(/上传图片（可选）/);
     vi.stubGlobal("Image", undefined);
     try {
       fireEvent.change(upload, {
-        target: {
-          files: [new File(["not an image"], "not-an-image.png", { type: "image/png" })],
-        },
+        target: { files: [new File(["not an image"], "not-an-image.png", { type: "image/png" })] },
       });
       await screen.findByRole("alert");
     } finally {
       vi.unstubAllGlobals();
     }
     expect(slider(/空间采样/)).toHaveValue("45");
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
-    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("可讨论");
-    expect(
-      within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", { name: "宽度（像素）" }),
-    ).toBeEnabled();
-  });
-
-  it("clears progress after a successful upload", async () => {
-    const user = userEvent.setup();
-    await renderAppAt("/labs/image-encoding");
-    await unlockBoundary(user);
 
     const context = {
       createImageData: vi.fn((width: number, height: number) => ({
@@ -288,7 +222,6 @@ describe("ImageEncodingPage", () => {
     vi.stubGlobal("Image", MockImage);
 
     try {
-      const upload = screen.getByLabelText(/上传图片（可选）/);
       fireEvent.change(upload, {
         target: { files: [new File(["fake image"], "uploaded.png", { type: "image/png" })] },
       });
@@ -302,71 +235,13 @@ describe("ImageEncodingPage", () => {
 
     expect(screen.getAllByText(/已上传图像/)).toHaveLength(2);
     expect(slider(/空间采样/)).toHaveValue("50");
-    expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(
-      within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", {
-        name: "宽度（像素）",
+    expect(metric("raw-bits-delta")).toHaveTextContent(/0/);
+
+    await user.click(
+      within(sectionByHeading(/本节使用的图像/, 3)).getByRole("button", {
+        name: "恢复初始情境",
       }),
-    ).toBeDisabled();
-  });
-
-  it("keeps rounded geometry, source identity, and legacy fixture URLs", async () => {
-    const { router } = await renderAppAt(
-      "/labs/image-encoding?image=checkerboard&sample=99&phase=0.8",
     );
-    expect(slider(/采样网格相位/)).toHaveValue("0");
-    expect(slider(/采样网格相位/)).toBeDisabled();
-    expect(screen.getByText(/两个方向都已达到原图采样密度/)).toBeInTheDocument();
-
-    const narrowGeometry = samplingGeometry(
-      {
-        id: "narrow-ui-source",
-        label: "Narrow UI source",
-        sourceKind: "upload",
-        width: 3,
-        height: 20,
-        pixels: Array.from({ length: 60 }, () => ({ r: 0, g: 0, b: 0 })),
-      },
-      { samplingPercent: 90, phase: 0.8 },
-    );
-    expect(narrowGeometry).toMatchObject({
-      x: { sourceSize: 3, sampledSize: 3, effectivePhase: 0 },
-      y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
-    });
-    expect(phaseControlDescription(narrowGeometry)).toContain(
-      "水平：完整密度（3/3）· 相位固定为 0。",
-    );
-    expect(phaseControlDescription(narrowGeometry)).toContain("垂直：18/20 个采样 · 相位 0.80。");
-
-    for (const [fixture, label] of [
-      ["gradient", "平滑色彩渐变"],
-      ["checkerboard", "细棋盘格"],
-    ] as const) {
-      await navigateApp(
-        router,
-        `/labs/image-encoding?image=${fixture}&sample=25&bits=2&view=representation`,
-      );
-      expect(screen.getAllByText(label)).toHaveLength(2);
-      expect(screen.getAllByText(label)[0]).toBeVisible();
-      expect(screen.queryByText("小猫插图")).not.toBeInTheDocument();
-      expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
-      expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "48");
-      expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "48");
-    }
-  });
-
-  it("keeps source and reconstruction at the same display size and exposes pixel details after sampling", async () => {
-    const user = userEvent.setup();
-    await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=4");
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
-    expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "240");
-    expect(screen.getByRole("img", { name: /重建图像/ })).toHaveAttribute("height", "160");
-
-    changeSampling();
-    await user.click(screen.getByRole("tab", { name: /编码表示/ }));
-    fireEvent.click(screen.getByRole("img", { name: /原始源图像/ }));
-    expect(screen.getByText("编码值").parentElement).toHaveTextContent(/24 bits/);
-    expect(screen.getByRole("heading", { name: /RGB 颜色/ })).toBeInTheDocument();
+    expect(slider(/空间采样/)).toHaveValue("50");
   });
 });

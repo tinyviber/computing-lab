@@ -13,6 +13,8 @@ import {
   sampleImage,
   sampledDimensions,
   quantizeSampledImage,
+  compareImageEncodingSummaries,
+  summarizeImageEncodingModel,
 } from "./model";
 
 describe("image encoding domain model", () => {
@@ -358,5 +360,91 @@ describe("image encoding domain model", () => {
     const second = reconstructImage(source, quantized);
     expect(first).toEqual(second);
     expect(quantized.pixels.every((pixel) => pixel.paletteIndex < 2 ** 4)).toBe(true);
+  });
+
+  it("summarizes model metrics without changing the model contract", () => {
+    const model = deriveImageEncodingModel(source, {
+      samplingPercent: 25,
+      bitDepth: 3,
+      phase: 0.2,
+    });
+
+    const summary = summarizeImageEncodingModel(model);
+
+    expect(summary).toMatchObject({
+      sampledWidth: model.sampled.width,
+      sampledHeight: model.sampled.height,
+      sampledPixelCount: model.sampled.width * model.sampled.height,
+      rawBits: model.rawPayload.bits,
+      rawBytes: model.rawPayload.bytes,
+      averageError: model.averageError,
+      changedPixelCount: model.changedPixelCount,
+    });
+    expect(summary.changedPixelCount).toBe(model.changedPixelCount);
+  });
+
+  it("supports a fixed baseline budget of 25 percent of theoretical raw bits", () => {
+    const baseline = summarizeImageEncodingModel(
+      deriveImageEncodingModel(source, {
+        samplingPercent: 100,
+        bitDepth: 24,
+        colorMode: "rgb24",
+        phase: 0,
+      }),
+    );
+
+    const budgetBits = Math.floor(baseline.rawBits * 0.25);
+
+    expect(baseline.rawBits).toBe(240 * 160 * 24);
+    expect(budgetBits).toBe(Math.floor((240 * 160 * 24 * 25) / 100));
+    expect(budgetBits).toBeGreaterThan(0);
+  });
+
+  it("compares current metrics against baseline with signed deltas", () => {
+    const baseline = summarizeImageEncodingModel(
+      deriveImageEncodingModel(source, {
+        samplingPercent: 100,
+        bitDepth: 24,
+        colorMode: "rgb24",
+        phase: 0,
+      }),
+    );
+    const current = summarizeImageEncodingModel(
+      deriveImageEncodingModel(source, {
+        samplingPercent: 25,
+        bitDepth: 2,
+        colorMode: "palette",
+        phase: 0,
+      }),
+    );
+
+    const delta = compareImageEncodingSummaries(current, baseline);
+
+    expect(delta).toMatchObject({
+      rawBits: current.rawBits - baseline.rawBits,
+      rawBytes: current.rawBytes - baseline.rawBytes,
+      sampledPixelCount: current.sampledPixelCount - baseline.sampledPixelCount,
+      averageError: current.averageError - baseline.averageError,
+      changedPixelCount: current.changedPixelCount - baseline.changedPixelCount,
+    });
+    expect(delta.rawBits).toBeLessThan(0);
+    expect(delta.sampledPixelCount).toBeLessThan(0);
+    expect(delta.averageError).toBeGreaterThan(0);
+  });
+
+  it("keeps summary metrics finite at the largest supported fixture settings", () => {
+    const summary = summarizeImageEncodingModel(
+      deriveImageEncodingModel(source, {
+        samplingPercent: 100,
+        bitDepth: 8,
+        colorMode: "palette",
+        phase: 0,
+      }),
+    );
+
+    for (const value of Object.values(summary)) {
+      expect(value).toEqual(expect.any(Number));
+      expect(Number.isFinite(value)).toBe(true);
+    }
   });
 });
