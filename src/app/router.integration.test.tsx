@@ -178,7 +178,7 @@ describe("application router integration", () => {
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
     expect(screen.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
     expect(screen.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
-    expect(screen.getByRole("img", { name: /像素误差图/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: /像素颜色差异图/ })).toBeInTheDocument();
   });
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {

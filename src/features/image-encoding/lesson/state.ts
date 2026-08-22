@@ -121,7 +121,7 @@ export function transitionImageLesson(
       };
     }
     case "set-bit-depth": {
-      if (!state.samplingChanged || state.colorMode !== "palette") return state;
+      if (state.colorMode !== "palette") return state;
       const bitDepth = normalizeBitDepth(action.bitDepth);
       if (bitDepth === state.bitDepth) return state;
       return {
@@ -131,7 +131,6 @@ export function transitionImageLesson(
       };
     }
     case "set-color-mode": {
-      if (!state.samplingChanged) return state;
       const colorMode = normalizeColorMode(action.colorMode);
       return {
         ...state,
@@ -141,7 +140,6 @@ export function transitionImageLesson(
       };
     }
     case "set-phase":
-      if (!state.samplingChanged) return state;
       return {
         ...state,
         phase: canonicalPhaseForSource(
@@ -151,9 +149,8 @@ export function transitionImageLesson(
         ),
       };
     case "set-view":
-      return state.samplingChanged ? { ...state, view: action.view } : state;
+      return { ...state, view: action.view };
     case "select-pixel":
-      if (!state.samplingChanged) return state;
       return {
         ...state,
         selectedCoordinate: {
@@ -162,7 +159,6 @@ export function transitionImageLesson(
         },
       };
     case "edit-calculator-field":
-      if (!state.colorAdjusted) return state;
       return { ...state, calculatorEdited: true };
     case "load-source":
       return resetAfterSourceUpload(state, normalizeImage(action.source));
