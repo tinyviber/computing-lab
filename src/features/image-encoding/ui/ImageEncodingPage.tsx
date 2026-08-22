@@ -628,15 +628,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setUploadMessage(undefined);
   };
 
-  const observationPrompt =
-    "观察原图与重建图，再用数据量和平均 RGB 颜色差异判断代价；下一步由你选择。";
+  const observationPrompt = "先看看原图和还原后的图片，再比较占用空间和颜色变化。下一步由你来选。";
   const judgment = withinBudget
     ? summaryDelta.averageError > 0
-      ? "已进入理论数据量预算，但平均 RGB 颜色差异高于初始情境。"
-      : "已进入理论数据量预算，可继续寻找更清晰的方案。"
+      ? "现在占用空间没有超出上限，但颜色变化比一开始更多。"
+      : "现在占用空间没有超出上限，可以继续找更清楚的方案。"
     : summaryDelta.rawBits < 0
-      ? "数据量相对初始情境下降，但仍超过固定预算。"
-      : "当前理论数据量超过固定预算，可降低采样率或位深。";
+      ? "图片占用的空间比一开始少了，但还是超过上限。"
+      : "图片占用的空间太大了，需要想办法减少像素数量或颜色数量。";
 
   return (
     <LabShell eyebrow="图像 / 01" title="图像编码" subtitle="采样、颜色数量和图像还原">
@@ -664,26 +663,28 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">当前实验目标</p>
-                  <h3 id="mission-heading">在初始数据量的 25% 预算内，找出更清晰的重建</h3>
+                  <p className="eyebrow">这次要做什么</p>
+                  <h3 id="mission-heading">
+                    把图片占用的空间控制在原来的四分之一以内，同时尽量保持清楚
+                  </h3>
                   <p className="image-card-description">
-                    建议先调采样率，观察空间细节和数据量变化。一次只改一个变量，再比较视觉结果与数字代价。
+                    先调整图片保留的像素数量，看看细节和占用空间怎么变。一次只改一个设置，再比较画面和数字。
                   </p>
                 </div>
                 <span className={`mission-budget-badge${withinBudget ? " is-within" : ""}`}>
-                  {withinBudget ? "预算内" : "超过预算"}
+                  {withinBudget ? "空间够用" : "空间不够"}
                 </span>
               </div>
               <div className="mission-feedback-grid" aria-label="当前实验反馈">
                 <div className="mission-feedback-item">
-                  <span>固定预算</span>
+                  <span>最多能用的空间</span>
                   <strong data-metric="budget-raw-bits">{budgetBits.toLocaleString()} 位</strong>
                   <small data-metric="budget-raw-bytes">
                     约 {budgetBytes.toLocaleString()} 字节
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>当前 / 初始数据量</span>
+                  <span>现在 / 一开始占用的空间</span>
                   <strong data-metric="current-raw-bits">
                     {currentSummary.rawBits.toLocaleString()} /{" "}
                     {baselineSummary.rawBits.toLocaleString()} 位
@@ -694,20 +695,20 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>采样像素</span>
+                  <span>保留下来的像素</span>
                   <strong data-metric="current-sampled-pixels">
                     {currentSummary.sampledWidth} × {currentSummary.sampledHeight} ={" "}
                     {currentSummary.sampledPixelCount.toLocaleString()} /{" "}
                     {baselineSummary.sampledWidth} × {baselineSummary.sampledHeight} ={" "}
-                    {baselineSummary.sampledPixelCount.toLocaleString()} px
+                    {baselineSummary.sampledPixelCount.toLocaleString()} 个
                   </strong>
                   <small data-metric="sampled-pixels-delta">
                     {summaryDelta.sampledPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.sampledPixelCount.toLocaleString()} px
+                    {summaryDelta.sampledPixelCount.toLocaleString()} 个
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>平均 RGB 颜色差异</span>
+                  <span>平均颜色变化（不是清晰度评分）</span>
                   <strong data-metric="average-error">
                     {(currentSummary.averageError * 100).toFixed(1)}%
                   </strong>
@@ -717,19 +718,19 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>变化像素</span>
+                  <span>颜色变了的像素</span>
                   <strong data-metric="changed-pixels">
-                    {currentSummary.changedPixelCount.toLocaleString()} px
+                    {currentSummary.changedPixelCount.toLocaleString()} 个
                   </strong>
                   <small data-metric="changed-pixels-delta">
                     相对初始 {summaryDelta.changedPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.changedPixelCount.toLocaleString()} px
+                    {summaryDelta.changedPixelCount.toLocaleString()} 个
                   </small>
                 </div>
                 <div className="mission-feedback-item">
-                  <span>理论原始字节</span>
+                  <span>按像素算的空间</span>
                   <strong data-metric="current-raw-bytes">
-                    {currentSummary.rawBytes.toLocaleString()} /{" "}
+                    约 {currentSummary.rawBytes.toLocaleString()} /{" "}
                     {baselineSummary.rawBytes.toLocaleString()} 字节
                   </strong>
                   <small data-metric="raw-bytes-delta">
@@ -745,7 +746,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 观察提示：{observationPrompt}
               </p>
               <p className="payload-note">
-                预算与数据量均指理论原始像素数据，不是 PNG、JPEG 或 WebP 的实际文件大小。
+                这里显示的是图片像素本身大约要占多少空间。字节数按整字节显示，上限判断按像素数据的精确数值进行。这不是保存成
+                PNG、JPEG 或 WebP 后文件的实际大小。
               </p>
             </section>
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
