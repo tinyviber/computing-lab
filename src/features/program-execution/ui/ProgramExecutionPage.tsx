@@ -49,7 +49,7 @@ function frameOutcome(frame: ExecutionFrame): string {
 function eventKindLabel(kind: ExecutionFrame["eventKind"]): string {
   return {
     assignment: "赋值",
-    "while-condition": "while 条件",
+    "while-condition": "循环条件",
     print: "输出",
     terminal: "结束",
     "runtime-error": "运行错误",
@@ -92,7 +92,7 @@ function predictionTargetLabel(target: ProgramPredictionTarget | undefined): str
   if (!target) return "程序已终止，没有下一条语句。";
   if (target.kind === "assignment")
     return `第 ${target.sourceLine} 行：预测 ${target.variable} 的新值`;
-  if (target.kind === "condition") return `第 ${target.sourceLine} 行：预测 while 条件的真假`;
+  if (target.kind === "condition") return `第 ${target.sourceLine} 行：预测循环条件的真假`;
   return `第 ${target.sourceLine} 行：预测输出值`;
 }
 
@@ -352,6 +352,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
     (frame) => frame.eventKind === "while-condition" && frame.condition?.result === false,
   );
   const predictionTarget = lesson.predictionTarget;
+  const canExecute = lesson.machine.status === "running";
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
@@ -363,9 +364,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
       <div className="program-course">
         <header className="program-intro">
           <h2>预测下一状态，逐行执行</h2>
-          <p>
-            先预测当前赋值、while 条件或输出，再执行一步，对照执行前 / 执行后状态与循环结束原因。
-          </p>
+          <p>先预测当前赋值、循环条件或输出，再执行一步，对照执行前 / 执行后状态与循环结束原因。</p>
         </header>
 
         <div className="program-layout">
@@ -402,10 +401,10 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
               <p className="program-prediction-target">{predictionTargetLabel(predictionTarget)}</p>
               {predictionTarget?.kind === "condition" ? (
                 <>
-                  <span className="program-field-label">预测 while 条件</span>
+                  <span className="program-field-label">预测循环条件</span>
                   <div className="program-prediction-row">
                     <div
-                      aria-label="预测 while 条件"
+                      aria-label="预测循环条件"
                       className="program-prediction-choice"
                       role="group"
                     >
@@ -472,10 +471,18 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
               <p className="eyebrow">推进</p>
               <h3>继续执行</h3>
               <div className="program-action-row">
-                <button onClick={() => dispatch({ type: "step" })} type="button">
+                <button
+                  disabled={!canExecute}
+                  onClick={() => dispatch({ type: "step" })}
+                  type="button"
+                >
                   执行一步
                 </button>
-                <button onClick={() => dispatch({ type: "run-all" })} type="button">
+                <button
+                  disabled={!canExecute}
+                  onClick={() => dispatch({ type: "run-all" })}
+                  type="button"
+                >
                   运行到结束
                 </button>
               </div>

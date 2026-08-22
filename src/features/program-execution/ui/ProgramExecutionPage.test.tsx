@@ -145,11 +145,11 @@ describe("ProgramExecutionPage", () => {
     }
     expect(
       within(screen.getByRole("main", { name: /程序执行实验区/ })).getByText(
-        /先预测当前赋值、while 条件或输出/,
+        /先预测当前赋值、循环条件或输出/,
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("main", { name: /程序执行实验区/ })).not.toHaveTextContent(
-      /\b(true|false|Prediction|Enter|before|after|Step|Run)\b/,
+      /\b(true|false|Prediction|Enter|before|after|Step|Run|while)\b/,
     );
   });
 });

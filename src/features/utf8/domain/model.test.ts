@@ -1,7 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { encodeCodePoint, getUtf8Scenario, runUtf8, stepUtf8, createUtf8Machine } from "./index";
+import { UTF8_SCENARIOS } from "./fixtures";
 
 describe("UTF-8 domain", () => {
+  it("keeps fixture titles learner-readable without changing scenario IDs", () => {
+    expect(Object.values(UTF8_SCENARIOS).map((scenario) => scenario.title)).toEqual([
+      "ASCII 字符",
+      "带重音拉丁字母",
+      "CJK 字符",
+      "表情符号",
+      "1/2 字节边界",
+      "2/3 字节边界",
+      "3/4 字节边界",
+      "混合文本",
+    ]);
+    expect(Object.values(UTF8_SCENARIOS).map((scenario) => scenario.id)).toEqual([
+      "ascii",
+      "accent",
+      "cjk",
+      "emoji",
+      "boundary-1-2",
+      "boundary-2-3",
+      "boundary-3-4",
+      "mixed",
+    ]);
+  });
+
   it("matches hand-authored bytes and branches for all learner fixtures", () => {
     expect(runUtf8(getUtf8Scenario("ascii")).machine.bytes).toEqual([0x41]);
     expect(runUtf8(getUtf8Scenario("accent")).machine.bytes).toEqual([0xc3, 0xa9]);

@@ -13,6 +13,8 @@ test("traces variable mutation and the final false loop condition", async ({ pag
   );
 
   await page.getByRole("button", { name: "运行到结束" }).click();
+  await expect(page.getByRole("button", { name: "执行一步" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "运行到结束" })).toBeDisabled();
   await page.getByRole("button", { name: "检查循环停止" }).click();
   await expect(page.getByRole("region", { name: /选中步骤详情/ })).toContainText(/4 <= 3.*假/);
   await expect(page.getByRole("status", { name: "程序输出" })).toHaveText("6");
