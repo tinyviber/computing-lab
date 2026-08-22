@@ -44,7 +44,7 @@ function completeSamplingEvidence() {
   fireEvent.change(screen.getByRole("combobox", { name: "同一观察位置" }), {
     target: { value: "text-edge" },
   });
-  fireEvent.change(screen.getByRole("textbox", { name: /学生观察/ }), {
+  fireEvent.change(screen.getByRole("textbox", { name: /你的观察/ }), {
     target: { value: "边缘变粗，细节减少。" },
   });
   fireEvent.click(screen.getByRole("button", { name: "记录改变后的结果" }));
@@ -59,7 +59,7 @@ describe("ImageEncodingPage", () => {
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("小猫插图")).toHaveLength(2);
-    expect(screen.getByText("这次要做什么")).toBeInTheDocument();
+    expect(screen.getByText("目标")).toBeInTheDocument();
     expect(budget()).toHaveAttribute("data-budget", "baseline-25-percent");
     expect(budget()).not.toHaveTextContent(/理论原始|平均 RGB|采样率/);
     expect(budget()).toHaveTextContent(/原来的四分之一以内/);
@@ -113,7 +113,7 @@ describe("ImageEncodingPage", () => {
     expect(metric("raw-bits-delta").textContent).not.toBe(initialDelta);
     expect(metric("average-error").textContent).not.toBe(initialError);
     expect(metric("current-sampled-pixels")).toHaveTextContent(/108 × 72|7,776|7776/);
-    expect(feedback("judgment")).toHaveTextContent(/占用的?空间|颜色变化/);
+    expect(feedback("judgment")).toHaveTextContent(/数据量|颜色变化/);
 
     changeSampling("25");
     expect(budget()).toHaveAttribute("data-budget-state", "within");
@@ -206,9 +206,7 @@ describe("ImageEncodingPage", () => {
 
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
     completeSamplingEvidence();
-    expect(
-      screen.getByText("采样证据已形成：两组对照和观察记录完整，可继续比较颜色表示。"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("已记录两组结果和你的观察。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
 
     const challenge = sectionByHeading(/编码预算挑战/, 3);
@@ -222,21 +220,20 @@ describe("ImageEncodingPage", () => {
     });
     fireEvent.click(
       within(challenge).getByRole("checkbox", {
-        name: /我知道 rawBytes 是理论原始像素数据量/,
+        name: /rawBytes 是理论原始像素数据量/,
       }),
     );
     expect(
       within(challenge).queryByRole("button", { name: "提交挑战方案" }),
     ).not.toBeInTheDocument();
-    expect(challenge).toHaveTextContent(/预算内，且你判断目标细节仍可辨认；取舍说明已记录/);
+    expect(challenge).toHaveTextContent(/在预算内，目标细节还能辨认。/);
     expect(challenge).toHaveTextContent(/基准理论数据量的 25%/);
     expect(challenge).toHaveTextContent(/rawBytes/);
-    expect(challenge).not.toHaveTextContent(/Blob\.size|实际 PNG.*文件大小测量/);
 
     fireEvent.change(within(challenge).getByRole("combobox", { name: "观察区域是否仍可辨认" }), {
       target: { value: "no" },
     });
-    expect(challenge).toHaveTextContent(/目标细节暂不可辨认：继续调整方案/);
+    expect(challenge).toHaveTextContent(/在预算内，但目标细节还不能辨认/);
   });
 
   it("preserves current experiment on failed upload and resets after a successful upload", async () => {

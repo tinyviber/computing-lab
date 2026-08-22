@@ -471,7 +471,7 @@ function DeepDivePanel({ colorMode }: { colorMode: ImageColorMode }) {
       </div>
       <div className="deep-dive-list">
         <DeepDiveItem number="01" title="采样后的尺寸和显示尺寸有什么关系？">
-          编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。
+          编码时使用的采样单元变少；重建时将采样值扩展到原显示尺寸。
         </DeepDiveItem>
         <DeepDiveItem
           number="02"
@@ -530,16 +530,16 @@ function SamplingEvidenceCard({
 }) {
   const complete = isSamplingEvidenceComplete(evidence);
   const status = !evidence.baseline
-    ? "尚未形成采样证据：请先记录基准。"
+    ? "尚未记录基准。"
     : !evidence.changed
-      ? "基准已记录：请改变采样比例，再记录改变后的结果。"
+      ? "已记录基准。改变采样比例后，再记录一次。"
       : evidence.baseline.samplingPercent === evidence.changed.samplingPercent
-        ? "两次采样比例相同：请记录一个不同的改变值。"
+        ? "两次采样比例相同。"
         : !evidence.observationSpot
-          ? "两次快照已记录：请选择同一观察位置。"
+          ? "已记录两次结果。观察位置尚未选择。"
           : !evidence.observation.trim()
-            ? "位置已选择：请填写一句学生观察。"
-            : "采样证据已形成：两组对照和观察记录完整，可继续比较颜色表示。";
+            ? "已选观察位置。还没有记录你的观察。"
+            : "已记录两组结果和你的观察。";
 
   return (
     <section
@@ -552,11 +552,11 @@ function SamplingEvidenceCard({
           <p className="eyebrow">第一步 · 空间采样证据</p>
           <h3 id="sampling-evidence-heading">采样侦探卡</h3>
           <p className="image-card-description">
-            先记录基准和改变后的尺寸，再选同一观察位置并写一句观察。观察文字不判唯一答案，只检查证据结构是否完整。
+            记录基准和改变后的尺寸，选择同一观察位置，写下你的观察。
           </p>
         </div>
         <span className={`evidence-badge${complete ? " is-complete" : ""}`}>
-          {complete ? "证据已形成" : "待补证据"}
+          {complete ? "已记录两组结果" : "尚未完成记录"}
         </span>
       </div>
       <div className="sampling-evidence-controls">
@@ -585,7 +585,7 @@ function SamplingEvidenceCard({
             }
             value={evidence.observationSpot}
           >
-            <option value="">请选择</option>
+            <option value="">选择观察位置</option>
             {Object.entries(OBSERVATION_SPOT_LABELS).map(([value, label]) => (
               <option key={value} value={value}>
                 {label}
@@ -594,7 +594,7 @@ function SamplingEvidenceCard({
           </select>
         </label>
         <label className="sampling-observation-field">
-          学生观察（一句话即可）
+          你的观察（一句话即可）
           <input
             onChange={(event) =>
               dispatch({ type: "set-observation", observation: event.target.value })
@@ -627,7 +627,7 @@ function SamplingEvidenceCard({
         <span>同一观察位置</span>
         <span>{snapshotValue(evidence.baseline, "observationSpot")}</span>
         <span>{snapshotValue(evidence.changed, "observationSpot")}</span>
-        <span>学生观察</span>
+        <span>你的观察</span>
         <span>{snapshotValue(evidence.baseline, "observation")}</span>
         <span>{snapshotValue(evidence.changed, "observation")}</span>
       </div>
@@ -659,30 +659,29 @@ function BudgetChallengeCard({
   const withinBudget = rawBits <= budgetBits;
   const hasTradeoff = challenge.tradeoff.trim().length > 0;
   const status = !withinBudget
-    ? "预算超出：继续调整采样比例或颜色表示。"
+    ? "超过预算。"
     : !spot
-      ? "先在采样侦探卡选择同一观察位置，再比较目标细节。"
+      ? "尚未选择观察位置。"
       : !challenge.readability
-        ? "预算内；请选择观察区域是否仍可辨认。"
+        ? "在预算内。尚未判断目标细节是否还能辨认。"
         : challenge.readability === "no"
-          ? "预算内，但目标细节暂不可辨认：继续调整方案。"
+          ? "在预算内，但目标细节还不能辨认。"
           : !hasTradeoff
-            ? "预算内，且你判断目标细节仍可辨认；请记录取舍说明。"
+            ? "在预算内，目标细节还能辨认。取舍说明尚未填写。"
             : !challenge.acknowledged
-              ? "预算内，且你判断目标细节仍可辨认；可确认 rawBytes 只是理论原始像素数据量。"
-              : "预算内，且你判断目标细节仍可辨认；取舍说明已记录。";
+              ? "在预算内，目标细节还能辨认。rawBytes 的含义尚未确认。"
+              : "在预算内，目标细节还能辨认。";
 
   return (
     <section className="image-card budget-challenge-card" aria-labelledby="challenge-heading">
       <div className="image-card-heading">
         <div>
-          <p className="eyebrow">可选扩展任务</p>
+          <p className="eyebrow">扩展练习</p>
           <h3 id="challenge-heading">编码预算挑战：在有限数据量内保留目标细节</h3>
           <p className="image-card-description">
-            这不是第五个知识步骤。用同一张图和同一观察位置，尝试在当前源图基准理论数据量的四分之一内保留目标细节；边调边看反馈。
+            用同一张图和同一观察位置，在基准理论数据量的四分之一内保留目标细节。
           </p>
         </div>
-        <span className="image-card-heading-note">额外挑战</span>
       </div>
       <div className="challenge-layout">
         <div className="challenge-controls">
@@ -758,7 +757,7 @@ function BudgetChallengeCard({
               }
               value={challenge.readability}
             >
-              <option value="">请选择</option>
+              <option value="">选择是否还能辨认</option>
               <option value="yes">仍可辨认</option>
               <option value="no">还不能辨认</option>
             </select>
@@ -784,7 +783,7 @@ function BudgetChallengeCard({
               }
               type="checkbox"
             />
-            我知道 rawBytes 是理论原始像素数据量，不是实际 PNG/JPEG/WebP 文件大小。
+            rawBytes 是理论原始像素数据量，不等于实际 PNG、JPEG 或 WebP 文件大小。
           </label>
           <p
             className={`challenge-status${withinBudget && challenge.readability === "yes" ? " is-positive" : ""}`}
@@ -829,10 +828,7 @@ function BudgetChallengeCard({
       <p className={`challenge-budget-state${withinBudget ? " is-within" : ""}`}>
         预算：基准理论数据量的 25% · {withinBudget ? "当前在预算内" : "当前超出预算"}
       </p>
-      <p className="payload-note">
-        本挑战只使用理论 rawBits/rawBytes，不生成或测量实际 PNG、JPEG、WebP
-        文件，也不比较哪种格式更好。
-      </p>
+      <p className="payload-note">本题预算只按理论 rawBits/rawBytes 计算。</p>
     </section>
   );
 }
@@ -990,14 +986,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setUploadMessage(undefined);
   };
 
-  const observationPrompt = "先看看原图和还原后的图片，再比较占用空间和颜色变化。下一步由你来选。";
+  const observationPrompt = "先比较原图和还原图，再看数据量和颜色变化。";
   const judgment = withinBudget
     ? summaryDelta.averageError > 0
-      ? "现在占用空间没有超出上限，但颜色变化比一开始更多。"
-      : "现在占用空间没有超出上限，可以继续找更清楚的方案。"
+      ? "当前数据量在上限内，但颜色变化更多了。"
+      : "当前数据量在上限内，颜色变化没有增加。"
     : summaryDelta.rawBits < 0
-      ? "图片占用的空间比一开始少了，但还是超过上限。"
-      : "图片占用的空间太大了，需要想办法减少像素数量或颜色数量。";
+      ? "当前数据量仍超过上限，但比开始少了。"
+      : "当前数据量超过上限；减少采样像素或颜色数量后，数据量会下降。";
 
   return (
     <LabShell eyebrow="图像 / 01" title="图像编码" subtitle="采样、颜色数量和图像还原">
@@ -1025,7 +1021,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             >
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">这次要做什么</p>
+                  <p className="eyebrow">目标</p>
                   <h3 id="mission-heading">
                     把图片占用的空间控制在原来的四分之一以内，同时尽量保持清楚
                   </h3>
@@ -1105,7 +1101,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 {judgment}
               </p>
               <p className="mission-observation" data-feedback="observation">
-                观察提示：{observationPrompt}
+                {observationPrompt}
               </p>
               <p className="payload-note">
                 这里显示的是图片像素本身大约要占多少空间。字节数按整字节显示，上限判断按像素数据的精确数值进行。这不是保存成
@@ -1407,7 +1403,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             <section className="image-card calculator-card" aria-labelledby="calculator-heading">
               <div className="image-card-heading">
                 <div>
-                  <p className="eyebrow">辅助观察</p>
+                  <p className="eyebrow">数据量计算</p>
                   <h3 id="calculator-heading">数据量计算</h3>
                 </div>
                 <span className="image-card-heading-note">原始像素数据</span>
@@ -1486,7 +1482,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <p className="eyebrow">边界讨论</p>
                   <h3 id="format-heading">联系实际文件格式</h3>
                 </div>
-                <span className="image-card-heading-note">可讨论</span>
+                <span className="image-card-heading-note">格式边界</span>
               </div>
               <div className="format-boundary-copy">
                 <p>原始像素数据量可以由宽 × 高 × 每像素位数准确计算。</p>
@@ -1495,7 +1491,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小？
                 </p>
                 <p>实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响。</p>
-                <p className="boundary-warning">这里不生成文件，也不测量实际文件大小。</p>
               </div>
             </section>
             <BudgetChallengeCard
