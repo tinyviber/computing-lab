@@ -186,6 +186,19 @@
   width: 5.5rem;
 }
 
+.program-prediction-choice {
+  display: flex;
+  gap: 0.55rem;
+}
+
+.program-prediction-choice button {
+  min-width: 3rem;
+}
+
+.program-prediction-choice button[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 0.7);
+}
+
 .program-prediction-row button:disabled {
   cursor: not-allowed;
   opacity: 0.45;

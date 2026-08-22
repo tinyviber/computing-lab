@@ -13,6 +13,8 @@ describe("Utf8Page", () => {
     expect(screen.getByRole("heading", { level: 1, name: "UTF-8 编码" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /下一个码点分支/ })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("mixed");
+    expect(screen.getByLabelText("UTF-8 源文本")).toHaveTextContent("混合文本");
+    expect(screen.getByLabelText("UTF-8 源文本")).not.toHaveTextContent("Mixed text");
     expect(screen.getByRole("button", { name: "执行一步" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "运行到结束" })).toBeEnabled();
     expect(screen.getByLabelText("编码后的 UTF-8 字节")).toHaveTextContent("—");
@@ -65,6 +67,8 @@ describe("Utf8Page", () => {
   it("hydrates fixture boundaries and resets to the original URL scenario", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/utf8?scenario=emoji");
+    expect(screen.getByLabelText("UTF-8 源文本")).toHaveTextContent("表情符号");
+    expect(screen.getByLabelText("UTF-8 源文本")).not.toHaveTextContent("Emoji");
     await user.click(button("运行到结束"));
     expect(screen.getByLabelText("编码后的 UTF-8 字节")).toHaveTextContent("240 159 153 130");
 
@@ -80,6 +84,8 @@ describe("Utf8Page", () => {
 
     const source = screen.getByLabelText("UTF-8 源文本");
     expect(source).toHaveTextContent(/U\+007F.*U\+0080/);
+    expect(source).toHaveTextContent("U+007F ↔ U+0080");
+    expect(source).not.toHaveTextContent("1/2-byte boundary");
     expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("boundary-1-2");
     expect(screen.getByRole("option", { name: /U\+007F ↔ U\+0080/ })).not.toHaveTextContent(
       /1 字节|2 字节.*序列/,

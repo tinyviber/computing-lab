@@ -183,7 +183,10 @@ function advanceOne(state: ProgramExecutionLessonState): ProgramExecutionLessonS
   const program = getProgram(state.fixture);
   const target = state.predictionTarget;
   const result = stepProgram(state.machine, program);
-  if (!result.frame) return state;
+  if (!result.frame) {
+    if (target || (!state.predictionDraft && !state.prediction)) return state;
+    return { ...state, predictionDraft: "", prediction: undefined };
+  }
   const actual = actualPredictionForFrame(result.frame, target);
   const feedback =
     state.prediction && actual && state.prediction.target.key === actual.target.key
@@ -203,13 +206,14 @@ function advanceOne(state: ProgramExecutionLessonState): ProgramExecutionLessonS
     frames: [...state.frames, result.frame],
     selectedFrameIndex: result.frame.index,
     predictionTarget: predictionTargetForMachine(result.machine, program),
+    predictionDraft: "",
     prediction: undefined,
     predictionFeedback: feedback ?? state.predictionFeedback,
     predictionMessage: feedback
       ? feedback.matches
-        ? "Prediction matched the next execution event."
-        : "Prediction differed from the next execution event; inspect the before/after evidence."
-      : state.predictionMessage,
+        ? "预测正确：下一步执行事件与预测一致。"
+        : "预测与实际不同：请查看执行前 / 执行后的证据。"
+      : undefined,
   };
 }
 
@@ -247,15 +251,15 @@ export function transitionProgramExecutionLesson(
           ...state,
           predictionMessage:
             state.predictionTarget?.kind === "condition"
-              ? "Enter true or false for the current while condition."
-              : "Enter a safe whole-number prediction for the current statement.",
+              ? "请输入“真”或“假”来预测当前条件。"
+              : "请输入当前语句的安全整数预测。",
         };
       }
       return {
         ...state,
         prediction,
         predictionFeedback: undefined,
-        predictionMessage: "Prediction recorded for the current statement; execution remains open.",
+        predictionMessage: "预测已记录；仍可继续执行。",
       };
     }
     case "step":

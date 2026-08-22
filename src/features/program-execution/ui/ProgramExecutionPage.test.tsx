@@ -29,11 +29,18 @@ describe("ProgramExecutionPage", () => {
 
     await user.type(screen.getByRole("spinbutton", { name: /输入安全整数/ }), "0");
     await user.click(button("记录预测"));
-    expect(screen.getByText(/Prediction recorded|预测.*记录/)).toBeInTheDocument();
+    expect(screen.getByText(/预测已记录/)).toBeInTheDocument();
 
     await user.click(button("执行一步"));
     expect(screen.getByText(/预测 0；实际 0。一致/)).toBeInTheDocument();
-    for (let index = 0; index < 4; index += 1) await user.click(button("执行一步"));
+    await user.click(button("执行一步"));
+    expect(button("真")).toHaveAttribute("aria-pressed", "false");
+    await user.click(button("真"));
+    expect(button("真")).toHaveAttribute("aria-pressed", "true");
+    await user.click(button("记录预测"));
+    await user.click(button("执行一步"));
+    expect(screen.getByText(/预测 真；实际 真。一致/)).toBeInTheDocument();
+    for (let index = 0; index < 2; index += 1) await user.click(button("执行一步"));
     expect(button("检查变量变化")).toBeEnabled();
     await user.click(button("检查变量变化"));
 
@@ -141,5 +148,8 @@ describe("ProgramExecutionPage", () => {
         /先预测当前赋值、while 条件或输出/,
       ),
     ).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /程序执行实验区/ })).not.toHaveTextContent(
+      /\b(true|false|Prediction|Enter|before|after|Step|Run)\b/,
+    );
   });
 });

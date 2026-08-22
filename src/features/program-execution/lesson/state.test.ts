@@ -39,6 +39,7 @@ describe("program execution lesson state", () => {
     expect(predicted.predictionFeedback?.prediction).toEqual(
       expect.objectContaining({ kind: "assignment" }),
     );
+    expect(predicted.predictionDraft).toBe("");
     expect(predicted.frames).toHaveLength(1);
     expect(predicted.machine.output).toEqual([]);
   });
@@ -56,7 +57,7 @@ describe("program execution lesson state", () => {
     state = reduce(state, { type: "step" }, { type: "step" });
     state = reduce(
       state,
-      { type: "set-prediction-draft", value: "true" },
+      { type: "set-prediction-draft", value: "真" },
       { type: "record-prediction" },
     );
     expect(predictionOf(state)).toEqual(expect.objectContaining({ kind: "condition" }));
@@ -157,7 +158,7 @@ describe("program execution lesson state", () => {
         { type: "record-prediction" },
       );
       expect(predictionOf(invalid)).toBeUndefined();
-      expect(invalid.predictionMessage).toMatch(/whole-number/i);
+      expect(invalid.predictionMessage).toMatch(/安全整数/);
       expect(invalid.machine).toEqual(initial.machine);
       expect(invalid.frames).toEqual([]);
     }
@@ -167,9 +168,16 @@ describe("program execution lesson state", () => {
     const complete = reduce(createProgramExecutionLessonState(scenario), { type: "run-all" });
     const afterStep = reduce(complete, { type: "step" });
     const afterRun = reduce(complete, { type: "run-all" });
+    const terminalDraft = reduce(
+      complete,
+      { type: "set-prediction-draft", value: "6" },
+      { type: "step" },
+    );
 
     expect(afterStep).toEqual(complete);
     expect(afterRun).toEqual(complete);
+    expect(terminalDraft.predictionDraft).toBe("");
+    expect(terminalDraft.predictionFeedback).toEqual(complete.predictionFeedback);
   });
 
   it("keeps step-limit and runtime-error terminal states idempotent", () => {

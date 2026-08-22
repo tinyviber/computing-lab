@@ -13,7 +13,7 @@ test("edits one byte and reads the exact validity rule", async ({ page }) => {
   );
   await expect(page.getByRole("list", { name: "编辑后的字节 tiles" })).toBeVisible();
   await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toContainText(
-    /exact original 仍有差异/,
+    /原始字节序列仍有差异/,
   );
 
   await page.getByRole("button", { name: "代理项" }).click();
@@ -33,7 +33,7 @@ test("diagnoses truncated and overlong sequences while exact repair stays inform
   await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toContainText(/过长编码/);
   await page.getByRole("button", { name: "原始序列" }).click();
   await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toContainText(
-    /exact original 完全一致/,
+    /原始字节序列完全一致/,
   );
   await expect(page.getByRole("button", { name: /bit|nibble|submit|score|run-all/i })).toHaveCount(
     0,
@@ -48,5 +48,8 @@ test.describe("responsive evidence", () => {
     await page.getByRole("button", { name: "过长编码 A" }).click();
     await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /当前字节序列/ })).toContainText(/过长编码/);
+    await expect(page.getByRole("main", { name: "字节编辑实验区" })).not.toContainText(
+      "exact original",
+    );
   });
 });

@@ -6,6 +6,19 @@ import { renderAppAt } from "../../../test/router-test-helpers";
 const button = (name: RegExp) => screen.getByRole("button", { name });
 
 describe("HomeNetworkPage", () => {
+  it("keeps internal scenario IDs out of learner-facing text and accessible names", async () => {
+    await renderAppAt("/labs/home-network?scenario=invalid-config");
+
+    const chip = document.querySelector(".scenario-chip");
+    expect(chip).not.toBeNull();
+    expect(chip).toHaveTextContent("情境 F");
+    expect(chip).not.toHaveTextContent("invalid-config");
+    expect(chip).toHaveAttribute("aria-label", "当前家庭网络情境");
+    expect(document.body).not.toHaveTextContent(
+      /first-home-setup|static-printer|remote-internet|wrong-gateway|duplicate-ip|invalid-config/,
+    );
+  });
+
   it("renders the Home Network workspace with semantic controls and SVG text evidence", async () => {
     await renderAppAt("/labs/home-network");
 
@@ -70,6 +83,7 @@ describe("HomeNetworkPage", () => {
 
     expect(trace().textContent).not.toBe(failedTrace);
     expect(trace()).toHaveTextContent(/direct|local|直接|局域网/i);
+    expect(screen.getByRole("region", { name: "当前任务" })).toHaveTextContent(/验证成功/);
 
     const history = screen
       .getByRole("heading", { name: /probe history comparison|历史/i })

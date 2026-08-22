@@ -20,7 +20,7 @@ function signedNumber(value: number): string {
 }
 
 function readingLabel(reading: Reading): string {
-  return reading === "signed" ? "有符号（signed）" : "无符号（unsigned）";
+  return reading === "signed" ? "有符号" : "无符号";
 }
 
 function exampleDescription(id: string): string {
@@ -82,11 +82,11 @@ function WordBits({
       </div>
       <dl className="twos-word-readings">
         <div>
-          <dt>无符号（unsigned）</dt>
+          <dt>无符号</dt>
           <dd>{unsigned}</dd>
         </div>
         <div>
-          <dt>二进制补码（two&apos;s-complement）</dt>
+          <dt>二进制补码</dt>
           <dd>{signedNumber(signed)}</dd>
         </div>
       </dl>
@@ -275,13 +275,13 @@ function TwosComplementContent({ search }: { search: Record<string, unknown> }) 
               <p className="eyebrow">第一层：先读符号位</p>
               <h3 id="sign-conflict-heading">符号位与大小的冲突</h3>
               <p>
-                最高位同时决定 signed 的负权重；同一个结果字 {model.result} 按无符号读作{" "}
+                最高位同时决定有符号位的负权重；同一个结果字 {model.result} 按无符号读作{" "}
                 {model.unsigned.result}，按补码读作 {signedNumber(model.signed.result)}。
               </p>
               <strong>
                 {model.signed.overflow
                   ? "同号输入得到相反符号：先注意到符号位与数值范围发生冲突。"
-                  : "先确认符号位的读法，再观察结果是否仍在 signed 范围内。"}
+                  : "先确认符号位的读法，再观察结果是否仍在有符号范围内。"}
               </strong>
               {!lesson.detailsRevealed ? (
                 <button

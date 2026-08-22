@@ -45,7 +45,10 @@ describe("ByteEditPage", () => {
     );
     expect(screen.getByRole("list", { name: "编辑后的字节 tiles" })).toBeInTheDocument();
     expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
-      /与 exact original 仍有差异.*长度一致/,
+      /与原始字节序列仍有差异.*长度一致/,
+    );
+    expect(screen.getByRole("main", { name: "字节编辑实验区" })).not.toHaveTextContent(
+      /exact original/,
     );
   });
 
@@ -59,7 +62,7 @@ describe("ByteEditPage", () => {
     expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(/长度不同/);
     await user.click(button("原始序列"));
     expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
-      /与 exact original 完全一致/,
+      /与原始字节序列完全一致/,
     );
     expect(screen.getByRole("region", { name: /选中字节编辑结果/ })).toHaveTextContent(
       /有效 UTF-8/,
@@ -68,7 +71,7 @@ describe("ByteEditPage", () => {
       screen.queryByRole("button", { name: /bit|nibble|submit|score|run-all/i }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("main", { name: "字节编辑实验区" })).not.toHaveTextContent(
-      /nibble|submit|score|run-all/i,
+      /exact original|nibble|submit|score|run-all/i,
     );
   });
 

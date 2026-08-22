@@ -173,9 +173,7 @@ function SelectedEvidence({ frame }: { frame?: ByteEditFrame }) {
       </dl>
       <div className="be-original-comparison" role="status">
         <strong>
-          {frame.originalComparison.exact
-            ? "与 exact original 完全一致"
-            : "与 exact original 仍有差异"}
+          {frame.originalComparison.exact ? "与原始字节序列完全一致" : "与原始字节序列仍有差异"}
         </strong>
         <span>
           {frame.originalComparison.lengthMatches ? "长度一致" : "长度不同"}

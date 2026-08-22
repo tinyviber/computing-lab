@@ -15,6 +15,11 @@ test.describe("Home Network probe loop", () => {
       await page.goto(`labs/home-network?scenario=${scenario.id}&target=${scenario.target}`, {
         waitUntil: "networkidle",
       });
+      await expect(page.locator(".scenario-chip")).not.toContainText(scenario.id);
+      await expect(page.locator(".scenario-chip")).toHaveAttribute(
+        "aria-label",
+        "当前家庭网络情境",
+      );
       await page.getByRole("button", { name: /发送探针/ }).click();
 
       await expect(page.locator(".probe-outcome")).toContainText(scenario.outcome);
@@ -47,6 +52,7 @@ test.describe("Home Network probe loop", () => {
     await expect(page.locator(".history-list")).toContainText("已停止");
     await expect(page.locator(".history-list")).toContainText("已送达");
     await expect(page.locator(".history-list li")).toHaveCount(2);
+    await expect(page.locator(".network-mission-status")).toContainText("验证成功");
   });
 });
 

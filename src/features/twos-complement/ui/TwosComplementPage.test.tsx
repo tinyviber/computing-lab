@@ -14,6 +14,9 @@ function evidenceCards() {
 describe("TwosComplementPage", () => {
   it("starts in 4-bit progressive disclosure with sign conflict before carry details", async () => {
     await renderAppAt("/labs/twos-complement");
+    expect(screen.getByRole("main", { name: /二进制补码实验区/ })).not.toHaveTextContent(
+      /\b(signed|unsigned)\b/,
+    );
     expect(screen.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "8 位（展开后）" })).toBeDisabled();
     expect(screen.getByRole("heading", { name: "符号位与大小的冲突" })).toBeInTheDocument();

@@ -5,6 +5,9 @@ test("explores a fixed-width two's-complement overflow trajectory", async ({ pag
     waitUntil: "networkidle",
   });
 
+  await expect(page.getByRole("main", { name: /二进制补码实验区/ })).not.toContainText(
+    /\b(signed|unsigned)\b/,
+  );
   await expect(page.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "A，第 3 位，0" })).toBeVisible();
 

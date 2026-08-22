@@ -219,7 +219,7 @@ function Utf8Content({
           <span>源文本</span>
           <strong>{sourceDisplay}</strong>
           <small>
-            {source.title} · {source.codePoints.map(codePointLabel).join(" · ")}
+            {option.label} · {source.codePoints.map(codePointLabel).join(" · ")}
           </small>
         </div>
       </header>

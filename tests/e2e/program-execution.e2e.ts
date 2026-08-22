@@ -53,11 +53,11 @@ test("records optional assignment, condition, and print predictions without bloc
   await expect(page.getByText(/预测 0；实际 0。一致/)).toBeVisible();
 
   await page.getByRole("button", { name: "执行一步" }).click();
-  const conditionPrediction = page.getByRole("textbox", { name: "输入 true 或 false" });
-  await conditionPrediction.fill("true");
+  await page.getByRole("button", { name: "真" }).click();
+  await expect(page.getByRole("button", { name: "真" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "记录预测" }).click();
   await page.getByRole("button", { name: "执行一步" }).click();
-  await expect(page.getByText(/预测 true；实际 true。一致/)).toBeVisible();
+  await expect(page.getByText(/预测 真；实际 真。一致/)).toBeVisible();
 
   for (let index = 0; index < 9; index += 1) {
     await page.getByRole("button", { name: "执行一步" }).click();

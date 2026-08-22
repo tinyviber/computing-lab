@@ -183,7 +183,6 @@ Optional prediction is local and non-blocking. The lesson has no submit, check, 
 - render captioned/scoped queue tables for the selected before/after snapshots, including due tick, event, attempt, and insertion sequence;
 - render counters, terminal status, fault explanation, and time as text rather than color or animation;
 - provide a labeled prediction control with optional, non-blocking feedback;
-- provide direct accessible descriptions for disabled guided controls;
 - keep Step, Reset, scenario selection, and trace selection keyboard-operable;
 - test a real narrow viewport in Playwright in addition to semantic jsdom tests.
 
@@ -208,7 +207,6 @@ Required lesson/UI tests:
 
 - prediction remains optional;
 - Step projects the domain trace without a second event oracle;
-- first-fault and retry guided selection/no-op behavior;
 - selected queue versus final status labels are unambiguous;
 - keyboard trace selection and `aria-current`;
 - fixture switching/reset-to-URL-baseline;

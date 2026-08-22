@@ -125,6 +125,15 @@ const SCENARIO_COPY: Record<string, { symptom: string; task: string }> = {
   },
 };
 
+const SCENARIO_LABELS: Record<string, string> = {
+  "first-home-setup": "情境 A",
+  "static-printer": "情境 B",
+  "remote-internet": "情境 C",
+  "wrong-gateway": "情境 D",
+  "duplicate-ip": "情境 E",
+  "invalid-config": "情境 F",
+};
+
 const WHY_EVENT_KINDS = new Set<ProbeEvent["kind"]>([
   "arp-next-hop",
   "route-lookup",
@@ -173,6 +182,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
     : "未分类";
   const validationReasonCode = selectedTrace?.firstFailure?.reasonCode;
   const scenarioCopy = SCENARIO_COPY[lesson.scenario] ?? SCENARIO_COPY["static-printer"];
+  const scenarioLabel = SCENARIO_LABELS[lesson.scenario] ?? "当前情境";
   const missionSolved = homeNetworkMissionSolved(lesson);
 
   const editField = (field: "ip" | "prefix" | "gateway", value: string) => {
@@ -190,9 +200,9 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             <h2>找出数据包第一次被拦住的地方</h2>
             <p>家庭局域网使用 192.168.1.0/24。</p>
           </div>
-          <div className="scenario-chip" aria-label={`预设情境 ${lesson.scenario}`}>
-            <span>预设</span>
-            <strong>{lesson.scenario}</strong>
+          <div className="scenario-chip" aria-label="当前家庭网络情境">
+            <span>当前情境</span>
+            <strong>{scenarioLabel}</strong>
           </div>
         </header>
 
@@ -211,7 +221,7 @@ function HomeNetworkContent({ search }: { search: Record<string, unknown> }) {
             className={`network-mission-status${missionSolved ? " is-solved" : ""}`}
           >
             {missionSolved
-              ? "已修复：最新探针已送达。"
+              ? "验证成功：最新探针已送达。"
               : !latestProbe
                 ? "先发送一次探针，观察第一个失败。"
                 : latestProbe.target !== lesson.target

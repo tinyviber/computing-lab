@@ -97,12 +97,12 @@ function predictionTargetLabel(target: ProgramPredictionTarget | undefined): str
 }
 
 function predictionValueText(prediction: ProgramPrediction): string {
-  if (prediction.kind === "condition") return prediction.result ? "true" : "false";
+  if (prediction.kind === "condition") return prediction.result ? "真" : "假";
   return String(prediction.value);
 }
 
 function predictionFeedbackText(feedback: ProgramPredictionFeedback): string {
-  return `预测 ${predictionValueText(feedback.prediction)}；实际 ${predictionValueText(feedback.actual)}。${feedback.matches ? "一致。" : "不一致，请查看 before / after 证据。"}`;
+  return `预测 ${predictionValueText(feedback.prediction)}；实际 ${predictionValueText(feedback.actual)}。${feedback.matches ? "一致。" : "不一致，请查看执行前 / 执行后证据。"}`;
 }
 
 function frameAccessibleName(frame: ExecutionFrame): string {
@@ -364,7 +364,7 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
         <header className="program-intro">
           <h2>预测下一状态，逐行执行</h2>
           <p>
-            先预测当前赋值、while 条件或输出，再执行一步，对照 before / after 状态与循环结束原因。
+            先预测当前赋值、while 条件或输出，再执行一步，对照执行前 / 执行后状态与循环结束原因。
           </p>
         </header>
 
@@ -400,28 +400,67 @@ function ProgramExecutionContent({ search }: { search: Record<string, unknown> }
               <p className="eyebrow">预测</p>
               <h3>预测下一条语句</h3>
               <p className="program-prediction-target">{predictionTargetLabel(predictionTarget)}</p>
-              <label className="program-field-label" htmlFor="program-prediction">
-                {predictionTarget?.kind === "condition" ? "输入 true 或 false" : "输入安全整数"}
-              </label>
-              <div className="program-prediction-row">
-                <input
-                  id="program-prediction"
-                  inputMode="numeric"
-                  type={predictionTarget?.kind === "condition" ? "text" : "number"}
-                  onChange={(event) =>
-                    dispatch({ type: "set-prediction-draft", value: event.target.value })
-                  }
-                  value={lesson.predictionDraft}
-                />
-                <button
-                  disabled={!predictionTarget}
-                  onClick={() => dispatch({ type: "record-prediction" })}
-                  type="button"
-                >
-                  记录预测
-                </button>
-              </div>
-              <p className="program-help-text">预测可选；Step 和 Run 都不会等待或阻塞预测。</p>
+              {predictionTarget?.kind === "condition" ? (
+                <>
+                  <span className="program-field-label">预测 while 条件</span>
+                  <div className="program-prediction-row">
+                    <div
+                      aria-label="预测 while 条件"
+                      className="program-prediction-choice"
+                      role="group"
+                    >
+                      <button
+                        aria-pressed={lesson.predictionDraft === "真"}
+                        onClick={() => dispatch({ type: "set-prediction-draft", value: "真" })}
+                        type="button"
+                      >
+                        真
+                      </button>
+                      <button
+                        aria-pressed={lesson.predictionDraft === "假"}
+                        onClick={() => dispatch({ type: "set-prediction-draft", value: "假" })}
+                        type="button"
+                      >
+                        假
+                      </button>
+                    </div>
+                    <button
+                      disabled={!predictionTarget}
+                      onClick={() => dispatch({ type: "record-prediction" })}
+                      type="button"
+                    >
+                      记录预测
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <label className="program-field-label" htmlFor="program-prediction">
+                    输入安全整数
+                  </label>
+                  <div className="program-prediction-row">
+                    <input
+                      disabled={!predictionTarget}
+                      id="program-prediction"
+                      inputMode="numeric"
+                      type="number"
+                      onChange={(event) =>
+                        dispatch({ type: "set-prediction-draft", value: event.target.value })
+                      }
+                      value={lesson.predictionDraft}
+                    />
+                    <button
+                      disabled={!predictionTarget}
+                      onClick={() => dispatch({ type: "record-prediction" })}
+                      type="button"
+                    >
+                      记录预测
+                    </button>
+                  </div>
+                </>
+              )}
+
+              <p className="program-help-text">预测可选；两种执行方式都不会等待或阻塞预测。</p>
               {lesson.predictionMessage ? (
                 <p aria-live="polite" className="program-prediction-message">
                   {lesson.predictionMessage}
