@@ -4,7 +4,6 @@ import {
   buildPalette,
   calculateImageEncoding,
   deriveImageEncodingModel,
-  estimateClassroomBytes,
   getImageFormatProfile,
   imageFormatLabel,
   IMAGE_FORMAT_PROFILES,
@@ -288,36 +287,12 @@ describe("image encoding domain model", () => {
     expect(normalizeBitDepth(99)).toBe(8);
   });
 
-  it("keeps format labels and classroom profiles deterministic", () => {
+  it("keeps format choices deterministic without promising a file-size estimate", () => {
     expect(IMAGE_FORMAT_PROFILES).toEqual([
-      {
-        format: "raw",
-        label: "未压缩 / 原始",
-        fixedBytes: 0,
-        rawByteFactor: 1,
-        pixelsPerOverheadByte: Number.POSITIVE_INFINITY,
-      },
-      {
-        format: "png",
-        label: "PNG",
-        fixedBytes: 64,
-        rawByteFactor: 0.72,
-        pixelsPerOverheadByte: 256,
-      },
-      {
-        format: "jpeg",
-        label: "JPG / JPEG",
-        fixedBytes: 128,
-        rawByteFactor: 0.48,
-        pixelsPerOverheadByte: 512,
-      },
-      {
-        format: "webp",
-        label: "WebP",
-        fixedBytes: 96,
-        rawByteFactor: 0.42,
-        pixelsPerOverheadByte: 512,
-      },
+      { format: "raw", label: "未压缩 / 原始" },
+      { format: "png", label: "PNG" },
+      { format: "jpeg", label: "JPG / JPEG" },
+      { format: "webp", label: "WebP" },
     ]);
 
     expect(imageFormatLabel("raw")).toBe("未压缩 / 原始");
@@ -327,46 +302,26 @@ describe("image encoding domain model", () => {
     expect(getImageFormatProfile(normalizeImageEncodingFormat("jpg"))).toEqual(
       getImageFormatProfile("jpeg"),
     );
+    for (const profile of IMAGE_FORMAT_PROFILES) {
+      expect(profile).not.toHaveProperty("rawByteFactor");
+      expect(profile).not.toHaveProperty("fixedBytes");
+      expect(profile).not.toHaveProperty("pixelsPerOverheadByte");
+    }
   });
 
-  it.each([
-    ["raw", "未压缩 / 原始", 144],
-    ["png", "PNG", 170],
-    ["jpeg", "JPG / JPEG", 199],
-    ["webp", "WebP", 158],
-  ] as const)("returns a pure classroom byte estimate for %s", (format, label, bytes) => {
-    const calculation = calculateImageEncoding(24, 16, 3, format);
-
+  it("uses width × height × bits and rounds raw bytes up", () => {
+    const calculation = calculateImageEncoding(3, 3, 5, "png");
     expect(calculation).toMatchObject({
-      format,
-      formatLabel: label,
-      rawBits: 24 * 16 * 3,
-      rawBytes: 144,
-      classroomBytes: bytes,
-    });
-    expect(estimateClassroomBytes(144, 24 * 16, format)).toBe(bytes);
-    expect("fileSize" in calculation).toBe(false);
-  });
-
-  it("keeps explicit format estimates distinct and labels them as classroom values", () => {
-    const estimates = (["raw", "png", "jpeg", "webp"] as const).map(
-      (format) => calculateImageEncoding(240, 160, 24, format).classroomBytes,
-    );
-
-    expect(new Set(estimates).size).toBe(4);
-    expect(calculateImageEncoding(240, 160, 24, "png")).toHaveProperty("classroomBytes");
-  });
-
-  it("uses width × height × bits and ceils the raw byte conversion", () => {
-    expect(calculateImageEncoding(3, 3, 5, "raw")).toMatchObject({
       width: 3,
       height: 3,
       bitsPerPixel: 5,
       pixelCount: 9,
       rawBits: 45,
       rawBytes: 6,
-      classroomBytes: 6,
+      format: "png",
+      formatLabel: "PNG",
     });
+    expect(calculation).not.toHaveProperty("classroomBytes");
     expect(calculateImageEncoding(1, 1, 1, "raw").rawBytes).toBe(1);
   });
 
@@ -387,6 +342,16 @@ describe("image encoding domain model", () => {
       rawBits: 1,
       rawBytes: 1,
       format: "jpeg",
+    });
+  });
+
+  it("keeps calculator boundaries exact for large valid inputs", () => {
+    expect(calculateImageEncoding(10000, 10000, 32, "webp")).toMatchObject({
+      width: 10000,
+      height: 10000,
+      bitsPerPixel: 32,
+      rawBits: 3_200_000_000,
+      rawBytes: 400_000_000,
     });
   });
 

@@ -35,6 +35,7 @@ test("walks the sequential image-encoding flow without external network access",
   await expect(page.locator("select")).toHaveCount(0);
   await expect(page.getByRole("slider", { name: /空间采样/ })).toBeEnabled();
   await expect(page.getByRole("slider", { name: /采样网格相位/ })).toBeDisabled();
+  await expect(page.getByLabel(/上传图片（可选）/)).toBeEnabled();
   await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
@@ -78,10 +79,13 @@ test("walks the sequential image-encoding flow without external network access",
   await png.click();
   await expect(png).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator('section[aria-labelledby="payload-heading"]')).toContainText(
-    /PNG 教学估算/,
+    /原始数据量/,
   );
   await expect(page.locator('section[aria-labelledby="payload-heading"]')).toContainText(
-    /真实文件字节数/,
+    /实际文件大小取决于图像内容/,
+  );
+  await expect(page.locator('section[aria-labelledby="payload-heading"]')).not.toContainText(
+    /教学估算/,
   );
 
   const calculator = page.locator("section[aria-labelledby=calculator-heading]");
@@ -97,7 +101,10 @@ test("walks the sequential image-encoding flow without external network access",
   await expect(calculator).toContainText("原始位数 = 宽度 × 高度 × 每像素位数");
   await expect(calculator).toContainText("3 × 3 × 5 = 45 位");
   await expect(calculator).toContainText("45 ÷ 8 后向上取整 = 6 字节");
-  await expect(calculator).toContainText("这是教学估算，不是浏览器实际文件大小");
+  await expect(calculator).toContainText("压缩格式的实际大小取决于图像内容和编码器设置");
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "4. 用当前表示计算数据量" }),
+  ).toContainText("已完成");
 
   const reset = page.locator('section[aria-labelledby="source-heading"] button');
   await expect(reset).toHaveCount(1);

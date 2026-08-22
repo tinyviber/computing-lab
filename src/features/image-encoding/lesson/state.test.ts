@@ -32,6 +32,7 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       formatSelected: false,
       selectedFormat: "raw",
+      calculatorEdited: false,
     });
   });
 
@@ -115,6 +116,20 @@ describe("image lesson state", () => {
     });
   });
 
+  it("marks the calculator step complete only after a calculator edit", () => {
+    const initial = defaultState();
+    expect(transitionImageLesson(initial, { type: "edit-calculator-field" })).toEqual(initial);
+
+    const selected = transitionImageLesson(stateReadyForFormat(), {
+      type: "select-format",
+      format: "png",
+    });
+    expect(selected.calculatorEdited).toBe(false);
+
+    const edited = transitionImageLesson(selected, { type: "edit-calculator-field" });
+    expect(edited).toMatchObject({ formatSelected: true, calculatorEdited: true });
+  });
+
   it("guards phase and view until sampling, then preserves their domain behavior", () => {
     const initial = defaultState();
     const afterSampling = stateAfterSampling();
@@ -144,6 +159,7 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       formatSelected: false,
       selectedFormat: "raw",
+      calculatorEdited: false,
       view: "compare",
     });
   });
@@ -170,6 +186,7 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       formatSelected: false,
       selectedFormat: "raw",
+      calculatorEdited: false,
     });
   });
 
@@ -192,11 +209,35 @@ describe("image lesson state", () => {
       colorAdjusted: false,
       formatSelected: false,
       selectedFormat: "raw",
+      calculatorEdited: false,
       colorMode: "rgb24",
       view: "compare",
       decodeError: undefined,
     });
     expect(loaded.source.sourceKind).toBe("upload");
     expect(loaded.initialScenario.fixture).toBe("photo");
+  });
+
+  it("keeps the current experiment when a decode error is recorded", () => {
+    const selected = transitionImageLesson(stateReadyForFormat(), {
+      type: "select-format",
+      format: "png",
+    });
+    const edited = transitionImageLesson(selected, { type: "edit-calculator-field" });
+    const errored = transitionImageLesson(edited, {
+      type: "decode-error",
+      message: "所选图像无法解码。",
+    });
+
+    expect(errored).toMatchObject({
+      samplingPercent: 45,
+      samplingChanged: true,
+      colorMode: "palette",
+      colorAdjusted: true,
+      selectedFormat: "png",
+      formatSelected: true,
+      calculatorEdited: true,
+      decodeError: "所选图像无法解码。",
+    });
   });
 });

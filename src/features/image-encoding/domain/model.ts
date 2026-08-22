@@ -92,9 +92,6 @@ export type ImageEncodingFormat = "raw" | "png" | "jpeg" | "webp";
 export type ImageFormatProfile = {
   format: ImageEncodingFormat;
   label: string;
-  fixedBytes: number;
-  rawByteFactor: number;
-  pixelsPerOverheadByte: number;
 };
 
 export type ImageEncodingCalculation = {
@@ -106,7 +103,6 @@ export type ImageEncodingCalculation = {
   rawBytes: number;
   format: ImageEncodingFormat;
   formatLabel: string;
-  classroomBytes: number;
 };
 
 export type ImageEncodingModel = {
@@ -148,34 +144,10 @@ export const MIN_CALCULATOR_BITS_PER_PIXEL = 1;
 export const MAX_CALCULATOR_BITS_PER_PIXEL = 32;
 
 export const IMAGE_FORMAT_PROFILES: readonly ImageFormatProfile[] = [
-  {
-    format: "raw",
-    label: "未压缩 / 原始",
-    fixedBytes: 0,
-    rawByteFactor: 1,
-    pixelsPerOverheadByte: Number.POSITIVE_INFINITY,
-  },
-  {
-    format: "png",
-    label: "PNG",
-    fixedBytes: 64,
-    rawByteFactor: 0.72,
-    pixelsPerOverheadByte: 256,
-  },
-  {
-    format: "jpeg",
-    label: "JPG / JPEG",
-    fixedBytes: 128,
-    rawByteFactor: 0.48,
-    pixelsPerOverheadByte: 512,
-  },
-  {
-    format: "webp",
-    label: "WebP",
-    fixedBytes: 96,
-    rawByteFactor: 0.42,
-    pixelsPerOverheadByte: 512,
-  },
+  { format: "raw", label: "未压缩 / 原始" },
+  { format: "png", label: "PNG" },
+  { format: "jpeg", label: "JPG / JPEG" },
+  { format: "webp", label: "WebP" },
 ];
 
 export function clamp(value: number, min: number, max: number): number {
@@ -579,27 +551,6 @@ export function getImageFormatProfile(format: ImageEncodingFormat | "jpg"): Imag
   );
 }
 
-/**
- * Returns a stable classroom estimate, not a browser file size or a codec promise.
- * The simple profile model keeps format comparisons repeatable for the same sampled data.
- */
-export function estimateClassroomBytes(
-  rawBytes: number,
-  pixelCount: number,
-  format: ImageEncodingFormat | "jpg",
-): number {
-  const profile = getImageFormatProfile(format);
-  const safeRawBytes = Math.max(0, Math.floor(finiteOr(rawBytes, 0)));
-  const safePixelCount = Math.max(0, Math.floor(finiteOr(pixelCount, 0)));
-  const overheadBytes = Number.isFinite(profile.pixelsPerOverheadByte)
-    ? Math.ceil(safePixelCount / profile.pixelsPerOverheadByte)
-    : 0;
-  return Math.max(
-    1,
-    Math.ceil(safeRawBytes * profile.rawByteFactor) + profile.fixedBytes + overheadBytes,
-  );
-}
-
 export function calculateImageEncoding(
   widthInput: number,
   heightInput: number,
@@ -621,7 +572,6 @@ export function calculateImageEncoding(
     rawBytes,
     format,
     formatLabel: imageFormatLabel(format),
-    classroomBytes: estimateClassroomBytes(rawBytes, width * height, format),
   };
 }
 

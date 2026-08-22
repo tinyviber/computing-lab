@@ -22,6 +22,7 @@ export type ImageLessonState = ImageScenarioState & {
   colorAdjusted: boolean;
   formatSelected: boolean;
   selectedFormat: ImageEncodingFormat;
+  calculatorEdited: boolean;
 };
 
 export type ImageLessonAction =
@@ -34,6 +35,7 @@ export type ImageLessonAction =
   | { type: "select-pixel"; x: number; y: number }
   | { type: "select-format"; format: ImageEncodingFormat }
   | { type: "set-format"; format: ImageEncodingFormat }
+  | { type: "edit-calculator-field" }
   | { type: "load-source"; source: RasterImage }
   | { type: "decode-error"; message: string }
   | { type: "reset" };
@@ -68,6 +70,7 @@ function emptyProgress() {
     samplingChanged: false,
     colorAdjusted: false,
     formatSelected: false,
+    calculatorEdited: false,
   };
 }
 
@@ -173,6 +176,9 @@ export function transitionImageLesson(
         selectedFormat: normalizeImageEncodingFormat(action.format),
         formatSelected: true,
       };
+    case "edit-calculator-field":
+      if (!state.formatSelected) return state;
+      return { ...state, calculatorEdited: true };
     case "load-source":
       return resetAfterSourceUpload(state, normalizeImage(action.source));
     case "decode-error":

@@ -594,17 +594,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       ),
     [calculatorBitsPerPixel, calculatorHeight, calculatorWidth, lesson.selectedFormat],
   );
-  const currentEncoding = useMemo(
-    () =>
-      calculateImageEncoding(
-        model.sampled.width,
-        model.sampled.height,
-        model.quantized.bitDepth,
-        lesson.selectedFormat,
-      ),
-    [lesson.selectedFormat, model.quantized.bitDepth, model.sampled.height, model.sampled.width],
-  );
-
   useEffect(() => {
     setCalculatorWidth(String(model.sampled.width));
     setCalculatorHeight(String(model.sampled.height));
@@ -658,13 +647,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     dispatch({ type: "select-format", format });
   };
 
+  const editCalculatorField = () => {
+    if (!calculatorUnlocked) return;
+    dispatch({ type: "edit-calculator-field" });
+  };
+
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (!lesson.samplingChanged) {
-      event.target.value = "";
-      return;
-    }
     try {
       const source = await readUploadedImage(file);
       dispatch({ type: "load-source", source });
@@ -674,7 +664,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : "所选图像无法解码。";
-      dispatch({ type: "reset" });
       dispatch({ type: "decode-error", message });
       setUploadMessage(undefined);
     }
@@ -711,9 +700,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     {
       id: "calculator",
       title: "4. 用当前表示计算数据量",
-      detail: "编辑宽度、高度和每像素位数，比较原始数据量与格式的教学估算。",
+      detail: "至少编辑一个计算器字段，查看原始位数和原始字节。",
       available: lesson.formatSelected,
-      complete: false,
+      complete: lesson.calculatorEdited,
     },
   ];
 
@@ -757,13 +746,10 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <input
                     accept="image/*"
                     aria-describedby="upload-help"
-                    disabled={!lesson.samplingChanged}
                     onChange={handleUpload}
                     type="file"
                   />
-                  <small id="upload-help">
-                    {lesson.samplingChanged ? "可载入自己的图片。" : "完成第 1 步后解锁上传。"}
-                  </small>
+                  <small id="upload-help">可载入自己的图片；成功后会重新开始本节操作。</small>
                 </label>
               </div>
               {uploadMessage ? (
@@ -1038,7 +1024,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               </div>
               <p className="format-lock-note">
                 {formatControlsUnlocked
-                  ? "选择一种格式后，进入第 4 步计算。"
+                  ? "选择一种格式后，进入第 4 步计算。PNG、JPG / JPEG 和 WebP 的实际大小取决于图像内容和编码器设置。"
                   : "完成第 2 步后解锁格式选择。"}
               </p>
             </section>
@@ -1078,15 +1064,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         {model.rawPayload.bitDepth} = {model.rawPayload.bits} 位
                       </dd>
                     </div>
-                    <div>
-                      <dt>{currentEncoding.formatLabel} 教学估算</dt>
-                      <dd>{currentEncoding.classroomBytes} 字节</dd>
-                    </div>
                   </dl>
                   <p className="payload-note">
-                    “教学估算”用于比较当前采样表示。真实文件字节数还取决于图像内容、编码器设置、文件头、
-                    {model.quantized.colorMode === "palette" ? "颜色表、" : ""}
-                    元数据和具体实现；这里的原始数据量仍按采样像素数 × 每像素位数计算。
+                    这里显示的是像素数据的原始位数。PNG、JPG / JPEG 和 WebP
+                    的实际文件大小取决于图像内容、 编码器设置、文件头、
+                    {model.quantized.colorMode === "palette" ? "颜色表、" : ""}元数据和具体实现。
                   </p>
                 </>
               ) : (
@@ -1117,7 +1099,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     inputMode="numeric"
                     min="1"
                     onChange={(event) => {
-                      if (calculatorUnlocked) setCalculatorWidth(event.target.value);
+                      if (!calculatorUnlocked) return;
+                      setCalculatorWidth(event.target.value);
+                      editCalculatorField();
                     }}
                     type="number"
                     value={calculatorWidth}
@@ -1131,7 +1115,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     inputMode="numeric"
                     min="1"
                     onChange={(event) => {
-                      if (calculatorUnlocked) setCalculatorHeight(event.target.value);
+                      if (!calculatorUnlocked) return;
+                      setCalculatorHeight(event.target.value);
+                      editCalculatorField();
                     }}
                     type="number"
                     value={calculatorHeight}
@@ -1145,7 +1131,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     inputMode="numeric"
                     min="1"
                     onChange={(event) => {
-                      if (calculatorUnlocked) setCalculatorBitsPerPixel(event.target.value);
+                      if (!calculatorUnlocked) return;
+                      setCalculatorBitsPerPixel(event.target.value);
+                      editCalculatorField();
                     }}
                     type="number"
                     value={calculatorBitsPerPixel}
@@ -1171,13 +1159,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         {calculator.rawBits} ÷ 8 后向上取整 = {calculator.rawBytes} 字节
                       </dd>
                     </div>
-                    <div>
-                      <dt>{calculator.formatLabel} 教学估算</dt>
-                      <dd>{calculator.classroomBytes} 字节</dd>
-                    </div>
                   </dl>
                   <p className="payload-note">
-                    这是教学估算，不是浏览器实际文件大小。格式卡片的当前值比较当前采样表示；这里的计算结果按你输入的宽度、高度和每像素位数计算。真实文件字节数还取决于图像内容、编码器设置、文件头和元数据。
+                    计算结果只包含原始像素数据，不包含格式文件头、元数据或压缩结果。压缩格式的实际大小取决于图像内容和编码器设置。
                   </p>
                 </>
               ) : (

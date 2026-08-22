@@ -26,23 +26,21 @@ describe("image lesson scenario", () => {
     });
   });
 
-  it.each([
-    ["palette", "palette"],
-    ["rgb24", "rgb24"],
-  ] as const)("round-trips an explicit %s color mode", (queryColor, colorMode) => {
+  it("reads legacy color=palette links as the original RGB24 state", () => {
     const state = parseImageEncodingScenario(
-      `image=photo&sample=100&bits=4&color=${queryColor}&view=compare`,
+      "image=photo&sample=100&bits=4&color=palette&view=compare",
     );
 
     expect(state).toMatchObject({
       fixture: "photo",
       samplingPercent: 100,
       bitDepth: 4,
-      colorMode,
+      colorMode: "rgb24",
     });
-    expect(serializeImageEncodingScenario(state)).toBe(
-      `image=photo&sample=100&phase=0.00&bits=4&color=${colorMode}&view=compare`,
-    );
+    expect("samplingChanged" in state).toBe(false);
+    expect("colorAdjusted" in state).toBe(false);
+    expect("formatSelected" in state).toBe(false);
+    expect("calculatorEdited" in state).toBe(false);
   });
 
   it("defaults to original RGB24 color and does not encode lesson progress", () => {
@@ -56,8 +54,10 @@ describe("image lesson scenario", () => {
     expect("formatSelected" in state).toBe(false);
 
     const serialized = serializeImageEncodingScenario(state);
-    expect(serialized).toContain("color=rgb24");
-    expect(serialized).not.toMatch(/progress|samplingChanged|colorAdjusted|formatSelected/);
+    expect(serialized).not.toContain("color=");
+    expect(serialized).not.toMatch(
+      /progress|samplingChanged|colorAdjusted|formatSelected|calculatorEdited/,
+    );
   });
 
   it("defaults and clamps malformed values without accepting a workflow state", () => {
@@ -125,10 +125,10 @@ describe("image lesson scenario", () => {
         view: "compare",
         colorMode: "rgb24",
       }),
-    ).toBe("image=checkerboard&sample=99&phase=0.00&bits=4&color=rgb24&view=compare");
+    ).toBe("image=checkerboard&sample=99&phase=0.00&bits=4&view=compare");
   });
 
-  it("serializes only reproducible configuration", () => {
+  it("serializes only reproducible configuration and omits color state", () => {
     const state = {
       fixture: "gradient" as const,
       samplingPercent: 40,
@@ -137,9 +137,12 @@ describe("image lesson scenario", () => {
       view: "representation" as const,
       colorMode: "palette" as const,
     };
-    expect(serializeImageEncodingScenario(state)).toBe(
-      "image=gradient&sample=40&phase=0.25&bits=3&color=palette&view=representation",
-    );
-    expect(parseImageEncodingScenario(serializeImageEncodingScenario(state))).toEqual(state);
+    const serialized = serializeImageEncodingScenario(state);
+    expect(serialized).toBe("image=gradient&sample=40&phase=0.25&bits=3&view=representation");
+    expect(serialized).not.toContain("color=");
+    expect(parseImageEncodingScenario(serialized)).toMatchObject({
+      ...state,
+      colorMode: "rgb24",
+    });
   });
 });
