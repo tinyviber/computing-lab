@@ -13,6 +13,7 @@ import {
 import { useSearch } from "@tanstack/react-router";
 import {
   deriveImageEncodingModel,
+  calculateImageEncoding,
   inspectPixel,
   rgbToHex,
   type RGB,
@@ -39,32 +40,17 @@ type CanvasViewProps = {
   errorMap?: readonly { magnitude: number }[];
   selectedCoordinate: { x: number; y: number };
   onPick: (coordinate: { x: number; y: number }) => void;
+  interactive: boolean;
   canvasRef?: RefObject<HTMLCanvasElement | null>;
 };
 
-type ExplorationTrace = {
-  samplingTargetReached: boolean;
-  samplingViewed: boolean;
-  bitDepthTargetReached: boolean;
-  quantizationViewed: boolean;
-  representationViewed: boolean;
-  pixelInspected: boolean;
-};
-
-type MissionTask = {
+type LessonTask = {
   id: string;
   title: string;
   detail: string;
-  evidenceUnlocked: boolean;
-};
-
-const EMPTY_EXPLORATION_TRACE: ExplorationTrace = {
-  samplingTargetReached: false,
-  samplingViewed: false,
-  bitDepthTargetReached: false,
-  quantizationViewed: false,
-  representationViewed: false,
-  pixelInspected: false,
+  available: boolean;
+  complete: boolean;
+  statusLabel?: string;
 };
 
 const VIEW_LABELS: Record<ImageView, string> = {
@@ -145,6 +131,7 @@ function CanvasView({
   errorMap,
   selectedCoordinate,
   onPick,
+  interactive,
   canvasRef,
 }: CanvasViewProps) {
   useEffect(() => {
@@ -165,16 +152,19 @@ function CanvasView({
   };
 
   return (
-    <div className="image-canvas-frame">
+    <div className={`image-canvas-frame${interactive ? "" : " is-locked"}`}>
       <canvas
-        aria-label={`${label}；可用方向键检查附近像素`}
-        className="image-canvas"
+        aria-label={`${label}；${
+          interactive ? "可用方向键检查附近像素" : "完成第 1 步后可用方向键检查附近像素"
+        }`}
+        aria-disabled={!interactive}
+        className={`image-canvas${interactive ? "" : " is-locked"}`}
         height={raster.height}
-        onClick={(event) => onPick(clickCoordinate(event, raster))}
-        onKeyDown={handleKeyDown}
+        onClick={interactive ? (event) => onPick(clickCoordinate(event, raster)) : undefined}
+        onKeyDown={interactive ? handleKeyDown : undefined}
         ref={canvasRef}
         role="img"
-        tabIndex={0}
+        tabIndex={interactive ? 0 : -1}
         width={raster.width}
       />
       <span className="canvas-caption">
@@ -225,12 +215,14 @@ function LargeRepresentationCanvas({
   width,
   height,
   view,
+  interactive,
   onPick,
 }: {
   pixels: readonly QuantizedPixel[];
   width: number;
   height: number;
   view: ImageView;
+  interactive: boolean;
   onPick: (coordinate: { x: number; y: number }) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -239,12 +231,16 @@ function LargeRepresentationCanvas({
   }, [height, pixels, view, width]);
 
   return (
-    <div className="representation-canvas-frame">
+    <div className={`representation-canvas-frame${interactive ? "" : " is-locked"}`}>
       <canvas
-        aria-label={`${width} × ${height} 编码采样网格；点击检查采样格`}
-        className="representation-canvas"
+        aria-label={`${width} × ${height} 编码采样网格；${
+          interactive ? "点击检查采样格" : "完成第 1 步后可点击检查采样格"
+        }`}
+        aria-disabled={!interactive}
+        className={`representation-canvas${interactive ? "" : " is-locked"}`}
         height={height}
         onClick={(event) => {
+          if (!interactive) return;
           const rect = event.currentTarget.getBoundingClientRect();
           const sampleX = Math.min(
             width - 1,
@@ -259,7 +255,7 @@ function LargeRepresentationCanvas({
         }}
         ref={canvasRef}
         role="img"
-        tabIndex={0}
+        tabIndex={interactive ? 0 : -1}
         width={width}
       />
       <span className="canvas-caption">
@@ -276,6 +272,7 @@ function RepresentationGrid({
   view,
   revealed,
   colorMode,
+  interactive,
   onPick,
 }: {
   pixels: readonly QuantizedPixel[];
@@ -284,6 +281,7 @@ function RepresentationGrid({
   view: ImageView;
   revealed: boolean;
   colorMode: ImageColorMode;
+  interactive: boolean;
   onPick: (coordinate: { x: number; y: number }) => void;
 }) {
   if (pixels.length > DOM_GRID_LIMIT) {
@@ -293,13 +291,15 @@ function RepresentationGrid({
         onPick={onPick}
         pixels={pixels}
         view={view}
+        interactive={interactive}
         width={width}
       />
     );
   }
   return (
     <div
-      className="representation-grid"
+      className={`representation-grid${interactive ? "" : " is-locked"}`}
+      aria-disabled={!interactive}
       role="grid"
       aria-label={`${width} × ${height} 编码采样网格`}
       style={{ gridTemplateColumns: `repeat(${width}, minmax(0, 1fr))` }}
@@ -317,7 +317,7 @@ function RepresentationGrid({
                 }；编码值 ${pixel.encodedBits}`
               : `采样 ${pixel.sampleIndex + 1}；选择该格查看颜色`
           }
-          onClick={() => onPick({ x: pixel.sourceX, y: pixel.sourceY })}
+          onClick={interactive ? () => onPick({ x: pixel.sourceX, y: pixel.sourceY }) : undefined}
           title={revealed ? `${pixel.encodedBits} · ${pixel.quantizedHex}` : undefined}
         />
       ))}
@@ -384,6 +384,7 @@ function RangeField({
   max,
   step,
   unit,
+  displayValue,
   description,
   marks,
   disabled = false,
@@ -396,18 +397,23 @@ function RangeField({
   max: number;
   step: number;
   unit: string;
+  displayValue?: ReactNode;
   description: string;
   marks?: readonly { value: number; label: string }[];
   disabled?: boolean;
   onChange: (value: number) => void;
 }) {
   return (
-    <div className="image-control">
+    <div className={`image-control${disabled ? " is-locked" : ""}`}>
       <div className="image-control-heading">
         <label htmlFor={id}>{label}</label>
         <output htmlFor={id}>
-          {value}
-          {unit}
+          {displayValue ?? (
+            <>
+              {value}
+              {unit}
+            </>
+          )}
         </output>
       </div>
       <input
@@ -435,18 +441,29 @@ function RangeField({
   );
 }
 
-function MissionList({ tasks }: { tasks: readonly MissionTask[] }) {
+function LessonFlow({ tasks }: { tasks: readonly LessonTask[] }) {
   return (
-    <details className="image-card mission-card">
-      <summary className="mission-summary">
-        <span className="mission-summary-label">展开查看任务</span>
+    <details className="image-card lesson-flow-card">
+      <summary className="lesson-flow-summary">
+        <span className="lesson-flow-summary-label">四步操作</span>
       </summary>
-      <ol className="mission-list">
+      <ol className="lesson-flow-list">
         {tasks.map((task) => (
-          <li className="mission-item" key={task.id}>
-            <strong className="mission-task-title">{task.title}</strong>
-            <p>{task.detail}</p>
-            {task.evidenceUnlocked ? <p className="mission-evidence">✓ 相关观察已出现</p> : null}
+          <li
+            className={`lesson-flow-item${task.available ? "" : " is-locked"}${
+              task.complete ? " is-complete" : ""
+            }`}
+            key={task.id}
+          >
+            <div className="lesson-flow-item-heading">
+              <strong className="lesson-task-title">{task.title}</strong>
+              <span className="lesson-task-status">
+                {task.complete
+                  ? "已完成"
+                  : (task.statusLabel ?? (task.available ? "进行中" : "待解锁"))}
+              </span>
+            </div>
+            <p>{task.available ? task.detail : "完成上一步后解锁。"}</p>
           </li>
         ))}
       </ol>
@@ -477,16 +494,16 @@ function DeepDiveItem({
 
 function DeepDivePanel({
   colorMode,
-  payloadEvidenceUnlocked,
-  quantizationEvidenceUnlocked,
-  samplingEvidenceUnlocked,
-  traceEvidenceUnlocked,
+  formulaUnlocked,
+  colorUnlocked,
+  samplingUnlocked,
+  pixelUnlocked,
 }: {
   colorMode: ImageColorMode;
-  payloadEvidenceUnlocked: boolean;
-  quantizationEvidenceUnlocked: boolean;
-  samplingEvidenceUnlocked: boolean;
-  traceEvidenceUnlocked: boolean;
+  formulaUnlocked: boolean;
+  colorUnlocked: boolean;
+  samplingUnlocked: boolean;
+  pixelUnlocked: boolean;
 }) {
   return (
     <section className="image-card deep-dive-card" aria-labelledby="deep-dive-heading">
@@ -500,14 +517,14 @@ function DeepDivePanel({
         <DeepDiveItem
           number="01"
           title="采样后的尺寸和显示尺寸有什么关系？"
-          unlocked={samplingEvidenceUnlocked}
+          unlocked={samplingUnlocked}
         >
           编码单元数量真的变少了；重建时再把有限的采样值铺回原显示尺寸。
         </DeepDiveItem>
         <DeepDiveItem
           number="02"
           title={colorMode === "rgb24" ? "原色 RGB 怎样记录？" : "位深改变后，可用颜色数怎样变化？"}
-          unlocked={quantizationEvidenceUnlocked}
+          unlocked={colorUnlocked}
         >
           {colorMode === "rgb24" ? (
             "每个采样点直接记录三个 8 位颜色通道。"
@@ -518,16 +535,12 @@ function DeepDivePanel({
             </>
           )}
         </DeepDiveItem>
-        <DeepDiveItem number="03" title="一个像素怎样变成数字？" unlocked={traceEvidenceUnlocked}>
+        <DeepDiveItem number="03" title="一个像素怎样变成数字？" unlocked={pixelUnlocked}>
           从显示位置找到采样格，再看它对应的
           {colorMode === "rgb24" ? "RGB 颜色和二进制数字" : "颜色编号和二进制数字"}
           ；详情中的数字就是还原图像时使用的表示。
         </DeepDiveItem>
-        <DeepDiveItem
-          number="04"
-          title="公式算出的原始数据量代表什么？"
-          unlocked={payloadEvidenceUnlocked}
-        >
+        <DeepDiveItem number="04" title="公式算出的原始数据量代表什么？" unlocked={formulaUnlocked}>
           {colorMode === "rgb24"
             ? "采样像素数 × 每像素位数；不包含文件头、元数据和压缩编码。"
             : "采样像素数 × 每像素位数；不包含文件头、颜色表、元数据和压缩编码。"}
@@ -541,7 +554,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const scenario = useMemo(() => parseImageEncodingScenario(search), [search]);
   const [lesson, dispatch] = useReducer(transitionImageLesson, scenario, createImageLessonState);
   const [uploadMessage, setUploadMessage] = useState<string | undefined>();
-  const [trace, setTrace] = useState<ExplorationTrace>(EMPTY_EXPLORATION_TRACE);
+  const [calculatorWidth, setCalculatorWidth] = useState("");
+  const [calculatorHeight, setCalculatorHeight] = useState("");
+  const [calculatorBitsPerPixel, setCalculatorBitsPerPixel] = useState("");
   const sourceCanvasRef = useRef<HTMLCanvasElement>(null);
   const reconstructionCanvasRef = useRef<HTMLCanvasElement>(null);
   const errorCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -564,10 +579,35 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const phaseIsInert =
     phaseGeometry.x.sampledSize >= phaseGeometry.x.sourceSize &&
     phaseGeometry.y.sampledSize >= phaseGeometry.y.sourceSize;
+  const visualControlsUnlocked = lesson.samplingChanged;
+  const colorControlsUnlocked = lesson.samplingChanged;
+  const formatBoundaryUnlocked = lesson.calculatorEdited;
+  const calculatorUnlocked = lesson.colorAdjusted;
+
+  const calculator = useMemo(
+    () =>
+      calculateImageEncoding(
+        Number(calculatorWidth),
+        Number(calculatorHeight),
+        Number(calculatorBitsPerPixel),
+      ),
+    [calculatorBitsPerPixel, calculatorHeight, calculatorWidth],
+  );
+  useEffect(() => {
+    setCalculatorWidth(String(model.sampled.width));
+    setCalculatorHeight(String(model.sampled.height));
+    setCalculatorBitsPerPixel(String(model.quantized.bitDepth));
+  }, [
+    lesson.bitDepth,
+    lesson.colorMode,
+    lesson.initialScenario,
+    lesson.samplingPercent,
+    lesson.source,
+    model,
+  ]);
 
   useEffect(() => {
     dispatch({ type: "load-scenario", scenario });
-    setTrace(EMPTY_EXPLORATION_TRACE);
   }, [
     scenario.bitDepth,
     scenario.colorMode,
@@ -578,44 +618,37 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   ]);
 
   const chooseCanvasPixel = (coordinate: { x: number; y: number }) => {
-    setTrace((current) => ({ ...current, pixelInspected: true }));
+    if (!visualControlsUnlocked) return;
     dispatch({ type: "select-pixel", ...coordinate });
   };
 
   const changeSampling = (samplingPercent: number) => {
-    setTrace((current) => ({
-      ...current,
-      samplingTargetReached: current.samplingTargetReached || samplingPercent < 50,
-    }));
     dispatch({ type: "set-sampling", samplingPercent });
   };
 
   const changeBitDepth = (bitDepth: number) => {
-    setTrace((current) => ({
-      ...current,
-      bitDepthTargetReached: current.bitDepthTargetReached || bitDepth === 2,
-    }));
+    if (!colorControlsUnlocked || lesson.colorMode !== "palette") return;
     dispatch({ type: "set-bit-depth", bitDepth });
   };
 
   const changeColorMode = (colorMode: ImageColorMode) => {
+    if (!colorControlsUnlocked) return;
     dispatch({ type: "set-color-mode", colorMode });
   };
 
   const changeView = (view: ImageView) => {
-    setTrace((current) => ({
-      ...current,
-      samplingViewed: current.samplingViewed || view === "sampling",
-      quantizationViewed: current.quantizationViewed || view === "quantization",
-      representationViewed: current.representationViewed || view === "representation",
-    }));
+    if (!visualControlsUnlocked) return;
     dispatch({ type: "set-view", view });
+  };
+
+  const editCalculatorField = () => {
+    if (!calculatorUnlocked) return;
+    dispatch({ type: "edit-calculator-field" });
   };
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    setTrace(EMPTY_EXPLORATION_TRACE);
     try {
       const source = await readUploadedImage(file);
       dispatch({ type: "load-source", source });
@@ -634,74 +667,40 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   const reset = () => {
     dispatch({ type: "reset" });
     setUploadMessage(undefined);
-    setTrace(EMPTY_EXPLORATION_TRACE);
   };
 
-  const spatialEvidenceUnlocked = trace.samplingTargetReached && trace.samplingViewed;
-  const quantizationEvidenceUnlocked = trace.bitDepthTargetReached && trace.quantizationViewed;
-  const traceEvidenceUnlocked = trace.representationViewed && trace.pixelInspected;
-  const payloadEvidenceUnlocked = trace.representationViewed && trace.bitDepthTargetReached;
-
-  const missionTasks: MissionTask[] = [
+  const lessonTasks: LessonTask[] = [
     {
-      id: "predict",
-      title: "预测：采样变少后，哪种信息先消失？",
-      detail: "先写下判断，再调整采样。",
-      evidenceUnlocked: false,
+      id: "sampling",
+      title: "1. 改变空间采样百分比",
+      detail: "拖动采样百分比，观察编码采样尺寸和重建图像。",
+      available: true,
+      complete: lesson.samplingChanged,
     },
     {
-      id: "sample",
-      title: "调低空间采样，记录采样尺寸",
-      detail: "调到 25% 左右，比较采样宽 × 高与画布显示尺寸。",
-      evidenceUnlocked: trace.samplingTargetReached,
+      id: "color",
+      title: "2. 调整颜色表示",
+      detail:
+        lesson.initialScenario.bitDepth === MIN_BIT_DEPTH
+          ? "切换到调色板，观察 1 位颜色表示怎样保留更少的颜色。"
+          : "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。",
+      available: lesson.samplingChanged,
+      complete: lesson.colorAdjusted,
     },
     {
-      id: "spatial-loss",
-      title: "比较采样重建",
-      detail: "比较原图与重建图像的细节变化。",
-      evidenceUnlocked: spatialEvidenceUnlocked,
+      id: "calculator",
+      title: "3. 计算原始数据量",
+      detail: "编辑宽度、高度或每像素位数，查看原始位数和原始字节。",
+      available: lesson.colorAdjusted,
+      complete: lesson.calculatorEdited,
     },
     {
-      id: "quantize",
-      title: "调低颜色位深",
-      detail: "调到 2 位，数一数最多能出现多少种颜色状态，并比较图像变化。",
-      evidenceUnlocked: trace.bitDepthTargetReached,
-    },
-    {
-      id: "color-loss",
-      title: "比较量化重建",
-      detail: "比较量化重建与采样重建的颜色变化。",
-      evidenceUnlocked: quantizationEvidenceUnlocked,
-    },
-    {
-      id: "trace-bits",
-      title: "把一个像素拆成数字",
-      detail: "打开编码表示，点击一个像素，查看位置、颜色编号和二进制编码。",
-      evidenceUnlocked: traceEvidenceUnlocked,
-    },
-    {
-      id: "payload",
-      title: "核对原始数据量",
-      detail: "核对采样宽、高、位深与计算结果。",
-      evidenceUnlocked: payloadEvidenceUnlocked,
-    },
-    {
-      id: "tradeoff",
-      title: "比较两种参数取舍",
-      detail: "比较高采样 + 低位深与低采样 + 高位深。",
-      evidenceUnlocked: false,
-    },
-    {
-      id: "transfer",
-      title: "联系 PNG / JPEG 文件",
-      detail: "写出两个理论数据量未包含的文件部分。",
-      evidenceUnlocked: false,
-    },
-    {
-      id: "explain",
-      title: "用 80 字总结取舍关系",
-      detail: "写出采样、颜色数量与图像变化之间的原因和推导过程。",
-      evidenceUnlocked: false,
+      id: "format",
+      title: "4. 联系实际文件格式",
+      detail: "可讨论：为什么原始数据量不能直接当作 PNG、JPEG 或 WebP 的文件大小？",
+      available: lesson.calculatorEdited,
+      complete: false,
+      statusLabel: lesson.calculatorEdited ? "可讨论" : undefined,
     },
   ];
 
@@ -723,7 +722,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
         <div className="image-course-grid">
           <div className="image-main-column">
-            <MissionList tasks={missionTasks} />
+            <LessonFlow tasks={lessonTasks} />
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>
@@ -742,7 +741,13 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 </div>
                 <label className="upload-field">
                   <span>上传图片（可选）</span>
-                  <input accept="image/*" onChange={handleUpload} type="file" />
+                  <input
+                    accept="image/*"
+                    aria-describedby="upload-help"
+                    onChange={handleUpload}
+                    type="file"
+                  />
+                  <small id="upload-help">可载入自己的图片；成功后会重新开始本节操作。</small>
                 </label>
               </div>
               {uploadMessage ? (
@@ -762,7 +767,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 <div>
                   <p className="eyebrow">实时重建</p>
                   <h3 id="compare-heading">原图 → 采样值 → 量化重建</h3>
-                  <p className="image-card-description">点击任一图像，检查同一个物理显示坐标。</p>
+                  <p className="image-card-description">
+                    {visualControlsUnlocked
+                      ? "点击任一图像，检查同一个物理显示坐标。"
+                      : "完成第 1 步后，可点击图像检查同一个物理显示坐标。"}
+                  </p>
                 </div>
               </div>
               <div className="canvas-compare-grid">
@@ -774,6 +783,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}
+                    interactive={visualControlsUnlocked}
                   />
                 </div>
                 <div>
@@ -784,6 +794,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     onPick={chooseCanvasPixel}
                     raster={model.reconstructed}
                     selectedCoordinate={lesson.selectedCoordinate}
+                    interactive={visualControlsUnlocked}
                   />
                 </div>
               </div>
@@ -815,7 +826,9 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 {(Object.keys(VIEW_LABELS) as ImageView[]).map((view) => (
                   <button
                     aria-selected={lesson.view === view}
+                    aria-disabled={!visualControlsUnlocked}
                     className={`view-tab${lesson.view === view ? " is-active" : ""}`}
+                    disabled={!visualControlsUnlocked}
                     key={view}
                     onClick={() => changeView(view)}
                     role="tab"
@@ -834,6 +847,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     onPick={chooseCanvasPixel}
                     raster={model.source}
                     selectedCoordinate={lesson.selectedCoordinate}
+                    interactive={visualControlsUnlocked}
                   />
                   <p>比较每个位置的颜色差异。</p>
                 </div>
@@ -844,7 +858,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     height={model.quantized.height}
                     onPick={chooseCanvasPixel}
                     pixels={model.quantized.pixels}
-                    revealed={trace.representationViewed}
+                    revealed={visualControlsUnlocked}
+                    interactive={visualControlsUnlocked}
                     view={lesson.view}
                     width={model.quantized.width}
                   />
@@ -867,13 +882,13 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             </section>
           </div>
 
-          <aside className="image-side-column" aria-label="图像编码控制与像素检查器">
+          <aside className="image-side-column" aria-label="图像编码控制与像素详情">
             <DeepDivePanel
               colorMode={model.quantized.colorMode}
-              payloadEvidenceUnlocked={payloadEvidenceUnlocked}
-              quantizationEvidenceUnlocked={quantizationEvidenceUnlocked}
-              samplingEvidenceUnlocked={spatialEvidenceUnlocked}
-              traceEvidenceUnlocked={traceEvidenceUnlocked}
+              formulaUnlocked={calculatorUnlocked}
+              colorUnlocked={lesson.colorAdjusted}
+              samplingUnlocked={lesson.samplingChanged}
+              pixelUnlocked={visualControlsUnlocked}
             />
             <section
               className="image-card image-parameter-card"
@@ -905,12 +920,14 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
               />
               <RangeField
                 description={phaseControlDescription(phaseGeometry)}
-                disabled={phaseIsInert}
+                disabled={!visualControlsUnlocked || phaseIsInert}
                 id="sampling-phase"
                 label="采样网格相位"
                 max={MAX_PHASE}
                 min={MIN_PHASE}
-                onChange={(value) => dispatch({ type: "set-phase", phase: value })}
+                onChange={(value) => {
+                  if (visualControlsUnlocked) dispatch({ type: "set-phase", phase: value });
+                }}
                 step={0.01}
                 unit=""
                 value={phaseIsInert ? 0 : lesson.phase}
@@ -921,7 +938,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     ? "每个通道保留 8 位"
                     : `最多 ${2 ** lesson.bitDepth} 种调色板颜色`
                 }
-                disabled={lesson.colorMode === "rgb24"}
+                disabled={!colorControlsUnlocked || lesson.colorMode === "rgb24"}
+                displayValue={lesson.colorMode === "rgb24" ? "24 位" : undefined}
                 id="bit-depth"
                 label="颜色位深"
                 max={MAX_BIT_DEPTH}
@@ -932,11 +950,16 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 value={lesson.bitDepth}
                 marks={[1, 2, 4, 8].map((value) => ({ value, label: `${value} 位` }))}
               />
-              <div className="image-color-mode" role="group" aria-label="颜色表示">
+              <div
+                className={`image-color-mode${colorControlsUnlocked ? "" : " is-locked"}`}
+                role="group"
+                aria-label="颜色表示"
+              >
                 <span>颜色表示</span>
                 <div className="image-color-mode-options">
                   <button
                     aria-pressed={lesson.colorMode !== "rgb24"}
+                    disabled={!colorControlsUnlocked}
                     className="button button-secondary"
                     onClick={() => changeColorMode("palette")}
                     type="button"
@@ -945,6 +968,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </button>
                   <button
                     aria-pressed={lesson.colorMode === "rgb24"}
+                    disabled={!colorControlsUnlocked}
                     className="button button-secondary"
                     onClick={() => changeColorMode("rgb24")}
                     type="button"
@@ -952,6 +976,13 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     原色（RGB 24 位）
                   </button>
                 </div>
+                <p className="image-control-guide">
+                  {colorControlsUnlocked
+                    ? lesson.bitDepth === MIN_BIT_DEPTH
+                      ? "当前已经是最低的 1 位；切换到调色板即可完成这一步。"
+                      : "先切换到调色板，再调低颜色位深，观察颜色层次怎么变化。"
+                    : "完成第 1 步后解锁颜色表示。"}
+                </p>
               </div>
             </section>
 
@@ -962,7 +993,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h3 id="payload-heading">原始数据量</h3>
                 </div>
               </div>
-              {payloadEvidenceUnlocked ? (
+              {calculatorUnlocked ? (
                 <>
                   <dl className="payload-list">
                     <div>
@@ -979,7 +1010,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <dt>可用颜色数</dt>
                       <dd>
                         {model.quantized.colorMode === "rgb24"
-                          ? "16,777,216 种 RGB 颜色状态"
+                          ? "16,777,216 种 RGB 颜色"
                           : `${model.quantized.palette.length} 个可用颜色编号`}
                       </dd>
                     </div>
@@ -990,17 +1021,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                         {model.rawPayload.bitDepth} = {model.rawPayload.bits} 位
                       </dd>
                     </div>
-                    <div>
-                      <dt>字节换算</dt>
-                      <dd>
-                        ceil({model.rawPayload.bits} / 8) = {model.rawPayload.bytes} 字节
-                      </dd>
-                    </div>
                   </dl>
                   <p className="payload-note">
-                    理论像素数据量，不是 PNG/JPEG 文件大小；不含
-                    {model.quantized.colorMode === "palette" ? "调色板表、" : ""}
-                    文件头、元数据或编解码压缩。
+                    这里显示的是像素数据的原始位数。PNG、JPG / JPEG 和 WebP
+                    的实际文件大小取决于图像内容、编码器设置、文件头、
+                    {model.quantized.colorMode === "palette" ? "颜色表、" : ""}元数据和具体实现。
                   </p>
                 </>
               ) : (
@@ -1009,8 +1034,130 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             </section>
 
             <section
-              className="image-card image-inspector-card"
+              className={`image-card calculator-card${calculatorUnlocked ? "" : " is-locked"}`}
+              aria-labelledby="calculator-heading"
+              aria-disabled={!calculatorUnlocked}
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">第 3 步</p>
+                  <h3 id="calculator-heading">数据量计算</h3>
+                </div>
+                <span className="image-card-heading-note">
+                  {calculatorUnlocked ? "原始像素数据" : "已锁定"}
+                </span>
+              </div>
+              <div className={`calculator-fields${calculatorUnlocked ? "" : " is-locked"}`}>
+                <label>
+                  宽度（像素）
+                  <input
+                    aria-describedby="calculator-help"
+                    disabled={!calculatorUnlocked}
+                    inputMode="numeric"
+                    min="1"
+                    onChange={(event) => {
+                      if (!calculatorUnlocked) return;
+                      setCalculatorWidth(event.target.value);
+                      editCalculatorField();
+                    }}
+                    type="number"
+                    value={calculatorWidth}
+                  />
+                </label>
+                <label>
+                  高度（像素）
+                  <input
+                    aria-describedby="calculator-help"
+                    disabled={!calculatorUnlocked}
+                    inputMode="numeric"
+                    min="1"
+                    onChange={(event) => {
+                      if (!calculatorUnlocked) return;
+                      setCalculatorHeight(event.target.value);
+                      editCalculatorField();
+                    }}
+                    type="number"
+                    value={calculatorHeight}
+                  />
+                </label>
+                <label>
+                  每像素位数
+                  <input
+                    aria-describedby="calculator-help"
+                    disabled={!calculatorUnlocked}
+                    inputMode="numeric"
+                    min="1"
+                    onChange={(event) => {
+                      if (!calculatorUnlocked) return;
+                      setCalculatorBitsPerPixel(event.target.value);
+                      editCalculatorField();
+                    }}
+                    type="number"
+                    value={calculatorBitsPerPixel}
+                  />
+                </label>
+              </div>
+              {calculatorUnlocked ? (
+                <>
+                  <p className="calculator-formula" id="calculator-help">
+                    原始位数 = 宽度 × 高度 × 每像素位数；原始字节 = 原始位数 ÷ 8 后向上取整。
+                  </p>
+                  <dl className="payload-list calculator-results">
+                    <div>
+                      <dt>原始位数</dt>
+                      <dd>
+                        {calculator.width} × {calculator.height} × {calculator.bitsPerPixel} ={" "}
+                        {calculator.rawBits} 位
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>原始字节</dt>
+                      <dd>
+                        {calculator.rawBits} ÷ 8 后向上取整 = {calculator.rawBytes} 字节
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="payload-note">
+                    计算结果只包含原始像素数据，不包含格式文件头、元数据或压缩结果。压缩格式的实际大小取决于图像内容和编码器设置。
+                  </p>
+                </>
+              ) : (
+                <p className="image-gated-notice">完成第 2 步后解锁。</p>
+              )}
+            </section>
+
+            <section
+              className={`image-card image-format-card${formatBoundaryUnlocked ? "" : " is-locked"}`}
+              aria-labelledby="format-heading"
+              aria-disabled={!formatBoundaryUnlocked}
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">第 4 步</p>
+                  <h3 id="format-heading">联系实际文件格式</h3>
+                </div>
+                <span className="image-card-heading-note">
+                  {formatBoundaryUnlocked ? "可讨论" : "已锁定"}
+                </span>
+              </div>
+              {formatBoundaryUnlocked ? (
+                <div className="format-boundary-copy">
+                  <p>原始像素数据量可以由宽 × 高 × 每像素位数准确计算。</p>
+                  <p>
+                    <strong>思考：</strong>
+                    为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小？
+                  </p>
+                  <p>实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响。</p>
+                </div>
+              ) : (
+                <p className="image-gated-notice">完成第 3 步后，这个边界问题会显示在这里。</p>
+              )}
+            </section>
+
+            <section
+              className={`image-card image-inspector-card${visualControlsUnlocked ? "" : " is-locked"}`}
               aria-labelledby="inspector-heading"
+              aria-disabled={!visualControlsUnlocked}
             >
               <div className="image-card-heading">
                 <div>
@@ -1018,7 +1165,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <h3 id="inspector-heading">把一个像素拆成数字</h3>
                 </div>
               </div>
-              {traceEvidenceUnlocked ? (
+              {visualControlsUnlocked ? (
                 <>
                   <div className="inspector-selected-pixel">
                     <span
@@ -1029,7 +1176,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                       <strong>
                         显示坐标（{inspection.sourceX}, {inspection.sourceY}）
                       </strong>
-                      <small>点击原图或重建图像可切换检查位置。</small>
+                      <small>点击原图或重建图像可切换位置。</small>
                     </div>
                   </div>
                   <dl className="pixel-inspection-list">
@@ -1071,7 +1218,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </dl>
                 </>
               ) : (
-                <p className="image-gated-notice">打开编码表示并选择像素。</p>
+                <p className="image-gated-notice">完成第 1 步后，可点击图像查看这里的数字。</p>
               )}
             </section>
 
@@ -1085,7 +1232,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     {model.quantized.colorMode === "rgb24" ? "RGB 颜色" : "颜色编号"}
                   </h3>
                 </div>
-                {trace.bitDepthTargetReached ? (
+                {lesson.colorAdjusted ? (
                   <span>
                     {model.quantized.colorMode === "rgb24"
                       ? "原色 RGB 24 位"
@@ -1093,7 +1240,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </span>
                 ) : null}
               </div>
-              {trace.bitDepthTargetReached ? (
+              {lesson.colorAdjusted ? (
                 model.quantized.colorMode === "rgb24" ? (
                   <p className="image-neutral-notice">原色 RGB 直接保留每个通道的 8 位值。</p>
                 ) : (
@@ -1110,7 +1257,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </div>
                 )
               ) : (
-                <p className="image-gated-notice">颜色位深调到 2 位后解锁。</p>
+                <p className="image-gated-notice">
+                  {lesson.initialScenario.bitDepth === MIN_BIT_DEPTH
+                    ? "切换到调色板后解锁。"
+                    : "切换到调色板并调低颜色位深后解锁。"}
+                </p>
               )}
             </section>
           </aside>

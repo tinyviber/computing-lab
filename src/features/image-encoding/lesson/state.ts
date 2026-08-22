@@ -2,6 +2,7 @@ import { getImageFixture } from "../domain/fixture";
 import type { RasterImage } from "../domain/model";
 import {
   isSamplingPhaseInert,
+  MIN_BIT_DEPTH,
   normalizeColorMode,
   normalizeBitDepth,
   normalizeImage,
@@ -17,6 +18,9 @@ export type ImageLessonState = ImageScenarioState & {
   initialScenario: ImageScenarioState;
   selectedCoordinate: { x: number; y: number };
   decodeError?: string;
+  samplingChanged: boolean;
+  colorAdjusted: boolean;
+  calculatorEdited: boolean;
 };
 
 export type ImageLessonAction =
@@ -27,6 +31,7 @@ export type ImageLessonAction =
   | { type: "set-phase"; phase: number }
   | { type: "set-view"; view: ImageView }
   | { type: "select-pixel"; x: number; y: number }
+  | { type: "edit-calculator-field" }
   | { type: "load-source"; source: RasterImage }
   | { type: "decode-error"; message: string }
   | { type: "reset" };
@@ -49,19 +54,52 @@ function normalizeScenario(scenario: ImageScenarioState, source: RasterImage): I
     ...scenario,
     samplingPercent,
     bitDepth: normalizeBitDepth(scenario.bitDepth),
-    ...(normalizeColorMode(scenario.colorMode) === "rgb24" ? { colorMode: "rgb24" as const } : {}),
+    colorMode: "rgb24",
     phase: canonicalPhaseForSource(source, samplingPercent, scenario.phase),
   };
 }
 
-export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
-  const source = getImageFixture(scenario.fixture);
+function emptyProgress() {
+  return {
+    samplingChanged: false,
+    colorAdjusted: false,
+    calculatorEdited: false,
+  };
+}
+
+function stateForSource(scenario: ImageScenarioState, source: RasterImage): ImageLessonState {
   const normalizedScenario = normalizeScenario(scenario, source);
   return {
     ...normalizedScenario,
     source,
     initialScenario: { ...normalizedScenario },
     selectedCoordinate: initialCoordinate(source),
+    ...emptyProgress(),
+  };
+}
+
+export function createImageLessonState(scenario: ImageScenarioState): ImageLessonState {
+  const source = getImageFixture(scenario.fixture);
+  return stateForSource(scenario, source);
+}
+
+function resetAfterSourceUpload(state: ImageLessonState, source: RasterImage): ImageLessonState {
+  const scenario = normalizeScenario(
+    {
+      ...state.initialScenario,
+      phase: 0,
+      view: "compare",
+      colorMode: "rgb24",
+    },
+    source,
+  );
+  return {
+    ...state,
+    ...scenario,
+    source,
+    selectedCoordinate: initialCoordinate(source),
+    decodeError: undefined,
+    ...emptyProgress(),
   };
 }
 
@@ -74,17 +112,36 @@ export function transitionImageLesson(
       return createImageLessonState(action.scenario);
     case "set-sampling": {
       const samplingPercent = normalizeSamplingPercent(action.samplingPercent);
+      if (samplingPercent === state.samplingPercent) return state;
       return {
         ...state,
         samplingPercent,
+        samplingChanged: true,
         phase: canonicalPhaseForSource(state.source, samplingPercent, state.phase),
       };
     }
-    case "set-bit-depth":
-      return { ...state, bitDepth: normalizeBitDepth(action.bitDepth) };
-    case "set-color-mode":
-      return { ...state, colorMode: normalizeColorMode(action.colorMode) };
+    case "set-bit-depth": {
+      if (!state.samplingChanged || state.colorMode !== "palette") return state;
+      const bitDepth = normalizeBitDepth(action.bitDepth);
+      if (bitDepth === state.bitDepth) return state;
+      return {
+        ...state,
+        bitDepth,
+        colorAdjusted: state.colorAdjusted || bitDepth < state.initialScenario.bitDepth,
+      };
+    }
+    case "set-color-mode": {
+      if (!state.samplingChanged) return state;
+      const colorMode = normalizeColorMode(action.colorMode);
+      return {
+        ...state,
+        colorMode,
+        colorAdjusted:
+          state.colorAdjusted || (colorMode === "palette" && state.bitDepth === MIN_BIT_DEPTH),
+      };
+    }
     case "set-phase":
+      if (!state.samplingChanged) return state;
       return {
         ...state,
         phase: canonicalPhaseForSource(
@@ -94,8 +151,9 @@ export function transitionImageLesson(
         ),
       };
     case "set-view":
-      return { ...state, view: action.view };
+      return state.samplingChanged ? { ...state, view: action.view } : state;
     case "select-pixel":
+      if (!state.samplingChanged) return state;
       return {
         ...state,
         selectedCoordinate: {
@@ -103,16 +161,11 @@ export function transitionImageLesson(
           y: Math.max(0, Math.min(state.source.height - 1, Math.floor(action.y))),
         },
       };
-    case "load-source": {
-      const source = normalizeImage(action.source);
-      return {
-        ...state,
-        source,
-        phase: canonicalPhaseForSource(source, state.samplingPercent, state.phase),
-        decodeError: undefined,
-        selectedCoordinate: initialCoordinate(source),
-      };
-    }
+    case "edit-calculator-field":
+      if (!state.colorAdjusted) return state;
+      return { ...state, calculatorEdited: true };
+    case "load-source":
+      return resetAfterSourceUpload(state, normalizeImage(action.source));
     case "decode-error":
       return { ...state, decodeError: action.message };
     case "reset":

@@ -3,110 +3,222 @@ import { getImageFixture } from "../domain/fixture";
 import { parseImageEncodingScenario } from "./scenario";
 import { createImageLessonState, transitionImageLesson } from "./state";
 
+function defaultState() {
+  return createImageLessonState(parseImageEncodingScenario("image=photo&sample=50&bits=4"));
+}
+
+function stateAfterSampling() {
+  return transitionImageLesson(defaultState(), { type: "set-sampling", samplingPercent: 45 });
+}
+
+function stateAfterColor() {
+  return transitionImageLesson(stateAfterSampling(), {
+    type: "set-color-mode",
+    colorMode: "palette",
+  });
+}
+
+function stateReadyForFormat() {
+  return transitionImageLesson(stateAfterColor(), { type: "set-bit-depth", bitDepth: 2 });
+}
+
+function stateAfterCalculator() {
+  return transitionImageLesson(stateReadyForFormat(), { type: "edit-calculator-field" });
+}
+
 describe("image lesson state", () => {
-  it("keeps parameter exploration continuous without phase or submit state", () => {
-    const scenario = parseImageEncodingScenario("image=gradient&sample=50&bits=4");
-    let state = createImageLessonState(scenario);
-    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 25 });
-    state = transitionImageLesson(state, { type: "set-bit-depth", bitDepth: 2 });
-    state = transitionImageLesson(state, { type: "set-phase", phase: 0.6 });
-    state = transitionImageLesson(state, { type: "set-view", view: "representation" });
+  it("starts locked with original RGB24 color and no progress", () => {
+    const state = defaultState();
+
     expect(state).toMatchObject({
-      samplingPercent: 25,
+      colorMode: "rgb24",
+      samplingChanged: false,
+      colorAdjusted: false,
+      calculatorEdited: false,
+    });
+  });
+
+  it("records only a real sampling change and guards dependent actions before it", () => {
+    const initial = defaultState();
+    const sameSampling = transitionImageLesson(initial, {
+      type: "set-sampling",
+      samplingPercent: initial.samplingPercent,
+    });
+    expect(sameSampling).toEqual(initial);
+
+    const ignoredColor = transitionImageLesson(initial, {
+      type: "set-color-mode",
+      colorMode: "palette",
+    });
+    expect(ignoredColor).toEqual(initial);
+    expect(transitionImageLesson(initial, { type: "set-bit-depth", bitDepth: 2 })).toEqual(initial);
+    expect(transitionImageLesson(initial, { type: "set-phase", phase: 0.6 })).toEqual(initial);
+    expect(transitionImageLesson(initial, { type: "set-view", view: "representation" })).toEqual(
+      initial,
+    );
+    expect(transitionImageLesson(initial, { type: "select-pixel", x: 0, y: 0 })).toEqual(initial);
+    const changed = transitionImageLesson(initial, {
+      type: "set-sampling",
+      samplingPercent: 45,
+    });
+    expect(changed).toMatchObject({ samplingPercent: 45, samplingChanged: true });
+  });
+
+  it("unlocks palette and bit-depth changes only after sampling", () => {
+    const afterSampling = stateAfterSampling();
+    expect(transitionImageLesson(afterSampling, { type: "set-bit-depth", bitDepth: 2 })).toEqual(
+      afterSampling,
+    );
+
+    const palette = transitionImageLesson(afterSampling, {
+      type: "set-color-mode",
+      colorMode: "palette",
+    });
+    expect(palette).toMatchObject({
+      colorMode: "palette",
+      colorAdjusted: false,
+      bitDepth: 4,
+    });
+
+    expect(transitionImageLesson(palette, { type: "set-bit-depth", bitDepth: 5 })).toMatchObject({
+      bitDepth: 5,
+      colorAdjusted: false,
+    });
+
+    const bitDepth = transitionImageLesson(palette, {
+      type: "set-bit-depth",
       bitDepth: 2,
-      phase: 0.6,
+    });
+    expect(bitDepth).toMatchObject({ bitDepth: 2, colorAdjusted: true });
+  });
+
+  it("marks the calculator step complete only after a calculator edit", () => {
+    const initial = defaultState();
+    expect(transitionImageLesson(initial, { type: "edit-calculator-field" })).toEqual(initial);
+
+    const edited = transitionImageLesson(stateReadyForFormat(), {
+      type: "edit-calculator-field",
+    });
+    expect(edited).toMatchObject({ calculatorEdited: true });
+  });
+
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])(
+    "lets a legal %s-bit scenario complete the color step and continue",
+    (bits) => {
+      const initial = createImageLessonState(
+        parseImageEncodingScenario(`image=photo&bits=${bits}`),
+      );
+      const sampled = transitionImageLesson(initial, { type: "set-sampling", samplingPercent: 45 });
+      const palette = transitionImageLesson(sampled, {
+        type: "set-color-mode",
+        colorMode: "palette",
+      });
+      const adjusted =
+        bits === 1
+          ? palette
+          : transitionImageLesson(palette, { type: "set-bit-depth", bitDepth: bits - 1 });
+
+      expect(adjusted).toMatchObject({
+        colorMode: "palette",
+        colorAdjusted: true,
+      });
+      const calculated = transitionImageLesson(adjusted, {
+        type: "edit-calculator-field",
+      });
+      expect(calculated).toMatchObject({ calculatorEdited: true });
+    },
+  );
+
+  it("guards phase and view until sampling, then preserves their domain behavior", () => {
+    const initial = defaultState();
+    const afterSampling = stateAfterSampling();
+    const phased = transitionImageLesson(afterSampling, { type: "set-phase", phase: 0.6 });
+    const viewed = transitionImageLesson(afterSampling, {
+      type: "set-view",
       view: "representation",
     });
-    expect("submit" in state).toBe(false);
+
+    expect(initial.phase).toBe(0);
+    expect(phased.phase).toBe(0.6);
+    expect(viewed.view).toBe("representation");
   });
 
-  it("canonicalizes phase against actual rounded geometry", () => {
-    const state = createImageLessonState(
-      parseImageEncodingScenario("image=checkerboard&sample=99&phase=0.8"),
-    );
-    expect(state.samplingPercent).toBe(99);
-    expect(state.phase).toBe(0);
-    expect(transitionImageLesson(state, { type: "set-phase", phase: 0.8 }).phase).toBe(0);
-  });
+  it("clears progress when resetting to the initial scenario", () => {
+    const reset = transitionImageLesson(stateAfterCalculator(), { type: "reset" });
 
-  it("keeps phase when only one uploaded-source axis is full density", () => {
-    const narrowSource = {
-      id: "upload:narrow",
-      label: "Narrow upload",
-      sourceKind: "upload" as const,
-      width: 3,
-      height: 20,
-      pixels: Array.from({ length: 60 }, (_, index) => ({ r: index, g: 0, b: 0 })),
-    };
-    let state = createImageLessonState(parseImageEncodingScenario("image=photo&sample=50"));
-    state = transitionImageLesson(state, { type: "load-source", source: narrowSource });
-    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 90 });
-    state = transitionImageLesson(state, { type: "set-phase", phase: 0.8 });
-    expect(state).toMatchObject({ samplingPercent: 90, phase: 0.8 });
-    expect(transitionImageLesson(state, { type: "set-sampling", samplingPercent: 99 }).phase).toBe(
-      0,
-    );
-  });
-
-  it("selects a bounded source coordinate and keeps uploaded pixels transient", () => {
-    const state = createImageLessonState(parseImageEncodingScenario(""));
-    const uploaded = {
-      ...getImageFixture("pixel-grid"),
-      id: "upload:test",
-      sourceKind: "upload" as const,
-    };
-    let next = transitionImageLesson(state, { type: "load-source", source: uploaded });
-    next = transitionImageLesson(next, { type: "select-pixel", x: 999, y: -4 });
-    expect(next.source.sourceKind).toBe("upload");
-    expect(next.selectedCoordinate).toEqual({ x: uploaded.width - 1, y: 0 });
-    expect(next.initialScenario.fixture).toBe("photo");
-  });
-
-  it("resets an uploaded source to the scenario that opened the page", () => {
-    const state = createImageLessonState(parseImageEncodingScenario("image=photo&sample=75"));
-    const uploaded = {
-      ...getImageFixture("gradient"),
-      id: "upload:gradient.png",
-      label: "gradient.png",
-      sourceKind: "upload" as const,
-    };
-    let changed = transitionImageLesson(state, { type: "load-source", source: uploaded });
-    changed = transitionImageLesson(changed, { type: "set-sampling", samplingPercent: 25 });
-    changed = transitionImageLesson(changed, { type: "set-bit-depth", bitDepth: 2 });
-
-    const reset = transitionImageLesson(changed, { type: "reset" });
     expect(reset).toMatchObject({
       fixture: "photo",
-      samplingPercent: 75,
-      bitDepth: 4,
-      source: getImageFixture("photo"),
-      initialScenario: state.initialScenario,
+      samplingPercent: 50,
+      colorMode: "rgb24",
+      samplingChanged: false,
+      colorAdjusted: false,
+      calculatorEdited: false,
+      view: "compare",
     });
-    expect(reset.source.sourceKind).toBe("fixture");
   });
 
-  it("reset restores the URL scenario baseline rather than a hidden success profile", () => {
-    const scenario = parseImageEncodingScenario(
-      "image=checkerboard&sample=25&phase=0.5&bits=2&view=error",
-    );
-    let state = createImageLessonState(scenario);
-    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 90 });
-    state = transitionImageLesson(state, { type: "set-bit-depth", bitDepth: 8 });
-    state = transitionImageLesson(state, { type: "set-phase", phase: 0.75 });
-    state = transitionImageLesson(state, { type: "set-view", view: "compare" });
-    state = transitionImageLesson(state, { type: "select-pixel", x: 3, y: 4 });
-    expect(state.initialScenario).toEqual(scenario);
+  it("clears progress when loading a different URL scenario", () => {
+    const loaded = transitionImageLesson(stateAfterCalculator(), {
+      type: "load-scenario",
+      scenario: parseImageEncodingScenario(
+        "image=checkerboard&sample=25&bits=2&color=palette&view=representation",
+      ),
+    });
 
-    const reset = transitionImageLesson(state, { type: "reset" });
-    expect(reset).toMatchObject({
+    expect(loaded).toMatchObject({
       fixture: "checkerboard",
       samplingPercent: 25,
       bitDepth: 2,
-      phase: 0.5,
-      view: "error",
-      initialScenario: scenario,
-      selectedCoordinate: { x: 24, y: 16 },
+      colorMode: "rgb24",
+      view: "representation",
+      samplingChanged: false,
+      colorAdjusted: false,
+      calculatorEdited: false,
     });
-    expect(reset.source).toBe(getImageFixture("checkerboard"));
+  });
+
+  it("clears progress and transient upload state when loading a source", () => {
+    const changed = transitionImageLesson(stateAfterCalculator(), {
+      type: "decode-error",
+      message: "old upload error",
+    });
+    const uploaded = {
+      ...getImageFixture("pixel-grid"),
+      id: "upload:pixel-grid",
+      label: "pixel-grid.png",
+      sourceKind: "upload" as const,
+    };
+    const loaded = transitionImageLesson(changed, { type: "load-source", source: uploaded });
+
+    expect(loaded).toMatchObject({
+      source: uploaded,
+      samplingChanged: false,
+      colorAdjusted: false,
+      calculatorEdited: false,
+      colorMode: "rgb24",
+      view: "compare",
+      decodeError: undefined,
+    });
+    expect(loaded.source.sourceKind).toBe("upload");
+    expect(loaded.initialScenario.fixture).toBe("photo");
+  });
+
+  it("keeps the current experiment when a decode error is recorded", () => {
+    const edited = transitionImageLesson(stateAfterCalculator(), {
+      type: "edit-calculator-field",
+    });
+    const errored = transitionImageLesson(edited, {
+      type: "decode-error",
+      message: "所选图像无法解码。",
+    });
+
+    expect(errored).toMatchObject({
+      samplingPercent: 45,
+      samplingChanged: true,
+      colorMode: "palette",
+      colorAdjusted: true,
+      calculatorEdited: true,
+      decodeError: "所选图像无法解码。",
+    });
   });
 });

@@ -40,7 +40,7 @@ describe("LabShell", () => {
     expect(document.querySelector("#lab-navigation .lesson-path")).toBeNull();
     expect(document.querySelector(".context-progress")).toBeNull();
     expect(screen.queryByText("学习路径")).not.toBeInTheDocument();
-    expect(screen.queryByText("进行中")).not.toBeInTheDocument();
+    expect(document.querySelector("#lab-navigation .lesson-task-status")).toBeNull();
   });
 
   it("returns focus to menu button after Escape closes mobile rail", async () => {

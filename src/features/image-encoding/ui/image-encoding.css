@@ -91,62 +91,83 @@
   letter-spacing: -0.015em;
 }
 
-.mission-card {
+.lesson-flow-card {
   overflow: hidden;
   border-color: #d6d7ff;
 }
 
-.mission-summary {
+.lesson-flow-summary {
   cursor: pointer;
   padding: 18px 20px;
   color: var(--primary);
 }
 
-.mission-summary::marker {
+.lesson-flow-summary::marker {
   color: var(--muted);
 }
 
-.mission-summary-label {
+.lesson-flow-summary-label {
   display: block;
 }
 
-.mission-summary-label {
+.lesson-flow-summary-label {
   color: var(--muted);
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
-.mission-card[open] > .mission-summary {
+.lesson-flow-card[open] > .lesson-flow-summary {
   border-bottom: 1px solid var(--border);
 }
 
-.mission-list {
+.lesson-flow-list {
   margin: 0;
   padding: 8px 20px 16px 48px;
   list-style: decimal;
 }
 
-.mission-item {
+.lesson-flow-item {
   padding: 12px 0;
   border-top: 1px solid var(--border);
 }
 
-.mission-item::marker {
+.lesson-flow-item::marker {
   color: var(--muted);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 11px;
 }
 
-.mission-task-title {
-  display: block;
+.lesson-flow-item-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lesson-task-title {
   color: var(--primary);
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
 }
 
-.mission-item p {
+.lesson-task-status {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.lesson-flow-item.is-complete .lesson-task-status {
+  color: var(--success);
+}
+
+.lesson-flow-item.is-locked .lesson-task-title,
+.lesson-flow-item.is-locked p {
+  color: var(--muted);
+}
+
+.lesson-flow-item p {
   max-width: 720px;
   margin: 6px 0 0;
   color: var(--secondary);
@@ -297,6 +318,18 @@
   outline-offset: -2px;
 }
 
+.image-canvas-frame.is-locked,
+.representation-canvas-frame.is-locked,
+.representation-grid.is-locked {
+  opacity: 0.58;
+}
+
+.image-canvas.is-locked,
+.representation-canvas.is-locked,
+.representation-grid.is-locked {
+  cursor: not-allowed;
+}
+
 .canvas-caption {
   padding: 0 9px 8px;
   color: rgb(255 255 255 / 72%);
@@ -442,6 +475,15 @@
   line-height: 1.45;
 }
 
+.image-control.is-locked,
+.image-color-mode.is-locked,
+.calculator-fields.is-locked,
+.image-format-card.is-locked,
+.calculator-card.is-locked,
+.image-inspector-card.is-locked {
+  opacity: 0.62;
+}
+
 .range-marks {
   position: relative;
   height: 13px;
@@ -478,6 +520,80 @@
   border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.image-control-guide {
+  margin: 0;
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.5;
+}
+
+.image-card-heading-note {
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.format-boundary-copy {
+  display: grid;
+  gap: 10px;
+  padding: 16px 20px 18px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.format-boundary-copy p {
+  margin: 0;
+}
+
+.format-boundary-copy strong {
+  color: var(--primary);
+}
+
+.calculator-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 16px 20px 10px;
+}
+
+.calculator-fields label {
+  display: grid;
+  gap: 6px;
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+.calculator-fields input {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--primary);
+  font: inherit;
+}
+
+.calculator-fields input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.calculator-formula {
+  margin: 0;
+  padding: 0 20px 8px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.calculator-results {
+  padding-top: 0;
 }
 
 .payload-list,
@@ -639,9 +755,13 @@
     gap: 16px;
   }
 
-  .mission-list {
+  .lesson-flow-list {
     padding-right: 14px;
     padding-left: 38px;
+  }
+
+  .calculator-fields {
+    grid-template-columns: 1fr;
   }
 
   .source-meta {

@@ -9,7 +9,9 @@ async function expectSourceIdentity(page: Page, kind: string, label: string) {
   await expect(fixedSource.locator("strong")).toHaveText(label);
 }
 
-test("keeps default and legacy image source identities local and truthful", async ({ page }) => {
+test("walks the sequential image-encoding flow without external network access", async ({
+  page,
+}) => {
   const nonLocalRequests: string[] = [];
 
   await page.route("**/*", async (route) => {
@@ -31,6 +33,9 @@ test("keeps default and legacy image source identities local and truthful", asyn
   await expectSourceIdentity(page, "固定样例", "小猫插图");
   await expect(page.getByText("小猫插图").first()).toBeVisible();
   await expect(page.locator("select")).toHaveCount(0);
+  await expect(page.getByRole("slider", { name: /空间采样/ })).toBeEnabled();
+  await expect(page.getByRole("slider", { name: /采样网格相位/ })).toBeDisabled();
+  await expect(page.getByLabel(/上传图片（可选）/)).toBeEnabled();
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
 
@@ -50,62 +55,83 @@ test("keeps default and legacy image source identities local and truthful", asyn
   }
 
   await page.goto(
-    "labs/image-encoding?image=gradient&sample=25&phase=0.5&bits=2&view=representation",
-    {
-      waitUntil: "networkidle",
-    },
+    "labs/image-encoding?image=gradient&sample=25&phase=0.5&bits=2&color=palette&view=representation",
+    { waitUntil: "networkidle" },
   );
+  expect(nonLocalRequests).toEqual([]);
+
   const sampling = page.getByRole("slider", { name: /空间采样/ });
-  await sampling.fill("45");
-  await page.getByRole("tab", { name: /采样重建/ }).click();
-  const legacyTask = page
-    .locator(".mission-item")
-    .filter({ hasText: /比较采样重建/ })
-    .first();
-  await expect(legacyTask).toContainText(/相关观察已出现/);
-  await page.getByRole("slider", { name: /颜色位深/ }).fill("8");
-  await page.getByRole("slider", { name: /采样网格相位/ }).fill("0.75");
-  await page.getByRole("tab", { name: /颜色差异图/ }).click();
+  await sampling.focus();
+  await sampling.press("ArrowRight");
+  await expect(sampling).toHaveValue("30");
+  await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
+
+  await page.getByRole("button", { name: "调色板", exact: true }).click();
+  const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
+  await expect(bitDepth).toBeEnabled();
+  await bitDepth.focus();
+  await bitDepth.press("ArrowLeft");
+  await expect(bitDepth).toHaveValue("1");
+
+  const calculator = page.locator("section[aria-labelledby=calculator-heading]");
+  const width = calculator.getByRole("spinbutton", { name: "宽度（像素）" });
+  const height = calculator.getByRole("spinbutton", { name: "高度（像素）" });
+  const bits = calculator.getByRole("spinbutton", { name: "每像素位数" });
+  await expect(width).toBeEnabled();
+  await expect(height).toBeEnabled();
+  await expect(bits).toBeEnabled();
+  await width.fill("3");
+  await height.fill("3");
+  await bits.fill("5");
+
+  await expect(page.locator('section[aria-labelledby="payload-heading"]')).toContainText(
+    /原始数据量/,
+  );
+  await expect(page.locator('section[aria-labelledby="payload-heading"]')).toContainText(
+    /实际文件大小取决于图像内容/,
+  );
+  await expect(page.locator('section[aria-labelledby="payload-heading"]')).not.toContainText(
+    /教学估算/,
+  );
+
+  await expect(calculator).toContainText("原始位数 = 宽度 × 高度 × 每像素位数");
+  await expect(calculator).toContainText("3 × 3 × 5 = 45 位");
+  await expect(calculator).toContainText("45 ÷ 8 后向上取整 = 6 字节");
+  await expect(calculator).toContainText("压缩格式的实际大小取决于图像内容和编码器设置");
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "3. 计算原始数据量" }),
+  ).toContainText("已完成");
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "4. 联系实际文件格式" }),
+  ).toContainText("可讨论");
+  await expect(page.locator('section[aria-labelledby="format-heading"]')).toContainText(
+    /为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小/,
+  );
 
   const reset = page.locator('section[aria-labelledby="source-heading"] button');
   await expect(reset).toHaveCount(1);
   await expect(reset).toHaveText("恢复初始情境");
   await reset.click();
   await expect(sampling).toHaveValue("25");
-  await expect(page.getByRole("slider", { name: /采样网格相位/ })).toHaveValue("0.5");
-  await expect(page.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
-  await expect(page.getByRole("tab", { name: /编码表示/ })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await expectSourceIdentity(page, "兼容样例", "平滑色彩渐变");
-  await expect(legacyTask).not.toContainText(/证据已出现/);
+  await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
+  await expect(calculator.getByRole("spinbutton", { name: "宽度（像素）" })).toBeDisabled();
+  await expect(page.getByText("完成第 3 步后，这个边界问题会显示在这里。")).toBeVisible();
+  expect(nonLocalRequests).toEqual([]);
+});
 
-  const worksheet = page.locator("details.mission-card");
-  const worksheetSummary = worksheet.locator(":scope > summary");
-  await expect(worksheet).not.toHaveAttribute("open");
-  await worksheetSummary.click();
-  await expect(worksheet).toHaveAttribute("open", "");
-  await expect(worksheet.locator(".mission-item")).toHaveCount(10);
-  await expect(worksheet.locator("details")).toHaveCount(0);
+test("allows a bits=1 scenario to complete color adjustment", async ({ page }) => {
+  await page.goto("labs/image-encoding?bits=1", { waitUntil: "networkidle" });
 
-  const task = page
-    .locator(".mission-item")
-    .filter({ hasText: /空间采样/ })
-    .first();
-  await expect(task).toBeVisible();
-  await expect(task.locator("details")).toHaveCount(0);
-  await expect(task).toContainText(/调到 25% 左右/);
+  const sampling = page.getByRole("slider", { name: /空间采样/ });
+  await sampling.focus();
+  await sampling.press("ArrowLeft");
+  await expect(sampling).toHaveValue("45");
 
-  await page.getByRole("slider", { name: /空间采样/ }).press("ArrowLeft");
-  const evidenceBefore = await task.textContent();
-  await expect(task).not.toContainText(/结果已出现|仍需你记录、描述、计算或解释/);
-  expect(await task.textContent()).toBe(evidenceBefore);
-
-  await worksheetSummary.focus();
-  await expect(worksheetSummary).toBeFocused();
-  await worksheetSummary.press("Space");
-  await expect(worksheet).not.toHaveAttribute("open");
-  await worksheetSummary.press("Enter");
-  await expect(worksheet).toHaveAttribute("open", "");
+  await page.getByRole("button", { name: "调色板", exact: true }).click();
+  await expect(
+    page.locator(".lesson-flow-item").filter({ hasText: "2. 调整颜色表示" }),
+  ).toContainText("已完成");
+  await expect(
+    page.locator('section[aria-labelledby="calculator-heading"] input').first(),
+  ).toBeEnabled();
 });

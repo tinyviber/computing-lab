@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 import { getImageFixture } from "./fixture";
 import {
   buildPalette,
+  calculateImageEncoding,
   deriveImageEncodingModel,
   inspectPixel,
+  normalizeCalculatorBitsPerPixel,
+  normalizeCalculatorDimension,
   normalizeBitDepth,
   rawPayload,
   reconstructImage,
@@ -278,6 +281,46 @@ describe("image encoding domain model", () => {
     expect(rawPayload(3, 3, 5).bytes).toBe(6);
     expect(normalizeBitDepth(-99)).toBe(1);
     expect(normalizeBitDepth(99)).toBe(8);
+  });
+
+  it("uses width × height × bits and rounds raw bytes up", () => {
+    const calculation = calculateImageEncoding(3, 3, 5);
+    expect(calculation).toMatchObject({
+      width: 3,
+      height: 3,
+      bitsPerPixel: 5,
+      pixelCount: 9,
+      rawBits: 45,
+      rawBytes: 6,
+    });
+    expect(calculation).not.toHaveProperty("classroomBytes");
+    expect(calculateImageEncoding(1, 1, 1).rawBytes).toBe(1);
+  });
+
+  it("clamps invalid calculator inputs at the domain boundary", () => {
+    expect(normalizeCalculatorDimension(-99)).toBe(1);
+    expect(normalizeCalculatorDimension(Number.NaN)).toBe(1);
+    expect(normalizeCalculatorDimension(99999)).toBe(10000);
+    expect(normalizeCalculatorBitsPerPixel(-99)).toBe(1);
+    expect(normalizeCalculatorBitsPerPixel(Number.POSITIVE_INFINITY)).toBe(8);
+    expect(normalizeCalculatorBitsPerPixel(999)).toBe(32);
+    expect(calculateImageEncoding(0, -2, 0)).toMatchObject({
+      width: 1,
+      height: 1,
+      bitsPerPixel: 1,
+      rawBits: 1,
+      rawBytes: 1,
+    });
+  });
+
+  it("keeps calculator boundaries exact for large valid inputs", () => {
+    expect(calculateImageEncoding(10000, 10000, 32)).toMatchObject({
+      width: 10000,
+      height: 10000,
+      bitsPerPixel: 32,
+      rawBits: 3_200_000_000,
+      rawBytes: 400_000_000,
+    });
   });
 
   it("lets sampling and quantization affect payload independently", () => {

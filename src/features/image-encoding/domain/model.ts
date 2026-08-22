@@ -87,6 +87,15 @@ export type RawPayload = {
   bytes: number;
 };
 
+export type ImageEncodingCalculation = {
+  width: number;
+  height: number;
+  bitsPerPixel: number;
+  pixelCount: number;
+  rawBits: number;
+  rawBytes: number;
+};
+
 export type ImageEncodingModel = {
   source: RasterImage;
   sampled: SampledRepresentation;
@@ -120,6 +129,10 @@ export const MAX_BIT_DEPTH = 8;
 export const RGB24_BIT_DEPTH = 24;
 export const MIN_PHASE = 0;
 export const MAX_PHASE = 0.99;
+export const MIN_CALCULATOR_DIMENSION = 1;
+export const MAX_CALCULATOR_DIMENSION = 10000;
+export const MIN_CALCULATOR_BITS_PER_PIXEL = 1;
+export const MAX_CALCULATOR_BITS_PER_PIXEL = 32;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -143,6 +156,22 @@ export function normalizeColorMode(value: unknown): ImageColorMode {
 
 export function normalizePhase(value: number): number {
   return clamp(finiteOr(value, 0), MIN_PHASE, MAX_PHASE);
+}
+
+export function normalizeCalculatorDimension(value: number, fallback = 1): number {
+  return clamp(
+    Math.floor(finiteOr(value, fallback)),
+    MIN_CALCULATOR_DIMENSION,
+    MAX_CALCULATOR_DIMENSION,
+  );
+}
+
+export function normalizeCalculatorBitsPerPixel(value: number, fallback = 8): number {
+  return clamp(
+    Math.floor(finiteOr(value, fallback)),
+    MIN_CALCULATOR_BITS_PER_PIXEL,
+    MAX_CALCULATOR_BITS_PER_PIXEL,
+  );
 }
 
 export function normalizeImage(source: RasterImage): RasterImage {
@@ -474,9 +503,37 @@ export function reconstructImage(
 }
 
 export function rawPayload(width: number, height: number, bitDepth: number): RawPayload {
+  const safeWidth = normalizeCalculatorDimension(width);
+  const safeHeight = normalizeCalculatorDimension(height);
   const safeBits = bitDepth === RGB24_BIT_DEPTH ? RGB24_BIT_DEPTH : normalizeBitDepth(bitDepth);
-  const bits = Math.max(1, Math.floor(width)) * Math.max(1, Math.floor(height)) * safeBits;
-  return { width, height, bitDepth: safeBits, bits, bytes: Math.ceil(bits / 8) };
+  const bits = safeWidth * safeHeight * safeBits;
+  return {
+    width: safeWidth,
+    height: safeHeight,
+    bitDepth: safeBits,
+    bits,
+    bytes: Math.ceil(bits / 8),
+  };
+}
+
+export function calculateImageEncoding(
+  widthInput: number,
+  heightInput: number,
+  bitsPerPixelInput: number,
+): ImageEncodingCalculation {
+  const width = normalizeCalculatorDimension(widthInput);
+  const height = normalizeCalculatorDimension(heightInput);
+  const bitsPerPixel = normalizeCalculatorBitsPerPixel(bitsPerPixelInput);
+  const rawBits = width * height * bitsPerPixel;
+  const rawBytes = Math.ceil(rawBits / 8);
+  return {
+    width,
+    height,
+    bitsPerPixel,
+    pixelCount: width * height,
+    rawBits,
+    rawBytes,
+  };
 }
 
 export function deriveImageEncodingModel(
