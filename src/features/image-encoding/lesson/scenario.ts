@@ -31,6 +31,7 @@ export const DEFAULT_IMAGE_SCENARIO: ImageScenarioState = {
   bitDepth: 4,
   phase: 0,
   view: "compare",
+  colorMode: "rgb24",
 };
 
 const IMAGE_VIEWS: readonly ImageView[] = [
@@ -115,7 +116,9 @@ export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageSce
     firstInteger(params, ["bits", "bitDepth"]) ??
       (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
   );
-  const colorMode = normalizeColorMode(params.get("color") ?? params.get("colorMode"));
+  const colorParam = params.get("color") ?? params.get("colorMode");
+  const colorMode =
+    colorParam === null ? DEFAULT_IMAGE_SCENARIO.colorMode : normalizeColorMode(colorParam);
   const phase = canonicalPhaseForFixture(
     fixture,
     samplingPercent,
@@ -127,7 +130,7 @@ export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageSce
     bitDepth,
     phase,
     view: viewFromParams(params),
-    ...(colorMode === "rgb24" ? { colorMode } : {}),
+    colorMode,
   };
 }
 
@@ -141,7 +144,7 @@ export function serializeImageEncodingScenario(state: ImageScenarioState): strin
     canonicalPhaseForFixture(state.fixture, samplingPercent, state.phase).toFixed(2),
   );
   params.set("bits", String(normalizeBitDepth(state.bitDepth)));
-  if (state.colorMode === "rgb24") params.set("color", "rgb24");
+  if (state.colorMode) params.set("color", normalizeColorMode(state.colorMode));
   params.set("view", state.view);
   return params.toString();
 }

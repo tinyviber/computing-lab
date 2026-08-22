@@ -1,31 +1,34 @@
-# Image Encoding rebuild — draft PR handoff
+# Image Encoding rebuild — implementation handoff
 
-## 1. Natural course model
+## 1. Guided course model
 
-Image Encoding is a static, continuous exploration of a two-dimensional representation:
+Image Encoding keeps its feature-local raster model, but the UI now presents one four-task sequential flow:
 
 ```text
-source raster
-  → spatial sampling
-  → sampled representation
-  → indexed color quantization or direct RGB24 encoding
-  → encoded color values / bits
-  → same-size reconstruction
-  → visible spatial and color loss
+1. change sampling percent
+   → 2. choose palette/original color and adjust palette bit depth
+   → 3. choose raw, PNG, JPG/JPEG, or WebP
+   → 4. edit calculator inputs and compare data quantities
 ```
 
-The feature keeps source image, sampled representation, quantized representation, and reconstructed image as distinct values. There is no global success state, step rail, submit, retry, or unique correct profile.
+Only the sampling-percent range is enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, upload, format choices, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection and upload become available; after task 2, format choices become available; after task 3, the calculator becomes available.
 
-## 2. Core student trajectories
+The initial color representation is RGB24. Explicit `color=rgb24` links remain supported, and links without a color parameter now open in RGB24 as well. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set progress.
 
-- **Sampling**: choose or upload a real image, reduce spatial sampling, keep the reconstructed display the same physical size, observe pixel blocks, then inspect sampled width × height and a local coordinate.
-- **Quantization**: keep sampling fixed, reduce bit depth, observe finite palette states and banding, then inspect the color and index bits of one displayed pixel.
-- **Combined trade-off**: compare sampling-heavy/low-color and sampling-light/high-color profiles with similar raw payloads; the goal is to explain different loss types, not find one answer.
-- **Pixel-to-bits**: click a source or reconstructed pixel and follow source coordinate → sample cell → sampled value → color value → exact bit string.
-- **Phase evidence**: move the sampling grid phase on high-frequency fixtures such as checkerboard and text-edge; phase changes which source positions are retained. Downsampled axes use periodic edge wrapping so every sampled cell remains live; a full-density axis is fixed at zero phase and remains an identity baseline. The feature exposes per-axis effective phase to the control: both full-density axes disable it at `0`; one full-density axis leaves it active and labels that axis as fixed.
-- **Error evidence**: switch to the local RGB error map to see where reconstruction differs from the source.
+## 2. Feature-local state
 
-## 3. Data flow
+`src/features/image-encoding/lesson/state.ts` owns:
+
+- `samplingChanged`
+- `colorAdjusted`
+- `formatSelected`
+- `selectedFormat`
+
+Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering the palette bit depth completes task 2. Selecting any supported format completes task 3. Locked direct actions return the existing state.
+
+Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24 and the format to raw. A failed upload resets the lesson before displaying the decode error. No shared lesson runtime is introduced.
+
+## 3. Raster data flow
 
 `RasterImage` is decoded in the feature UI/adapter. Pure domain calculations then run:
 
@@ -33,73 +36,33 @@ The feature keeps source image, sampled representation, quantized representation
 2. `quantizeSampledImage` either maps each sampled value to the nearest entry in the deterministic nested RGB codebook or preserves each sampled RGB channel directly in RGB24 mode.
 3. Palette indices are formatted as exactly `bitDepth` bits; RGB24 values use 8 bits per channel. Adding a palette bit only adds codebook entries and cannot increase nearest-color error for the same sampled image.
 4. `reconstructImage` expands each quantized sample cell over the source-sized display raster.
-5. `deriveImageEncodingModel` keeps sampled-RGB quantization error separate from source-to-reconstruction error, compares source and reconstruction into an error map, and calculates raw payload.
+5. `deriveImageEncodingModel` keeps sampled-RGB quantization error separate from source-to-reconstruction error, compares source and reconstruction into an error map, and calculates the theoretical raw payload.
+
+The source and reconstructed canvases keep the same CSS display size. The reconstruction is generated from sampled quantized cells; CSS resizing is not part of the model.
 
 ## 4. Upload input
 
-The browser adapter decodes an uploaded image with `Image` + an offscreen canvas and caps the in-memory working raster at 96 pixels on its longest axis. The UI explicitly reports both original dimensions and working-raster dimensions, so this preprocessing is not confused with the student's sampling control. It reports decode failures as a feature-local alert. Uploads are input material, not a lesson phase, and are never serialized into the URL.
+The browser adapter decodes an uploaded image with `Image` and an offscreen canvas, capping the in-memory working raster at 96 pixels on its longest axis. The UI reports both original dimensions and working-raster dimensions. Uploads are input material, are not serialized into the URL, and are disabled until task 1 has been completed.
 
-## 5. Fixed classroom sample
+## 5. Format profiles and estimate boundary
 
-The visible built-in choice is one small kitten illustration, stored as a deterministic 240 × 160 RGB raster in the repository. A cat silhouette against a dark background, light fur edges, and two differently colored eyes create changes that remain easy to see when sampling is reduced or the color count is lowered. The generated local source and storage decision are recorded in [docs/image-encoding-optimization.md](image-encoding-optimization.md).
+`src/features/image-encoding/domain/model.ts` provides pure functions for format profiles, human labels, classroom estimated bytes, and calculator calculations. Supported formats are raw/uncompressed, PNG, JPEG, and WebP.
 
-Older fixtures remain addressable through `image=gradient`, `image=checkerboard`, `image=text-edge`, and `image=pixel-grid` for compatibility and targeted tests, but the classroom UI does not present a long list of choices.
-
-## 5. Sampling versus CSS resize
-
-The domain produces a sampled raster with fewer encoded cells but a reconstructed raster whose width and height equal the source raster. The UI paints both canvases with the same CSS width and uses `image-rendering: pixelated` for the reconstructed evidence. The reconstruction is generated by expanding quantized sample cells; no CSS resize operation participates in the model.
-
-## 6. Quantization definition
-
-Palette mode uses indexed color with a deterministic nested RGB codebook. A bit depth of `b` exposes the first `2^b` codebook entries; each sampled RGB value maps to the nearest available entry by squared/euclidean RGB distance, with ties retaining the lower palette index. RGB24 mode preserves each sampled channel directly as 8 bits. Because the codebook prefixes are nested, increasing palette bit depth cannot increase quantization error for the same sampled representation, while the sampled values still cannot recover information discarded by spatial sampling.
-
-## 7. Theoretical raw payload
+The raw theoretical payload remains:
 
 ```text
-rawPayloadBits = sampledWidth × sampledHeight × bitDepth
-rawPayloadBytes = ceil(rawPayloadBits / 8)
+rawBits = width × height × bitsPerPixel
+rawBytes = ceil(rawBits / 8)
 ```
 
-These are theoretical pixel payload values. They are explicitly not browser PNG/JPEG file sizes and exclude headers, metadata, container overhead, and codec compression; palette mode also excludes its color table.
+Format values are labeled `教学估算` in the UI. They are deterministic classroom comparison values for the current sampled representation, not browser file sizes, encoder guarantees, or a claim about a real compression ratio. Real bytes depend on image content, encoder settings, headers, color tables, metadata, and implementation details. The calculator safely normalizes invalid, fractional, empty, and out-of-range numeric input before applying the formula.
 
-## 8. Precedent patterns used
+## 6. Preserved visual and compatibility surfaces
 
-- P-C parameter controls with immediate numerical/visual feedback.
-- P-D same-source visual comparison with a visible control variable.
-- P-E pixel-level/index-level representation reveal.
-- P-J real material through local image upload, with deterministic local fixtures for repeatable links.
-- P-K coordinate-to-representation mapping.
+The feature retains source/reconstruction comparison, sampling geometry and phase behavior, compatibility fixtures, legacy scenario URLs, view tabs, local upload handling, color representation, palette details, and pixel-to-bits inspection. Those surfaces are now placed behind the four-task guards where appropriate.
 
-The implementation avoids turning the course into an Excel-like tool, JPEG quality black box, full data dump, or gated workflow.
+The fixed classroom image remains the local deterministic 240 × 160 kitten raster in `src/features/image-encoding/domain/photo-rgb.ts`. Older fixtures remain addressable through `image=gradient`, `image=checkerboard`, `image=text-edge`, and `image=pixel-grid`.
 
-## 9. Anti-patterns actively avoided
+## 7. Boundaries and review notes
 
-No universal phase/step/submit runtime, no `ready/editing/success/failure`, no fake compression ratio, no browser file-size claim, no original/result collapse, no CSS-resize-as-sampling, no hidden source pixels in reconstruction, no generic inspector/workflow abstraction, and no shared primitive extraction.
-
-## 10–11. Similarities intentionally kept feature-local
-
-Image has parameter fields and evidence cards like Sound, but its causal result is a 2D raster and pixel inspector rather than Sound's playback clock, A/B audition, waveform, and time cursor. Image has a selected coordinate and trace-like mapping like Network's selected device/probe evidence, but no topology, lease, ARP, route, or causal packet event. These are layout-level similarities, not shared lesson invariants.
-
-## 12–13. Primitive candidates observed, not extracted
-
-Across the three real courses, candidates include local parameter controls, scenario parse/serialize, comparison views, selected-object inspectors, and evidence summaries. Some have more than one consumer in appearance, but their contracts still differ: Sound comparison synchronizes time/audio, Network comparison preserves probe/config snapshots, and Image comparison maps raster coordinates and representation values. This PR records the candidates for the later Primitive Extraction Review and performs no extraction.
-
-## 14. Extraction disposition
-
-No `ParameterPanel`, `ComparatorRuntime`, `ExperimentControls`, `VisualizationPanel`, `LessonStepper`, `ImageWorkflow`, or universal inspector was added. The pre-existing shared `LabShell` lesson semantics were removed because Image Encoding is the only consumer; its neutral course outline remains feature-local until a second natural consumer establishes a shared navigation invariant. Sound, Network, and shared design-system code were not refactored.
-
-## 15. Validation handoff
-
-Run the repository gates serially on the affected host, following `.codex/AGENTS.md`:
-
-- `bun install --frozen-lockfile` if dependencies are absent.
-- targeted Image domain/lesson/UI tests;
-- `bun run format:check`;
-- `bun run lint`;
-- `bun run typecheck`;
-- `bun run test:run` with one Vitest worker;
-- `bun run build`;
-- root Playwright E2E with one worker;
-- the same Playwright E2E against `/computing-lab/` with one worker.
-
-The final PR should attach the exact command output. This change updates `src/features/image-encoding/**`, the shared shell boundary, mechanism-focused route/boundary tests, architecture/design QA notes, this handoff, and the deployment smoke query. Sound, Network, and backend code remain untouched; no shared lesson runtime is introduced.
+The implementation is feature-local. No universal stepper, submit state, score, global workflow, or shared inspector was added. Domain functions remain pure, URL parsing remains configuration-only, and source/reconstruction geometry remains separate from the teaching sequence.

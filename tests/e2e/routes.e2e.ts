@@ -70,6 +70,7 @@ test("changes image encoding parameters through keyboard controls", async ({ pag
   await sampling.press("ArrowLeft");
   await expect(sampling).toHaveValue("45");
 
+  await page.getByRole("button", { name: "调色板" }).click();
   const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
   await bitDepth.press("ArrowDown");
   await bitDepth.press("ArrowDown");
