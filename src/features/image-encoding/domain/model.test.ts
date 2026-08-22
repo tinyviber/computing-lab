@@ -4,14 +4,10 @@ import {
   buildPalette,
   calculateImageEncoding,
   deriveImageEncodingModel,
-  getImageFormatProfile,
-  imageFormatLabel,
-  IMAGE_FORMAT_PROFILES,
   inspectPixel,
   normalizeCalculatorBitsPerPixel,
   normalizeCalculatorDimension,
   normalizeBitDepth,
-  normalizeImageEncodingFormat,
   rawPayload,
   reconstructImage,
   sampleImage,
@@ -287,28 +283,6 @@ describe("image encoding domain model", () => {
     expect(normalizeBitDepth(99)).toBe(8);
   });
 
-  it("keeps format choices deterministic without promising a file-size estimate", () => {
-    expect(IMAGE_FORMAT_PROFILES).toEqual([
-      { format: "raw", label: "未压缩 / 原始" },
-      { format: "png", label: "PNG" },
-      { format: "jpeg", label: "JPG / JPEG" },
-      { format: "webp", label: "WebP" },
-    ]);
-
-    expect(imageFormatLabel("raw")).toBe("未压缩 / 原始");
-    expect(imageFormatLabel("png")).toBe("PNG");
-    expect(imageFormatLabel("jpeg")).toBe("JPG / JPEG");
-    expect(imageFormatLabel("webp")).toBe("WebP");
-    expect(getImageFormatProfile(normalizeImageEncodingFormat("jpg"))).toEqual(
-      getImageFormatProfile("jpeg"),
-    );
-    for (const profile of IMAGE_FORMAT_PROFILES) {
-      expect(profile).not.toHaveProperty("rawByteFactor");
-      expect(profile).not.toHaveProperty("fixedBytes");
-      expect(profile).not.toHaveProperty("pixelsPerOverheadByte");
-    }
-  });
-
   it("uses width × height × bits and rounds raw bytes up", () => {
     const calculation = calculateImageEncoding(3, 3, 5);
     expect(calculation).toMatchObject({
@@ -323,16 +297,13 @@ describe("image encoding domain model", () => {
     expect(calculateImageEncoding(1, 1, 1).rawBytes).toBe(1);
   });
 
-  it("clamps invalid calculator inputs and format aliases at the domain boundary", () => {
+  it("clamps invalid calculator inputs at the domain boundary", () => {
     expect(normalizeCalculatorDimension(-99)).toBe(1);
     expect(normalizeCalculatorDimension(Number.NaN)).toBe(1);
     expect(normalizeCalculatorDimension(99999)).toBe(10000);
     expect(normalizeCalculatorBitsPerPixel(-99)).toBe(1);
     expect(normalizeCalculatorBitsPerPixel(Number.POSITIVE_INFINITY)).toBe(8);
     expect(normalizeCalculatorBitsPerPixel(999)).toBe(32);
-    expect(normalizeImageEncodingFormat("jpg")).toBe("jpeg");
-    expect(normalizeImageEncodingFormat("unknown")).toBe("raw");
-
     expect(calculateImageEncoding(0, -2, 0)).toMatchObject({
       width: 1,
       height: 1,

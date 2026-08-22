@@ -1,9 +1,8 @@
 import { getImageFixture } from "../domain/fixture";
-import type { ImageEncodingFormat, RasterImage } from "../domain/model";
+import type { RasterImage } from "../domain/model";
 import {
   isSamplingPhaseInert,
   MIN_BIT_DEPTH,
-  normalizeImageEncodingFormat,
   normalizeColorMode,
   normalizeBitDepth,
   normalizeImage,
@@ -21,8 +20,6 @@ export type ImageLessonState = ImageScenarioState & {
   decodeError?: string;
   samplingChanged: boolean;
   colorAdjusted: boolean;
-  formatSelected: boolean;
-  selectedFormat: ImageEncodingFormat;
   calculatorEdited: boolean;
 };
 
@@ -34,14 +31,10 @@ export type ImageLessonAction =
   | { type: "set-phase"; phase: number }
   | { type: "set-view"; view: ImageView }
   | { type: "select-pixel"; x: number; y: number }
-  | { type: "select-format"; format: ImageEncodingFormat }
-  | { type: "set-format"; format: ImageEncodingFormat }
   | { type: "edit-calculator-field" }
   | { type: "load-source"; source: RasterImage }
   | { type: "decode-error"; message: string }
   | { type: "reset" };
-
-const INITIAL_FORMAT: ImageEncodingFormat = "raw";
 
 function initialCoordinate(source: RasterImage): { x: number; y: number } {
   return { x: Math.floor(source.width / 2), y: Math.floor(source.height / 2) };
@@ -70,7 +63,6 @@ function emptyProgress() {
   return {
     samplingChanged: false,
     colorAdjusted: false,
-    formatSelected: false,
     calculatorEdited: false,
   };
 }
@@ -82,7 +74,6 @@ function stateForSource(scenario: ImageScenarioState, source: RasterImage): Imag
     source,
     initialScenario: { ...normalizedScenario },
     selectedCoordinate: initialCoordinate(source),
-    selectedFormat: INITIAL_FORMAT,
     ...emptyProgress(),
   };
 }
@@ -107,7 +98,6 @@ function resetAfterSourceUpload(state: ImageLessonState, source: RasterImage): I
     ...scenario,
     source,
     selectedCoordinate: initialCoordinate(source),
-    selectedFormat: INITIAL_FORMAT,
     decodeError: undefined,
     ...emptyProgress(),
   };
@@ -170,14 +160,6 @@ export function transitionImageLesson(
           x: Math.max(0, Math.min(state.source.width - 1, Math.floor(action.x))),
           y: Math.max(0, Math.min(state.source.height - 1, Math.floor(action.y))),
         },
-      };
-    case "select-format":
-    case "set-format":
-      if (!state.calculatorEdited) return state;
-      return {
-        ...state,
-        selectedFormat: normalizeImageEncodingFormat(action.format),
-        formatSelected: true,
       };
     case "edit-calculator-field":
       if (!state.colorAdjusted) return state;

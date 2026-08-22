@@ -39,25 +39,21 @@ describe("image lesson scenario", () => {
     });
     expect("samplingChanged" in state).toBe(false);
     expect("colorAdjusted" in state).toBe(false);
-    expect("formatSelected" in state).toBe(false);
     expect("calculatorEdited" in state).toBe(false);
   });
 
   it("defaults to original RGB24 color and does not encode lesson progress", () => {
     const state = parseImageEncodingScenario(
-      "image=photo&sample=50&bits=4&samplingChanged=true&colorAdjusted=true&formatSelected=true&progress=4",
+      "image=photo&sample=50&bits=4&samplingChanged=true&colorAdjusted=true&progress=4",
     );
 
     expect(state.colorMode).toBe("rgb24");
     expect("samplingChanged" in state).toBe(false);
     expect("colorAdjusted" in state).toBe(false);
-    expect("formatSelected" in state).toBe(false);
 
     const serialized = serializeImageEncodingScenario(state);
     expect(serialized).not.toContain("color=");
-    expect(serialized).not.toMatch(
-      /progress|samplingChanged|colorAdjusted|formatSelected|calculatorEdited/,
-    );
+    expect(serialized).not.toMatch(/progress|samplingChanged|colorAdjusted|calculatorEdited/);
   });
 
   it("defaults and clamps malformed values without accepting a workflow state", () => {

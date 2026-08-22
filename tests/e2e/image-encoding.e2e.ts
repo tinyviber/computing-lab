@@ -36,7 +36,6 @@ test("walks the sequential image-encoding flow without external network access",
   await expect(page.getByRole("slider", { name: /空间采样/ })).toBeEnabled();
   await expect(page.getByRole("slider", { name: /采样网格相位/ })).toBeDisabled();
   await expect(page.getByLabel(/上传图片（可选）/)).toBeEnabled();
-  await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
   await expect(page.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
 
@@ -85,10 +84,6 @@ test("walks the sequential image-encoding flow without external network access",
   await height.fill("3");
   await bits.fill("5");
 
-  const png = page.getByRole("button", { name: "PNG", exact: true });
-  await expect(png).toBeEnabled();
-  await png.click();
-  await expect(png).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator('section[aria-labelledby="payload-heading"]')).toContainText(
     /原始数据量/,
   );
@@ -107,8 +102,11 @@ test("walks the sequential image-encoding flow without external network access",
     page.locator(".lesson-flow-item").filter({ hasText: "3. 计算原始数据量" }),
   ).toContainText("已完成");
   await expect(
-    page.locator(".lesson-flow-item").filter({ hasText: "4. 了解文件格式边界" }),
-  ).toContainText("已完成");
+    page.locator(".lesson-flow-item").filter({ hasText: "4. 联系实际文件格式" }),
+  ).toContainText("可讨论");
+  await expect(page.locator('section[aria-labelledby="format-heading"]')).toContainText(
+    /为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小/,
+  );
 
   const reset = page.locator('section[aria-labelledby="source-heading"] button');
   await expect(reset).toHaveCount(1);
@@ -116,9 +114,8 @@ test("walks the sequential image-encoding flow without external network access",
   await reset.click();
   await expect(sampling).toHaveValue("25");
   await expect(page.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
   await expect(calculator.getByRole("spinbutton", { name: "宽度（像素）" })).toBeDisabled();
-  await expect(page.getByText("完成第 2 步后解锁。")).toBeVisible();
+  await expect(page.getByText("完成第 3 步后，这个边界问题会显示在这里。")).toBeVisible();
   expect(nonLocalRequests).toEqual([]);
 });
 
@@ -137,5 +134,4 @@ test("allows a bits=1 scenario to complete color adjustment", async ({ page }) =
   await expect(
     page.locator('section[aria-labelledby="calculator-heading"] input').first(),
   ).toBeEnabled();
-  await expect(page.getByRole("button", { name: "PNG", exact: true })).toBeDisabled();
 });

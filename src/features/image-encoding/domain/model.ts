@@ -87,13 +87,6 @@ export type RawPayload = {
   bytes: number;
 };
 
-export type ImageEncodingFormat = "raw" | "png" | "jpeg" | "webp";
-
-export type ImageFormatProfile = {
-  format: ImageEncodingFormat;
-  label: string;
-};
-
 export type ImageEncodingCalculation = {
   width: number;
   height: number;
@@ -140,13 +133,6 @@ export const MIN_CALCULATOR_DIMENSION = 1;
 export const MAX_CALCULATOR_DIMENSION = 10000;
 export const MIN_CALCULATOR_BITS_PER_PIXEL = 1;
 export const MAX_CALCULATOR_BITS_PER_PIXEL = 32;
-
-export const IMAGE_FORMAT_PROFILES: readonly ImageFormatProfile[] = [
-  { format: "raw", label: "未压缩 / 原始" },
-  { format: "png", label: "PNG" },
-  { format: "jpeg", label: "JPG / JPEG" },
-  { format: "webp", label: "WebP" },
-];
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
@@ -528,25 +514,6 @@ export function rawPayload(width: number, height: number, bitDepth: number): Raw
     bits,
     bytes: Math.ceil(bits / 8),
   };
-}
-
-export function normalizeImageEncodingFormat(value: unknown): ImageEncodingFormat {
-  if (value === "png" || value === "jpeg" || value === "jpg" || value === "webp") {
-    return value === "jpg" ? "jpeg" : value;
-  }
-  return "raw";
-}
-
-export function imageFormatLabel(format: ImageEncodingFormat | "jpg"): string {
-  return getImageFormatProfile(format).label;
-}
-
-export function getImageFormatProfile(format: ImageEncodingFormat | "jpg"): ImageFormatProfile {
-  const normalized = normalizeImageEncodingFormat(format);
-  return (
-    IMAGE_FORMAT_PROFILES.find((profile) => profile.format === normalized) ??
-    IMAGE_FORMAT_PROFILES[0]
-  );
 }
 
 export function calculateImageEncoding(

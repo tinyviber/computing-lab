@@ -8,10 +8,10 @@ Image Encoding keeps its feature-local raster model, but the UI now presents one
 1. change sampling percent
    → 2. choose palette/original color and adjust palette bit depth
    → 3. edit calculator inputs and calculate raw data quantity
-   → 4. choose raw, PNG, JPG/JPEG, or WebP
+   → 4. discuss the boundary between raw data and actual file size
 ```
 
-The sampling-percent range and upload input are enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, format choices, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection becomes available; after task 2, the calculator becomes available; after task 3, format choices become available.
+The sampling-percent range and upload input are enabled on first load. Phase, view tabs, canvas/pixel selection, color controls, and the calculator are visibly disabled and event-guarded until their prerequisites are met. After task 1, visual inspection becomes available; after task 2, the calculator becomes available; after task 3, the static file-format boundary discussion becomes visible.
 
 The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set progress.
 
@@ -21,13 +21,11 @@ The initial color representation is RGB24. Explicit `color=rgb24` links and old 
 
 - `samplingChanged`
 - `colorAdjusted`
-- `formatSelected`
-- `selectedFormat`
 - `calculatorEdited`
 
-Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering a palette bit depth greater than one completes task 2, while selecting a palette at one bit completes the legal minimum-depth scenario. Editing any calculator field completes task 3; selecting any supported format completes task 4. Locked direct actions return the existing state.
+Reducer actions enforce the sequence. A sampling action only completes task 1 when its normalized value differs from the current value, including range changes made with keyboard or touch. Selecting the palette opens the color controls; lowering a palette bit depth greater than one completes task 2, while selecting a palette at one bit completes the legal minimum-depth scenario. Editing any calculator field completes task 3. Task 4 is a static discussion boundary and has no operational completion flag. Locked direct actions return the existing state.
 
-Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24 and the format to raw. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
+Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
 
 ## 3. Raster data flow
 
@@ -45,9 +43,9 @@ The source and reconstructed canvases keep the same CSS display size. The recons
 
 The browser adapter decodes an uploaded image with `Image` and an offscreen canvas, capping the in-memory working raster at 96 pixels on its longest axis. The UI reports both original dimensions and working-raster dimensions. Uploads are input material, are not serialized into the URL, and are available from the first render. Successful uploads clear progress; failed uploads preserve the current lesson and only show a decode error.
 
-## 5. Format profiles and estimate boundary
+## 5. File-format boundary and estimate boundary
 
-`src/features/image-encoding/domain/model.ts` provides pure functions for format labels and raw data calculations. Supported choices are raw/uncompressed, PNG, JPEG, and WebP; the compressed choices do not claim a fixed byte count.
+`src/features/image-encoding/domain/model.ts` provides pure raw data calculations. The UI names raw/uncompressed, PNG, JPEG, and WebP only in the boundary discussion; it does not offer format buttons or claim a fixed compressed byte count.
 
 The raw theoretical payload remains:
 
@@ -56,7 +54,7 @@ rawBits = width × height × bitsPerPixel
 rawBytes = ceil(rawBits / 8)
 ```
 
-The format card keeps the choice of raw/uncompressed, PNG, JPEG, and WebP, then explains that compressed file size depends on image content and encoder settings. The calculator safely normalizes invalid, fractional, empty, and out-of-range numeric input before applying the exact raw-bits/raw-bytes formula. It does not estimate compressed file size.
+The format-boundary card explains that compressed file size depends on image content, encoding method, encoder settings, headers, and metadata. The calculator safely normalizes invalid, fractional, empty, and out-of-range numeric input before applying the exact raw-bits/raw-bytes formula. It does not estimate compressed file size, and the fourth task is shown as “可讨论” rather than “已完成”.
 
 ## 6. Preserved visual and compatibility surfaces
 

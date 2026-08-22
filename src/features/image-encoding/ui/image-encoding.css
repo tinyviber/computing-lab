@@ -477,7 +477,6 @@
 
 .image-control.is-locked,
 .image-color-mode.is-locked,
-.format-options.is-locked,
 .calculator-fields.is-locked,
 .image-format-card.is-locked,
 .calculator-card.is-locked,
@@ -537,42 +536,21 @@
   font-size: 11px;
 }
 
-.format-options {
+.format-boundary-copy {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 16px 20px 10px;
-}
-
-.format-option {
-  min-height: 38px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
+  gap: 10px;
+  padding: 16px 20px 18px;
   color: var(--secondary);
-  font: inherit;
   font-size: 11px;
-  cursor: pointer;
+  line-height: 1.6;
 }
 
-.format-option:hover,
-.format-option[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.format-option:disabled {
-  cursor: not-allowed;
-}
-
-.format-lock-note {
+.format-boundary-copy p {
   margin: 0;
-  padding: 0 20px 18px;
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
+}
+
+.format-boundary-copy strong {
+  color: var(--primary);
 }
 
 .calculator-fields {

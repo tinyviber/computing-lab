@@ -13,12 +13,6 @@ function sectionByHeading(name: RegExp, level: 2 | 3): HTMLElement {
   return section;
 }
 
-function formatButton(label: string): HTMLButtonElement {
-  const button = screen.getByRole("button", { name: label, exact: true });
-  if (!(button instanceof HTMLButtonElement)) throw new Error(`Format button not found: ${label}`);
-  return button;
-}
-
 function flowItem(title: RegExp): HTMLElement {
   const item = [...document.querySelectorAll(".lesson-flow-item")].find((candidate) =>
     title.test(candidate.textContent ?? ""),
@@ -42,7 +36,7 @@ async function unlockCalculator(user: ReturnType<typeof userEvent.setup>) {
   return bitDepth;
 }
 
-async function unlockFormat(user: ReturnType<typeof userEvent.setup>) {
+async function unlockBoundary(user: ReturnType<typeof userEvent.setup>) {
   await unlockCalculator(user);
   const calculator = sectionByHeading(/数据量计算/, 3);
   fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
@@ -79,20 +73,13 @@ describe("ImageEncodingPage", () => {
     expect(rgb24).toBeDisabled();
     expect(rgb24).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByLabelText(/上传图片（可选）/)).toBeEnabled();
-    expect(screen.getByRole("group", { name: "图像格式" }).querySelectorAll("button")).toHaveLength(
-      4,
-    );
-    for (const button of within(screen.getByRole("group", { name: "图像格式" })).getAllByRole(
-      "button",
-    )) {
-      expect(button).toBeDisabled();
-    }
+    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
     for (const tab of screen.getAllByRole("tab")) expect(tab).toBeDisabled();
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
       expect(input).toBeDisabled();
     }
     expect(screen.getByText("完成第 1 步后解锁颜色表示。")).toBeInTheDocument();
-    expect(screen.getByText("完成第 3 步后解锁格式边界。")).toBeInTheDocument();
+    expect(screen.getByText("完成第 3 步后，这个边界问题会显示在这里。")).toBeInTheDocument();
     expect(screen.getByText("完成第 2 步后解锁。")).toBeInTheDocument();
   });
 
@@ -108,33 +95,28 @@ describe("ImageEncodingPage", () => {
     expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true);
   });
 
-  it("requires raw data calculation before enabling format selection", async () => {
+  it("reveals the format boundary only after raw data calculation", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
     changeSampling();
 
     await user.click(screen.getByRole("button", { name: "原色（RGB 24 位）" }));
-    expect(formatButton("PNG")).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "调色板", exact: true }));
     expect(slider(/颜色位深/)).not.toBeDisabled();
     fireEvent.change(slider(/颜色位深/), { target: { value: "2" } });
-    expect(formatButton("未压缩 / 原始")).toBeDisabled();
-    expect(formatButton("PNG")).toBeDisabled();
-    expect(formatButton("JPG / JPEG")).toBeDisabled();
-    expect(formatButton("WebP")).toBeDisabled();
     expect(flowItem(/2\. 调整颜色表示/)).toHaveTextContent("已完成");
     expect(flowItem(/3\. 计算原始数据量/)).toHaveTextContent("进行中");
+    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
 
     const calculator = sectionByHeading(/数据量计算/, 3);
     fireEvent.change(within(calculator).getByRole("spinbutton", { name: "宽度（像素）" }), {
       target: { value: "119" },
     });
-    expect(formatButton("未压缩 / 原始")).not.toBeDisabled();
-    expect(formatButton("PNG")).not.toBeDisabled();
-    expect(formatButton("JPG / JPEG")).not.toBeDisabled();
-    expect(formatButton("WebP")).not.toBeDisabled();
-    expect(flowItem(/4\. 了解文件格式边界/)).toHaveTextContent("进行中");
+    const boundary = sectionByHeading(/联系实际文件格式/, 3);
+    expect(boundary).toHaveTextContent(/原始像素数据量可以由宽 × 高 × 每像素位数准确计算/);
+    expect(boundary).toHaveTextContent(/为什么这个结果不能直接当作 PNG、JPEG 或 WebP/);
+    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
   });
 
   it("lets a bits=1 scenario complete the color step", async () => {
@@ -153,31 +135,27 @@ describe("ImageEncodingPage", () => {
         name: "宽度（像素）",
       }),
     ).toBeEnabled();
-    expect(formatButton("PNG")).toBeDisabled();
   });
 
-  it.each(["未压缩 / 原始", "PNG", "JPG / JPEG", "WebP"])(
-    "keeps format choice and explains why compressed size varies for %s",
-    async (label) => {
-      const user = userEvent.setup();
-      await renderAppAt("/labs/image-encoding");
-      await unlockFormat(user);
-      await user.click(formatButton(label));
+  it("shows a discussion prompt instead of a format completion control", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
+    await unlockBoundary(user);
 
-      const payload = sectionByHeading(/原始数据量/, 3);
-      const calculator = sectionByHeading(/数据量计算/, 3);
-      expect(formatButton(label)).toHaveAttribute("aria-pressed", "true");
-      expect(payload).toHaveTextContent(/实际文件大小取决于图像内容/);
-      expect(payload).not.toHaveTextContent(/教学估算/);
-      expect(calculator).toHaveTextContent(/原始字节/);
-      expect(calculator).not.toHaveTextContent(/教学估算/);
-    },
-  );
+    const boundary = sectionByHeading(/联系实际文件格式/, 3);
+    expect(boundary).toHaveTextContent(
+      /实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响/,
+    );
+    expect(boundary).toHaveTextContent("可讨论");
+    expect(boundary.querySelectorAll("button")).toHaveLength(0);
+    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
+    expect(flowItem(/4\. 联系实际文件格式/)).not.toHaveTextContent("已完成");
+  });
 
   it("unlocks an accessible editable calculator with the explicit formula", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
-    await unlockFormat(user);
+    await unlockBoundary(user);
 
     const calculator = sectionByHeading(/数据量计算/, 3);
     expect(flowItem(/3\. 计算原始数据量/)).toHaveTextContent("已完成");
@@ -198,9 +176,7 @@ describe("ImageEncodingPage", () => {
     expect(calculator).toHaveTextContent(/3 × 3 × 5 = 45 位/);
     expect(calculator).toHaveTextContent(/45 ÷ 8 后向上取整 = 6 字节/);
     expect(calculator).toHaveTextContent(/压缩格式的实际大小取决于图像内容和编码器设置/);
-    expect(flowItem(/4\. 了解文件格式边界/)).toHaveTextContent("进行中");
-    await user.click(formatButton("PNG"));
-    expect(flowItem(/4\. 了解文件格式边界/)).toHaveTextContent("已完成");
+    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("可讨论");
   });
 
   it("does not let a URL deep link bypass the sequential locks", async () => {
@@ -211,21 +187,19 @@ describe("ImageEncodingPage", () => {
     expect(slider(/空间采样/)).toHaveValue("25");
     expect(slider(/颜色位深/)).toBeDisabled();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(formatButton("PNG")).toBeDisabled();
     expect(screen.getByRole("tab", { name: /编码表示/ })).toBeDisabled();
     expect(
       within(sectionByHeading(/数据量计算/, 3)).getByText("完成第 2 步后解锁。"),
     ).toBeInTheDocument();
     expect(screen.queryByText(/原始位数 = 宽度 × 高度 × 每像素位数/)).not.toBeInTheDocument();
     expect(flowItem(/1\. 改变空间采样百分比/)).toHaveTextContent("进行中");
-    expect(flowItem(/4\. 了解文件格式边界/)).toHaveTextContent("待解锁");
+    expect(flowItem(/4\. 联系实际文件格式/)).toHaveTextContent("待解锁");
   });
 
   it("clears progress on reset, URL scenario changes, and upload attempts", async () => {
     const user = userEvent.setup();
     const { router } = await renderAppAt("/labs/image-encoding");
-    await unlockFormat(user);
-    await user.click(formatButton("PNG"));
+    await unlockBoundary(user);
 
     const reset = within(sectionByHeading(/本节使用的图像/, 3)).getByRole("button", {
       name: "恢复初始情境",
@@ -233,7 +207,7 @@ describe("ImageEncodingPage", () => {
     await user.click(reset);
     expect(slider(/空间采样/)).toHaveValue("50");
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(formatButton("PNG")).toBeDisabled();
+    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("已锁定");
     expect(
       within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", { name: "宽度（像素）" }),
     ).toBeDisabled();
@@ -244,7 +218,6 @@ describe("ImageEncodingPage", () => {
       "/labs/image-encoding?image=gradient&sample=25&color=palette&bits=2&view=representation",
     );
     expect(slider(/空间采样/)).toHaveValue("25");
-    expect(formatButton("PNG")).toBeDisabled();
     expect(flowItem(/1\. 改变空间采样百分比/)).toHaveTextContent("进行中");
 
     changeSampling();
@@ -256,7 +229,6 @@ describe("ImageEncodingPage", () => {
       }),
       { target: { value: "119" } },
     );
-    await user.click(formatButton("PNG"));
     const upload = screen.getByLabelText(/上传图片（可选）/);
     vi.stubGlobal("Image", undefined);
     try {
@@ -271,7 +243,7 @@ describe("ImageEncodingPage", () => {
     }
     expect(slider(/空间采样/)).toHaveValue("45");
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
-    expect(formatButton("PNG")).toHaveAttribute("aria-pressed", "true");
+    expect(sectionByHeading(/联系实际文件格式/, 3)).toHaveTextContent("可讨论");
     expect(
       within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", { name: "宽度（像素）" }),
     ).toBeEnabled();
@@ -280,8 +252,7 @@ describe("ImageEncodingPage", () => {
   it("clears progress after a successful upload", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
-    await unlockFormat(user);
-    await user.click(formatButton("PNG"));
+    await unlockBoundary(user);
 
     const context = {
       createImageData: vi.fn((width: number, height: number) => ({
@@ -332,7 +303,6 @@ describe("ImageEncodingPage", () => {
     expect(screen.getAllByText(/已上传图像/)).toHaveLength(2);
     expect(slider(/空间采样/)).toHaveValue("50");
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeDisabled();
-    expect(formatButton("PNG")).toBeDisabled();
     expect(
       within(sectionByHeading(/数据量计算/, 3)).getByRole("spinbutton", {
         name: "宽度（像素）",

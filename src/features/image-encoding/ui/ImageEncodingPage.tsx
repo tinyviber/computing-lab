@@ -14,8 +14,6 @@ import { useSearch } from "@tanstack/react-router";
 import {
   deriveImageEncodingModel,
   calculateImageEncoding,
-  imageFormatLabel,
-  IMAGE_FORMAT_PROFILES,
   inspectPixel,
   rgbToHex,
   type RGB,
@@ -28,7 +26,6 @@ import {
   MIN_PHASE,
   MIN_SAMPLING_PERCENT,
   RGB24_BIT_DEPTH,
-  type ImageEncodingFormat,
   type ImageColorMode,
   type QuantizedPixel,
 } from "../domain/model";
@@ -53,6 +50,7 @@ type LessonTask = {
   detail: string;
   available: boolean;
   complete: boolean;
+  statusLabel?: string;
 };
 
 const VIEW_LABELS: Record<ImageView, string> = {
@@ -460,7 +458,9 @@ function LessonFlow({ tasks }: { tasks: readonly LessonTask[] }) {
             <div className="lesson-flow-item-heading">
               <strong className="lesson-task-title">{task.title}</strong>
               <span className="lesson-task-status">
-                {task.complete ? "已完成" : task.available ? "进行中" : "待解锁"}
+                {task.complete
+                  ? "已完成"
+                  : (task.statusLabel ?? (task.available ? "进行中" : "待解锁"))}
               </span>
             </div>
             <p>{task.available ? task.detail : "完成上一步后解锁。"}</p>
@@ -581,7 +581,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     phaseGeometry.y.sampledSize >= phaseGeometry.y.sourceSize;
   const visualControlsUnlocked = lesson.samplingChanged;
   const colorControlsUnlocked = lesson.samplingChanged;
-  const formatControlsUnlocked = lesson.calculatorEdited;
+  const formatBoundaryUnlocked = lesson.calculatorEdited;
   const calculatorUnlocked = lesson.colorAdjusted;
 
   const calculator = useMemo(
@@ -641,11 +641,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     dispatch({ type: "set-view", view });
   };
 
-  const changeFormat = (format: ImageEncodingFormat) => {
-    if (!formatControlsUnlocked) return;
-    dispatch({ type: "select-format", format });
-  };
-
   const editCalculatorField = () => {
     if (!calculatorUnlocked) return;
     dispatch({ type: "edit-calculator-field" });
@@ -701,10 +696,11 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     },
     {
       id: "format",
-      title: "4. 了解文件格式边界",
-      detail: "选择格式；实际文件大小取决于图像内容和编码器设置。",
+      title: "4. 联系实际文件格式",
+      detail: "可讨论：为什么原始数据量不能直接当作 PNG、JPEG 或 WebP 的文件大小？",
       available: lesson.calculatorEdited,
-      complete: lesson.formatSelected,
+      complete: false,
+      statusLabel: lesson.calculatorEdited ? "可讨论" : undefined,
     },
   ];
 
@@ -1131,46 +1127,31 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
             </section>
 
             <section
-              className={`image-card image-format-card${formatControlsUnlocked ? "" : " is-locked"}`}
+              className={`image-card image-format-card${formatBoundaryUnlocked ? "" : " is-locked"}`}
               aria-labelledby="format-heading"
-              aria-disabled={!formatControlsUnlocked}
+              aria-disabled={!formatBoundaryUnlocked}
             >
               <div className="image-card-heading">
                 <div>
                   <p className="eyebrow">第 4 步</p>
-                  <h3 id="format-heading">选择图像格式</h3>
+                  <h3 id="format-heading">联系实际文件格式</h3>
                 </div>
                 <span className="image-card-heading-note">
-                  {!formatControlsUnlocked
-                    ? "已锁定"
-                    : lesson.formatSelected
-                      ? imageFormatLabel(lesson.selectedFormat)
-                      : "请选择"}
+                  {formatBoundaryUnlocked ? "可讨论" : "已锁定"}
                 </span>
               </div>
-              <div
-                className={`format-options${formatControlsUnlocked ? "" : " is-locked"}`}
-                role="group"
-                aria-label="图像格式"
-              >
-                {IMAGE_FORMAT_PROFILES.map((profile) => (
-                  <button
-                    aria-pressed={lesson.formatSelected && lesson.selectedFormat === profile.format}
-                    className="format-option"
-                    disabled={!formatControlsUnlocked}
-                    key={profile.format}
-                    onClick={() => changeFormat(profile.format)}
-                    type="button"
-                  >
-                    {profile.label}
-                  </button>
-                ))}
-              </div>
-              <p className="format-lock-note">
-                {formatControlsUnlocked
-                  ? "选择一种格式，查看格式边界。PNG、JPG / JPEG 和 WebP 的实际大小取决于图像内容和编码器设置。"
-                  : "完成第 3 步后解锁格式边界。"}
-              </p>
+              {formatBoundaryUnlocked ? (
+                <div className="format-boundary-copy">
+                  <p>原始像素数据量可以由宽 × 高 × 每像素位数准确计算。</p>
+                  <p>
+                    <strong>思考：</strong>
+                    为什么这个结果不能直接当作 PNG、JPEG 或 WebP 的文件大小？
+                  </p>
+                  <p>实际文件大小还受图像内容、编码方式、编码器设置、文件头和元数据影响。</p>
+                </div>
+              ) : (
+                <p className="image-gated-notice">完成第 3 步后，这个边界问题会显示在这里。</p>
+              )}
             </section>
 
             <section
