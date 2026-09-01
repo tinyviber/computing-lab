@@ -1,0 +1,567 @@
+.editor-page {
+  min-height: 100vh;
+  overflow: hidden;
+  background: #e8edf4;
+  color: var(--primary);
+}
+
+.editor-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 76px;
+  padding: 13px 22px;
+  border-bottom: 1px solid #cdd7e4;
+  background: #f8fafc;
+}
+
+.editor-heading,
+.editor-toolbar,
+.editor-back,
+.editor-save-status,
+.editor-preview-status,
+.editor-file-note {
+  display: flex;
+  align-items: center;
+}
+
+.editor-heading {
+  gap: 17px;
+  min-width: 280px;
+}
+
+.editor-back,
+.editor-login-back {
+  color: var(--secondary);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.editor-back:hover,
+.editor-login-back:hover {
+  color: var(--accent);
+}
+
+.editor-heading-divider {
+  width: 1px;
+  height: 31px;
+  background: var(--border);
+}
+
+.editor-kicker,
+.editor-panel-kicker {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  line-height: 13px;
+  text-transform: uppercase;
+}
+
+.editor-heading h1 {
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: 20px;
+  font-weight: 720;
+  letter-spacing: -0.04em;
+}
+
+.editor-toolbar {
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.editor-lesson-select-label {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.editor-lesson-select,
+.editor-password-input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.editor-lesson-select {
+  min-width: 230px;
+  min-height: 38px;
+  padding: 7px 29px 7px 10px;
+  font-size: 12px;
+}
+
+.editor-toolbar-button {
+  min-height: 38px;
+  padding: 7px 15px;
+}
+
+.editor-logout,
+.editor-refresh-button {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.editor-logout:hover,
+.editor-refresh-button:hover {
+  color: var(--accent);
+}
+
+.editor-workspace {
+  display: grid;
+  grid-template-columns: 224px minmax(360px, 0.95fr) minmax(430px, 1.2fr);
+  height: calc(100vh - 76px);
+  min-height: 560px;
+}
+
+.editor-file-panel,
+.editor-source-panel,
+.editor-preview-panel {
+  min-width: 0;
+  min-height: 0;
+}
+
+.editor-file-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px 15px;
+  border-right: 1px solid #cdd7e4;
+  background: #f1f5f9;
+}
+
+.editor-source-panel,
+.editor-preview-panel {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.editor-source-panel {
+  border-right: 1px solid #cdd7e4;
+}
+
+.editor-preview-panel {
+  background: #dfe6ef;
+}
+
+.editor-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 43px;
+}
+
+.editor-file-panel .editor-panel-heading {
+  padding: 0 7px;
+}
+
+.editor-panel-heading h2 {
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-file-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.editor-panel-copy {
+  margin: 13px 7px 17px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 17px;
+}
+
+.editor-file-list {
+  display: grid;
+  gap: 3px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.editor-file-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  text-align: left;
+}
+
+.editor-file-item:hover:not(:disabled) {
+  background: #e6ecf4;
+  color: var(--primary);
+}
+
+.editor-file-item.is-selected {
+  border-color: #c8c8ff;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.editor-file-item:disabled {
+  color: #9aa8b7;
+  cursor: not-allowed;
+}
+
+.editor-file-name {
+  overflow: hidden;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editor-file-meta {
+  flex: 0 0 auto;
+  color: inherit;
+  font-size: 9px;
+  line-height: 16px;
+  opacity: 0.72;
+}
+
+.editor-file-note {
+  gap: 7px;
+  margin-top: auto;
+  padding: 13px 7px 0;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.editor-note-dot,
+.editor-status-dot {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.editor-source-heading,
+.editor-preview-heading {
+  align-items: center;
+  min-height: 67px;
+  padding: 12px 17px;
+  border-bottom: 1px solid var(--border);
+  background: #f8fafc;
+}
+
+.editor-source-heading h2 {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.editor-save-status,
+.editor-preview-status {
+  gap: 7px;
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+.editor-save-status.is-dirty,
+.editor-save-status.is-saving {
+  color: var(--warning);
+}
+
+.editor-save-status.is-error,
+.editor-preview-status.is-error {
+  color: var(--danger);
+}
+
+.editor-save-status.is-dirty .editor-status-dot,
+.editor-save-status.is-saving .editor-status-dot {
+  background: var(--warning);
+}
+
+.editor-save-status.is-error .editor-status-dot,
+.editor-preview-status.is-error .editor-status-dot {
+  background: var(--danger);
+}
+
+.editor-preview-status.is-starting .editor-status-dot {
+  background: var(--warning);
+}
+
+.editor-preview-status.is-stopped .editor-status-dot,
+.editor-preview-status.is-idle .editor-status-dot {
+  background: var(--muted);
+}
+
+.editor-refresh-button {
+  padding: 3px 0 3px 4px;
+  font-size: 19px;
+  line-height: 20px;
+}
+
+.editor-code-wrap,
+.editor-preview-wrap {
+  position: relative;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.editor-code-wrap {
+  background: #1e2633;
+}
+
+.editor-codemirror,
+.editor-codemirror .cm-editor {
+  height: 100%;
+}
+
+.editor-codemirror .cm-editor {
+  color: #d7e0eb;
+  font-size: 13px;
+}
+
+.editor-codemirror .cm-scroller {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  line-height: 1.6;
+}
+
+.editor-codemirror .cm-gutters {
+  border-right: 1px solid #344151;
+  background: #202a38;
+  color: #68788c;
+}
+
+.editor-empty-state {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  color: #8190a1;
+  font-size: 12px;
+}
+
+.editor-source-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 14px;
+  background: #202a38;
+  color: #8d9bad;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  line-height: 15px;
+}
+
+.editor-preview-wrap {
+  margin: 16px;
+  border: 1px solid #cfd9e5;
+  border-radius: 9px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgb(23 40 61 / 8%);
+}
+
+.editor-preview-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.editor-preview-error {
+  height: 100%;
+  padding: 26px;
+  overflow: auto;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.editor-preview-error pre {
+  margin-top: 13px;
+  white-space: pre-wrap;
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.editor-login-page {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+  background: var(--canvas);
+}
+
+.editor-login-card {
+  display: grid;
+  gap: 14px;
+  width: min(100%, 430px);
+  padding: 31px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.editor-login-card h1 {
+  margin-top: 2px;
+  color: var(--primary);
+  font-size: 32px;
+  font-weight: 750;
+  letter-spacing: -0.06em;
+}
+
+.editor-login-copy,
+.editor-start-hint {
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 21px;
+}
+
+.editor-field-label {
+  margin-top: 8px;
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.editor-password-input {
+  min-height: 43px;
+  padding: 9px 12px;
+  font-size: 14px;
+}
+
+.editor-login-submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.editor-form-error {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 17px;
+}
+
+.editor-start-hint code {
+  padding: 2px 4px;
+  border-radius: 4px;
+  background: var(--subtle);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.editor-loading {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  color: var(--secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 1050px) {
+  .editor-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .editor-toolbar {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .editor-workspace {
+    height: calc(100vh - 130px);
+    grid-template-columns: 190px minmax(340px, 1fr);
+  }
+
+  .editor-preview-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .editor-topbar {
+    padding: 12px 14px;
+  }
+
+  .editor-heading {
+    min-width: 0;
+  }
+
+  .editor-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .editor-lesson-select {
+    min-width: 0;
+    flex: 1 1 180px;
+  }
+
+  .editor-workspace {
+    display: flex;
+    height: auto;
+    min-height: calc(100vh - 130px);
+    flex-direction: column;
+  }
+
+  .editor-file-panel {
+    flex: 0 0 auto;
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid #cdd7e4;
+  }
+
+  .editor-file-list {
+    max-height: 110px;
+  }
+
+  .editor-file-note {
+    display: none;
+  }
+
+  .editor-source-panel {
+    height: 65vh;
+    min-height: 430px;
+    border-right: 0;
+  }
+
+  .editor-source-heading {
+    padding-inline: 13px;
+  }
+
+  .editor-save-status {
+    max-width: 44%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

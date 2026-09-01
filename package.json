@@ -7,6 +7,8 @@
   "scripts": {
     "setup": "bun install",
     "dev": "bun run vite",
+    "editor:dev": "EDITOR_DEV=1 node server/editor-server.mjs",
+    "editor:start": "node server/editor-server.mjs",
     "build": "bun run typecheck && bun run vite build && bun run build:slides",
     "build:slides": "bun run scripts/build-lessons.mjs",
     "test": "bun run vitest --passWithNoTests",
@@ -23,6 +25,12 @@
     "format": "bun run prettier --write ."
   },
   "dependencies": {
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-html": "^6.4.9",
+    "@codemirror/lang-javascript": "^6.2.3",
+    "@codemirror/lang-markdown": "^6.3.2",
+    "codemirror": "^6.0.1",
+    "http-proxy": "^1.18.1",
     "@tanstack/react-router": "^1.170.18",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"

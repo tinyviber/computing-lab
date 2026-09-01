@@ -17,6 +17,7 @@ import { RelationalDataPage } from "../features/relational-data";
 import { TwosComplementPage } from "../features/twos-complement";
 import { Utf8Page } from "../features/utf8";
 import { HomePage } from "./pages/HomePage";
+import { EditorPage } from "./pages/EditorPage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
@@ -50,6 +51,11 @@ export const passThroughSearch = (search: Record<string, unknown>): Record<strin
 
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/editor",
+  component: EditorPage,
+});
 const imageRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/image-encoding",
@@ -123,6 +129,7 @@ const byteEditRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  editorRoute,
   imageRoute,
   audioRoute,
   networkRoute,

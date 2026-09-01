@@ -20,6 +20,7 @@ export function HomePage() {
           <a className="is-active" href="#catalog">
             实验目录
           </a>
+          <Link to="/editor">课件编辑</Link>
         </nav>
       </header>
 

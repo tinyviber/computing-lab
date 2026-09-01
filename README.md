@@ -1,6 +1,8 @@
 # computing-lab
 
-Interactive high-school computing lessons. Local-first, static Vite app, no account or backend.
+Interactive high-school computing lessons. The learner-facing labs remain a Vite app, and the
+repository also includes a small online authoring service for editing lesson source files in a
+browser.
 
 ## Development
 
@@ -8,6 +10,28 @@ Interactive high-school computing lessons. Local-first, static Vite app, no acco
 bun install
 bun run dev
 ```
+
+## Online lesson editor
+
+Open `/editor` through the editor service. It provides a password-protected browser workspace
+with a Markdown/code editor on the left and a real Slidev hot-reload preview on the right. Saving
+a file writes it directly to `lessons/<lesson>/`, so there is no GitHub/Gitee promotion step in
+the editing loop.
+
+For local development, run:
+
+```sh
+EDITOR_PASSWORD='choose-a-password' bun run editor:dev
+```
+
+Then open <http://localhost:8787/editor>. `editor:dev` starts the React/Vite app, the editor API,
+and Slidev preview processes as needed. In a server checkout that already has a built `dist/`,
+run `EDITOR_PASSWORD='choose-a-password' bun run editor:start` instead.
+
+`EDITOR_ROOT` can point the service at another checkout, and `EDITOR_PORT` changes the editor
+HTTP port. Source files with `.md`, `.vue`, `.css`, `.js`, `.ts`, `.tsx`, `.json`, or `.html`
+extensions are editable; image assets are listed as read-only. Set `EDITOR_PASSWORD` in any
+non-local deployment—without it, the editor is intentionally open.
 
 For a static subpath deployment, set the Vite base before building:
 
@@ -40,6 +64,7 @@ BASE_PATH=/computing-lab/ bun run test:e2e
 Routes:
 
 - `/` — lab registry
+- `/editor` — password-protected online lesson editor (when `editor:start` or `editor:dev` is running)
 - `/labs/image-encoding` — image sampling and color-count analysis
 - `/labs/audio-encoding` — waveform sampling
 - `/labs/home-network` — gateway configuration
@@ -48,11 +73,12 @@ All lesson calculations run in the browser. The image lesson starts with one fix
 
 For a record of the image sample selection, plain-language copy audit, and classroom UI changes, see [docs/image-encoding-optimization.md](docs/image-encoding-optimization.md).
 
-## Static host deployment
+## Learner-site deployment
 
-Computing Lab deploys as static files only. GitHub `main` is canonical, CI
-promotes its exact verified SHA to Gitee `main`, and a Tencent host pulls and
-reconciles that qualified SHA into an atomic `current` release for Caddy.
+The existing `deploy/` runbook describes the static learner site. The online editor is a
+separate long-running service: place a reverse proxy in front of its `EDITOR_PORT`, enable
+WebSocket upgrades for Slidev HMR, and keep `EDITOR_PASSWORD` set. It writes the configured
+`EDITOR_ROOT/lessons` checkout directly and therefore does not use the static promotion loop.
 
 The host-side reconciler, Caddy template, systemd timer, failure invariants,
 and Tencent bootstrap/rollback runbook are in [docs/deployment.md](docs/deployment.md).
