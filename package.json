@@ -7,7 +7,8 @@
   "scripts": {
     "setup": "bun install",
     "dev": "bun run vite",
-    "build": "bun run typecheck && bun run vite build",
+    "build": "bun run typecheck && bun run vite build && bun run build:slides",
+    "build:slides": "bun run scripts/build-lessons.mjs",
     "test": "bun run vitest --passWithNoTests",
     "test:run": "bun run vitest run --passWithNoTests",
     "test:deploy": "bash deploy/tests/reconcile.test.sh",
@@ -27,6 +28,8 @@
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@slidev/cli": "52.19.1",
+    "@slidev/theme-default": "0.25.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.55.0",
     "@tailwindcss/vite": "^4.3.3",

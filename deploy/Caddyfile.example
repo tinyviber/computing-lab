@@ -9,9 +9,22 @@
         path_regexp extensionless ^(?:/[^./]+)*/?$
     }
 
-    # Production root artifact only. try_files keeps real files authoritative;
-    # only extensionless, non-asset paths reach index.html, so missing
-    # JS/CSS/image files remain 404.
+    # Slidev decks are static sub-apps. Their own index.html must win over the
+    # root React app for extensionless deep links such as /slides/excel-01/2.
+    @slides {
+        path_regexp slides ^/slides/([A-Za-z0-9][A-Za-z0-9_-]*)(/[^./]+)*/?$
+    }
+
+    handle @slides {
+        route {
+            try_files {path} {path}/ /slides/{re.slides.1}/index.html
+            file_server
+        }
+    }
+
+    # Production root artifact. try_files keeps real files authoritative; only
+    # extensionless, non-asset paths reach index.html, so missing JS/CSS/image
+    # files remain 404.
     handle {
         route {
             try_files {path}
