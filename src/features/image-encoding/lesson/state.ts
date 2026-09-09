@@ -24,8 +24,8 @@ export type SamplingSnapshot = {
 };
 
 export type SamplingEvidence = {
-  baseline: SamplingSnapshot | null;
-  changed: SamplingSnapshot | null;
+  a: SamplingSnapshot | null;
+  b: SamplingSnapshot | null;
   observationSpot: SamplingObservationSpot | "";
   observation: string;
 };
@@ -60,8 +60,8 @@ export type ImageLessonAction =
   | { type: "select-pixel"; x: number; y: number }
   | { type: "set-observation-spot"; spot: SamplingObservationSpot | "" }
   | { type: "set-observation"; observation: string }
-  | { type: "record-sampling-baseline" }
-  | { type: "record-sampling-changed" }
+  | { type: "record-sampling-a" }
+  | { type: "record-sampling-b" }
   | { type: "set-challenge-sampling"; samplingPercent: number }
   | { type: "set-challenge-color-mode"; colorMode: "palette" | "rgb24" }
   | { type: "set-challenge-bit-depth"; bitDepth: number }
@@ -104,8 +104,8 @@ function emptyImageRecords() {
 
 function emptySamplingEvidence(): SamplingEvidence {
   return {
-    baseline: null,
-    changed: null,
+    a: null,
+    b: null,
     observationSpot: "",
     observation: "",
   };
@@ -230,20 +230,20 @@ export function transitionImageLesson(
         ...state,
         samplingEvidence: { ...state.samplingEvidence, observation: action.observation },
       };
-    case "record-sampling-baseline":
+    case "record-sampling-a":
       return {
         ...state,
         samplingEvidence: {
           ...state.samplingEvidence,
-          baseline: samplingSnapshot(state),
+          a: samplingSnapshot(state),
         },
       };
-    case "record-sampling-changed":
+    case "record-sampling-b":
       return {
         ...state,
         samplingEvidence: {
           ...state.samplingEvidence,
-          changed: samplingSnapshot(state),
+          b: samplingSnapshot(state),
         },
       };
     case "set-challenge-sampling":

@@ -108,9 +108,9 @@ function SoundEvidenceCard({
   dispatch: (action: SoundLessonAction) => void;
   evidence: SoundEvidence;
 }) {
-  const noteHint = !evidence.baseline
+  const noteHint = !evidence.a
     ? "还没有 A 记录。播放或调整设置后，随时可以保存当前状态。"
-    : !evidence.changed
+    : !evidence.b
       ? "A 已保存在这里。可以继续探索，也可以把另一组设置保存为 B。"
       : "A 和 B 都保存在这里；观察笔记可以随时修改。";
 
@@ -130,14 +130,14 @@ function SoundEvidenceCard({
       <div className="sound-evidence-actions">
         <button
           className="button button-secondary"
-          onClick={() => dispatch({ type: "record-sound-baseline" })}
+          onClick={() => dispatch({ type: "record-sound-a" })}
           type="button"
         >
           记录当前设置为 A
         </button>
         <button
           className="button button-secondary"
-          onClick={() => dispatch({ type: "record-sound-changed" })}
+          onClick={() => dispatch({ type: "record-sound-b" })}
           type="button"
         >
           记录当前设置为 B
@@ -153,17 +153,13 @@ function SoundEvidenceCard({
       <div aria-label="声音对比记录" className="sound-evidence-snapshot">
         <div className="sound-note-snapshot">
           <span className="sound-snapshot-heading">A</span>
-          <strong>{snapshotLabel(evidence.baseline)}</strong>
-          <small>
-            {evidence.baseline ? AUDITION_SNAPSHOT_LABELS[evidence.baseline.audition] : "—"}
-          </small>
+          <strong>{snapshotLabel(evidence.a)}</strong>
+          <small>{evidence.a ? AUDITION_SNAPSHOT_LABELS[evidence.a.audition] : "—"}</small>
         </div>
         <div className="sound-note-snapshot">
           <span className="sound-snapshot-heading">B</span>
-          <strong>{snapshotLabel(evidence.changed)}</strong>
-          <small>
-            {evidence.changed ? AUDITION_SNAPSHOT_LABELS[evidence.changed.audition] : "—"}
-          </small>
+          <strong>{snapshotLabel(evidence.b)}</strong>
+          <small>{evidence.b ? AUDITION_SNAPSHOT_LABELS[evidence.b.audition] : "—"}</small>
         </div>
       </div>
       <label className="sound-observation-field" htmlFor="sound-evidence-observation">

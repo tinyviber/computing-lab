@@ -13,7 +13,7 @@ function stateAfterSampling() {
 
 function stateAfterEvidence() {
   let state = defaultState();
-  state = transitionImageLesson(state, { type: "record-sampling-baseline" });
+  state = transitionImageLesson(state, { type: "record-sampling-a" });
   state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 45 });
   state = transitionImageLesson(state, {
     type: "set-observation-spot",
@@ -23,7 +23,7 @@ function stateAfterEvidence() {
     type: "set-observation",
     observation: "边缘变粗，细节减少。",
   });
-  return transitionImageLesson(state, { type: "record-sampling-changed" });
+  return transitionImageLesson(state, { type: "record-sampling-b" });
 }
 
 function stateAfterPalette() {
@@ -38,8 +38,8 @@ describe("image lesson state", () => {
     expect(defaultState()).toMatchObject({
       colorMode: "rgb24",
       samplingEvidence: {
-        baseline: null,
-        changed: null,
+        a: null,
+        b: null,
         observationSpot: "",
         observation: "",
       },
@@ -79,13 +79,13 @@ describe("image lesson state", () => {
     expect(paletteBeforeEvidence).toMatchObject({ colorMode: "palette" });
 
     const evidence = stateAfterEvidence();
-    expect(evidence.samplingEvidence.baseline).toMatchObject({
+    expect(evidence.samplingEvidence.a).toMatchObject({
       samplingPercent: 50,
       width: 120,
       height: 80,
       pixelCount: 9600,
     });
-    expect(evidence.samplingEvidence.changed).toMatchObject({
+    expect(evidence.samplingEvidence.b).toMatchObject({
       samplingPercent: 45,
       width: 108,
       height: 72,
@@ -95,19 +95,19 @@ describe("image lesson state", () => {
     expect(evidence.samplingEvidence.observation).toContain("边缘");
   });
 
-  it("overwrites only A when sampling baseline is recorded again", () => {
+  it("overwrites only A when A is recorded again", () => {
     let state = stateAfterEvidence();
     state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 25 });
-    state = transitionImageLesson(state, { type: "record-sampling-baseline" });
+    state = transitionImageLesson(state, { type: "record-sampling-a" });
 
-    expect(state.samplingEvidence.baseline).toMatchObject({ samplingPercent: 25 });
-    expect(state.samplingEvidence.changed).toMatchObject({ samplingPercent: 45 });
+    expect(state.samplingEvidence.a).toMatchObject({ samplingPercent: 25 });
+    expect(state.samplingEvidence.b).toMatchObject({ samplingPercent: 45 });
     expect(state.samplingEvidence.observationSpot).toBe("text-edge");
     expect(state.samplingEvidence.observation).toBe("边缘变粗，细节减少。");
 
     state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 30 });
-    state = transitionImageLesson(state, { type: "record-sampling-changed" });
-    expect(state.samplingEvidence.changed).toMatchObject({ samplingPercent: 30 });
+    state = transitionImageLesson(state, { type: "record-sampling-b" });
+    expect(state.samplingEvidence.b).toMatchObject({ samplingPercent: 30 });
     expect(state.samplingEvidence.observation).toBe("边缘变粗，细节减少。");
   });
 
@@ -176,7 +176,7 @@ describe("image lesson state", () => {
       fixture: "photo",
       samplingPercent: 50,
       colorMode: "rgb24",
-      samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
+      samplingEvidence: { a: null, b: null, observationSpot: "", observation: "" },
       budgetChallenge: {
         samplingPercent: 50,
         colorMode: "rgb24",
@@ -204,7 +204,7 @@ describe("image lesson state", () => {
       bitDepth: 2,
       colorMode: "rgb24",
       view: "error",
-      samplingEvidence: { baseline: null, changed: null },
+      samplingEvidence: { a: null, b: null },
       budgetChallenge: { readability: "", tradeoff: "", acknowledged: false },
     });
   });
@@ -227,7 +227,7 @@ describe("image lesson state", () => {
 
     expect(loaded).toMatchObject({
       source: uploaded,
-      samplingEvidence: { baseline: null, changed: null, observationSpot: "", observation: "" },
+      samplingEvidence: { a: null, b: null, observationSpot: "", observation: "" },
       budgetChallenge: { readability: "", tradeoff: "", acknowledged: false },
       colorMode: "rgb24",
       view: "compare",

@@ -13,8 +13,8 @@ export type SoundEvidenceSnapshot = {
 };
 
 export type SoundEvidence = {
-  baseline: SoundEvidenceSnapshot | null;
-  changed: SoundEvidenceSnapshot | null;
+  a: SoundEvidenceSnapshot | null;
+  b: SoundEvidenceSnapshot | null;
   observation: string;
 };
 
@@ -57,8 +57,8 @@ export type SoundLessonAction =
   | { type: "reset" }
   | { type: "reset-transport" }
   | { type: "reset-analysis" }
-  | { type: "record-sound-baseline" }
-  | { type: "record-sound-changed" }
+  | { type: "record-sound-a" }
+  | { type: "record-sound-b" }
   | { type: "set-sound-observation"; observation: string }
   | { type: "clear-sound-evidence" };
 
@@ -90,7 +90,7 @@ export function createSoundLessonState(scenario: SoundScenario): SoundLessonStat
 }
 
 export function emptySoundEvidence(): SoundEvidence {
-  return { baseline: null, changed: null, observation: "" };
+  return { a: null, b: null, observation: "" };
 }
 
 function soundEvidenceSnapshot(state: SoundLessonState): SoundEvidenceSnapshot {
@@ -228,20 +228,20 @@ export function transitionSoundLesson(
       return { ...state, transport: "stopped", cursor: 0, loop: "off" };
     case "reset-analysis":
       return { ...state, mode: "compare", view: "compare", audition: "original" };
-    case "record-sound-baseline":
+    case "record-sound-a":
       return {
         ...state,
         soundEvidence: {
           ...state.soundEvidence,
-          baseline: soundEvidenceSnapshot(state),
+          a: soundEvidenceSnapshot(state),
         },
       };
-    case "record-sound-changed":
+    case "record-sound-b":
       return {
         ...state,
         soundEvidence: {
           ...state.soundEvidence,
-          changed: soundEvidenceSnapshot(state),
+          b: soundEvidenceSnapshot(state),
         },
       };
     case "set-sound-observation":

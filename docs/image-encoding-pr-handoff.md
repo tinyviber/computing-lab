@@ -7,7 +7,7 @@ Image Encoding keeps its feature-local raster model, with an exploratory feedbac
 ```text
 change one parameter → inspect the image and metrics → make a judgment → try another parameter
 
-optional evidence card: baseline + changed snapshot + optional observation spot + open observation text
+optional evidence card: A + B snapshot + optional observation spot + open observation text
 optional budget challenge: keep raw data within the source baseline's 25% budget while preserving a target detail
 ```
 
@@ -19,7 +19,7 @@ The initial color representation is RGB24. Explicit `color=rgb24` links and old 
 
 `src/features/image-encoding/lesson/state.ts` owns:
 
-- `samplingEvidence` with independent baseline/changed dimensions, pixel counts, an optional observation spot, and open observation text
+- `samplingEvidence` with independent A/B snapshots, pixel counts, an optional observation spot, and open observation text
 - `budgetChallenge` with sampling, color mode, bit depth, readability judgment, trade-off explanation, and acknowledgement
 
 Reducer actions keep the controls independent. The evidence card is a notebook: it records A and B plus whatever observation the learner chooses to write. There is no evidence-completion predicate or navigation gate. The challenge has no submit state: the UI continuously reports budget facts and the student's readability judgment.

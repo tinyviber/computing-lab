@@ -526,11 +526,11 @@ function SamplingEvidenceCard({
   dispatch: (action: ImageLessonAction) => void;
   evidence: SamplingEvidence;
 }) {
-  const noteHint = !evidence.baseline
+  const noteHint = !evidence.a
     ? "还没有 A 记录。选择一个设置后，随时可以把当前状态保存下来。"
-    : !evidence.changed
+    : !evidence.b
       ? "A 已保存在这里。调整参数后，可以再保存一组 B。"
-      : evidence.baseline.samplingPercent === evidence.changed.samplingPercent
+      : evidence.a.samplingPercent === evidence.b.samplingPercent
         ? "A 和 B 使用了相同采样比例；这也可以作为一次对照记录。"
         : "A 和 B 都保存在这里；观察笔记可以随时修改。";
 
@@ -552,14 +552,14 @@ function SamplingEvidenceCard({
       <div className="sampling-evidence-controls">
         <button
           className="button button-secondary"
-          onClick={() => dispatch({ type: "record-sampling-baseline" })}
+          onClick={() => dispatch({ type: "record-sampling-a" })}
           type="button"
         >
           记录当前设置为 A
         </button>
         <button
           className="button button-secondary"
-          onClick={() => dispatch({ type: "record-sampling-changed" })}
+          onClick={() => dispatch({ type: "record-sampling-b" })}
           type="button"
         >
           记录当前设置为 B
@@ -600,20 +600,20 @@ function SamplingEvidenceCard({
       </p>
       <div className="sampling-snapshot-grid" aria-label="采样证据快照">
         <span className="snapshot-heading">记录项</span>
-        <span className="snapshot-heading">基准</span>
-        <span className="snapshot-heading">改变后</span>
+        <span className="snapshot-heading">A</span>
+        <span className="snapshot-heading">B</span>
         <span>采样比例</span>
-        <span>{snapshotValue(evidence.baseline, "samplingPercent")}</span>
-        <span>{snapshotValue(evidence.changed, "samplingPercent")}</span>
+        <span>{snapshotValue(evidence.a, "samplingPercent")}</span>
+        <span>{snapshotValue(evidence.b, "samplingPercent")}</span>
         <span>宽</span>
-        <span>{snapshotValue(evidence.baseline, "width")}</span>
-        <span>{snapshotValue(evidence.changed, "width")}</span>
+        <span>{snapshotValue(evidence.a, "width")}</span>
+        <span>{snapshotValue(evidence.b, "width")}</span>
         <span>高</span>
-        <span>{snapshotValue(evidence.baseline, "height")}</span>
-        <span>{snapshotValue(evidence.changed, "height")}</span>
+        <span>{snapshotValue(evidence.a, "height")}</span>
+        <span>{snapshotValue(evidence.b, "height")}</span>
         <span>像素数</span>
-        <span>{snapshotValue(evidence.baseline, "pixelCount")}</span>
-        <span>{snapshotValue(evidence.changed, "pixelCount")}</span>
+        <span>{snapshotValue(evidence.a, "pixelCount")}</span>
+        <span>{snapshotValue(evidence.b, "pixelCount")}</span>
         <span>同一观察位置</span>
         <span className="snapshot-shared">{observationSpotLabel(evidence.observationSpot)}</span>
       </div>

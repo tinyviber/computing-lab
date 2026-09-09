@@ -211,49 +211,49 @@ describe("Sound orthogonal reducer", () => {
 
 describe("Sound evidence records", () => {
   function beginEvidence(state: SoundState): SoundState {
-    state = transition(state, { type: "record-sound-baseline" });
+    state = transition(state, { type: "record-sound-a" });
     state = transition(state, { type: "set-sample-rate", sampleRate: 2000 });
-    state = transition(state, { type: "record-sound-changed" });
+    state = transition(state, { type: "record-sound-b" });
     return transition(state, {
       type: "set-sound-observation",
       observation: "从 8000 改到 2000 后，声音变得粗糙。",
     });
   }
 
-  it("snapshots the current config when recording baseline and changed groups", () => {
+  it("snapshots the current config in independent A and B slots", () => {
     let state = transition(transition(initial(), { type: "set-sample-rate", sampleRate: 2000 }), {
       type: "set-bit-depth",
       bitDepth: 4,
     });
-    state = transition(state, { type: "record-sound-baseline" });
-    expect(state.soundEvidence.baseline).toEqual({
+    state = transition(state, { type: "record-sound-a" });
+    expect(state.soundEvidence.a).toEqual({
       sampleRate: 2000,
       bitDepth: 4,
       audition: "original",
     });
-    expect(state.soundEvidence.changed).toBeNull();
+    expect(state.soundEvidence.b).toBeNull();
 
     state = transition(state, { type: "set-audition", audition: "reconstructed" });
-    state = transition(state, { type: "record-sound-changed" });
-    expect(state.soundEvidence.changed).toEqual({
+    state = transition(state, { type: "record-sound-b" });
+    expect(state.soundEvidence.b).toEqual({
       sampleRate: 2000,
       bitDepth: 4,
       audition: "reconstructed",
     });
   });
 
-  it("overwrites only A when baseline is recorded again", () => {
+  it("overwrites only A when A is recorded again", () => {
     let state = beginEvidence(initial());
     expect(state.soundEvidence.observation).not.toBe("");
 
     state = transition(state, { type: "set-sample-rate", sampleRate: 4000 });
-    state = transition(state, { type: "record-sound-baseline" });
-    expect(state.soundEvidence.baseline).toEqual({
+    state = transition(state, { type: "record-sound-a" });
+    expect(state.soundEvidence.a).toEqual({
       sampleRate: 4000,
       bitDepth: 8,
       audition: "original",
     });
-    expect(state.soundEvidence.changed).toEqual({
+    expect(state.soundEvidence.b).toEqual({
       sampleRate: 2000,
       bitDepth: 8,
       audition: "original",
@@ -261,8 +261,8 @@ describe("Sound evidence records", () => {
     expect(state.soundEvidence.observation).toBe("从 8000 改到 2000 后，声音变得粗糙。");
 
     state = transition(state, { type: "set-bit-depth", bitDepth: 4 });
-    state = transition(state, { type: "record-sound-changed" });
-    expect(state.soundEvidence.changed).toEqual({
+    state = transition(state, { type: "record-sound-b" });
+    expect(state.soundEvidence.b).toEqual({
       sampleRate: 4000,
       bitDepth: 4,
       audition: "original",
@@ -270,14 +270,14 @@ describe("Sound evidence records", () => {
     expect(state.soundEvidence.observation).toBe("从 8000 改到 2000 后，声音变得粗糙。");
   });
 
-  it("clear-sound-evidence empties baseline, changed, and observation", () => {
+  it("clear-sound-evidence empties A, B, and observation", () => {
     const before = beginEvidence(initial());
-    expect(before.soundEvidence.baseline).not.toBeNull();
-    expect(before.soundEvidence.changed).not.toBeNull();
+    expect(before.soundEvidence.a).not.toBeNull();
+    expect(before.soundEvidence.b).not.toBeNull();
     expect(before.soundEvidence.observation).not.toBe("");
 
     const cleared = transition(before, { type: "clear-sound-evidence" });
-    expect(cleared.soundEvidence).toEqual({ baseline: null, changed: null, observation: "" });
+    expect(cleared.soundEvidence).toEqual({ a: null, b: null, observation: "" });
     // Clearing evidence must not disturb the rest of the lesson state.
     expect({ ...cleared, soundEvidence: before.soundEvidence }).toEqual(before);
   });
@@ -299,6 +299,6 @@ describe("Sound evidence records", () => {
     expect(transportReset.cursor).toBe(0);
 
     const fullReset = transition(transportReset, { type: "reset" });
-    expect(fullReset.soundEvidence).toEqual({ baseline: null, changed: null, observation: "" });
+    expect(fullReset.soundEvidence).toEqual({ a: null, b: null, observation: "" });
   });
 });
