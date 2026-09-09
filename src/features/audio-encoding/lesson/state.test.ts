@@ -208,3 +208,87 @@ describe("Sound orthogonal reducer", () => {
     );
   });
 });
+
+describe("Sound evidence records", () => {
+  const isComplete = (stateModule as Record<string, unknown>).isSoundEvidenceComplete as
+    ((evidence: SoundState) => boolean) | undefined;
+
+  function beginEvidence(state: SoundState): SoundState {
+    state = transition(state, { type: "record-sound-baseline" });
+    state = transition(state, { type: "set-sample-rate", sampleRate: 2000 });
+    state = transition(state, { type: "record-sound-changed" });
+    return transition(state, {
+      type: "set-sound-observation",
+      observation: "从 8000 改到 2000 后，声音变得粗糙。",
+    });
+  }
+
+  it("snapshots the current config when recording baseline and changed groups", () => {
+    let state = transition(transition(initial(), { type: "set-sample-rate", sampleRate: 2000 }), {
+      type: "set-bit-depth",
+      bitDepth: 4,
+    });
+    state = transition(state, { type: "record-sound-baseline" });
+    expect(state.soundEvidence.baseline).toEqual({
+      sampleRate: 2000,
+      bitDepth: 4,
+      audition: "original",
+    });
+    expect(state.soundEvidence.changed).toBeNull();
+
+    state = transition(state, { type: "set-audition", audition: "reconstructed" });
+    state = transition(state, { type: "record-sound-changed" });
+    expect(state.soundEvidence.changed).toEqual({
+      sampleRate: 2000,
+      bitDepth: 4,
+      audition: "reconstructed",
+    });
+  });
+
+  it("does not count two identical settings as complete even with an observation", () => {
+    let state = transition(initial(), { type: "record-sound-baseline" });
+    state = transition(state, { type: "set-audition", audition: "reconstructed" });
+    state = transition(state, { type: "record-sound-changed" });
+    state = transition(state, { type: "set-sound-observation", observation: "两次听起来一样。" });
+    expect(isComplete?.(state.soundEvidence)).toBe(false);
+  });
+
+  it("completes evidence once settings differ and an observation is written", () => {
+    const state = beginEvidence(initial());
+    expect(state.soundEvidence.baseline?.sampleRate).toBe(8000);
+    expect(state.soundEvidence.changed?.sampleRate).toBe(2000);
+    expect(isComplete?.(state.soundEvidence)).toBe(true);
+  });
+
+  it("clear-sound-evidence empties baseline, changed, and observation", () => {
+    const before = beginEvidence(initial());
+    expect(before.soundEvidence.baseline).not.toBeNull();
+    expect(before.soundEvidence.changed).not.toBeNull();
+    expect(before.soundEvidence.observation).not.toBe("");
+
+    const cleared = transition(before, { type: "clear-sound-evidence" });
+    expect(cleared.soundEvidence).toEqual({ baseline: null, changed: null, observation: "" });
+    // Clearing evidence must not disturb the rest of the lesson state.
+    expect({ ...cleared, soundEvidence: before.soundEvidence }).toEqual(before);
+  });
+
+  it("keeps evidence across reset-analysis and reset-transport but clears it on reset", () => {
+    let state = beginEvidence(initial());
+    state = transition(state, { type: "set-mode", mode: "aliasing" });
+    state = transition(state, { type: "set-view", view: "samples" });
+    state = transition(state, { type: "play" });
+    state = transition(state, { type: "tick", deltaMs: 200 });
+
+    const recorded = state.soundEvidence;
+    const analysisReset = transition(state, { type: "reset-analysis" });
+    expect(analysisReset.soundEvidence).toEqual(recorded);
+    expect(analysisReset.mode).toBe("compare");
+
+    const transportReset = transition(analysisReset, { type: "reset-transport" });
+    expect(transportReset.soundEvidence).toEqual(recorded);
+    expect(transportReset.cursor).toBe(0);
+
+    const fullReset = transition(transportReset, { type: "reset" });
+    expect(fullReset.soundEvidence).toEqual({ baseline: null, changed: null, observation: "" });
+  });
+});

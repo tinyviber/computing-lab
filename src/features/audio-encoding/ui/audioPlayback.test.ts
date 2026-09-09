@@ -227,7 +227,7 @@ describe("Sound audioPlayback boundary", () => {
     }
   });
 
-  it("selects the A/B buffer without recreating a source for cursor ticks", async () => {
+  it("selects the A/B buffer on play and steps the playing cursor via seek", async () => {
     await renderAppAt("/labs/audio-encoding?source=sawtooth&sampleRate=16000&bitDepth=4");
     const play = screen.getByRole("button", { name: /^播放$/ });
     const reconstructed = screen.getByRole("button", { name: /^重建信号$/ });
@@ -236,17 +236,18 @@ describe("Sound audioPlayback boundary", () => {
     fireEvent.click(play);
     const context = audioContext();
     const firstSource = context.sources[0];
+    // 步进按钮在播放态等价于 seek：在新光标位置重启音源（与拖动光标一致）。
     fireEvent.click(advance);
     fireEvent.click(advance);
-    expect(context.sources).toHaveLength(1);
-    expect(firstSource.stopCalls).toBe(0);
+    expect(context.sources).toHaveLength(3);
+    expect(firstSource.stopCalls).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /^停止$/ }));
     fireEvent.click(reconstructed);
     fireEvent.click(play);
-    expect(context.sources).toHaveLength(2);
-    expect(context.sources[1].buffer).toBe(context.createBufferCalls[1]);
-    expect(context.sources[0].stopCalls).toBeGreaterThan(0);
+    expect(context.sources).toHaveLength(4);
+    expect(context.sources[3].buffer).toBe(context.createBufferCalls[1]);
+    expect(context.sources[3].stopCalls).toBe(0);
   });
 
   it("restarts the active audition at the user seek offset without duplicating reducer ticks", async () => {

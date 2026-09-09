@@ -11,7 +11,15 @@ import {
   SOUND_MIN_PHASE,
 } from "../domain/model";
 import { parseSoundScenario, type SoundMode, type SoundView } from "../lesson/scenario";
-import { createSoundLessonState, transitionSoundLesson } from "../lesson/state";
+import {
+  createSoundLessonState,
+  isSoundEvidenceComplete,
+  transitionSoundLesson,
+  type SoundAudition,
+  type SoundEvidence,
+  type SoundEvidenceSnapshot,
+  type SoundLessonAction,
+} from "../lesson/state";
 import { createAudioPlaybackRuntime, type AudioPlaybackRequest } from "./audioPlayback";
 import "./audio-encoding.css";
 
@@ -96,6 +104,124 @@ function classificationLabel(classification: "below" | "at" | "aliased"): string
   return "低于奈奎斯特频率（below Nyquist）";
 }
 
+/**
+ * Path-step display state: steps before the suggested one are done, the
+ * suggested one is current, later ones are todo. Step ids sort as "01"<"02"<"03".
+ */
+function stepStateOf(step: string, activeStep: string): "done" | "current" | "todo" {
+  if (step < activeStep) return "done";
+  if (step === activeStep) return "current";
+  return "todo";
+}
+
+const AUDITION_SNAPSHOT_LABELS: Record<SoundAudition, string> = {
+  original: "原始信号",
+  reconstructed: "重建信号",
+};
+
+function evidenceValue(
+  snapshot: SoundEvidenceSnapshot | null,
+  key: "sampleRate" | "bitDepth" | "audition",
+): string {
+  if (!snapshot) return "—";
+  if (key === "audition") return AUDITION_SNAPSHOT_LABELS[snapshot.audition];
+  return key === "sampleRate" ? `${snapshot.sampleRate} Hz` : `${snapshot.bitDepth} bit`;
+}
+
+function SoundEvidenceCard({
+  dispatch,
+  evidence,
+}: {
+  dispatch: (action: SoundLessonAction) => void;
+  evidence: SoundEvidence;
+}) {
+  const complete = isSoundEvidenceComplete(evidence);
+  const status = !evidence.baseline
+    ? "尚未记录基准设置。"
+    : !evidence.changed
+      ? "已记录基准设置。改变采样率或位深后，再记录一次。"
+      : evidence.baseline.sampleRate === evidence.changed.sampleRate &&
+          evidence.baseline.bitDepth === evidence.changed.bitDepth
+        ? "两次设置的采样率和位深相同。请真的改变参数后再记录。"
+        : !evidence.observation.trim()
+          ? "已记录两组设置。还没有写下你的解释。"
+          : "已记录两组设置和你的解释。";
+
+  return (
+    <section
+      aria-labelledby="sound-evidence-heading"
+      className="sound-evidence-card"
+      data-evidence-state={complete ? "complete" : "incomplete"}
+      data-testid="sound-evidence-card"
+    >
+      <div className="sound-evidence-header">
+        <div>
+          <p className="eyebrow">实验解释卡</p>
+          <h3 id="sound-evidence-heading">记录两组设置，解释你听到的差异</h3>
+          <p>先记录基准，改一个参数后再记录一次，最后写下你的解释。</p>
+        </div>
+        <span className={`sound-evidence-badge${complete ? " is-complete" : ""}`}>
+          {complete ? "已记录两组" : "未完成记录"}
+        </span>
+      </div>
+      <div className="sound-evidence-actions">
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "record-sound-baseline" })}
+          type="button"
+        >
+          记录当前设置（基准）
+        </button>
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "record-sound-changed" })}
+          type="button"
+        >
+          记录当前设置（改变后）
+        </button>
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "clear-sound-evidence" })}
+          type="button"
+        >
+          清空记录
+        </button>
+      </div>
+      <div aria-label="声音证据快照" className="sound-evidence-snapshot">
+        <span className="sound-snapshot-heading">记录项</span>
+        <span className="sound-snapshot-heading">基准</span>
+        <span className="sound-snapshot-heading">改变后</span>
+        <span>采样率</span>
+        <span>{evidenceValue(evidence.baseline, "sampleRate")}</span>
+        <span>{evidenceValue(evidence.changed, "sampleRate")}</span>
+        <span>量化位数</span>
+        <span>{evidenceValue(evidence.baseline, "bitDepth")}</span>
+        <span>{evidenceValue(evidence.changed, "bitDepth")}</span>
+        <span className="sound-snapshot-heading">试听信号</span>
+        <span>{evidenceValue(evidence.baseline, "audition")}</span>
+        <span>{evidenceValue(evidence.changed, "audition")}</span>
+        <span>我的解释</span>
+        <span className="sound-snapshot-observation">{evidence.observation.trim() || "—"}</span>
+      </div>
+      <label className="sound-observation-field" htmlFor="sound-evidence-observation">
+        我的解释（一句话即可）
+      </label>
+      <input
+        id="sound-evidence-observation"
+        onChange={(event) =>
+          dispatch({ type: "set-sound-observation", observation: event.target.value })
+        }
+        placeholder="把采样率/位深从 __ 改到 __ 后，我听到/看到 __，因为 __。"
+        type="text"
+        value={evidence.observation}
+      />
+      <p className={`sound-evidence-status${complete ? " is-complete" : ""}`} role="status">
+        {status}
+      </p>
+    </section>
+  );
+}
+
 const SAMPLE_RATE_STOPS = [
   800, 880, 960, 3600, 3960, 4320, 8000, 10800, 12000, 13200, 16000, 21600, 24000, 26400, 44100,
 ];
@@ -142,6 +268,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
   const cursor = useMemo(() => model.cursorAt(state.cursor), [model, state.cursor]);
   const plotWindowWidthMs = plotWindow.endMs - plotWindow.startMs;
   const isLooping = state.loop !== "off";
+  // 建议步骤规则（保持简单、可测试）：
+  // - 分析模式仍是 compare：学生尚在 01 的 A/B 听感阶段 → 建议 01；
+  // - 已进入混叠/量化实验但光标仍在起点：完成 02 的参数实验中 → 建议 02；
+  // - 已进入实验且光标离开起点：正在对照读数解释误差 → 建议 03。
+  const activeStep = state.mode === "compare" ? "01" : state.cursor > 0 ? "03" : "02";
   const selectedView = state.view;
   const showOriginal = selectedView === "compare" || selectedView === "samples";
   const showReconstructed = selectedView !== "error";
@@ -274,12 +405,60 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>
 
-          <section className="sound-focus-card" aria-label="主要实验入口">
+          <section
+            aria-label="实验路径"
+            className="sound-focus-card"
+            data-active-step={activeStep}
+            data-testid="sound-experiment-path"
+          >
             <div>
-              <p className="eyebrow">先做一个实验</p>
-              <h3>先听差异，再看波形证据</h3>
-              <p>选择一个入口，试听原始信号与重建信号，再调整对应参数。</p>
+              <p className="eyebrow">实验路径</p>
+              <h3>先听差异，再看波形证据，最后解释误差来源</h3>
+              <p>按 01→02→03 的顺序完成一次完整实验；整个过程中一次只改一个参数。</p>
             </div>
+            <ol className="sound-path-steps">
+              <li
+                className="sound-path-step"
+                data-step="01"
+                data-step-state={stepStateOf("01", activeStep)}
+              >
+                <span aria-hidden="true" className="sound-path-step-number">
+                  01
+                </span>
+                <div>
+                  <strong>听原始与重建</strong>
+                  <span>按下播放试听“原始信号”，再切换“重建信号”，对比两次听感。</span>
+                </div>
+              </li>
+              <li
+                className="sound-path-step"
+                data-step="02"
+                data-step-state={stepStateOf("02", activeStep)}
+              >
+                <span aria-hidden="true" className="sound-path-step-number">
+                  02
+                </span>
+                <div>
+                  <strong>选择一个实验入口</strong>
+                  <span>
+                    在下方选择“采样率实验”或“位深实验”，一次只改一个参数，听差异、看波形。
+                  </span>
+                </div>
+              </li>
+              <li
+                className="sound-path-step"
+                data-step="03"
+                data-step-state={stepStateOf("03", activeStep)}
+              >
+                <span aria-hidden="true" className="sound-path-step-number">
+                  03
+                </span>
+                <div>
+                  <strong>对准采样点读数</strong>
+                  <span>拖动光标对准某个采样点，对照“光标读数”，解释这一段的重建误差从哪来。</span>
+                </div>
+              </li>
+            </ol>
             <div className="sound-focus-actions" role="group" aria-label="主要分析入口">
               {(Object.keys(MODE_GUIDE) as Array<Exclude<SoundMode, "compare">>).map((mode) => (
                 <button
@@ -402,6 +581,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <div data-testid="sound-compare-evidence">
                 <p className="eyebrow">对照结果</p>
                 <p>原始信号不会随着采样设置改变。你可以在“原始信号”和“重建信号”之间切换试听。</p>
+                <p>
+                  当前奈奎斯特频率为 {formatNumber(model.nyquistHz, 0)}{" "}
+                  Hz；当信号最高频率分量超过它时会发生混叠——切换到混叠实验观察。
+                </p>
               </div>
             ) : null}
             {state.mode === "aliasing" ? (
@@ -456,6 +639,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               </div>
             ) : null}
           </div>
+
+          <SoundEvidenceCard dispatch={dispatch} evidence={state.soundEvidence} />
 
           <div className="sound-summary" aria-label="声音读数" role="region">
             <div>
@@ -596,10 +781,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               量化级别数为 2 的量化位数次方。
             </p>
             <label className="sound-label" htmlFor="sound-phase">
-              相位 <span>{formatNumber(state.config.phase, 2)} 圈</span>
+              采样偏移 <span>{formatNumber(state.config.phase, 2)} 圈</span>
             </label>
             <input
-              aria-label="相位"
+              aria-label="采样偏移"
               aria-describedby="sound-phase-description"
               id="sound-phase"
               max="0.99"
@@ -612,7 +797,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.phase}
             />
             <p className="sound-control-description" id="sound-phase-description">
-              移动采样时间戳；信号源 x(t) 保持不变。
+              改变采样偏移只移动采样位置（0–0.99 圈 = 一个采样间隔内的偏移比例），信号 x(t)
+              本身不变。它不改变采样率。
             </p>
             <label className="sound-label" htmlFor="sound-plot-window">
               波形窗口{" "}
@@ -671,9 +857,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 停止
               </button>
             </div>
+            {/* 步进用 seek 而不是 tick：tick 只在播放中生效，seek 让学生在
+                停止态也能逐段对准采样点；播放中 seek 不会中断播放。 */}
             <button
               className="button button-secondary sound-step-button"
-              onClick={() => dispatch({ type: "tick", deltaMs: 100 })}
+              disabled={model.durationMs <= 0}
+              onClick={() => seek(Math.min(model.durationMs, state.cursor + 100))}
               type="button"
             >
               前进 100 毫秒
@@ -760,13 +949,33 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
           </div>
 
-          <button
-            className="button button-secondary sound-reset"
-            onClick={() => dispatch({ type: "reset" })}
-            type="button"
-          >
-            恢复默认状态
-          </button>
+          <p className="sound-reset-note">重置不影响证据卡记录；『恢复全部默认设置』会清空记录。</p>
+          <div className="sound-reset-group">
+            <button
+              aria-label="光标回到开头：仅重置播放位置，不影响你的记录"
+              className="button button-secondary sound-reset"
+              onClick={() => dispatch({ type: "reset-transport" })}
+              type="button"
+            >
+              光标回到开头
+            </button>
+            <button
+              aria-label="重置实验与视图：回到对照模式与叠加视图，保留记录"
+              className="button button-secondary sound-reset"
+              onClick={() => dispatch({ type: "reset-analysis" })}
+              type="button"
+            >
+              重置实验与视图
+            </button>
+            <button
+              aria-label="恢复全部默认设置：会清空证据卡记录，请谨慎"
+              className="button button-secondary sound-reset"
+              onClick={() => dispatch({ type: "reset" })}
+              type="button"
+            >
+              恢复全部默认设置
+            </button>
+          </div>
         </aside>
       </div>
     </LabShell>

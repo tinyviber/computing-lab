@@ -5,6 +5,19 @@ import type { SoundLoop, SoundMode, SoundScenario, SoundView } from "./scenario"
 export type SoundTransport = "stopped" | "playing" | "paused";
 export type SoundAudition = "original" | "reconstructed";
 
+/** One recorded evidence snapshot: the config that produced it and what was auditioned. */
+export type SoundEvidenceSnapshot = {
+  sampleRate: number;
+  bitDepth: number;
+  audition: SoundAudition;
+};
+
+export type SoundEvidence = {
+  baseline: SoundEvidenceSnapshot | null;
+  changed: SoundEvidenceSnapshot | null;
+  observation: string;
+};
+
 type SoundResetState = {
   source: SoundSource;
   config: SoundConfig;
@@ -19,6 +32,7 @@ export type SoundLessonState = SoundResetState & {
   audition: SoundAudition;
   cursor: number;
   loop: SoundLoop;
+  soundEvidence: SoundEvidence;
   initial: SoundResetState;
 };
 
@@ -42,7 +56,11 @@ export type SoundLessonAction =
   | { type: "tick"; deltaMs: number }
   | { type: "reset" }
   | { type: "reset-transport" }
-  | { type: "reset-analysis" };
+  | { type: "reset-analysis" }
+  | { type: "record-sound-baseline" }
+  | { type: "record-sound-changed" }
+  | { type: "set-sound-observation"; observation: string }
+  | { type: "clear-sound-evidence" };
 
 function resetState(scenario: SoundScenario): SoundResetState {
   const durationMs = Number.isFinite(scenario.durationMs)
@@ -66,7 +84,32 @@ export function createSoundLessonState(scenario: SoundScenario): SoundLessonStat
     audition: "original",
     cursor: 0,
     loop: initial.loop,
+    soundEvidence: emptySoundEvidence(),
     initial,
+  };
+}
+
+export function emptySoundEvidence(): SoundEvidence {
+  return { baseline: null, changed: null, observation: "" };
+}
+
+/**
+ * Two-group evidence counts as complete when the recorded configs actually differ
+ * (sample rate or bit depth) and the student wrote a one-sentence explanation.
+ */
+export function isSoundEvidenceComplete(evidence: SoundEvidence): boolean {
+  const { baseline, changed } = evidence;
+  if (!baseline || !changed) return false;
+  const settingsChanged =
+    baseline.sampleRate !== changed.sampleRate || baseline.bitDepth !== changed.bitDepth;
+  return settingsChanged && evidence.observation.trim().length > 0;
+}
+
+function soundEvidenceSnapshot(state: SoundLessonState): SoundEvidenceSnapshot {
+  return {
+    sampleRate: state.config.sampleRate,
+    bitDepth: state.config.bitDepth,
+    audition: state.audition,
   };
 }
 
@@ -182,18 +225,45 @@ export function transitionSoundLesson(
     case "tick":
       return tickSound(state, action.deltaMs);
     case "reset":
+      // A full reset returns to the initial scenario and drops the evidence record;
+      // the lighter resets below keep it so students don't lose their notes.
       return {
         ...state.initial,
         transport: "stopped",
         audition: "original",
         cursor: 0,
         loop: state.initial.loop,
+        soundEvidence: emptySoundEvidence(),
         initial: state.initial,
       };
     case "reset-transport":
       return { ...state, transport: "stopped", cursor: 0, loop: "off" };
     case "reset-analysis":
       return { ...state, mode: "compare", view: "compare", audition: "original" };
+    case "record-sound-baseline":
+      return {
+        ...state,
+        soundEvidence: {
+          ...state.soundEvidence,
+          baseline: soundEvidenceSnapshot(state),
+          changed: null,
+        },
+      };
+    case "record-sound-changed":
+      return {
+        ...state,
+        soundEvidence: {
+          ...state.soundEvidence,
+          changed: soundEvidenceSnapshot(state),
+        },
+      };
+    case "set-sound-observation":
+      return {
+        ...state,
+        soundEvidence: { ...state.soundEvidence, observation: action.observation },
+      };
+    case "clear-sound-evidence":
+      return { ...state, soundEvidence: emptySoundEvidence() };
   }
 }
 

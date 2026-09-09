@@ -90,7 +90,7 @@ describe("ImageEncodingPage", () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(slider(/空间采样/)).toBeEnabled();
-    expect(slider(/采样网格相位/)).toBeEnabled();
+    expect(slider(/采样偏移/)).toBeEnabled();
     expect(slider(/颜色位深/)).toBeDisabled();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
     expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toBeEnabled();
@@ -152,8 +152,8 @@ describe("ImageEncodingPage", () => {
     const { router } = await renderAppAt(
       "/labs/image-encoding?image=checkerboard&sample=99&phase=0.8",
     );
-    expect(slider(/采样网格相位/)).toHaveValue("0");
-    expect(slider(/采样网格相位/)).toBeDisabled();
+    expect(slider(/采样偏移/)).toHaveValue("0");
+    expect(slider(/采样偏移/)).toBeDisabled();
 
     const narrowGeometry = samplingGeometry(
       {
@@ -171,6 +171,9 @@ describe("ImageEncodingPage", () => {
       y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
     });
     expect(phaseControlDescription(narrowGeometry)).toContain("相位固定为 0");
+    expect(phaseControlDescription(narrowGeometry)).toContain(
+      "过去也叫相位：它只移动采样网格的位置，不改变采样率。",
+    );
 
     for (const [fixture, label] of [
       ["gradient", "平滑色彩渐变"],
@@ -205,6 +208,15 @@ describe("ImageEncodingPage", () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
+    // 侦探卡观察输入引导因果句式，而不只是现象示例。
+    expect(screen.getByRole("textbox", { name: /你的观察/ })).toHaveAttribute(
+      "placeholder",
+      expect.stringContaining("因为"),
+    );
+    expect(
+      screen.getByText(/过去也叫相位：它只移动采样网格的位置，不改变采样率/),
+    ).toBeInTheDocument();
+
     completeSamplingEvidence();
     expect(screen.getByText("已记录两组结果和你的观察。")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
@@ -308,5 +320,40 @@ describe("ImageEncodingPage", () => {
       }),
     );
     expect(slider(/空间采样/)).toHaveValue("50");
+  });
+
+  it("suggests experiment path steps 01 → 02 → 03 as the student progresses", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
+
+    const path = document.querySelector('[data-testid="image-experiment-path"]');
+    expect(path).not.toBeNull();
+    expect(path).toHaveAttribute("data-active-step", "01");
+    for (const step of ["01", "02", "03"]) {
+      expect(path?.querySelector(`[data-step="${step}"]`)).toBeInTheDocument();
+    }
+
+    changeSampling("45");
+    expect(path).toHaveAttribute("data-active-step", "02");
+
+    await user.click(screen.getByRole("tab", { name: "编码表示", exact: true }));
+    expect(path).toHaveAttribute("data-active-step", "03");
+  });
+
+  it("offers a one-click return to the compare view when exploring other views", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/image-encoding");
+
+    expect(screen.queryByTestId("image-back-to-compare")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /颜色差异图/ }));
+    expect(screen.getByTestId("image-back-to-compare")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("image-back-to-compare"));
+    expect(screen.getByRole("tab", { name: /对比：原图 \/ 重建图/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    expect(screen.queryByTestId("image-back-to-compare")).not.toBeInTheDocument();
   });
 });

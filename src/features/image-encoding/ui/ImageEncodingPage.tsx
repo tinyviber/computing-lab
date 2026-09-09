@@ -65,6 +65,17 @@ const VIEW_LABELS: Record<ImageView, string> = {
   error: "颜色差异图",
 };
 
+/**
+ * Path-step display state: steps before the suggested one are done, the
+ * suggested one is current, later ones are todo. Step ids sort as "01"<"02"<"03".
+ * （与音频课同规则、各自 feature 内维护，避免跨 feature import。）
+ */
+function stepStateOf(step: string, activeStep: string): "done" | "current" | "todo" {
+  if (step < activeStep) return "done";
+  if (step === activeStep) return "current";
+  return "todo";
+}
+
 type SourceIdentity = {
   kindLabel: string;
   label: string;
@@ -83,16 +94,18 @@ function getSourceIdentity(source: RasterImage): SourceIdentity {
 export function phaseControlDescription(geometry: SamplingGeometry): string {
   const xFullDensity = geometry.x.sampledSize >= geometry.x.sourceSize;
   const yFullDensity = geometry.y.sampledSize >= geometry.y.sourceSize;
+  // 统一术语：控件主标签叫"采样偏移"；帮助文字末尾保留"相位"作为历史叫法的对照说明。
+  const legacyNote = "过去也叫相位：它只移动采样网格的位置，不改变采样率。";
   if (xFullDensity && yFullDensity) {
-    return "两个方向都已达到原图采样密度，因此网格相位固定为 0。";
+    return `两个方向都已达到原图采样密度，因此网格相位固定为 0。${legacyNote}`;
   }
   if (xFullDensity) {
-    return `水平：完整密度（${geometry.x.sampledSize}/${geometry.x.sourceSize}）· 相位固定为 0。垂直：${geometry.y.sampledSize}/${geometry.y.sourceSize} 个采样 · 相位 ${geometry.y.effectivePhase.toFixed(2)}。`;
+    return `水平：完整密度（${geometry.x.sampledSize}/${geometry.x.sourceSize}）· 相位固定为 0。垂直：${geometry.y.sampledSize}/${geometry.y.sourceSize} 个采样 · 相位 ${geometry.y.effectivePhase.toFixed(2)}。${legacyNote}`;
   }
   if (yFullDensity) {
-    return `垂直：完整密度（${geometry.y.sampledSize}/${geometry.y.sourceSize}）· 相位固定为 0。水平：${geometry.x.sampledSize}/${geometry.x.sourceSize} 个采样 · 相位 ${geometry.x.effectivePhase.toFixed(2)}。`;
+    return `垂直：完整密度（${geometry.y.sampledSize}/${geometry.y.sourceSize}）· 相位固定为 0。水平：${geometry.x.sampledSize}/${geometry.x.sourceSize} 个采样 · 相位 ${geometry.x.effectivePhase.toFixed(2)}。${legacyNote}`;
   }
-  return "在一个采样格内移动两个方向的网格，观察对相位敏感的图案如何变化。";
+  return `在一个采样格内移动两个方向的网格，观察对相位敏感的图案如何变化。${legacyNote}`;
 }
 
 function drawRaster(
@@ -599,7 +612,7 @@ function SamplingEvidenceCard({
             onChange={(event) =>
               dispatch({ type: "set-observation", observation: event.target.value })
             }
-            placeholder="例如：边缘变粗，细节减少"
+            placeholder="把 空间采样 从 100% 改到 25% 后，我观察到 ____，因为 ____。"
             type="text"
             value={evidence.observation}
           />
@@ -987,6 +1000,18 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
   };
 
   const observationPrompt = "先比较原图和还原图，再看数据量和颜色变化。";
+  // 建议步骤规则（保持简单、可测试）：
+  // - 视图不是 compare：学生正在查看编码表示或误差图，进入 03 的像素检查阶段 → 建议 03；
+  // - 任一参数已偏离初始情境（采样比例 / 位深 / 颜色表示）：正在做 02 的参数实验 → 建议 02；
+  // - 其余情况：尚在 01 的原图 / 重建对比阶段 → 建议 01。
+  const pathActiveStep =
+    lesson.view !== "compare"
+      ? "03"
+      : lesson.samplingPercent !== lesson.initialScenario.samplingPercent ||
+          lesson.bitDepth !== lesson.initialScenario.bitDepth ||
+          lesson.colorMode !== lesson.initialScenario.colorMode
+        ? "02"
+        : "01";
   const judgment = withinBudget
     ? summaryDelta.averageError > 0
       ? "当前数据量在上限内，但颜色变化更多了。"
@@ -1108,6 +1133,68 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 PNG、JPEG 或 WebP 后文件的实际大小。
               </p>
             </section>
+            <section
+              aria-labelledby="path-heading"
+              className="image-card image-path-card"
+              data-active-step={pathActiveStep}
+              data-testid="image-experiment-path"
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">实验路径</p>
+                  <h3 id="path-heading">三步完成一次完整实验</h3>
+                  <p className="image-card-description">
+                    按 01→02→03 的顺序操作；一次只改一个设置，先观察再记录。
+                  </p>
+                </div>
+              </div>
+              <ol className="image-path-steps">
+                <li
+                  className="image-path-step"
+                  data-step="01"
+                  data-step-state={stepStateOf("01", pathActiveStep)}
+                >
+                  <span aria-hidden="true" className="image-path-step-number">
+                    01
+                  </span>
+                  <div>
+                    <strong>对比原图与重建图像</strong>
+                    <span>找出重建图中变得模糊或变色的位置，先建立“损失在哪里”的直觉。</span>
+                  </div>
+                </li>
+                <li
+                  className="image-path-step"
+                  data-step="02"
+                  data-step-state={stepStateOf("02", pathActiveStep)}
+                >
+                  <span aria-hidden="true" className="image-path-step-number">
+                    02
+                  </span>
+                  <div>
+                    <strong>一次改一个参数</strong>
+                    <span>
+                      调低“空间采样”到约
+                      25%，看细节与数据量变化；切到调色板后再调低“颜色位深”，看颜色层次变化。
+                    </span>
+                  </div>
+                </li>
+                <li
+                  className="image-path-step"
+                  data-step="03"
+                  data-step-state={stepStateOf("03", pathActiveStep)}
+                >
+                  <span aria-hidden="true" className="image-path-step-number">
+                    03
+                  </span>
+                  <div>
+                    <strong>读像素编码并记录观察</strong>
+                    <span>
+                      点击重建图上任意像素，在“像素详情”里读它的编码值，并到“采样侦探卡”记录你的观察。
+                    </span>
+                  </div>
+                </li>
+              </ol>
+            </section>
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>
@@ -1204,6 +1291,16 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   <p className="eyebrow">查看变化</p>
                   <h3 id="view-heading">编码表示</h3>
                 </div>
+                {lesson.view !== "compare" ? (
+                  <button
+                    className="button button-secondary"
+                    data-testid="image-back-to-compare"
+                    onClick={() => changeView("compare")}
+                    type="button"
+                  >
+                    回到对比视图
+                  </button>
+                ) : null}
               </div>
               <div className="view-tabs" role="tablist" aria-label="图像编码视图">
                 {(Object.keys(VIEW_LABELS) as ImageView[]).map((view) => (
@@ -1297,7 +1394,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                 description={phaseControlDescription(phaseGeometry)}
                 disabled={phaseIsInert}
                 id="sampling-phase"
-                label="采样网格相位"
+                label="采样偏移（圈）"
                 max={MAX_PHASE}
                 min={MIN_PHASE}
                 onChange={(value) => {
