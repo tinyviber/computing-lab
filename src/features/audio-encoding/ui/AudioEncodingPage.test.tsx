@@ -141,7 +141,7 @@ describe("Sound reference UI", () => {
     expect(firstRender).not.toMatch(
       /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
     );
-    expect(firstRender).toMatch(/实验建议/);
+    expect(firstRender).toMatch(/可以试试/);
     expect(firstRender).toMatch(/每次只改采样率或位深中的一个/);
     expect(firstRender).toMatch(/试听使用 48 kHz/);
     expect(firstRender).toMatch(/量化位数（bit depth）/);
@@ -427,22 +427,20 @@ describe("Sound reference UI", () => {
     expect(Number(cursorLine?.getAttribute("x1"))).toBeCloseTo(50, 0);
   });
 
-  it("shows static experiment suggestions without interpreting interaction as progress", async () => {
+  it("shows a lightweight experiment hint without interpreting interaction as progress", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/audio-encoding");
 
-    const suggestions = screen.getByTestId("sound-experiment-suggestions");
-    expect(suggestions).toHaveTextContent("不知道从哪里开始？可以试试");
-    expect(suggestions).toHaveTextContent("这里没有必须遵循的顺序");
-    expect(suggestions).toHaveTextContent("每次只改采样率或位深中的一个");
-    expect(suggestions).not.toHaveAttribute("data-active-step");
+    const hint = screen.getByTestId("sound-experiment-hint");
+    expect(hint).toHaveTextContent("可以试试");
+    expect(hint).toHaveTextContent("每次只改采样率或位深中的一个");
     expect(document.querySelectorAll("[data-step-state]")).toHaveLength(0);
 
     await user.click(button(/^混叠（aliasing）$/));
 
     const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
     fireEvent.change(cursorInput, { target: { value: "200" } });
-    expect(suggestions).not.toHaveAttribute("data-active-step");
+    expect(hint).toBeInTheDocument();
   });
 
   it("steps the cursor forward 100 ms from the stopped state and keeps playback running while playing", async () => {
@@ -462,7 +460,7 @@ describe("Sound reference UI", () => {
     await user.click(button(/^量化（quantization）$/));
     await user.click(stepButton);
     expect(cursorInput.value).toBe("200");
-    expect(screen.getByTestId("sound-experiment-suggestions")).toBeInTheDocument();
+    expect(screen.getByTestId("sound-experiment-hint")).toBeInTheDocument();
 
     // 播放态步进：不中断播放。
     await user.click(button(/^播放$/));
@@ -512,15 +510,15 @@ describe("Sound reference UI", () => {
     await renderAppAt("/labs/audio-encoding");
 
     expect(button(/光标回到开头/)).toBeInTheDocument();
-    expect(button(/重置实验与视图/)).toBeInTheDocument();
+    expect(button(/重置分析与视图/)).toBeInTheDocument();
     expect(button(/恢复初始设置并清空记录/)).toBeInTheDocument();
     expect(button(/光标回到开头/)).toHaveAttribute(
       "aria-label",
       "光标回到开头：停止播放、关闭循环并回到 0 毫秒，不影响你的记录",
     );
-    expect(button(/重置实验与视图/)).toHaveAttribute(
+    expect(button(/重置分析与视图/)).toHaveAttribute(
       "aria-label",
-      "重置实验与视图：回到对照模式与叠加视图，保留对比记录",
+      "重置分析与视图：回到对照模式与叠加视图，保留对比记录",
     );
     expect(button(/恢复初始设置并清空记录/)).toHaveAttribute(
       "aria-label",
@@ -541,7 +539,7 @@ describe("Sound reference UI", () => {
     expect(cursorInput.value).toBe("0");
 
     await user.click(button(/混叠（aliasing）$/));
-    await user.click(button(/重置实验与视图/));
+    await user.click(button(/重置分析与视图/));
     expect(button(/^对照（compare）$/)).toHaveAttribute("aria-pressed", "true");
     expect(within(card).getByText("8000 Hz · 8 bit")).toBeInTheDocument();
     expect(within(card).getByText("3600 Hz · 8 bit")).toBeInTheDocument();

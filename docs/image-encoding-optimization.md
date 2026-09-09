@@ -8,7 +8,7 @@
 选择一个问题 → 修改一个变量 → 观察视觉 / 数字 → 继续调整或记下观察
 ```
 
-页面首屏给出静态实验建议：“先比较原图和重建图；每次只改一个参数；最后记一句你观察到了什么。”采样偏移、颜色表示、位深、视图、像素检查和计算器都可以独立探索；原理说明和格式边界也不按步骤锁定。
+页面顶部给出一行静态实验提示：“先比较原图和重建图 → 每次只改一个参数 → 记下你看到的变化。”采样偏移、颜色表示、位深、视图、像素检查和计算器都可以独立探索；原理说明和格式边界也不按步骤锁定。
 
 ## 固定预算和反馈
 
@@ -18,7 +18,7 @@
 budgetBits = floor(baseline.rawPayload.bits × 25%)
 ```
 
-预算不可编辑。页面同时显示 baseline、current、delta、采样像素数、变化像素数、平均 RGB 颜色差异和预算状态。delta 始终是 `current - baseline`；变化像素数沿用模型中“当前重建图与源图颜色不同的像素数”定义。
+预算不可编辑。预算挑战显示自己的采样像素数、rawBits、rawBytes 和预算状态；核心实验不把 baseline、current、delta 组织成任务反馈。变化像素数沿用模型中“当前重建图与源图颜色不同的像素数”定义。
 
 这里的位数和字节是理论原始像素数据量，不是 PNG、JPEG 或 WebP 的实际文件大小。格式实际大小仍取决于图像内容、编码器设置、文件头、元数据和具体实现。
 
@@ -29,9 +29,7 @@ budgetBits = floor(baseline.rawPayload.bits × 25%)
 ## 实现约束
 
 - `deriveImageEncodingModel` 保持确定性采样、量化、重建和误差计算。
-- `summarizeImageEncodingModel` 只读取已有模型字段，不重新采样、量化或重建。
-- 页面只在一个位置派生 current model；baseline 只依赖 source 和 initial config。
-- summary、delta、预算和语义判断都从已有 current / baseline model 派生。
+- 页面只在一个位置派生 current model；预算只从 source 和 initial config 派生 baseline model 的 raw payload。
 - RGB24 下位深不适用；完整采样密度下采样偏移继续规范化为 0。
 - reducer 只保存实验控件、采样笔记和可选预算挑战；没有 step/progress 字段或完成判断。
 - 上传成功重置实验笔记；上传失败保留当前实验。URL 只保存可复现实验参数，不保存进度。

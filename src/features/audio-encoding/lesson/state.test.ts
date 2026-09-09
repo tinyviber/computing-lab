@@ -242,27 +242,32 @@ describe("Sound evidence records", () => {
     });
   });
 
-  it("starts a fresh A/B note when baseline is recorded again", () => {
+  it("overwrites only A when baseline is recorded again", () => {
     let state = beginEvidence(initial());
     expect(state.soundEvidence.observation).not.toBe("");
 
+    state = transition(state, { type: "set-sample-rate", sampleRate: 4000 });
     state = transition(state, { type: "record-sound-baseline" });
     expect(state.soundEvidence.baseline).toEqual({
+      sampleRate: 4000,
+      bitDepth: 8,
+      audition: "original",
+    });
+    expect(state.soundEvidence.changed).toEqual({
       sampleRate: 2000,
       bitDepth: 8,
       audition: "original",
     });
-    expect(state.soundEvidence.changed).toBeNull();
-    expect(state.soundEvidence.observation).toBe("");
+    expect(state.soundEvidence.observation).toBe("从 8000 改到 2000 后，声音变得粗糙。");
 
     state = transition(state, { type: "set-bit-depth", bitDepth: 4 });
     state = transition(state, { type: "record-sound-changed" });
     expect(state.soundEvidence.changed).toEqual({
-      sampleRate: 2000,
+      sampleRate: 4000,
       bitDepth: 4,
       audition: "original",
     });
-    expect(state.soundEvidence.observation).toBe("");
+    expect(state.soundEvidence.observation).toBe("从 8000 改到 2000 后，声音变得粗糙。");
   });
 
   it("clear-sound-evidence empties baseline, changed, and observation", () => {

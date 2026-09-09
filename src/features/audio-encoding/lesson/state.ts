@@ -232,9 +232,8 @@ export function transitionSoundLesson(
       return {
         ...state,
         soundEvidence: {
+          ...state.soundEvidence,
           baseline: soundEvidenceSnapshot(state),
-          changed: null,
-          observation: "",
         },
       };
     case "record-sound-changed":

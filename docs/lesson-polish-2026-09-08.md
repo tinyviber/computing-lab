@@ -8,15 +8,15 @@
 
 ## Audio-encoding（音频课）
 
-1. **静态实验建议（A1）**：将原实验路径卡收敛为几条可选线索：先听原始/重建音频，每次只改采样率或位深中的一个，记录设置和听感差异。不再渲染 01/02/03、`data-active-step` 或 `done/current/todo`。
+1. **静态实验建议（A1）**：将原实验路径卡收敛为播放区顶部的一行提示：先听原始/重建音频，每次只改采样率或位深中的一个，记录设置和听感差异。不再渲染 01/02/03、`data-active-step` 或 `done/current/todo`。
 2. **phase 文案精确化（A2）**：label 从"相位"改为"采样偏移"，显示值仍为"{phase} 圈"，aria-label 同步；描述明确它只移动采样位置，不改变采样率。
-3. **分级重置（A3）**：光标复位放回播放控制；aside 底部保留"重置实验与视图"和"恢复初始设置并清空记录"，并说明两者对笔记的影响。
+3. **分级重置（A3）**：光标复位放回播放控制；aside 底部保留"重置分析与视图"和"恢复初始设置并清空记录"，并说明两者对笔记的影响。
 4. **声音实验笔记（A4）**：`SoundEvidenceCard` 记录 A/B 快照和开放式观察文字。删除完成判断、completion badge 和 identical-settings failure 语义；full reset 清空笔记，lighter resets 保留笔记。
 5. **compare 证据补奈奎斯特提示（A5）**：`sound-compare-evidence` 增加一句动态提示，使用 `model.nyquistHz` 与既有 `formatNumber`，并引导学生切换到混叠实验观察。
 
 ## Image-encoding（图像课）
 
-1. **静态实验建议（B1）**：在图像对比和笔记之后放置可选线索卡：先比较原图/重建图，每次只改一个参数，最后写一句观察。不根据当前控件状态标记学习进度。
+1. **静态实验建议（B1）**：将可选线索卡收敛为图像页顶部的一行提示：先比较原图/重建图，每次只改一个参数，最后写一句观察。不根据当前控件状态标记学习进度。
 2. **phase label（B2）**：控件改为"采样偏移（圈）"；说明保留历史叫法，并明确只移动采样位置、不改变采样率。
 3. **轻量回看入口（B3）**：在"编码表示"卡头部加"回到对比视图"按钮（`data-testid="image-back-to-compare"`），仅在 view 非 compare 时渲染，避免常态干扰；点击 `set-view compare`。
 
@@ -53,8 +53,8 @@
 ## 检查与测试
 
 - 新增/更新的测试：
-  - `src/features/audio-encoding/lesson/state.test.ts`：A/B 快照、重新记录 baseline 清空 changed/observation、reset 清空、lighter resets 保留。
+  - `src/features/audio-encoding/lesson/state.test.ts`：A/B 快照、重新记录 A 只覆盖 A、clear/reset 清空、lighter resets 保留。
   - `src/features/audio-encoding/ui/AudioEncodingPage.test.tsx`：静态建议、开放式笔记、分级重置、compare 证据含奈奎斯特频率、phase 控件更名为"采样偏移"。
-  - `src/features/image-encoding/lesson/state.test.ts`：采样 A/B 笔记重新记录 baseline 时清空旧记录。
+  - `src/features/image-encoding/lesson/state.test.ts`：采样 A/B 笔记重新记录 A 只覆盖 A，保留 B 和开放式观察。
   - `src/features/image-encoding/ui/ImageEncodingPage.test.tsx`：静态建议、开放式观察、"回到对比视图"按钮行为。
 - 第二轮新增/调整测试：停止态步进光标 +100ms 且播放态步进不中断播放；audioPlayback 播放态步进断言随 seek 行为同步更新。

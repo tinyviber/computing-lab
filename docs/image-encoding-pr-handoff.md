@@ -1,6 +1,6 @@
 # Image Encoding rebuild — implementation handoff
 
-## 1. Guided course model
+## 1. Exploratory model
 
 Image Encoding keeps its feature-local raster model, with an exploratory feedback loop plus two optional note/feedback tools:
 
@@ -11,7 +11,7 @@ optional evidence card: baseline + changed snapshot + optional observation spot 
 optional budget challenge: keep raw data within the source baseline's 25% budget while preserving a target detail
 ```
 
-Sampling, sampling offset, view, pixel inspection, color controls, calculator, file-format boundary, evidence card, and challenge are independently usable on first load. The evidence card records a comparison but never grants navigation permission. The challenge is a live optional feedback surface, not a fifth step and not a mastery submission flow.
+Sampling, sampling offset, view, pixel inspection, color controls, calculator, file-format boundary, evidence card, and challenge are independently usable on first load. The evidence card records A and B independently and never grants navigation permission. The challenge is a live optional feedback surface, not a fifth step and not a mastery submission flow.
 
 The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set learning progress.
 
@@ -19,7 +19,7 @@ The initial color representation is RGB24. Explicit `color=rgb24` links and old 
 
 `src/features/image-encoding/lesson/state.ts` owns:
 
-- `samplingEvidence` with baseline/changed dimensions, pixel counts, an optional observation spot, and open observation text
+- `samplingEvidence` with independent baseline/changed dimensions, pixel counts, an optional observation spot, and open observation text
 - `budgetChallenge` with sampling, color mode, bit depth, readability judgment, trade-off explanation, and acknowledgement
 
 Reducer actions keep the controls independent. The evidence card is a notebook: it records A and B plus whatever observation the learner chooses to write. There is no evidence-completion predicate or navigation gate. The challenge has no submit state: the UI continuously reports budget facts and the student's readability judgment.

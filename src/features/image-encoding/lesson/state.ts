@@ -234,10 +234,8 @@ export function transitionImageLesson(
       return {
         ...state,
         samplingEvidence: {
+          ...state.samplingEvidence,
           baseline: samplingSnapshot(state),
-          changed: null,
-          observationSpot: "",
-          observation: "",
         },
       };
     case "record-sampling-changed":

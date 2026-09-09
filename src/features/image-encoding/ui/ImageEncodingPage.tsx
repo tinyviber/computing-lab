@@ -14,10 +14,8 @@ import { useSearch } from "@tanstack/react-router";
 import {
   deriveImageEncodingModel,
   calculateImageEncoding,
-  compareImageEncodingSummaries,
   inspectPixel,
   rgbToHex,
-  summarizeImageEncodingModel,
   type RGB,
   type ImageEncodingModel,
   type RasterImage,
@@ -857,15 +855,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       lesson.source,
     ],
   );
-  const currentSummary = useMemo(() => summarizeImageEncodingModel(model), [model]);
-  const baselineSummary = useMemo(
-    () => summarizeImageEncodingModel(baselineModel),
-    [baselineModel],
-  );
-  const summaryDelta = useMemo(
-    () => compareImageEncodingSummaries(currentSummary, baselineSummary),
-    [baselineSummary, currentSummary],
-  );
   const challengeModel = useMemo(
     () =>
       deriveImageEncodingModel(lesson.source, {
@@ -881,9 +870,8 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
       lesson.source,
     ],
   );
-  const budgetBits = Math.floor(baselineSummary.rawBits * 0.25);
+  const budgetBits = Math.floor(baselineModel.rawPayload.bits * 0.25);
   const budgetBytes = Math.ceil(budgetBits / 8);
-  const withinBudget = currentSummary.rawBits <= budgetBits;
   const sourceIdentity = getSourceIdentity(lesson.source);
   const inspection = useMemo(
     () => inspectPixel(model, lesson.selectedCoordinate.x, lesson.selectedCoordinate.y),
@@ -970,15 +958,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setUploadMessage(undefined);
   };
 
-  const experimentHint = "可以随时切换视图，看看同一个变化如何同时出现在画面、像素和数据量上。";
-  const judgment = withinBudget
-    ? summaryDelta.averageError > 0
-      ? "当前数据量在上限内，但颜色变化更多了。"
-      : "当前数据量在上限内，颜色变化没有增加。"
-    : summaryDelta.rawBits < 0
-      ? "当前数据量仍超过上限，但比开始少了。"
-      : "当前数据量超过上限；减少采样像素或颜色数量后，数据量会下降。";
-
   return (
     <LabShell eyebrow="图像 / 01" title="图像编码" subtitle="采样、颜色数量和图像还原">
       <div className="image-course">
@@ -986,7 +965,12 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
           <div>
             <p className="eyebrow">图像编码</p>
             <h2>从图像到有限的像素编码</h2>
-            <p>调整采样和颜色数量，查看图像还原、颜色数量和数据量。</p>
+            <p className="image-course-description">
+              调整采样和颜色数量，查看图像还原、颜色数量和数据量。
+            </p>
+            <p className="image-experiment-hint" data-testid="image-experiment-hint">
+              <strong>可以试试：</strong>先比较原图和重建图 → 每次只改一个参数 → 记下你看到的变化。
+            </p>
           </div>
           <div className="source-meta" aria-label="当前图像来源">
             <span>{sourceIdentity.kindLabel}</span>
@@ -1122,27 +1106,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
             <SamplingEvidenceCard dispatch={dispatch} evidence={lesson.samplingEvidence} />
 
-            <section
-              aria-labelledby="suggestion-heading"
-              className="image-card image-suggestion-card"
-              data-testid="image-experiment-suggestions"
-            >
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">实验建议</p>
-                  <h3 id="suggestion-heading">不知道从哪里开始？可以试试</h3>
-                  <p className="image-card-description">
-                    这里没有必须遵循的顺序，下面只是几条方便开始观察的线索。
-                  </p>
-                </div>
-              </div>
-              <ol className="image-suggestion-list">
-                <li>先比较原图和重建图</li>
-                <li>每次只改一个参数</li>
-                <li>最后记一句你观察到了什么</li>
-              </ol>
-            </section>
-
             <section className="image-card image-controls-card" aria-labelledby="source-heading">
               <div className="image-card-heading">
                 <div>
@@ -1187,102 +1150,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   {lesson.decodeError}
                 </p>
               ) : null}
-            </section>
-
-            <section
-              className="image-card image-mission-card"
-              aria-labelledby="mission-heading"
-              data-budget="baseline-25-percent"
-              data-budget-state={withinBudget ? "within" : "over"}
-            >
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">可选挑战</p>
-                  <h3 id="mission-heading">
-                    试着把图片占用的空间控制在原来的四分之一以内，看看清晰度如何变化
-                  </h3>
-                  <p className="image-card-description">
-                    这是一个可选的观察方向，不影响你自由调整参数、切换视图和比较结果。
-                  </p>
-                </div>
-                <span className={`mission-budget-badge${withinBudget ? " is-within" : ""}`}>
-                  {withinBudget ? "空间够用" : "空间不够"}
-                </span>
-              </div>
-              <div className="mission-feedback-grid" aria-label="当前实验反馈">
-                <div className="mission-feedback-item">
-                  <span>最多能用的空间</span>
-                  <strong data-metric="budget-raw-bits">{budgetBits.toLocaleString()} 位</strong>
-                  <small data-metric="budget-raw-bytes">
-                    约 {budgetBytes.toLocaleString()} 字节
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>现在 / 一开始占用的空间</span>
-                  <strong data-metric="current-raw-bits">
-                    {currentSummary.rawBits.toLocaleString()} /{" "}
-                    {baselineSummary.rawBits.toLocaleString()} 位
-                  </strong>
-                  <small data-metric="raw-bits-delta">
-                    {summaryDelta.rawBits >= 0 ? "+" : ""}
-                    {summaryDelta.rawBits.toLocaleString()} 位
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>保留下来的像素</span>
-                  <strong data-metric="current-sampled-pixels">
-                    {currentSummary.sampledWidth} × {currentSummary.sampledHeight} ={" "}
-                    {currentSummary.sampledPixelCount.toLocaleString()} /{" "}
-                    {baselineSummary.sampledWidth} × {baselineSummary.sampledHeight} ={" "}
-                    {baselineSummary.sampledPixelCount.toLocaleString()} 个
-                  </strong>
-                  <small data-metric="sampled-pixels-delta">
-                    {summaryDelta.sampledPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.sampledPixelCount.toLocaleString()} 个
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>平均颜色变化（不是清晰度评分）</span>
-                  <strong data-metric="average-error">
-                    {(currentSummary.averageError * 100).toFixed(1)}%
-                  </strong>
-                  <small data-metric="average-error-delta">
-                    {summaryDelta.averageError >= 0 ? "+" : ""}
-                    {(summaryDelta.averageError * 100).toFixed(1)} 个百分点
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>颜色变了的像素</span>
-                  <strong data-metric="changed-pixels">
-                    {currentSummary.changedPixelCount.toLocaleString()} 个
-                  </strong>
-                  <small data-metric="changed-pixels-delta">
-                    相对初始 {summaryDelta.changedPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.changedPixelCount.toLocaleString()} 个
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>按像素算的空间</span>
-                  <strong data-metric="current-raw-bytes">
-                    约 {currentSummary.rawBytes.toLocaleString()} /{" "}
-                    {baselineSummary.rawBytes.toLocaleString()} 字节
-                  </strong>
-                  <small data-metric="raw-bytes-delta">
-                    {summaryDelta.rawBytes >= 0 ? "+" : ""}
-                    {summaryDelta.rawBytes.toLocaleString()} 字节
-                  </small>
-                </div>
-              </div>
-              <p className="mission-judgment" data-feedback="judgment">
-                {judgment}
-              </p>
-              <p className="mission-observation" data-feedback="observation">
-                {experimentHint}
-              </p>
-              <p className="payload-note">
-                这里显示的是图片像素本身大约要占多少空间。字节数按整字节显示，上限判断按像素数据的精确数值进行。这不是保存成
-                PNG、JPEG 或 WebP 后文件的实际大小。
-              </p>
             </section>
           </div>
 

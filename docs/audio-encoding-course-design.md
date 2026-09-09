@@ -10,11 +10,9 @@ Audio is an A/B listening lab, not a general DSP console. The primary entries ar
 
 ## Learner trajectory
 
-The page shows a static set of experiment suggestions, not a numbered route or inferred learning progress:
+The page shows one compact static hint near the waveform, not a numbered route or inferred learning progress:
 
-1. Listen to the original and reconstructed audio.
-2. Change one of sample rate or bit depth at a time, then listen again.
-3. Record two settings and whatever difference you notice.
+> Try this: listen to the original and reconstructed audio → change one parameter at a time → write down what you hear.
 
 Waveform, samples, Nyquist/folded-frequency evidence, quantization levels, reconstruction error, scrubbing, and looping remain available for free exploration. The note card stores A/B settings and an open observation; it does not judge completion or unlock another control.
 
@@ -34,7 +32,7 @@ The Web Audio adapter may be unavailable or blocked by the browser. The page mus
 
 - Static experiment suggestions are visible without `data-active-step`, `done/current/todo`, or inferred progress.
 - The sound evidence card records A and B snapshots plus an open observation, without a completion badge or success state. Identical settings are allowed as a useful control comparison.
-- Reset hierarchy is clear: 光标回到开头 (transport only), 重置实验与视图 (mode/view/audition), and 恢复初始设置并清空记录 (full reset). The first two preserve notes; the full reset clears them.
+- Reset hierarchy is clear: 光标回到开头 (transport only), 重置分析与视图 (mode/view/audition), and 恢复初始设置并清空记录 (full reset). The first two preserve notes; the full reset clears them.
 - The phase control is labelled 采样偏移 and its description states that it does not change the sample rate.
 - The two primary experiment entries are visible without opening a secondary inspector.
 - Original/reconstructed A/B controls remain available before and after parameter changes.

@@ -21,11 +21,25 @@
   letter-spacing: -0.03em;
 }
 
-.image-course-intro > div:first-child > p:last-child {
+.image-course-description {
   max-width: 720px;
   margin: 0;
   color: var(--secondary);
   line-height: 1.65;
+}
+
+.image-experiment-hint {
+  max-width: 900px;
+  margin: 14px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.image-experiment-hint strong {
+  color: var(--primary);
 }
 
 .source-meta {
@@ -89,97 +103,6 @@
   color: var(--primary);
   font-size: 17px;
   letter-spacing: -0.015em;
-}
-
-.image-mission-card {
-  overflow: hidden;
-  border-color: #d6d7ff;
-  box-shadow: var(--shadow-md);
-}
-
-.mission-budget-badge {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid #e0b9a8;
-  border-radius: 999px;
-  color: #9b4f2e;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.mission-budget-badge.is-within {
-  border-color: #a7d2bf;
-  color: var(--success);
-}
-
-.mission-feedback-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0 20px;
-  border: 1px solid var(--border);
-  background: var(--border);
-}
-
-.mission-feedback-item {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  padding: 12px;
-  background: var(--surface);
-}
-
-.mission-feedback-item span,
-.mission-feedback-item small {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.mission-feedback-item strong {
-  overflow-wrap: anywhere;
-  color: var(--primary);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-}
-
-.mission-judgment,
-.mission-observation {
-  margin: 14px 20px 0;
-  padding: 10px 12px;
-  border-left: 3px solid var(--accent);
-  background: var(--accent-soft);
-  color: var(--primary);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.mission-observation {
-  margin-top: 8px;
-  border-left-color: var(--success);
-  background: transparent;
-  color: var(--secondary);
-}
-
-.image-suggestion-card {
-  border-color: #d6d7ff;
-}
-
-.image-suggestion-list {
-  display: grid;
-  gap: 8px;
-  margin: 0;
-  padding: 16px 20px 18px 40px;
-  color: var(--secondary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.image-suggestion-list li::marker {
-  color: var(--accent);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-weight: 600;
 }
 
 .sampling-evidence-card {
@@ -975,10 +898,6 @@
     gap: 16px;
   }
 
-  .mission-feedback-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .calculator-fields {
     grid-template-columns: 1fr;
   }
@@ -1014,10 +933,6 @@
 }
 
 @media (max-width: 420px) {
-  .mission-feedback-grid {
-    grid-template-columns: 1fr;
-  }
-
   .challenge-metrics {
     grid-template-columns: 1fr;
   }

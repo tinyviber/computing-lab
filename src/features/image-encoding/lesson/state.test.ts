@@ -95,18 +95,20 @@ describe("image lesson state", () => {
     expect(evidence.samplingEvidence.observation).toContain("边缘");
   });
 
-  it("starts a fresh A/B note when sampling baseline is recorded again", () => {
+  it("overwrites only A when sampling baseline is recorded again", () => {
     let state = stateAfterEvidence();
+    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 25 });
     state = transitionImageLesson(state, { type: "record-sampling-baseline" });
 
-    expect(state.samplingEvidence.baseline).toMatchObject({ samplingPercent: 45 });
-    expect(state.samplingEvidence.changed).toBeNull();
-    expect(state.samplingEvidence.observationSpot).toBe("");
-    expect(state.samplingEvidence.observation).toBe("");
-
-    state = transitionImageLesson(state, { type: "record-sampling-changed" });
+    expect(state.samplingEvidence.baseline).toMatchObject({ samplingPercent: 25 });
     expect(state.samplingEvidence.changed).toMatchObject({ samplingPercent: 45 });
-    expect(state.samplingEvidence.observation).toBe("");
+    expect(state.samplingEvidence.observationSpot).toBe("text-edge");
+    expect(state.samplingEvidence.observation).toBe("边缘变粗，细节减少。");
+
+    state = transitionImageLesson(state, { type: "set-sampling", samplingPercent: 30 });
+    state = transitionImageLesson(state, { type: "record-sampling-changed" });
+    expect(state.samplingEvidence.changed).toMatchObject({ samplingPercent: 30 });
+    expect(state.samplingEvidence.observation).toBe("边缘变粗，细节减少。");
   });
 
   it("keeps color mode, bit depth, phase, view, and pixel state independent", () => {

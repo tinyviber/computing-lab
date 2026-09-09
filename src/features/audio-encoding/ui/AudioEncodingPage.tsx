@@ -363,6 +363,11 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>
 
+          <p className="sound-experiment-hint" data-testid="sound-experiment-hint">
+            <strong>可以试试：</strong>先听原始音频和重建音频 → 每次只改采样率或位深中的一个 →
+            记下你听到的差异。
+          </p>
+
           <div className="sound-panel sound-plot-panel">
             <div className="sound-panel-header">
               <span>波形图</span>
@@ -528,23 +533,6 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
           </div>
 
           <SoundEvidenceCard dispatch={dispatch} evidence={state.soundEvidence} />
-
-          <section
-            aria-labelledby="sound-suggestion-heading"
-            className="sound-suggestion-card"
-            data-testid="sound-experiment-suggestions"
-          >
-            <p className="eyebrow">实验建议</p>
-            <h3 id="sound-suggestion-heading">不知道从哪里开始？可以试试</h3>
-            <p className="sound-suggestion-description">
-              这里没有必须遵循的顺序，下面只是几条方便开始观察的线索。
-            </p>
-            <ol className="sound-suggestion-list">
-              <li>先听原始音频和重建音频</li>
-              <li>每次只改采样率或位深中的一个</li>
-              <li>记录两次设置和你听到的差异</li>
-            </ol>
-          </section>
 
           <div className="sound-summary" aria-label="声音读数" role="region">
             <div>
@@ -873,12 +861,12 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </p>
             <div className="sound-reset-group">
               <button
-                aria-label="重置实验与视图：回到对照模式与叠加视图，保留对比记录"
+                aria-label="重置分析与视图：回到对照模式与叠加视图，保留对比记录"
                 className="button button-secondary sound-reset"
                 onClick={() => dispatch({ type: "reset-analysis" })}
                 type="button"
               >
-                重置实验与视图
+                重置分析与视图
               </button>
               <button
                 aria-label="恢复初始设置并清空记录：回到进入本页时的设置"
