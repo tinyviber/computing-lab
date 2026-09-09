@@ -5,7 +5,7 @@ import type { SoundLoop, SoundMode, SoundScenario, SoundView } from "./scenario"
 export type SoundTransport = "stopped" | "playing" | "paused";
 export type SoundAudition = "original" | "reconstructed";
 
-/** One recorded evidence snapshot: the config that produced it and what was auditioned. */
+/** One recorded experiment-note snapshot: the config that produced it and what was auditioned. */
 export type SoundEvidenceSnapshot = {
   sampleRate: number;
   bitDepth: number;
@@ -91,18 +91,6 @@ export function createSoundLessonState(scenario: SoundScenario): SoundLessonStat
 
 export function emptySoundEvidence(): SoundEvidence {
   return { baseline: null, changed: null, observation: "" };
-}
-
-/**
- * Two-group evidence counts as complete when the recorded configs actually differ
- * (sample rate or bit depth) and the student wrote a one-sentence explanation.
- */
-export function isSoundEvidenceComplete(evidence: SoundEvidence): boolean {
-  const { baseline, changed } = evidence;
-  if (!baseline || !changed) return false;
-  const settingsChanged =
-    baseline.sampleRate !== changed.sampleRate || baseline.bitDepth !== changed.bitDepth;
-  return settingsChanged && evidence.observation.trim().length > 0;
 }
 
 function soundEvidenceSnapshot(state: SoundLessonState): SoundEvidenceSnapshot {
@@ -244,9 +232,9 @@ export function transitionSoundLesson(
       return {
         ...state,
         soundEvidence: {
-          ...state.soundEvidence,
           baseline: soundEvidenceSnapshot(state),
           changed: null,
+          observation: "",
         },
       };
     case "record-sound-changed":

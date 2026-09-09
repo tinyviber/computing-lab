@@ -2,32 +2,31 @@
 
 ## 1. Guided course model
 
-Image Encoding keeps its feature-local raster model, with an exploratory feedback loop plus two optional evidence tools:
+Image Encoding keeps its feature-local raster model, with an exploratory feedback loop plus two optional note/feedback tools:
 
 ```text
 change one parameter → inspect the image and metrics → make a judgment → try another parameter
 
-optional evidence card: baseline + changed snapshot + same observation spot + observation sentence
+optional evidence card: baseline + changed snapshot + optional observation spot + open observation text
 optional budget challenge: keep raw data within the source baseline's 25% budget while preserving a target detail
 ```
 
-Sampling, phase, view, pixel inspection, color controls, calculator, file-format boundary, evidence card, and challenge are independently usable on first load. The evidence card records a comparison but never grants navigation permission. The challenge is a live optional feedback surface, not a fifth step and not a mastery submission flow.
+Sampling, sampling offset, view, pixel inspection, color controls, calculator, file-format boundary, evidence card, and challenge are independently usable on first load. The evidence card records a comparison but never grants navigation permission. The challenge is a live optional feedback surface, not a fifth step and not a mastery submission flow.
 
-The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set progress.
+The initial color representation is RGB24. Explicit `color=rgb24` links and old `color=palette` links are accepted for compatibility, but both open in RGB24; serialization omits the color parameter. Existing fixture and legacy scenario parameters remain parseable. URL parameters configure a reproducible scene only; they never set learning progress.
 
 ## 2. Feature-local state
 
 `src/features/image-encoding/lesson/state.ts` owns:
 
-- `samplingChanged`, `colorAdjusted`, and `calculatorEdited` remain compatibility progress fields; they do not gate unrelated controls.
-- `samplingEvidence` with baseline/changed dimensions, pixel counts, observation spot, and observation text
+- `samplingEvidence` with baseline/changed dimensions, pixel counts, an optional observation spot, and open observation text
 - `budgetChallenge` with sampling, color mode, bit depth, readability judgment, trade-off explanation, and acknowledgement
 
-Reducer actions keep the controls independent. Sampling evidence is complete only when both snapshots belong to the same source, their normalized sampling values differ, the same observation spot is selected, and the observation text is non-empty. The observation is not judged against a unique answer. This boolean is display feedback only; it does not lock phase, view, pixel, color, or calculator actions. The challenge has no submit state: the UI continuously reports budget status and the student's readability judgment.
+Reducer actions keep the controls independent. The evidence card is a notebook: it records A and B plus whatever observation the learner chooses to write. There is no evidence-completion predicate or navigation gate. The challenge has no submit state: the UI continuously reports budget facts and the student's readability judgment.
 
 The budget challenge reuses the existing source baseline's 25% theoretical raw-data budget. It reports “over budget”, “within budget but target detail not recognizable”, or “within budget and student judges the target recognizable”; `readability=no` is not presented as success. It does not create files, read `Blob.size`, or compare formats.
 
-Scenario load, reset, and successful upload clear progress. Upload also resets the color representation to RGB24. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
+Scenario load, reset, and successful upload clear notes. Upload also resets the color representation to RGB24. A failed upload only records the decode error and preserves the current lesson state. No shared lesson runtime is introduced.
 
 ## 3. Raster data flow
 
@@ -43,7 +42,7 @@ The source and reconstructed canvases keep the same CSS display size. The recons
 
 ## 4. Upload input
 
-The browser adapter decodes an uploaded image with `Image` and an offscreen canvas, capping the in-memory working raster at 96 pixels on its longest axis. The UI reports both original dimensions and working-raster dimensions. Uploads are input material, are not serialized into the URL, and are available from the first render. Successful uploads clear progress; failed uploads preserve the current lesson and only show a decode error.
+The browser adapter decodes an uploaded image with `Image` and an offscreen canvas, capping the in-memory working raster at 96 pixels on its longest axis. The UI reports both original dimensions and working-raster dimensions. Uploads are input material, are not serialized into the URL, and are available from the first render. Successful uploads clear notes; failed uploads preserve the current lesson and only show a decode error.
 
 ## 5. File-format boundary and estimate boundary
 
@@ -60,7 +59,7 @@ The format-boundary card explains that compressed file size depends on image con
 
 ## 6. Preserved visual and compatibility surfaces
 
-The feature retains source/reconstruction comparison, sampling geometry and phase behavior, compatibility fixtures, legacy scenario URLs, view tabs, local upload handling, color representation, palette details, and pixel-to-bits inspection. Those surfaces remain independently usable while the evidence and challenge cards provide optional structure and feedback.
+The feature retains source/reconstruction comparison, sampling geometry and offset behavior, compatibility fixtures, legacy scenario URLs, view tabs, local upload handling, color representation, palette details, and pixel-to-bits inspection. Those surfaces remain independently usable while the evidence and challenge cards provide optional structure and feedback.
 
 The fixed classroom image remains the local deterministic 240 × 160 kitten raster in `src/features/image-encoding/domain/photo-rgb.ts`. Older fixtures remain addressable through `image=gradient`, `image=checkerboard`, `image=text-edge`, and `image=pixel-grid`.
 

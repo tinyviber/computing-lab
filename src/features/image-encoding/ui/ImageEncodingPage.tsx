@@ -19,6 +19,7 @@ import {
   rgbToHex,
   summarizeImageEncodingModel,
   type RGB,
+  type ImageEncodingModel,
   type RasterImage,
   type SamplingGeometry,
   MAX_BIT_DEPTH,
@@ -34,12 +35,10 @@ import {
 import { parseImageEncodingScenario } from "../lesson/scenario";
 import {
   createImageLessonState,
-  isSamplingEvidenceComplete,
   transitionImageLesson,
   type ImageLessonAction,
   type ImageView,
   type ImageBudgetChallenge,
-  type ImageEncodingModel,
   type SamplingEvidence,
   type SamplingObservationSpot,
   type SamplingSnapshot,
@@ -65,17 +64,6 @@ const VIEW_LABELS: Record<ImageView, string> = {
   error: "颜色差异图",
 };
 
-/**
- * Path-step display state: steps before the suggested one are done, the
- * suggested one is current, later ones are todo. Step ids sort as "01"<"02"<"03".
- * （与音频课同规则、各自 feature 内维护，避免跨 feature import。）
- */
-function stepStateOf(step: string, activeStep: string): "done" | "current" | "todo" {
-  if (step < activeStep) return "done";
-  if (step === activeStep) return "current";
-  return "todo";
-}
-
 type SourceIdentity = {
   kindLabel: string;
   label: string;
@@ -94,18 +82,18 @@ function getSourceIdentity(source: RasterImage): SourceIdentity {
 export function phaseControlDescription(geometry: SamplingGeometry): string {
   const xFullDensity = geometry.x.sampledSize >= geometry.x.sourceSize;
   const yFullDensity = geometry.y.sampledSize >= geometry.y.sourceSize;
-  // 统一术语：控件主标签叫"采样偏移"；帮助文字末尾保留"相位"作为历史叫法的对照说明。
+  // 统一术语：控件和主要说明使用"采样偏移"；帮助文字末尾保留"相位"作为历史叫法的对照说明。
   const legacyNote = "过去也叫相位：它只移动采样网格的位置，不改变采样率。";
   if (xFullDensity && yFullDensity) {
-    return `两个方向都已达到原图采样密度，因此网格相位固定为 0。${legacyNote}`;
+    return `两个方向都已达到原图采样密度，因此采样偏移固定为 0。${legacyNote}`;
   }
   if (xFullDensity) {
-    return `水平：完整密度（${geometry.x.sampledSize}/${geometry.x.sourceSize}）· 相位固定为 0。垂直：${geometry.y.sampledSize}/${geometry.y.sourceSize} 个采样 · 相位 ${geometry.y.effectivePhase.toFixed(2)}。${legacyNote}`;
+    return `水平：完整密度（${geometry.x.sampledSize}/${geometry.x.sourceSize}）· 采样偏移固定为 0。垂直：${geometry.y.sampledSize}/${geometry.y.sourceSize} 个采样 · 采样偏移 ${geometry.y.effectivePhase.toFixed(2)}。${legacyNote}`;
   }
   if (yFullDensity) {
-    return `垂直：完整密度（${geometry.y.sampledSize}/${geometry.y.sourceSize}）· 相位固定为 0。水平：${geometry.x.sampledSize}/${geometry.x.sourceSize} 个采样 · 相位 ${geometry.x.effectivePhase.toFixed(2)}。${legacyNote}`;
+    return `垂直：完整密度（${geometry.y.sampledSize}/${geometry.y.sourceSize}）· 采样偏移固定为 0。水平：${geometry.x.sampledSize}/${geometry.x.sourceSize} 个采样 · 采样偏移 ${geometry.x.effectivePhase.toFixed(2)}。${legacyNote}`;
   }
-  return `在一个采样格内移动两个方向的网格，观察对相位敏感的图案如何变化。${legacyNote}`;
+  return `在一个采样格内移动两个方向的网格，观察对采样偏移敏感的图案如何变化。${legacyNote}`;
 }
 
 function drawRaster(
@@ -530,7 +518,6 @@ function snapshotValue(snapshot: SamplingSnapshot | null, key: keyof SamplingSna
   const value = snapshot[key];
   if (key === "samplingPercent") return `${value}%`;
   if (key === "width" || key === "height") return `${value} px`;
-  if (key === "observationSpot") return observationSpotLabel(value as SamplingObservationSpot | "");
   return String(value);
 }
 
@@ -541,36 +528,28 @@ function SamplingEvidenceCard({
   dispatch: (action: ImageLessonAction) => void;
   evidence: SamplingEvidence;
 }) {
-  const complete = isSamplingEvidenceComplete(evidence);
-  const status = !evidence.baseline
-    ? "尚未记录基准。"
+  const noteHint = !evidence.baseline
+    ? "还没有 A 记录。选择一个设置后，随时可以把当前状态保存下来。"
     : !evidence.changed
-      ? "已记录基准。改变采样比例后，再记录一次。"
+      ? "A 已保存在这里。调整参数后，可以再保存一组 B。"
       : evidence.baseline.samplingPercent === evidence.changed.samplingPercent
-        ? "两次采样比例相同。"
-        : !evidence.observationSpot
-          ? "已记录两次结果。观察位置尚未选择。"
-          : !evidence.observation.trim()
-            ? "已选观察位置。还没有记录你的观察。"
-            : "已记录两组结果和你的观察。";
+        ? "A 和 B 使用了相同采样比例；这也可以作为一次对照记录。"
+        : "A 和 B 都保存在这里；观察笔记可以随时修改。";
 
   return (
     <section
       className="image-card sampling-evidence-card"
       aria-labelledby="sampling-evidence-heading"
-      data-evidence-state={complete ? "complete" : "incomplete"}
+      data-testid="image-sampling-notes"
     >
       <div className="image-card-heading">
         <div>
-          <p className="eyebrow">第一步 · 空间采样证据</p>
-          <h3 id="sampling-evidence-heading">采样侦探卡</h3>
+          <p className="eyebrow">实验笔记</p>
+          <h3 id="sampling-evidence-heading">采样对比记录</h3>
           <p className="image-card-description">
-            记录基准和改变后的尺寸，选择同一观察位置，写下你的观察。
+            保存两次采样设置和你注意到的变化；它不会限制你继续探索。
           </p>
         </div>
-        <span className={`evidence-badge${complete ? " is-complete" : ""}`}>
-          {complete ? "已记录两组结果" : "尚未完成记录"}
-        </span>
       </div>
       <div className="sampling-evidence-controls">
         <button
@@ -578,17 +557,17 @@ function SamplingEvidenceCard({
           onClick={() => dispatch({ type: "record-sampling-baseline" })}
           type="button"
         >
-          记录基准
+          记录当前设置为 A
         </button>
         <button
           className="button button-secondary"
           onClick={() => dispatch({ type: "record-sampling-changed" })}
           type="button"
         >
-          记录改变后的结果
+          记录当前设置为 B
         </button>
         <label>
-          同一观察位置
+          观察位置（可选）
           <select
             onChange={(event) =>
               dispatch({
@@ -607,19 +586,19 @@ function SamplingEvidenceCard({
           </select>
         </label>
         <label className="sampling-observation-field">
-          你的观察（一句话即可）
-          <input
+          我的观察：
+          <textarea
             onChange={(event) =>
               dispatch({ type: "set-observation", observation: event.target.value })
             }
-            placeholder="把 空间采样 从 100% 改到 25% 后，我观察到 ____，因为 ____。"
-            type="text"
+            placeholder="我观察到……"
+            rows={3}
             value={evidence.observation}
           />
         </label>
       </div>
-      <p className={`evidence-status${complete ? " is-complete" : ""}`} role="status">
-        {status}
+      <p className="evidence-status" role="status">
+        {noteHint}
       </p>
       <div className="sampling-snapshot-grid" aria-label="采样证据快照">
         <span className="snapshot-heading">记录项</span>
@@ -638,11 +617,7 @@ function SamplingEvidenceCard({
         <span>{snapshotValue(evidence.baseline, "pixelCount")}</span>
         <span>{snapshotValue(evidence.changed, "pixelCount")}</span>
         <span>同一观察位置</span>
-        <span>{snapshotValue(evidence.baseline, "observationSpot")}</span>
-        <span>{snapshotValue(evidence.changed, "observationSpot")}</span>
-        <span>你的观察</span>
-        <span>{snapshotValue(evidence.baseline, "observation")}</span>
-        <span>{snapshotValue(evidence.changed, "observation")}</span>
+        <span className="snapshot-shared">{observationSpotLabel(evidence.observationSpot)}</span>
       </div>
     </section>
   );
@@ -972,10 +947,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     dispatch({ type: "set-view", view });
   };
 
-  const editCalculatorField = () => {
-    dispatch({ type: "edit-calculator-field" });
-  };
-
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -999,19 +970,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
     setUploadMessage(undefined);
   };
 
-  const observationPrompt = "先比较原图和还原图，再看数据量和颜色变化。";
-  // 建议步骤规则（保持简单、可测试）：
-  // - 视图不是 compare：学生正在查看编码表示或误差图，进入 03 的像素检查阶段 → 建议 03；
-  // - 任一参数已偏离初始情境（采样比例 / 位深 / 颜色表示）：正在做 02 的参数实验 → 建议 02；
-  // - 其余情况：尚在 01 的原图 / 重建对比阶段 → 建议 01。
-  const pathActiveStep =
-    lesson.view !== "compare"
-      ? "03"
-      : lesson.samplingPercent !== lesson.initialScenario.samplingPercent ||
-          lesson.bitDepth !== lesson.initialScenario.bitDepth ||
-          lesson.colorMode !== lesson.initialScenario.colorMode
-        ? "02"
-        : "01";
+  const experimentHint = "可以随时切换视图，看看同一个变化如何同时出现在画面、像素和数据量上。";
   const judgment = withinBudget
     ? summaryDelta.averageError > 0
       ? "当前数据量在上限内，但颜色变化更多了。"
@@ -1038,204 +997,6 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
 
         <div className="image-course-grid">
           <div className="image-main-column">
-            <section
-              className="image-card image-mission-card"
-              aria-labelledby="mission-heading"
-              data-budget="baseline-25-percent"
-              data-budget-state={withinBudget ? "within" : "over"}
-            >
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">目标</p>
-                  <h3 id="mission-heading">
-                    把图片占用的空间控制在原来的四分之一以内，同时尽量保持清楚
-                  </h3>
-                  <p className="image-card-description">
-                    先调整图片保留的像素数量，看看细节和占用空间怎么变。一次只改一个设置，再比较画面和数字。
-                  </p>
-                </div>
-                <span className={`mission-budget-badge${withinBudget ? " is-within" : ""}`}>
-                  {withinBudget ? "空间够用" : "空间不够"}
-                </span>
-              </div>
-              <div className="mission-feedback-grid" aria-label="当前实验反馈">
-                <div className="mission-feedback-item">
-                  <span>最多能用的空间</span>
-                  <strong data-metric="budget-raw-bits">{budgetBits.toLocaleString()} 位</strong>
-                  <small data-metric="budget-raw-bytes">
-                    约 {budgetBytes.toLocaleString()} 字节
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>现在 / 一开始占用的空间</span>
-                  <strong data-metric="current-raw-bits">
-                    {currentSummary.rawBits.toLocaleString()} /{" "}
-                    {baselineSummary.rawBits.toLocaleString()} 位
-                  </strong>
-                  <small data-metric="raw-bits-delta">
-                    {summaryDelta.rawBits >= 0 ? "+" : ""}
-                    {summaryDelta.rawBits.toLocaleString()} 位
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>保留下来的像素</span>
-                  <strong data-metric="current-sampled-pixels">
-                    {currentSummary.sampledWidth} × {currentSummary.sampledHeight} ={" "}
-                    {currentSummary.sampledPixelCount.toLocaleString()} /{" "}
-                    {baselineSummary.sampledWidth} × {baselineSummary.sampledHeight} ={" "}
-                    {baselineSummary.sampledPixelCount.toLocaleString()} 个
-                  </strong>
-                  <small data-metric="sampled-pixels-delta">
-                    {summaryDelta.sampledPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.sampledPixelCount.toLocaleString()} 个
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>平均颜色变化（不是清晰度评分）</span>
-                  <strong data-metric="average-error">
-                    {(currentSummary.averageError * 100).toFixed(1)}%
-                  </strong>
-                  <small data-metric="average-error-delta">
-                    {summaryDelta.averageError >= 0 ? "+" : ""}
-                    {(summaryDelta.averageError * 100).toFixed(1)} 个百分点
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>颜色变了的像素</span>
-                  <strong data-metric="changed-pixels">
-                    {currentSummary.changedPixelCount.toLocaleString()} 个
-                  </strong>
-                  <small data-metric="changed-pixels-delta">
-                    相对初始 {summaryDelta.changedPixelCount >= 0 ? "+" : ""}
-                    {summaryDelta.changedPixelCount.toLocaleString()} 个
-                  </small>
-                </div>
-                <div className="mission-feedback-item">
-                  <span>按像素算的空间</span>
-                  <strong data-metric="current-raw-bytes">
-                    约 {currentSummary.rawBytes.toLocaleString()} /{" "}
-                    {baselineSummary.rawBytes.toLocaleString()} 字节
-                  </strong>
-                  <small data-metric="raw-bytes-delta">
-                    {summaryDelta.rawBytes >= 0 ? "+" : ""}
-                    {summaryDelta.rawBytes.toLocaleString()} 字节
-                  </small>
-                </div>
-              </div>
-              <p className="mission-judgment" data-feedback="judgment">
-                {judgment}
-              </p>
-              <p className="mission-observation" data-feedback="observation">
-                {observationPrompt}
-              </p>
-              <p className="payload-note">
-                这里显示的是图片像素本身大约要占多少空间。字节数按整字节显示，上限判断按像素数据的精确数值进行。这不是保存成
-                PNG、JPEG 或 WebP 后文件的实际大小。
-              </p>
-            </section>
-            <section
-              aria-labelledby="path-heading"
-              className="image-card image-path-card"
-              data-active-step={pathActiveStep}
-              data-testid="image-experiment-path"
-            >
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">实验路径</p>
-                  <h3 id="path-heading">三步完成一次完整实验</h3>
-                  <p className="image-card-description">
-                    按 01→02→03 的顺序操作；一次只改一个设置，先观察再记录。
-                  </p>
-                </div>
-              </div>
-              <ol className="image-path-steps">
-                <li
-                  className="image-path-step"
-                  data-step="01"
-                  data-step-state={stepStateOf("01", pathActiveStep)}
-                >
-                  <span aria-hidden="true" className="image-path-step-number">
-                    01
-                  </span>
-                  <div>
-                    <strong>对比原图与重建图像</strong>
-                    <span>找出重建图中变得模糊或变色的位置，先建立“损失在哪里”的直觉。</span>
-                  </div>
-                </li>
-                <li
-                  className="image-path-step"
-                  data-step="02"
-                  data-step-state={stepStateOf("02", pathActiveStep)}
-                >
-                  <span aria-hidden="true" className="image-path-step-number">
-                    02
-                  </span>
-                  <div>
-                    <strong>一次改一个参数</strong>
-                    <span>
-                      调低“空间采样”到约
-                      25%，看细节与数据量变化；切到调色板后再调低“颜色位深”，看颜色层次变化。
-                    </span>
-                  </div>
-                </li>
-                <li
-                  className="image-path-step"
-                  data-step="03"
-                  data-step-state={stepStateOf("03", pathActiveStep)}
-                >
-                  <span aria-hidden="true" className="image-path-step-number">
-                    03
-                  </span>
-                  <div>
-                    <strong>读像素编码并记录观察</strong>
-                    <span>
-                      点击重建图上任意像素，在“像素详情”里读它的编码值，并到“采样侦探卡”记录你的观察。
-                    </span>
-                  </div>
-                </li>
-              </ol>
-            </section>
-            <section className="image-card image-controls-card" aria-labelledby="source-heading">
-              <div className="image-card-heading">
-                <div>
-                  <p className="eyebrow">源图像</p>
-                  <h3 id="source-heading">本节使用的图像</h3>
-                </div>
-                <button className="button button-secondary" onClick={reset} type="button">
-                  恢复初始情境
-                </button>
-              </div>
-              <div className="source-controls">
-                <div className="fixed-source">
-                  <span>{sourceIdentity.kindLabel}</span>
-                  <strong>{sourceIdentity.label}</strong>
-                  <small>{sourceIdentity.detail}</small>
-                </div>
-                <label className="upload-field">
-                  <span>上传图片（可选）</span>
-                  <input
-                    accept="image/*"
-                    aria-describedby="upload-help"
-                    onChange={handleUpload}
-                    type="file"
-                  />
-                  <small id="upload-help">可载入自己的图片；成功后会重新开始本节操作。</small>
-                </label>
-              </div>
-              {uploadMessage ? (
-                <p className="image-neutral-notice" role="status">
-                  {uploadMessage}
-                </p>
-              ) : null}
-              {lesson.decodeError ? (
-                <p className="image-error-notice" role="alert">
-                  {lesson.decodeError}
-                </p>
-              ) : null}
-            </section>
-
-            <SamplingEvidenceCard dispatch={dispatch} evidence={lesson.samplingEvidence} />
-
             <section className="image-card image-compare-card" aria-labelledby="compare-heading">
               <div className="image-card-heading">
                 <div>
@@ -1357,6 +1118,171 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                   </div>
                 </div>
               )}
+            </section>
+
+            <SamplingEvidenceCard dispatch={dispatch} evidence={lesson.samplingEvidence} />
+
+            <section
+              aria-labelledby="suggestion-heading"
+              className="image-card image-suggestion-card"
+              data-testid="image-experiment-suggestions"
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">实验建议</p>
+                  <h3 id="suggestion-heading">不知道从哪里开始？可以试试</h3>
+                  <p className="image-card-description">
+                    这里没有必须遵循的顺序，下面只是几条方便开始观察的线索。
+                  </p>
+                </div>
+              </div>
+              <ol className="image-suggestion-list">
+                <li>先比较原图和重建图</li>
+                <li>每次只改一个参数</li>
+                <li>最后记一句你观察到了什么</li>
+              </ol>
+            </section>
+
+            <section className="image-card image-controls-card" aria-labelledby="source-heading">
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">源图像</p>
+                  <h3 id="source-heading">本节使用的图像</h3>
+                </div>
+                <button
+                  aria-label="恢复初始情境并清空笔记"
+                  className="button button-secondary"
+                  onClick={reset}
+                  type="button"
+                >
+                  恢复初始情境并清空笔记
+                </button>
+              </div>
+              <div className="source-controls">
+                <div className="fixed-source">
+                  <span>{sourceIdentity.kindLabel}</span>
+                  <strong>{sourceIdentity.label}</strong>
+                  <small>{sourceIdentity.detail}</small>
+                </div>
+                <label className="upload-field">
+                  <span>上传图片（可选）</span>
+                  <input
+                    accept="image/*"
+                    aria-describedby="upload-help"
+                    onChange={handleUpload}
+                    type="file"
+                  />
+                  <small id="upload-help">
+                    可载入自己的图片；成功后会重新开始，并清空这次实验笔记。
+                  </small>
+                </label>
+              </div>
+              {uploadMessage ? (
+                <p className="image-neutral-notice" role="status">
+                  {uploadMessage}
+                </p>
+              ) : null}
+              {lesson.decodeError ? (
+                <p className="image-error-notice" role="alert">
+                  {lesson.decodeError}
+                </p>
+              ) : null}
+            </section>
+
+            <section
+              className="image-card image-mission-card"
+              aria-labelledby="mission-heading"
+              data-budget="baseline-25-percent"
+              data-budget-state={withinBudget ? "within" : "over"}
+            >
+              <div className="image-card-heading">
+                <div>
+                  <p className="eyebrow">可选挑战</p>
+                  <h3 id="mission-heading">
+                    试着把图片占用的空间控制在原来的四分之一以内，看看清晰度如何变化
+                  </h3>
+                  <p className="image-card-description">
+                    这是一个可选的观察方向，不影响你自由调整参数、切换视图和比较结果。
+                  </p>
+                </div>
+                <span className={`mission-budget-badge${withinBudget ? " is-within" : ""}`}>
+                  {withinBudget ? "空间够用" : "空间不够"}
+                </span>
+              </div>
+              <div className="mission-feedback-grid" aria-label="当前实验反馈">
+                <div className="mission-feedback-item">
+                  <span>最多能用的空间</span>
+                  <strong data-metric="budget-raw-bits">{budgetBits.toLocaleString()} 位</strong>
+                  <small data-metric="budget-raw-bytes">
+                    约 {budgetBytes.toLocaleString()} 字节
+                  </small>
+                </div>
+                <div className="mission-feedback-item">
+                  <span>现在 / 一开始占用的空间</span>
+                  <strong data-metric="current-raw-bits">
+                    {currentSummary.rawBits.toLocaleString()} /{" "}
+                    {baselineSummary.rawBits.toLocaleString()} 位
+                  </strong>
+                  <small data-metric="raw-bits-delta">
+                    {summaryDelta.rawBits >= 0 ? "+" : ""}
+                    {summaryDelta.rawBits.toLocaleString()} 位
+                  </small>
+                </div>
+                <div className="mission-feedback-item">
+                  <span>保留下来的像素</span>
+                  <strong data-metric="current-sampled-pixels">
+                    {currentSummary.sampledWidth} × {currentSummary.sampledHeight} ={" "}
+                    {currentSummary.sampledPixelCount.toLocaleString()} /{" "}
+                    {baselineSummary.sampledWidth} × {baselineSummary.sampledHeight} ={" "}
+                    {baselineSummary.sampledPixelCount.toLocaleString()} 个
+                  </strong>
+                  <small data-metric="sampled-pixels-delta">
+                    {summaryDelta.sampledPixelCount >= 0 ? "+" : ""}
+                    {summaryDelta.sampledPixelCount.toLocaleString()} 个
+                  </small>
+                </div>
+                <div className="mission-feedback-item">
+                  <span>平均颜色变化（不是清晰度评分）</span>
+                  <strong data-metric="average-error">
+                    {(currentSummary.averageError * 100).toFixed(1)}%
+                  </strong>
+                  <small data-metric="average-error-delta">
+                    {summaryDelta.averageError >= 0 ? "+" : ""}
+                    {(summaryDelta.averageError * 100).toFixed(1)} 个百分点
+                  </small>
+                </div>
+                <div className="mission-feedback-item">
+                  <span>颜色变了的像素</span>
+                  <strong data-metric="changed-pixels">
+                    {currentSummary.changedPixelCount.toLocaleString()} 个
+                  </strong>
+                  <small data-metric="changed-pixels-delta">
+                    相对初始 {summaryDelta.changedPixelCount >= 0 ? "+" : ""}
+                    {summaryDelta.changedPixelCount.toLocaleString()} 个
+                  </small>
+                </div>
+                <div className="mission-feedback-item">
+                  <span>按像素算的空间</span>
+                  <strong data-metric="current-raw-bytes">
+                    约 {currentSummary.rawBytes.toLocaleString()} /{" "}
+                    {baselineSummary.rawBytes.toLocaleString()} 字节
+                  </strong>
+                  <small data-metric="raw-bytes-delta">
+                    {summaryDelta.rawBytes >= 0 ? "+" : ""}
+                    {summaryDelta.rawBytes.toLocaleString()} 字节
+                  </small>
+                </div>
+              </div>
+              <p className="mission-judgment" data-feedback="judgment">
+                {judgment}
+              </p>
+              <p className="mission-observation" data-feedback="observation">
+                {experimentHint}
+              </p>
+              <p className="payload-note">
+                这里显示的是图片像素本身大约要占多少空间。字节数按整字节显示，上限判断按像素数据的精确数值进行。这不是保存成
+                PNG、JPEG 或 WebP 后文件的实际大小。
+              </p>
             </section>
           </div>
 
@@ -1512,10 +1438,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     aria-describedby="calculator-help"
                     inputMode="numeric"
                     min="1"
-                    onChange={(event) => {
-                      setCalculatorWidth(event.target.value);
-                      editCalculatorField();
-                    }}
+                    onChange={(event) => setCalculatorWidth(event.target.value)}
                     type="number"
                     value={calculatorWidth}
                   />
@@ -1526,10 +1449,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     aria-describedby="calculator-help"
                     inputMode="numeric"
                     min="1"
-                    onChange={(event) => {
-                      setCalculatorHeight(event.target.value);
-                      editCalculatorField();
-                    }}
+                    onChange={(event) => setCalculatorHeight(event.target.value)}
                     type="number"
                     value={calculatorHeight}
                   />
@@ -1541,10 +1461,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     inputMode="numeric"
                     min="1"
                     max="32"
-                    onChange={(event) => {
-                      setCalculatorBitsPerPixel(event.target.value);
-                      editCalculatorField();
-                    }}
+                    onChange={(event) => setCalculatorBitsPerPixel(event.target.value)}
                     type="number"
                     value={calculatorBitsPerPixel}
                   />

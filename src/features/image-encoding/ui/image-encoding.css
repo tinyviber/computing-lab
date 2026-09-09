@@ -162,98 +162,29 @@
   color: var(--secondary);
 }
 
-.image-path-card {
+.image-suggestion-card {
   border-color: #d6d7ff;
 }
 
-.image-path-steps {
+.image-suggestion-list {
   display: grid;
   gap: 8px;
   margin: 0;
-  padding: 0 20px 18px;
-  list-style: none;
-}
-
-.image-path-step {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-}
-
-.image-path-step[data-step-state="current"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--surface);
-}
-
-.image-path-step[data-step-state="current"] strong,
-.image-path-step[data-step-state="current"] .image-path-step-number {
-  color: var(--surface);
-}
-
-.image-path-step[data-step-state="current"] span:not(.image-path-step-number) {
-  color: rgb(255 255 255 / 85%);
-}
-
-.image-path-step[data-step-state="done"] {
-  border-color: var(--border);
-  background: var(--subtle);
+  padding: 16px 20px 18px 40px;
   color: var(--secondary);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
-.image-path-step[data-step-state="done"] strong {
-  color: var(--secondary);
-}
-
-.image-path-step[data-step-state="done"] .image-path-step-number,
-.image-path-step[data-step-state="done"] span:not(.image-path-step-number) {
-  color: var(--muted);
-}
-
-.image-path-step-number {
+.image-suggestion-list li::marker {
   color: var(--accent);
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
   font-weight: 600;
-}
-
-.image-path-step strong {
-  display: block;
-  font-size: 12px;
-}
-
-.image-path-step span:not(.image-path-step-number) {
-  display: block;
-  margin-top: 3px;
-  color: var(--secondary);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .sampling-evidence-card {
   overflow: hidden;
   border-color: #cfe1db;
-}
-
-.evidence-badge {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid #e0b9a8;
-  border-radius: 999px;
-  color: #9b4f2e;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.evidence-badge.is-complete {
-  border-color: #a7d2bf;
-  color: var(--success);
 }
 
 .sampling-evidence-controls {
@@ -274,6 +205,7 @@
 
 .sampling-evidence-controls select,
 .sampling-evidence-controls input,
+.sampling-evidence-controls textarea,
 .challenge-field select,
 .challenge-field textarea {
   width: 100%;
@@ -291,6 +223,12 @@
   grid-column: span 2;
 }
 
+.sampling-observation-field textarea {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .evidence-status,
 .challenge-status {
   margin: 8px 20px 0;
@@ -302,7 +240,6 @@
   line-height: 1.55;
 }
 
-.evidence-status.is-complete,
 .challenge-status.is-positive {
   border-left-color: var(--success);
   background: rgb(47 124 96 / 7%);
@@ -334,6 +271,10 @@
   color: var(--primary);
   font-size: 10px;
   font-weight: 700;
+}
+
+.sampling-snapshot-grid .snapshot-shared {
+  grid-column: 2 / -1;
 }
 
 .budget-challenge-card {
@@ -1014,38 +955,6 @@
 }
 
 @media (max-width: 720px) {
-  /* 移动端首屏密度：把原图/重建图对比区提前到路径卡之后（评委验收：
-     390×844 首屏内能看到路径卡与对比区）。纯 CSS order，不改 DOM 顺序
-     与标题层级；桌面端（>720px）布局与叙事顺序不变。 */
-  .image-main-column {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .image-main-column > .image-mission-card {
-    order: 1;
-  }
-
-  .image-main-column > .image-path-card {
-    order: 2;
-  }
-
-  .image-main-column > .image-compare-card {
-    order: 3;
-  }
-
-  .image-main-column > .image-controls-card {
-    order: 4;
-  }
-
-  .image-main-column > .sampling-evidence-card {
-    order: 5;
-  }
-
-  .image-main-column > .image-view-card {
-    order: 6;
-  }
-
   .image-course {
     padding: 20px 12px 40px;
   }

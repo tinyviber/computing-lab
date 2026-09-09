@@ -75,133 +75,41 @@
   text-transform: uppercase;
 }
 
-.sound-focus-card {
-  display: grid;
-  gap: 12px;
-  align-items: stretch;
-  margin-bottom: 18px;
-  padding: 16px;
-  border: 1px solid var(--accent);
+.sound-suggestion-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
   border-radius: var(--radius-panel);
-  background: var(--subtle);
+  background: var(--surface);
 }
 
-.sound-focus-card h3 {
+.sound-suggestion-card h3 {
   margin-top: 5px;
   color: var(--primary);
   font-size: 15px;
 }
 
-.sound-focus-card p:not(.eyebrow) {
-  margin-top: 7px;
+.sound-suggestion-description {
+  margin: 6px 0 0;
   color: var(--secondary);
   font-size: 11px;
   line-height: 17px;
 }
 
-.sound-path-steps {
+.sound-suggestion-list {
   display: grid;
   gap: 8px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.sound-path-step {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 10px;
-  align-items: start;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-}
-
-.sound-path-step[data-step-state="current"] {
-  border-color: var(--accent);
-  background: var(--accent);
-  color: var(--surface);
-}
-
-.sound-path-step[data-step-state="current"] strong,
-.sound-path-step[data-step-state="current"] .sound-path-step-number {
-  color: var(--surface);
-}
-
-.sound-path-step[data-step-state="current"] span:not(.sound-path-step-number) {
-  color: rgb(255 255 255 / 85%);
-}
-
-.sound-path-step[data-step-state="done"] {
-  border-color: var(--border);
-  background: var(--subtle);
+  margin: 10px 0 0;
+  padding-left: 20px;
   color: var(--secondary);
+  font-size: 11px;
+  line-height: 17px;
 }
 
-.sound-path-step[data-step-state="done"] strong {
-  color: var(--secondary);
-}
-
-.sound-path-step[data-step-state="done"] .sound-path-step-number,
-.sound-path-step[data-step-state="done"] span:not(.sound-path-step-number) {
-  color: var(--muted);
-}
-
-.sound-path-step-number {
+.sound-suggestion-list li::marker {
   color: var(--accent);
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
   font-weight: 600;
-}
-
-.sound-path-step strong {
-  display: block;
-  font-size: 12px;
-}
-
-.sound-path-step span:not(.sound-path-step-number) {
-  display: block;
-  margin-top: 3px;
-  color: var(--secondary);
-  font-size: 10px;
-  line-height: 15px;
-}
-
-.sound-focus-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.sound-focus-action {
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  min-height: 88px;
-  padding: 11px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--primary);
-  cursor: pointer;
-  text-align: left;
-}
-
-.sound-focus-action:hover,
-.sound-focus-action[aria-pressed="true"] {
-  border-color: var(--accent);
-  background: #eaf0ff;
-}
-
-.sound-focus-action strong {
-  font-size: 12px;
-}
-
-.sound-focus-action span {
-  color: var(--secondary);
-  font-size: 10px;
-  line-height: 15px;
 }
 
 .sound-panel {
@@ -371,22 +279,6 @@
   line-height: 17px;
 }
 
-.sound-evidence-badge {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid #e0b9a8;
-  border-radius: 999px;
-  color: #9b4f2e;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.sound-evidence-badge.is-complete {
-  border-color: #a7d2bf;
-  color: var(--success);
-}
-
 .sound-evidence-actions {
   display: flex;
   flex-wrap: wrap;
@@ -400,19 +292,20 @@
 
 .sound-evidence-snapshot {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1fr);
-  gap: 4px 10px;
-  margin-top: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.sound-note-snapshot {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
+  background: var(--subtle);
   color: var(--primary);
-  font-size: 11px;
-}
-
-.sound-evidence-snapshot span {
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 .sound-snapshot-heading {
@@ -422,9 +315,16 @@
   text-transform: uppercase;
 }
 
-.sound-snapshot-observation {
-  grid-column: 2 / -1;
+.sound-note-snapshot strong {
+  overflow-wrap: anywhere;
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 13px;
+}
+
+.sound-note-snapshot small {
   color: var(--secondary);
+  font-size: 10px;
 }
 
 .sound-observation-field {
@@ -434,9 +334,9 @@
   font-size: 11px;
 }
 
-.sound-evidence-card input[type="text"] {
+.sound-evidence-card textarea {
   width: 100%;
-  min-height: 34px;
+  min-height: 72px;
   margin-top: 6px;
   padding: 7px 8px;
   border: 1px solid var(--border);
@@ -444,9 +344,11 @@
   background: var(--surface);
   color: var(--primary);
   font: inherit;
+  line-height: 1.5;
+  resize: vertical;
 }
 
-.sound-evidence-status {
+.sound-evidence-hint {
   margin: 10px 0 0;
   padding: 10px 12px;
   border-left: 3px solid var(--accent);
@@ -454,11 +356,6 @@
   color: var(--primary);
   font-size: 11px;
   line-height: 1.55;
-}
-
-.sound-evidence-status.is-complete {
-  border-left-color: var(--success);
-  background: rgb(47 124 96 / 7%);
 }
 
 .sound-panel-footer {
@@ -577,12 +474,19 @@
 }
 
 .sound-step-button,
+.sound-transport-reset,
 .sound-reset {
   width: 100%;
 }
 
+.sound-reset-section {
+  margin: auto 24px 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
 .sound-reset-note {
-  margin: auto 24px 8px;
+  margin: 8px 0 0;
   color: var(--muted);
   font-size: 11px;
   line-height: 16px;
@@ -591,7 +495,7 @@
 .sound-reset-group {
   display: grid;
   gap: 8px;
-  margin: 0 24px 24px;
+  margin-top: 10px;
 }
 
 .sound-check-label {
@@ -675,17 +579,8 @@
     padding: 18px 16px;
   }
 
-  .sound-reset-note {
-    margin: 18px 16px 8px;
-  }
-
-  .sound-reset-group {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin: 0 16px max(18px, env(safe-area-inset-bottom));
-  }
-
-  .sound-reset-group .button:last-child {
-    grid-column: 1 / -1;
+  .sound-reset-section {
+    margin: 18px 16px max(18px, env(safe-area-inset-bottom));
   }
 
   .sound-reset-group .button {

@@ -210,9 +210,6 @@ describe("Sound orthogonal reducer", () => {
 });
 
 describe("Sound evidence records", () => {
-  const isComplete = (stateModule as Record<string, unknown>).isSoundEvidenceComplete as
-    ((evidence: SoundState) => boolean) | undefined;
-
   function beginEvidence(state: SoundState): SoundState {
     state = transition(state, { type: "record-sound-baseline" });
     state = transition(state, { type: "set-sample-rate", sampleRate: 2000 });
@@ -245,19 +242,27 @@ describe("Sound evidence records", () => {
     });
   });
 
-  it("does not count two identical settings as complete even with an observation", () => {
-    let state = transition(initial(), { type: "record-sound-baseline" });
-    state = transition(state, { type: "set-audition", audition: "reconstructed" });
-    state = transition(state, { type: "record-sound-changed" });
-    state = transition(state, { type: "set-sound-observation", observation: "两次听起来一样。" });
-    expect(isComplete?.(state.soundEvidence)).toBe(false);
-  });
+  it("starts a fresh A/B note when baseline is recorded again", () => {
+    let state = beginEvidence(initial());
+    expect(state.soundEvidence.observation).not.toBe("");
 
-  it("completes evidence once settings differ and an observation is written", () => {
-    const state = beginEvidence(initial());
-    expect(state.soundEvidence.baseline?.sampleRate).toBe(8000);
-    expect(state.soundEvidence.changed?.sampleRate).toBe(2000);
-    expect(isComplete?.(state.soundEvidence)).toBe(true);
+    state = transition(state, { type: "record-sound-baseline" });
+    expect(state.soundEvidence.baseline).toEqual({
+      sampleRate: 2000,
+      bitDepth: 8,
+      audition: "original",
+    });
+    expect(state.soundEvidence.changed).toBeNull();
+    expect(state.soundEvidence.observation).toBe("");
+
+    state = transition(state, { type: "set-bit-depth", bitDepth: 4 });
+    state = transition(state, { type: "record-sound-changed" });
+    expect(state.soundEvidence.changed).toEqual({
+      sampleRate: 2000,
+      bitDepth: 4,
+      audition: "original",
+    });
+    expect(state.soundEvidence.observation).toBe("");
   });
 
   it("clear-sound-evidence empties baseline, changed, and observation", () => {

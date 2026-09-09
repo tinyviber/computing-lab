@@ -38,20 +38,20 @@ function changeSampling(value = "45") {
   return sampling;
 }
 
-function completeSamplingEvidence() {
-  fireEvent.click(screen.getByRole("button", { name: "记录基准" }));
+function recordSamplingComparison() {
+  fireEvent.click(screen.getByRole("button", { name: "记录当前设置为 A" }));
   changeSampling("45");
-  fireEvent.change(screen.getByRole("combobox", { name: "同一观察位置" }), {
+  fireEvent.change(screen.getByRole("combobox", { name: "观察位置（可选）" }), {
     target: { value: "text-edge" },
   });
-  fireEvent.change(screen.getByRole("textbox", { name: /你的观察/ }), {
+  fireEvent.change(screen.getByRole("textbox", { name: /我的观察/ }), {
     target: { value: "边缘变粗，细节减少。" },
   });
-  fireEvent.click(screen.getByRole("button", { name: "记录改变后的结果" }));
+  fireEvent.click(screen.getByRole("button", { name: "记录当前设置为 B" }));
 }
 
 describe("ImageEncodingPage", () => {
-  it("renders one unified mission with natural budget and meaning copy", async () => {
+  it("renders optional budget feedback with natural meaning copy", async () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("ImageEncodingPage", () => {
       screen.getByRole("heading", { level: 2, name: /从图像到有限的像素编码/i }),
     ).toBeInTheDocument();
     expect(screen.getAllByText("小猫插图")).toHaveLength(2);
-    expect(screen.getByText("目标")).toBeInTheDocument();
+    expect(screen.getByText("可选挑战")).toBeInTheDocument();
     expect(budget()).toHaveAttribute("data-budget", "baseline-25-percent");
     expect(budget()).not.toHaveTextContent(/理论原始|平均 RGB|采样率/);
     expect(budget()).toHaveTextContent(/原来的四分之一以内/);
@@ -76,7 +76,7 @@ describe("ImageEncodingPage", () => {
     expect(metric("changed-pixels")).toHaveTextContent(/个/);
     expect(screen.getByRole("heading", { name: /联系实际文件格式/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /编码预算挑战/ })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: /采样侦探卡/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /采样对比记录/ })).toBeInTheDocument();
     expect(document.querySelectorAll(".lesson-flow-item")).toHaveLength(0);
     expect(document.querySelectorAll('[data-metric="budget-raw-bits"]')).toHaveLength(1);
     expect(document.querySelectorAll('[data-metric="current-raw-bits"]')).toHaveLength(1);
@@ -98,7 +98,7 @@ describe("ImageEncodingPage", () => {
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
       expect(input).toBeEnabled();
     }
-    expect(feedback("observation")).toHaveTextContent(/占用空间|颜色变化/);
+    expect(feedback("observation")).toHaveTextContent(/同一个变化|数据量/);
   });
 
   it("updates current metrics and meaning feedback when sampling changes", async () => {
@@ -170,7 +170,7 @@ describe("ImageEncodingPage", () => {
       x: { sourceSize: 3, sampledSize: 3, effectivePhase: 0 },
       y: { sourceSize: 20, sampledSize: 18, effectivePhase: 0.8 },
     });
-    expect(phaseControlDescription(narrowGeometry)).toContain("相位固定为 0");
+    expect(phaseControlDescription(narrowGeometry)).toContain("采样偏移固定为 0");
     expect(phaseControlDescription(narrowGeometry)).toContain(
       "过去也叫相位：它只移动采样网格的位置，不改变采样率。",
     );
@@ -208,17 +208,17 @@ describe("ImageEncodingPage", () => {
     await renderAppAt("/labs/image-encoding");
 
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
-    // 侦探卡观察输入引导因果句式，而不只是现象示例。
-    expect(screen.getByRole("textbox", { name: /你的观察/ })).toHaveAttribute(
+    // 观察输入保持开放，不强迫填写固定因果句式。
+    expect(screen.getByRole("textbox", { name: /我的观察/ })).toHaveAttribute(
       "placeholder",
-      expect.stringContaining("因为"),
+      "我观察到……",
     );
     expect(
       screen.getByText(/过去也叫相位：它只移动采样网格的位置，不改变采样率/),
     ).toBeInTheDocument();
 
-    completeSamplingEvidence();
-    expect(screen.getByText("已记录两组结果和你的观察。")).toBeInTheDocument();
+    recordSamplingComparison();
+    expect(screen.getByText(/A 和 B 都保存在这里/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
 
     const challenge = sectionByHeading(/编码预算挑战/, 3);
@@ -316,28 +316,27 @@ describe("ImageEncodingPage", () => {
 
     await user.click(
       within(sectionByHeading(/本节使用的图像/, 3)).getByRole("button", {
-        name: "恢复初始情境",
+        name: /恢复初始情境并清空笔记/,
       }),
     );
     expect(slider(/空间采样/)).toHaveValue("50");
   });
 
-  it("suggests experiment path steps 01 → 02 → 03 as the student progresses", async () => {
+  it("shows static experiment suggestions without interpreting interaction as progress", async () => {
     const user = userEvent.setup();
     await renderAppAt("/labs/image-encoding");
 
-    const path = document.querySelector('[data-testid="image-experiment-path"]');
-    expect(path).not.toBeNull();
-    expect(path).toHaveAttribute("data-active-step", "01");
-    for (const step of ["01", "02", "03"]) {
-      expect(path?.querySelector(`[data-step="${step}"]`)).toBeInTheDocument();
-    }
+    const suggestions = screen.getByTestId("image-experiment-suggestions");
+    expect(suggestions).toHaveTextContent("不知道从哪里开始？可以试试");
+    expect(suggestions).toHaveTextContent("这里没有必须遵循的顺序");
+    expect(suggestions).toHaveTextContent("每次只改一个参数");
+    expect(suggestions).not.toHaveAttribute("data-active-step");
+    expect(document.querySelectorAll("[data-step-state]")).toHaveLength(0);
 
     changeSampling("45");
-    expect(path).toHaveAttribute("data-active-step", "02");
 
     await user.click(screen.getByRole("tab", { name: "编码表示", exact: true }));
-    expect(path).toHaveAttribute("data-active-step", "03");
+    expect(suggestions).not.toHaveAttribute("data-active-step");
   });
 
   it("offers a one-click return to the compare view when exploring other views", async () => {
