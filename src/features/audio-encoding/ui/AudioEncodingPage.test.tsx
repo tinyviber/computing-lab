@@ -15,9 +15,9 @@ describe("Sound reference UI", () => {
     expect(control(/^信号源$/)).toHaveValue("pure440");
     expect(control(/采样频率/)).toHaveValue("8000");
     expect(control(/量化位数/)).toHaveValue("8");
-    expect(control(/^相位$/)).toHaveValue("0");
+    expect(control(/^采样偏移$/)).toHaveValue("0");
 
-    for (const name of [/停止/, /播放/, /暂停/, /原始信号/, /重建信号/]) {
+    for (const name of [/^停止$/, /^播放$/, /^暂停$/, /原始信号/, /重建信号/]) {
       expect(button(name)).toBeInTheDocument();
     }
     for (const name of [
@@ -141,7 +141,8 @@ describe("Sound reference UI", () => {
     expect(firstRender).not.toMatch(
       /确定性的本地夹具|视觉时钟|显式步进|有界波形图|缓冲区|数据负载/,
     );
-    expect(firstRender).toMatch(/位深实验/);
+    expect(firstRender).toMatch(/可以试试/);
+    expect(firstRender).toMatch(/每次只改采样率或位深中的一个/);
     expect(firstRender).toMatch(/试听使用 48 kHz/);
     expect(firstRender).toMatch(/量化位数（bit depth）/);
     expect(screen.getByRole("group", { name: "分析模式" })).toBeInTheDocument();
@@ -224,7 +225,8 @@ describe("Sound reference UI", () => {
     );
     expect(screen.getByTestId("sound-compare-evidence")).toBeInTheDocument();
     expect(screen.queryByText(/折叠后频率/)).not.toBeInTheDocument();
-    expect(screen.getByText(/移动采样时间戳；信号源 x\(t\) 保持不变/)).toBeInTheDocument();
+    expect(screen.getByText(/只移动采样位置（0–0\.99 圈/)).toBeInTheDocument();
+    expect(screen.getByText(/它不改变采样率/)).toBeInTheDocument();
 
     await user.click(button(/^混叠（aliasing）$/));
     expect(document.querySelector(".sound-mode-evidence")).toHaveAttribute(
@@ -423,5 +425,134 @@ describe("Sound reference UI", () => {
     const cursorLine = plot.querySelector<SVGLineElement>(".sound-cursor-line");
     expect(cursorLine).not.toBeNull();
     expect(Number(cursorLine?.getAttribute("x1"))).toBeCloseTo(50, 0);
+  });
+
+  it("shows a lightweight experiment hint without interpreting interaction as progress", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding");
+
+    const hint = screen.getByTestId("sound-experiment-hint");
+    expect(hint).toHaveTextContent("可以试试");
+    expect(hint).toHaveTextContent("每次只改采样率或位深中的一个");
+    expect(document.querySelectorAll("[data-step-state]")).toHaveLength(0);
+
+    await user.click(button(/^混叠（aliasing）$/));
+
+    const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
+    fireEvent.change(cursorInput, { target: { value: "200" } });
+    expect(hint).toBeInTheDocument();
+  });
+
+  it("steps the cursor forward 100 ms from the stopped state and keeps playback running while playing", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding");
+
+    const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
+    const stepButton = button(/前进 100 毫秒/);
+    expect(stepButton).toBeEnabled();
+
+    // 停止态步进：光标 +100ms，不进入播放。
+    await user.click(stepButton);
+    expect(cursorInput.value).toBe("100");
+    expect(document.querySelector(".sound-transport-badge")).toHaveTextContent("已停止");
+
+    // 选择分析模式后，停止态步进仍只是 seek，不产生学习进度。
+    await user.click(button(/^量化（quantization）$/));
+    await user.click(stepButton);
+    expect(cursorInput.value).toBe("200");
+    expect(screen.getByTestId("sound-experiment-hint")).toBeInTheDocument();
+
+    // 播放态步进：不中断播放。
+    await user.click(button(/^播放$/));
+    expect(document.querySelector(".sound-transport-badge")).toHaveTextContent("播放中");
+    await user.click(stepButton);
+    expect(document.querySelector(".sound-transport-badge")).toHaveTextContent("播放中");
+    expect(Number(cursorInput.value)).toBeGreaterThanOrEqual(200);
+  });
+
+  it("keeps an A/B comparison note with open observation text", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding?sampleRate=8000");
+
+    const card = screen.getByTestId("sound-evidence-card");
+    expect(within(card).getAllByText("尚未记录")).toHaveLength(2);
+    expect(within(card).getByText(/还没有 A 记录/)).toBeInTheDocument();
+
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 A" }));
+    expect(within(card).getByText(/A 已保存在这里/)).toBeInTheDocument();
+    expect(within(card).getByText("8000 Hz · 8 bit")).toBeInTheDocument();
+
+    await user.selectOptions(control(/采样频率/), "3600");
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 B" }));
+    expect(within(card).getByText("3600 Hz · 8 bit")).toBeInTheDocument();
+
+    const observation = within(card).getByRole("textbox", { name: /我的观察/ });
+    await user.type(observation, "从 8000 改到 3600 后，音调变闷了。");
+    expect(observation).toHaveValue("从 8000 改到 3600 后，音调变闷了。");
+    expect(within(card).getByText(/A 和 B 都保存在这里/)).toBeInTheDocument();
+    expect(card).not.toHaveAttribute("data-evidence-state");
+    expect(card).not.toHaveTextContent(/未完成|已完成|success/i);
+  });
+
+  it("keeps identical settings as a valid comparison note", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding");
+
+    const card = screen.getByTestId("sound-evidence-card");
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 A" }));
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 B" }));
+    expect(within(card).getAllByText("8000 Hz · 8 bit")).toHaveLength(2);
+    expect(within(card).queryByText(/两次设置的采样率和位深相同/)).not.toBeInTheDocument();
+  });
+
+  it("offers clear, self-explaining resets without wiping recorded notes", async () => {
+    const user = userEvent.setup();
+    await renderAppAt("/labs/audio-encoding");
+
+    expect(button(/光标回到开头/)).toBeInTheDocument();
+    expect(button(/重置分析与视图/)).toBeInTheDocument();
+    expect(button(/恢复初始设置并清空记录/)).toBeInTheDocument();
+    expect(button(/光标回到开头/)).toHaveAttribute(
+      "aria-label",
+      "光标回到开头：停止播放、关闭循环并回到 0 毫秒，不影响你的记录",
+    );
+    expect(button(/重置分析与视图/)).toHaveAttribute(
+      "aria-label",
+      "重置分析与视图：回到对照模式与叠加视图，保留对比记录",
+    );
+    expect(button(/恢复初始设置并清空记录/)).toHaveAttribute(
+      "aria-label",
+      "恢复初始设置并清空记录：回到进入本页时的设置",
+    );
+    expect(
+      screen.getByText(/重置分析与视图.*保留对比记录.*恢复初始设置并清空记录.*A\/B 笔记/),
+    ).toBeInTheDocument();
+
+    const card = screen.getByTestId("sound-evidence-card");
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 A" }));
+    await user.selectOptions(control(/采样频率/), "3600");
+    await user.click(within(card).getByRole("button", { name: "记录当前设置为 B" }));
+
+    const cursorInput = document.querySelector("#sound-cursor") as HTMLInputElement;
+    fireEvent.change(cursorInput, { target: { value: "300" } });
+    await user.click(button(/光标回到开头/));
+    expect(cursorInput.value).toBe("0");
+
+    await user.click(button(/混叠（aliasing）$/));
+    await user.click(button(/重置分析与视图/));
+    expect(button(/^对照（compare）$/)).toHaveAttribute("aria-pressed", "true");
+    expect(within(card).getByText("8000 Hz · 8 bit")).toBeInTheDocument();
+    expect(within(card).getByText("3600 Hz · 8 bit")).toBeInTheDocument();
+
+    await user.click(button(/恢复初始设置并清空记录/));
+    expect(within(card).getByText(/还没有 A 记录/)).toBeInTheDocument();
+  });
+
+  it("mentions the Nyquist frequency in compare evidence", async () => {
+    await renderAppAt("/labs/audio-encoding?sampleRate=8000");
+
+    expect(screen.getByTestId("sound-compare-evidence")).toHaveTextContent(
+      /当前奈奎斯特频率为 4000 Hz/,
+    );
   });
 });

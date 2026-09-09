@@ -21,13 +21,11 @@ export type SamplingSnapshot = {
   width: number;
   height: number;
   pixelCount: number;
-  observationSpot: SamplingObservationSpot | "";
-  observation: string;
 };
 
 export type SamplingEvidence = {
-  baseline: SamplingSnapshot | null;
-  changed: SamplingSnapshot | null;
+  a: SamplingSnapshot | null;
+  b: SamplingSnapshot | null;
   observationSpot: SamplingObservationSpot | "";
   observation: string;
 };
@@ -48,9 +46,6 @@ export type ImageLessonState = ImageScenarioState & {
   initialScenario: ImageScenarioState;
   selectedCoordinate: { x: number; y: number };
   decodeError?: string;
-  samplingChanged: boolean;
-  colorAdjusted: boolean;
-  calculatorEdited: boolean;
   samplingEvidence: SamplingEvidence;
   budgetChallenge: ImageBudgetChallenge;
 };
@@ -63,11 +58,10 @@ export type ImageLessonAction =
   | { type: "set-phase"; phase: number }
   | { type: "set-view"; view: ImageView }
   | { type: "select-pixel"; x: number; y: number }
-  | { type: "edit-calculator-field" }
   | { type: "set-observation-spot"; spot: SamplingObservationSpot | "" }
   | { type: "set-observation"; observation: string }
-  | { type: "record-sampling-baseline" }
-  | { type: "record-sampling-changed" }
+  | { type: "record-sampling-a" }
+  | { type: "record-sampling-b" }
   | { type: "set-challenge-sampling"; samplingPercent: number }
   | { type: "set-challenge-color-mode"; colorMode: "palette" | "rgb24" }
   | { type: "set-challenge-bit-depth"; bitDepth: number }
@@ -101,11 +95,8 @@ function normalizeScenario(scenario: ImageScenarioState, source: RasterImage): I
   };
 }
 
-function emptyProgress() {
+function emptyImageRecords() {
   return {
-    samplingChanged: false,
-    colorAdjusted: false,
-    calculatorEdited: false,
     samplingEvidence: emptySamplingEvidence(),
     budgetChallenge: emptyBudgetChallenge(),
   };
@@ -113,8 +104,8 @@ function emptyProgress() {
 
 function emptySamplingEvidence(): SamplingEvidence {
   return {
-    baseline: null,
-    changed: null,
+    a: null,
+    b: null,
     observationSpot: "",
     observation: "",
   };
@@ -131,22 +122,6 @@ function emptyBudgetChallenge(): ImageBudgetChallenge {
   };
 }
 
-export function isSamplingEvidenceComplete(evidence: SamplingEvidence): boolean {
-  const baseline = evidence.baseline;
-  const changed = evidence.changed;
-  return Boolean(
-    baseline &&
-    changed &&
-    baseline.sourceId === changed.sourceId &&
-    baseline.samplingPercent !== changed.samplingPercent &&
-    baseline.observationSpot &&
-    changed.observationSpot &&
-    baseline.observationSpot === changed.observationSpot &&
-    baseline.observation.trim() &&
-    changed.observation.trim(),
-  );
-}
-
 function samplingSnapshot(state: ImageLessonState): SamplingSnapshot {
   const dimensions = sampledDimensions(state.source, state.samplingPercent);
   return {
@@ -155,22 +130,7 @@ function samplingSnapshot(state: ImageLessonState): SamplingSnapshot {
     width: dimensions.width,
     height: dimensions.height,
     pixelCount: dimensions.width * dimensions.height,
-    observationSpot: state.samplingEvidence.observationSpot,
-    observation: state.samplingEvidence.observation,
   };
-}
-
-function withEvidenceField(
-  evidence: SamplingEvidence,
-  field: "observationSpot" | "observation",
-  value: SamplingObservationSpot | "" | string,
-): SamplingEvidence {
-  return {
-    ...evidence,
-    [field]: value,
-    baseline: evidence.baseline ? { ...evidence.baseline, [field]: value } : null,
-    changed: evidence.changed ? { ...evidence.changed, [field]: value } : null,
-  } as SamplingEvidence;
 }
 
 function stateForSource(scenario: ImageScenarioState, source: RasterImage): ImageLessonState {
@@ -180,7 +140,7 @@ function stateForSource(scenario: ImageScenarioState, source: RasterImage): Imag
     source,
     initialScenario: { ...normalizedScenario },
     selectedCoordinate: initialCoordinate(source),
-    ...emptyProgress(),
+    ...emptyImageRecords(),
   };
 }
 
@@ -205,7 +165,7 @@ function resetAfterSourceUpload(state: ImageLessonState, source: RasterImage): I
     source,
     selectedCoordinate: initialCoordinate(source),
     decodeError: undefined,
-    ...emptyProgress(),
+    ...emptyImageRecords(),
   };
 }
 
@@ -222,7 +182,6 @@ export function transitionImageLesson(
       return {
         ...state,
         samplingPercent,
-        samplingChanged: true,
         phase: canonicalPhaseForSource(state.source, samplingPercent, state.phase),
       };
     }
@@ -233,7 +192,6 @@ export function transitionImageLesson(
       return {
         ...state,
         bitDepth,
-        colorAdjusted: true,
       };
     }
     case "set-color-mode": {
@@ -241,7 +199,6 @@ export function transitionImageLesson(
       return {
         ...state,
         colorMode,
-        colorAdjusted: true,
       };
     }
     case "set-phase":
@@ -263,37 +220,30 @@ export function transitionImageLesson(
           y: Math.max(0, Math.min(state.source.height - 1, Math.floor(action.y))),
         },
       };
-    case "edit-calculator-field":
-      return { ...state, calculatorEdited: true };
     case "set-observation-spot":
       return {
         ...state,
-        samplingEvidence: withEvidenceField(state.samplingEvidence, "observationSpot", action.spot),
+        samplingEvidence: { ...state.samplingEvidence, observationSpot: action.spot },
       };
     case "set-observation":
       return {
         ...state,
-        samplingEvidence: withEvidenceField(
-          state.samplingEvidence,
-          "observation",
-          action.observation,
-        ),
+        samplingEvidence: { ...state.samplingEvidence, observation: action.observation },
       };
-    case "record-sampling-baseline":
+    case "record-sampling-a":
       return {
         ...state,
         samplingEvidence: {
           ...state.samplingEvidence,
-          baseline: samplingSnapshot(state),
-          changed: null,
+          a: samplingSnapshot(state),
         },
       };
-    case "record-sampling-changed":
+    case "record-sampling-b":
       return {
         ...state,
         samplingEvidence: {
           ...state.samplingEvidence,
-          changed: samplingSnapshot(state),
+          b: samplingSnapshot(state),
         },
       };
     case "set-challenge-sampling":

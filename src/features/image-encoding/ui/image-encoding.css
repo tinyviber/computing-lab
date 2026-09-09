@@ -21,11 +21,25 @@
   letter-spacing: -0.03em;
 }
 
-.image-course-intro > div:first-child > p:last-child {
+.image-course-description {
   max-width: 720px;
   margin: 0;
   color: var(--secondary);
   line-height: 1.65;
+}
+
+.image-experiment-hint {
+  max-width: 900px;
+  margin: 14px 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--accent);
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.image-experiment-hint strong {
+  color: var(--primary);
 }
 
 .source-meta {
@@ -91,96 +105,9 @@
   letter-spacing: -0.015em;
 }
 
-.image-mission-card {
-  overflow: hidden;
-  border-color: #d6d7ff;
-  box-shadow: var(--shadow-md);
-}
-
-.mission-budget-badge {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid #e0b9a8;
-  border-radius: 999px;
-  color: #9b4f2e;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.mission-budget-badge.is-within {
-  border-color: #a7d2bf;
-  color: var(--success);
-}
-
-.mission-feedback-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  margin: 0 20px;
-  border: 1px solid var(--border);
-  background: var(--border);
-}
-
-.mission-feedback-item {
-  display: grid;
-  gap: 5px;
-  min-width: 0;
-  padding: 12px;
-  background: var(--surface);
-}
-
-.mission-feedback-item span,
-.mission-feedback-item small {
-  color: var(--muted);
-  font-size: 10px;
-  line-height: 1.4;
-}
-
-.mission-feedback-item strong {
-  overflow-wrap: anywhere;
-  color: var(--primary);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-}
-
-.mission-judgment,
-.mission-observation {
-  margin: 14px 20px 0;
-  padding: 10px 12px;
-  border-left: 3px solid var(--accent);
-  background: var(--accent-soft);
-  color: var(--primary);
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.mission-observation {
-  margin-top: 8px;
-  border-left-color: var(--success);
-  background: transparent;
-  color: var(--secondary);
-}
-
 .sampling-evidence-card {
   overflow: hidden;
   border-color: #cfe1db;
-}
-
-.evidence-badge {
-  flex: 0 0 auto;
-  padding: 5px 8px;
-  border: 1px solid #e0b9a8;
-  border-radius: 999px;
-  color: #9b4f2e;
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  white-space: nowrap;
-}
-
-.evidence-badge.is-complete {
-  border-color: #a7d2bf;
-  color: var(--success);
 }
 
 .sampling-evidence-controls {
@@ -201,6 +128,7 @@
 
 .sampling-evidence-controls select,
 .sampling-evidence-controls input,
+.sampling-evidence-controls textarea,
 .challenge-field select,
 .challenge-field textarea {
   width: 100%;
@@ -218,6 +146,12 @@
   grid-column: span 2;
 }
 
+.sampling-observation-field textarea {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
 .evidence-status,
 .challenge-status {
   margin: 8px 20px 0;
@@ -229,7 +163,6 @@
   line-height: 1.55;
 }
 
-.evidence-status.is-complete,
 .challenge-status.is-positive {
   border-left-color: var(--success);
   background: rgb(47 124 96 / 7%);
@@ -261,6 +194,10 @@
   color: var(--primary);
   font-size: 10px;
   font-weight: 700;
+}
+
+.sampling-snapshot-grid .snapshot-shared {
+  grid-column: 2 / -1;
 }
 
 .budget-challenge-card {
@@ -961,10 +898,6 @@
     gap: 16px;
   }
 
-  .mission-feedback-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .calculator-fields {
     grid-template-columns: 1fr;
   }
@@ -1000,10 +933,6 @@
 }
 
 @media (max-width: 420px) {
-  .mission-feedback-grid {
-    grid-template-columns: 1fr;
-  }
-
   .challenge-metrics {
     grid-template-columns: 1fr;
   }

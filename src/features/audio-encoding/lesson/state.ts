@@ -5,6 +5,19 @@ import type { SoundLoop, SoundMode, SoundScenario, SoundView } from "./scenario"
 export type SoundTransport = "stopped" | "playing" | "paused";
 export type SoundAudition = "original" | "reconstructed";
 
+/** One recorded experiment-note snapshot: the config that produced it and what was auditioned. */
+export type SoundEvidenceSnapshot = {
+  sampleRate: number;
+  bitDepth: number;
+  audition: SoundAudition;
+};
+
+export type SoundEvidence = {
+  a: SoundEvidenceSnapshot | null;
+  b: SoundEvidenceSnapshot | null;
+  observation: string;
+};
+
 type SoundResetState = {
   source: SoundSource;
   config: SoundConfig;
@@ -19,6 +32,7 @@ export type SoundLessonState = SoundResetState & {
   audition: SoundAudition;
   cursor: number;
   loop: SoundLoop;
+  soundEvidence: SoundEvidence;
   initial: SoundResetState;
 };
 
@@ -42,7 +56,11 @@ export type SoundLessonAction =
   | { type: "tick"; deltaMs: number }
   | { type: "reset" }
   | { type: "reset-transport" }
-  | { type: "reset-analysis" };
+  | { type: "reset-analysis" }
+  | { type: "record-sound-a" }
+  | { type: "record-sound-b" }
+  | { type: "set-sound-observation"; observation: string }
+  | { type: "clear-sound-evidence" };
 
 function resetState(scenario: SoundScenario): SoundResetState {
   const durationMs = Number.isFinite(scenario.durationMs)
@@ -66,7 +84,20 @@ export function createSoundLessonState(scenario: SoundScenario): SoundLessonStat
     audition: "original",
     cursor: 0,
     loop: initial.loop,
+    soundEvidence: emptySoundEvidence(),
     initial,
+  };
+}
+
+export function emptySoundEvidence(): SoundEvidence {
+  return { a: null, b: null, observation: "" };
+}
+
+function soundEvidenceSnapshot(state: SoundLessonState): SoundEvidenceSnapshot {
+  return {
+    sampleRate: state.config.sampleRate,
+    bitDepth: state.config.bitDepth,
+    audition: state.audition,
   };
 }
 
@@ -182,18 +213,44 @@ export function transitionSoundLesson(
     case "tick":
       return tickSound(state, action.deltaMs);
     case "reset":
+      // A full reset returns to the initial scenario and drops the evidence record;
+      // the lighter resets below keep it so students don't lose their notes.
       return {
         ...state.initial,
         transport: "stopped",
         audition: "original",
         cursor: 0,
         loop: state.initial.loop,
+        soundEvidence: emptySoundEvidence(),
         initial: state.initial,
       };
     case "reset-transport":
       return { ...state, transport: "stopped", cursor: 0, loop: "off" };
     case "reset-analysis":
       return { ...state, mode: "compare", view: "compare", audition: "original" };
+    case "record-sound-a":
+      return {
+        ...state,
+        soundEvidence: {
+          ...state.soundEvidence,
+          a: soundEvidenceSnapshot(state),
+        },
+      };
+    case "record-sound-b":
+      return {
+        ...state,
+        soundEvidence: {
+          ...state.soundEvidence,
+          b: soundEvidenceSnapshot(state),
+        },
+      };
+    case "set-sound-observation":
+      return {
+        ...state,
+        soundEvidence: { ...state.soundEvidence, observation: action.observation },
+      };
+    case "clear-sound-evidence":
+      return { ...state, soundEvidence: emptySoundEvidence() };
   }
 }
 

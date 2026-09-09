@@ -11,7 +11,14 @@ import {
   SOUND_MIN_PHASE,
 } from "../domain/model";
 import { parseSoundScenario, type SoundMode, type SoundView } from "../lesson/scenario";
-import { createSoundLessonState, transitionSoundLesson } from "../lesson/state";
+import {
+  createSoundLessonState,
+  transitionSoundLesson,
+  type SoundAudition,
+  type SoundEvidence,
+  type SoundEvidenceSnapshot,
+  type SoundLessonAction,
+} from "../lesson/state";
 import { createAudioPlaybackRuntime, type AudioPlaybackRequest } from "./audioPlayback";
 import "./audio-encoding.css";
 
@@ -19,17 +26,6 @@ const MODE_LABELS: Record<SoundMode, string> = {
   compare: "对照（compare）",
   aliasing: "混叠（aliasing）",
   quantization: "量化（quantization）",
-};
-
-const MODE_GUIDE: Record<Exclude<SoundMode, "compare">, { title: string; description: string }> = {
-  aliasing: {
-    title: "采样率实验",
-    description: "调低采样率，先听高频分量如何折叠，再用 Nyquist 证据解释。",
-  },
-  quantization: {
-    title: "位深实验",
-    description: "调低位深，先听重建失真，再用量化级别与误差解释。",
-  },
 };
 
 const VIEW_LABELS: Record<SoundView, string> = {
@@ -94,6 +90,95 @@ function classificationLabel(classification: "below" | "at" | "aliased"): string
   if (classification === "aliased") return "发生混叠（aliased）";
   if (classification === "at") return "恰在奈奎斯特频率（at Nyquist）";
   return "低于奈奎斯特频率（below Nyquist）";
+}
+
+const AUDITION_SNAPSHOT_LABELS: Record<SoundAudition, string> = {
+  original: "原始信号",
+  reconstructed: "重建信号",
+};
+
+function snapshotLabel(snapshot: SoundEvidenceSnapshot | null): string {
+  return snapshot ? `${snapshot.sampleRate} Hz · ${snapshot.bitDepth} bit` : "尚未记录";
+}
+
+function SoundEvidenceCard({
+  dispatch,
+  evidence,
+}: {
+  dispatch: (action: SoundLessonAction) => void;
+  evidence: SoundEvidence;
+}) {
+  const noteHint = !evidence.a
+    ? "还没有 A 记录。播放或调整设置后，随时可以保存当前状态。"
+    : !evidence.b
+      ? "A 已保存在这里。可以继续探索，也可以把另一组设置保存为 B。"
+      : "A 和 B 都保存在这里；观察笔记可以随时修改。";
+
+  return (
+    <section
+      aria-labelledby="sound-evidence-heading"
+      className="sound-evidence-card"
+      data-testid="sound-evidence-card"
+    >
+      <div className="sound-evidence-header">
+        <div>
+          <p className="eyebrow">实验笔记</p>
+          <h3 id="sound-evidence-heading">对比记录</h3>
+          <p>保存两次设置和你听到的差异，随时可以重写 A 或 B。</p>
+        </div>
+      </div>
+      <div className="sound-evidence-actions">
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "record-sound-a" })}
+          type="button"
+        >
+          记录当前设置为 A
+        </button>
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "record-sound-b" })}
+          type="button"
+        >
+          记录当前设置为 B
+        </button>
+        <button
+          className="button button-secondary"
+          onClick={() => dispatch({ type: "clear-sound-evidence" })}
+          type="button"
+        >
+          清空对比记录
+        </button>
+      </div>
+      <div aria-label="声音对比记录" className="sound-evidence-snapshot">
+        <div className="sound-note-snapshot">
+          <span className="sound-snapshot-heading">A</span>
+          <strong>{snapshotLabel(evidence.a)}</strong>
+          <small>{evidence.a ? AUDITION_SNAPSHOT_LABELS[evidence.a.audition] : "—"}</small>
+        </div>
+        <div className="sound-note-snapshot">
+          <span className="sound-snapshot-heading">B</span>
+          <strong>{snapshotLabel(evidence.b)}</strong>
+          <small>{evidence.b ? AUDITION_SNAPSHOT_LABELS[evidence.b.audition] : "—"}</small>
+        </div>
+      </div>
+      <label className="sound-observation-field" htmlFor="sound-evidence-observation">
+        我的观察：
+      </label>
+      <textarea
+        id="sound-evidence-observation"
+        onChange={(event) =>
+          dispatch({ type: "set-sound-observation", observation: event.target.value })
+        }
+        placeholder="我观察到……"
+        rows={3}
+        value={evidence.observation}
+      />
+      <p className="sound-evidence-hint" role="status">
+        {noteHint}
+      </p>
+    </section>
+  );
 }
 
 const SAMPLE_RATE_STOPS = [
@@ -274,28 +359,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             <span className="sound-transport-badge">{TRANSPORT_LABELS[state.transport]}</span>
           </div>
 
-          <section className="sound-focus-card" aria-label="主要实验入口">
-            <div>
-              <p className="eyebrow">先做一个实验</p>
-              <h3>先听差异，再看波形证据</h3>
-              <p>选择一个入口，试听原始信号与重建信号，再调整对应参数。</p>
-            </div>
-            <div className="sound-focus-actions" role="group" aria-label="主要分析入口">
-              {(Object.keys(MODE_GUIDE) as Array<Exclude<SoundMode, "compare">>).map((mode) => (
-                <button
-                  aria-label={MODE_GUIDE[mode].title}
-                  aria-pressed={state.mode === mode}
-                  className="sound-focus-action"
-                  key={mode}
-                  onClick={() => dispatch({ type: "set-mode", mode })}
-                  type="button"
-                >
-                  <strong>{MODE_GUIDE[mode].title}</strong>
-                  <span>{MODE_GUIDE[mode].description}</span>
-                </button>
-              ))}
-            </div>
-          </section>
+          <p className="sound-experiment-hint" data-testid="sound-experiment-hint">
+            <strong>可以试试：</strong>先听原始音频和重建音频 → 每次只改采样率或位深中的一个 →
+            记下你听到的差异。
+          </p>
 
           <div className="sound-panel sound-plot-panel">
             <div className="sound-panel-header">
@@ -402,6 +469,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               <div data-testid="sound-compare-evidence">
                 <p className="eyebrow">对照结果</p>
                 <p>原始信号不会随着采样设置改变。你可以在“原始信号”和“重建信号”之间切换试听。</p>
+                <p>
+                  当前奈奎斯特频率为 {formatNumber(model.nyquistHz, 0)}{" "}
+                  Hz；当信号最高频率分量超过它时会发生混叠——切换到混叠实验观察。
+                </p>
               </div>
             ) : null}
             {state.mode === "aliasing" ? (
@@ -456,6 +527,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               </div>
             ) : null}
           </div>
+
+          <SoundEvidenceCard dispatch={dispatch} evidence={state.soundEvidence} />
 
           <div className="sound-summary" aria-label="声音读数" role="region">
             <div>
@@ -596,10 +669,10 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               量化级别数为 2 的量化位数次方。
             </p>
             <label className="sound-label" htmlFor="sound-phase">
-              相位 <span>{formatNumber(state.config.phase, 2)} 圈</span>
+              采样偏移 <span>{formatNumber(state.config.phase, 2)} 圈</span>
             </label>
             <input
-              aria-label="相位"
+              aria-label="采样偏移"
               aria-describedby="sound-phase-description"
               id="sound-phase"
               max="0.99"
@@ -612,7 +685,8 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               value={state.config.phase}
             />
             <p className="sound-control-description" id="sound-phase-description">
-              移动采样时间戳；信号源 x(t) 保持不变。
+              改变采样偏移只移动采样位置（0–0.99 圈 = 一个采样间隔内的偏移比例），信号 x(t)
+              本身不变。它不改变采样率。
             </p>
             <label className="sound-label" htmlFor="sound-plot-window">
               波形窗口{" "}
@@ -671,12 +745,26 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
                 停止
               </button>
             </div>
+            {/* 步进用 seek 而不是 tick：tick 只在播放中生效，seek 让学生在
+                停止态也能逐段对准采样点；播放中 seek 不会中断播放。 */}
             <button
               className="button button-secondary sound-step-button"
-              onClick={() => dispatch({ type: "tick", deltaMs: 100 })}
+              disabled={model.durationMs <= 0}
+              onClick={() => seek(Math.min(model.durationMs, state.cursor + 100))}
               type="button"
             >
               前进 100 毫秒
+            </button>
+            <button
+              aria-label="光标回到开头：停止播放、关闭循环并回到 0 毫秒，不影响你的记录"
+              className="button button-secondary sound-transport-reset"
+              onClick={() => {
+                playback.stop();
+                dispatch({ type: "reset-transport" });
+              }}
+              type="button"
+            >
+              光标回到开头
             </button>
             <label className="sound-label" htmlFor="sound-cursor">
               光标{" "}
@@ -760,13 +848,32 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
             </div>
           </div>
 
-          <button
-            className="button button-secondary sound-reset"
-            onClick={() => dispatch({ type: "reset" })}
-            type="button"
-          >
-            恢复默认状态
-          </button>
+          <section className="sound-reset-section" aria-labelledby="sound-reset-heading">
+            <p className="eyebrow" id="sound-reset-heading">
+              重置
+            </p>
+            <p className="sound-reset-note">
+              “重置分析与视图”保留对比记录；“恢复初始设置并清空记录”会清掉 A/B 笔记。
+            </p>
+            <div className="sound-reset-group">
+              <button
+                aria-label="重置分析与视图：回到对照模式与叠加视图，保留对比记录"
+                className="button button-secondary sound-reset"
+                onClick={() => dispatch({ type: "reset-analysis" })}
+                type="button"
+              >
+                重置分析与视图
+              </button>
+              <button
+                aria-label="恢复初始设置并清空记录：回到进入本页时的设置"
+                className="button button-secondary sound-reset"
+                onClick={() => dispatch({ type: "reset" })}
+                type="button"
+              >
+                恢复初始设置并清空记录
+              </button>
+            </div>
+          </section>
         </aside>
       </div>
     </LabShell>
