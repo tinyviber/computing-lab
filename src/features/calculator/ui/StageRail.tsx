@@ -1,5 +1,6 @@
 import { CALCULATOR_STAGES, challengeStages, coreStages } from "../domain/stages";
 import type { ComponentDef } from "../domain/graph";
+import { AnnotatedText } from "./CalculatorTerms";
 
 type StageRailProps = {
   stageIndex: number;
@@ -34,7 +35,9 @@ export function StageRail({
           <span className="stage-index">{String(stage.index).padStart(2, "0")}</span>
           <span className="stage-titles">
             <strong>{stage.title}</strong>
-            <span>{stage.englishTitle}</span>
+            <span>
+              <AnnotatedText text={stage.englishTitle} />
+            </span>
           </span>
           <span aria-hidden="true" className="stage-mark">
             {passed ? "✓" : unlocked ? "○" : "🔒"}
@@ -67,7 +70,9 @@ export function StageRail({
       </div>
 
       <div className="my-components">
-        <p className="eyebrow">MY COMPONENTS</p>
+        <p className="eyebrow">
+          我的组件 <span aria-hidden="true">/</span> MY COMPONENTS
+        </p>
         {unlockedSubmodules.length === 0 ? (
           <p className="my-components-empty">通过一关后，成果会变成可复用的组件。</p>
         ) : (
@@ -79,7 +84,7 @@ export function StageRail({
                   onClick={() => onPlaceComponent(component.name)}
                   type="button"
                 >
-                  {component.name}
+                  <AnnotatedText text={component.name} />
                 </button>
               </li>
             ))}

@@ -22,6 +22,7 @@ import { BusReadout } from "./BusReadout";
 import { CircuitCanvas } from "./CircuitCanvas";
 import { StageRail } from "./StageRail";
 import { TestPanel } from "./TestPanel";
+import { AnnotatedText, CalculatorTermGuide } from "./CalculatorTerms";
 import "./calculator.css";
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -56,8 +57,8 @@ type JudgePayload = {
 const SAVE_LABEL: Record<string, string> = {
   idle: "",
   dirty: "未保存",
-  saving: "Saving…",
-  saved: "Saved ✓",
+  saving: "保存中…",
+  saved: "已保存 ✓",
   error: "保存失败",
 };
 
@@ -190,7 +191,7 @@ export function CalculatorLabPage() {
             <h1>
               {stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "搭一个计算器"}
             </h1>
-            <p>{stage?.englishTitle}</p>
+            <p>{stage ? <AnnotatedText text={stage.englishTitle} /> : null}</p>
           </div>
         </div>
         <div className="calculator-status">
@@ -214,11 +215,12 @@ export function CalculatorLabPage() {
 
         <main aria-label="计算器实验区" className="calculator-workspace">
           <section className="stage-brief">
-            <p>{stage?.description}</p>
+            <p>{stage ? <AnnotatedText text={stage.description} /> : null}</p>
             <details>
               <summary>提示</summary>
-              <p>{stage?.hint}</p>
+              <p>{stage ? <AnnotatedText text={stage.hint} /> : null}</p>
             </details>
+            <CalculatorTermGuide />
           </section>
 
           {loadError ? (
@@ -248,7 +250,7 @@ export function CalculatorLabPage() {
                   onClick={() => addGate(kind)}
                   type="button"
                 >
-                  {GATE_LABEL[kind]}
+                  <AnnotatedText text={GATE_LABEL[kind]} />
                 </button>
               ))}
               <button

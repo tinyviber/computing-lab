@@ -219,6 +219,48 @@
   background: var(--surface);
 }
 
+.calculator-term-guide {
+  margin-top: 14px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.calculator-term-guide summary {
+  color: var(--primary);
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.calculator-term-guide dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px 18px;
+  margin: 12px 0 0;
+}
+
+.calculator-term-guide dl div {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+}
+
+.calculator-term-guide dt {
+  color: var(--primary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+}
+
+.calculator-term-guide dd {
+  margin: 0;
+}
+
+.calculator-lab abbr {
+  text-decoration: underline dotted var(--accent);
+  text-underline-offset: 3px;
+}
+
 .stage-brief p {
   color: var(--secondary);
   font-size: 13px;

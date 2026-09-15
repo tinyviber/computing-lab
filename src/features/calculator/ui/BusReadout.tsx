@@ -9,13 +9,16 @@
 import { readBuses, type BusReading } from "../domain/bus";
 import type { Bit } from "../domain/graph";
 import type { StageDef } from "../domain/stages";
+import { AnnotatedText } from "./CalculatorTerms";
 
 function BusCard({ reading }: { reading: BusReading }) {
   const { bus } = reading;
   return (
     <article className="bus-card">
       <header className="bus-card-head">
-        <strong>{bus.name}</strong>
+        <strong>
+          <AnnotatedText text={bus.name} />
+        </strong>
         <span className="bus-direction">高位 → 低位</span>
       </header>
       <div className="bus-bits" role="list">
@@ -29,7 +32,7 @@ function BusCard({ reading }: { reading: BusReading }) {
               role="listitem"
             >
               <span aria-hidden="true" className="bus-bit-name">
-                {pin}
+                <AnnotatedText text={pin} />
               </span>
               <span aria-hidden="true" className="bus-bit-value">
                 {bit ?? "?"}

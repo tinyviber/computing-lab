@@ -1,6 +1,7 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { GATE_LABEL, type Bit, type CircuitGraph, type CircuitNode } from "../domain/graph";
 import { portsForNode, type CalculatorLessonAction, type PendingWire } from "../lesson/state";
+import { CALCULATOR_TERM_NOTES } from "./CalculatorTerms";
 import {
   canvasBounds,
   isPinNode,
@@ -31,6 +32,13 @@ function valueClass(value: Bit | null | undefined): string {
   if (value === 1) return " is-high";
   if (value === 0) return " is-low";
   return " is-floating";
+}
+
+function nodeHelp(node: CircuitNode): string | null {
+  const label = nodeLabel(node);
+  return label in CALCULATOR_TERM_NOTES
+    ? CALCULATOR_TERM_NOTES[label as keyof typeof CALCULATOR_TERM_NOTES]
+    : null;
 }
 
 export function CircuitCanvas({
@@ -156,6 +164,7 @@ export function CircuitCanvas({
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 transform={`translate(${node.x} ${node.y})`}
               >
+                {nodeHelp(node) ? <title>{`${nodeLabel(node)}：${nodeHelp(node)}`}</title> : null}
                 {isPinNode(node) ? (
                   <>
                     <rect

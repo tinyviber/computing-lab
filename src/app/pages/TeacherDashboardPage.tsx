@@ -59,7 +59,7 @@ function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () =
 
 export function TeacherDashboardPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
-  const { status, role } = useAuth();
+  const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
@@ -107,9 +107,25 @@ export function TeacherDashboardPage() {
           <p className="eyebrow">{payload?.className ?? "班级看板"}</p>
           <h1>学生进度</h1>
         </div>
-        <Link className="button button-secondary" to="/">
-          返回首页
-        </Link>
+        <div className="dashboard-actions">
+          {session?.memberships && session.memberships.length > 1 ? (
+            <nav aria-label="班级切换" className="dashboard-class-switcher">
+              {session.memberships.map((membership) => (
+                <Link
+                  className={`dashboard-class-link${membership.classId === classId ? " is-active" : ""}`}
+                  key={membership.classId}
+                  params={{ classId: membership.classId }}
+                  to="/classes/$classId/dashboard"
+                >
+                  {membership.className}
+                </Link>
+              ))}
+            </nav>
+          ) : null}
+          <Link className="button button-secondary" to="/">
+            返回首页
+          </Link>
+        </div>
       </header>
 
       <main aria-label="学生进度矩阵">

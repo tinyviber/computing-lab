@@ -11,6 +11,7 @@ import { readBus } from "../domain/bus";
 import type { Bit } from "../domain/graph";
 import type { BusDef, StageDef } from "../domain/stages";
 import type { JudgeOutcome, RunOutcome } from "../lesson/state";
+import { AnnotatedText } from "./CalculatorTerms";
 
 const ERROR_HINTS: Record<string, string> = {
   cycle: "电路里存在环路（输出绕回了自己的输入），无法求值。",
@@ -35,7 +36,9 @@ function CaseBusValue({
   const reading = readBus(bus, values);
   return (
     <span className="case-bus">
-      <span className="case-bus-name">{bus.name}</span>
+      <span className="case-bus-name">
+        <AnnotatedText text={bus.name} />
+      </span>
       <code aria-label={`${bus.name} ${reading.text}`} className="case-bus-bits">
         {bus.pins.map((pin, i) => {
           const bit = reading.bits[i];
@@ -109,7 +112,7 @@ function CounterexampleBlock({
         <div>
           <dt>用例</dt>
           <dd>
-            {counterexample.name}（{counterexample.category}）
+            {counterexample.name}（<AnnotatedText text={counterexample.category} />）
           </dd>
         </div>
         <div>
@@ -180,7 +183,9 @@ export function TestPanel({
             <ul>
               {failedCategories.map(([category, bucket]) => (
                 <li key={category}>
-                  <span className="category-name">{category}</span>
+                  <span className="category-name">
+                    <AnnotatedText text={category} />
+                  </span>
                   <span className="category-score">
                     {bucket.passed} / {bucket.total}
                   </span>
@@ -230,7 +235,9 @@ export function TestPanel({
         <tbody>
           {runOutcome.results.map((result) => (
             <tr className={result.passed ? "is-pass" : "is-fail"} key={result.name}>
-              <th scope="row">{result.name}</th>
+              <th scope="row">
+                <AnnotatedText text={result.name} />
+              </th>
               <td>{result.passed ? "✓" : "×"}</td>
               <td>
                 <CaseValues buses={outputBuses} values={result.expected} />
