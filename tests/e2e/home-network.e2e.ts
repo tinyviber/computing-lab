@@ -12,9 +12,12 @@ const scenarios = [
 test.describe("Home Network probe loop", () => {
   test("shows hand-authored first-failure facts for all six scenarios", async ({ page }) => {
     for (const scenario of scenarios) {
-      await page.goto(`labs/home-network?scenario=${scenario.id}&target=${scenario.target}`, {
-        waitUntil: "networkidle",
-      });
+      await page.goto(
+        `labs/home-network?scenario=${scenario.id}&target=${scenario.target}&showExperimentalLabs=1`,
+        {
+          waitUntil: "networkidle",
+        },
+      );
       await expect(page.locator(".scenario-chip")).not.toContainText(scenario.id);
       await expect(page.locator(".scenario-chip")).toHaveAttribute(
         "aria-label",
@@ -29,9 +32,12 @@ test.describe("Home Network probe loop", () => {
   });
 
   test("probes, edits the first failure, reprobes, and preserves history", async ({ page }) => {
-    await page.goto("labs/home-network?scenario=static-printer&target=printer", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/home-network?scenario=static-printer&target=printer&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     await page.getByRole("combobox", { name: /选择设备/ }).selectOption("printer");
     await page.getByRole("button", { name: /发送探针/ }).click();
@@ -62,9 +68,12 @@ test.describe("Home Network responsive evidence", () => {
   test("keeps topology, probe controls, trace, and history keyboard-accessible", async ({
     page,
   }) => {
-    await page.goto("labs/home-network?scenario=wrong-gateway&target=internet", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/home-network?scenario=wrong-gateway&target=internet&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     await expect(page.getByRole("main", { name: /家庭网络探针实验区/ })).toBeVisible();
     await expect(page.getByRole("img", { name: /家庭网络拓扑/ })).toBeVisible();

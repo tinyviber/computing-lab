@@ -13,5 +13,13 @@ export default defineConfig(({ mode }) => {
     appType: "spa",
     base,
     plugins: [react(), tailwindcss()],
+    server: {
+      proxy: {
+        "/api": {
+          target: `http://localhost:${env.LAB_PORT ?? 8788}`,
+          changeOrigin: true,
+        },
+      },
+    },
   };
 });

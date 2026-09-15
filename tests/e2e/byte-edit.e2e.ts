@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("edits one byte and reads the exact validity rule", async ({ page }) => {
-  await page.goto("labs/byte-edit", { waitUntil: "networkidle" });
+  await page.goto("labs/byte-edit?showExperimentalLabs=1", { waitUntil: "networkidle" });
 
   await expect(page.getByRole("main", { name: "字节编辑实验区" })).toBeVisible();
   await page.getByRole("combobox", { name: /字节索引/ }).selectOption("2");
@@ -23,7 +23,7 @@ test("edits one byte and reads the exact validity rule", async ({ page }) => {
 test("diagnoses truncated and overlong sequences while exact repair stays informational", async ({
   page,
 }) => {
-  await page.goto("labs/byte-edit", { waitUntil: "networkidle" });
+  await page.goto("labs/byte-edit?showExperimentalLabs=1", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "截断序列" }).click();
   await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toContainText(
     /缺少后续字节/,
@@ -44,7 +44,9 @@ test.describe("responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 
   test("keeps rule evidence usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/byte-edit?scenario=mixed", { waitUntil: "networkidle" });
+    await page.goto("labs/byte-edit?scenario=mixed&showExperimentalLabs=1", {
+      waitUntil: "networkidle",
+    });
     await page.getByRole("button", { name: "过长编码 A" }).click();
     await expect(page.getByRole("region", { name: /选中字节编辑结果/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /当前字节序列/ })).toContainText(/过长编码/);

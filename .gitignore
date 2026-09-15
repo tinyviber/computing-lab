@@ -9,3 +9,8 @@ bun.lockb
 !.env.example
 *.log
 logs/
+.DS_Store
+.workbuddy/
+
+# Lab runtime local data
+data/

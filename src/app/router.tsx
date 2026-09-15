@@ -6,8 +6,10 @@ import {
   createRouter,
   type RouterHistory,
 } from "@tanstack/react-router";
+import type { ComponentType } from "react";
 import { AudioEncodingPage } from "../features/audio-encoding";
 import { ByteEditPage } from "../features/byte-edit";
+import { CalculatorLabPage } from "../features/calculator";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
 import { MonteCarloPage } from "../features/monte-carlo";
@@ -16,9 +18,14 @@ import { ProtocolProcessPage } from "../features/protocol-process";
 import { RelationalDataPage } from "../features/relational-data";
 import { TwosComplementPage } from "../features/twos-complement";
 import { Utf8Page } from "../features/utf8";
+import { getLab } from "./catalog/labs";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
+import { LabGate } from "./pages/LabGate";
+import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
+import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 
 function RootLayout() {
   return <Outlet />;
@@ -50,79 +57,95 @@ export const passThroughSearch = (search: Record<string, unknown>): Record<strin
 
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
-const imageRoute = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/labs/image-encoding",
-  validateSearch: passThroughSearch,
-  component: ImageEncodingPage,
+  path: "/login",
+  component: LoginPage,
+});
+
+/**
+ * Wrap a legacy lab page in its feature flag gate. The page component and its
+ * route stay registered; the gate decides whether a viewer may see it.
+ */
+function gatedLab(labId: string, Page: ComponentType) {
+  const lab = getLab(labId);
+  return function GatedLabRoute() {
+    return (
+      <LabGate labId={labId} title={lab?.title ?? "该实验"}>
+        <Page />
+      </LabGate>
+    );
+  };
+}
+
+// `Path` stays generic so each route keeps its literal path in the router type.
+function legacyLabRoute<Path extends string>(labId: string, path: Path, Page: ComponentType) {
+  return createRoute({
+    getParentRoute: () => rootRoute,
+    path,
+    validateSearch: passThroughSearch,
+    component: gatedLab(labId, Page),
+    errorComponent: LabErrorPage,
+  });
+}
+
+const imageRoute = legacyLabRoute("image-encoding", "/labs/image-encoding", ImageEncodingPage);
+const audioRoute = legacyLabRoute("audio-encoding", "/labs/audio-encoding", AudioEncodingPage);
+const networkRoute = legacyLabRoute("home-network", "/labs/home-network", HomeNetworkPage);
+const twosComplementRoute = legacyLabRoute(
+  "twos-complement",
+  "/labs/twos-complement",
+  TwosComplementPage,
+);
+const programExecutionRoute = legacyLabRoute(
+  "program-execution",
+  "/labs/program-execution",
+  ProgramExecutionPage,
+);
+const protocolProcessRoute = legacyLabRoute(
+  "protocol-process",
+  "/labs/protocol-process",
+  ProtocolProcessPage,
+);
+const utf8Route = legacyLabRoute("utf8", "/labs/utf8", Utf8Page);
+const monteCarloRoute = legacyLabRoute("monte-carlo", "/labs/monte-carlo", MonteCarloPage);
+const relationalDataRoute = legacyLabRoute(
+  "relational-data",
+  "/labs/relational-data",
+  RelationalDataPage,
+);
+const byteEditRoute = legacyLabRoute("byte-edit", "/labs/byte-edit", ByteEditPage);
+
+/** Catalog-shaped entry point; forwards to the viewer's own class. */
+const calculatorEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/calculator",
+  component: CalculatorRedirectPage,
   errorComponent: LabErrorPage,
 });
-const audioRoute = createRoute({
+
+const calculatorLabRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/labs/audio-encoding",
+  path: "/classes/$classId/labs/calculator",
   validateSearch: passThroughSearch,
-  component: AudioEncodingPage,
+  component: CalculatorLabPage,
   errorComponent: LabErrorPage,
 });
-const networkRoute = createRoute({
+
+const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/labs/home-network",
+  path: "/classes/$classId/dashboard",
   validateSearch: passThroughSearch,
-  component: HomeNetworkPage,
-  errorComponent: LabErrorPage,
-});
-const twosComplementRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/twos-complement",
-  validateSearch: passThroughSearch,
-  component: TwosComplementPage,
-  errorComponent: LabErrorPage,
-});
-const programExecutionRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/program-execution",
-  validateSearch: passThroughSearch,
-  component: ProgramExecutionPage,
-  errorComponent: LabErrorPage,
-});
-const protocolProcessRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/protocol-process",
-  validateSearch: passThroughSearch,
-  component: ProtocolProcessPage,
-  errorComponent: LabErrorPage,
-});
-const utf8Route = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/utf8",
-  validateSearch: passThroughSearch,
-  component: Utf8Page,
-  errorComponent: LabErrorPage,
-});
-const monteCarloRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/monte-carlo",
-  validateSearch: passThroughSearch,
-  component: MonteCarloPage,
-  errorComponent: LabErrorPage,
-});
-const relationalDataRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/relational-data",
-  validateSearch: passThroughSearch,
-  component: RelationalDataPage,
-  errorComponent: LabErrorPage,
-});
-const byteEditRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/labs/byte-edit",
-  validateSearch: passThroughSearch,
-  component: ByteEditPage,
+  component: TeacherDashboardPage,
   errorComponent: LabErrorPage,
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  loginRoute,
+  calculatorEntryRoute,
+  calculatorLabRoute,
+  dashboardRoute,
   imageRoute,
   audioRoute,
   networkRoute,

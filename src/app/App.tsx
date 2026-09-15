@@ -1,12 +1,35 @@
 import { RouterProvider } from "@tanstack/react-router";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { LabNavigationProvider } from "../shared/lab/LabNavigationProvider";
-import { labs } from "./catalog/labs";
+import { AuthProvider, useAuth } from "../shared/auth";
+import { visibleLabs } from "./catalog/labs";
 import { router } from "./router";
+
+/**
+ * Navigation reflects the feature flags: students see enabled labs only,
+ * teachers and the `?showExperimentalLabs=1` escape hatch see all of them.
+ * The flag is read from the router so it reacts to client-side navigation.
+ */
+function VisibleLabNavigation({ children }: { children: ReactNode }) {
+  const { role } = useAuth();
+  const flag = useSyncExternalStore(
+    (onStoreChange) => router.subscribe("onResolved", onStoreChange),
+    () => router.state.location.search.showExperimentalLabs,
+  );
+  const showExperimental = flag === "1" || flag === 1 || flag === true;
+  return (
+    <LabNavigationProvider labs={visibleLabs({ role, showExperimental })}>
+      {children}
+    </LabNavigationProvider>
+  );
+}
 
 export default function App() {
   return (
-    <LabNavigationProvider labs={labs}>
-      <RouterProvider router={router} />
-    </LabNavigationProvider>
+    <AuthProvider>
+      <VisibleLabNavigation>
+        <RouterProvider router={router} />
+      </VisibleLabNavigation>
+    </AuthProvider>
   );
 }

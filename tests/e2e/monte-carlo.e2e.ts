@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 test("traces deterministic Monte Carlo convergence for pi", async ({ page }) => {
-  await page.goto("labs/monte-carlo?scenario=small", { waitUntil: "networkidle" });
+  await page.goto("labs/monte-carlo?scenario=small&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
 
   await expect(page.getByRole("main", { name: "蒙特卡洛 π实验区" })).toBeVisible();
   await page.getByRole("button", { name: "运行到结束" }).click();
@@ -23,7 +25,9 @@ test("traces deterministic Monte Carlo convergence for pi", async ({ page }) => 
 });
 
 test("keeps URL recovery and step evidence independent of a submit gate", async ({ page }) => {
-  await page.goto("labs/monte-carlo?scenario=large", { waitUntil: "networkidle" });
+  await page.goto("labs/monte-carlo?scenario=large&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("button", { name: "执行一步" }).click();
   await expect(page.getByRole("region", { name: /选中蒙特卡洛结果/ })).toContainText(/批次后样本/);
   await expect(page.getByRole("button", { name: /submit|score|check/i })).toHaveCount(0);
@@ -35,7 +39,9 @@ test.describe("responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 
   test("keeps convergence tables and status usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/monte-carlo?scenario=small", { waitUntil: "networkidle" });
+    await page.goto("labs/monte-carlo?scenario=small&showExperimentalLabs=1", {
+      waitUntil: "networkidle",
+    });
     await page.getByRole("button", { name: "执行一步" }).click();
     await expect(page.getByRole("table", { name: /批次收敛/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /选中蒙特卡洛结果/ })).toBeVisible();

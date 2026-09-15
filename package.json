@@ -7,6 +7,9 @@
   "scripts": {
     "setup": "bun install",
     "dev": "bun run vite",
+    "dev:server": "node server/index.ts",
+    "server": "node server/index.ts",
+    "db:seed": "node server/db/seed.ts",
     "build": "bun run typecheck && bun run vite build && bun run build:slides",
     "build:slides": "bun run scripts/build-lessons.mjs",
     "test": "bun run vitest --passWithNoTests",
@@ -19,11 +22,15 @@
     "deploy:status": "bash deploy/reconcile.sh status",
     "lint": "bun run eslint .",
     "typecheck": "bun run tsc --noEmit",
+    "typecheck:server": "bun run tsc -p tsconfig.server.json --noEmit",
+    "typecheck:app": "bun run tsc -p tsconfig.app.json --noEmit",
     "format:check": "bun run prettier --check .",
     "format": "bun run prettier --write ."
   },
   "dependencies": {
+    "@hono/node-server": "^2.1.1",
     "@tanstack/react-router": "^1.170.18",
+    "hono": "^4.13.8",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
