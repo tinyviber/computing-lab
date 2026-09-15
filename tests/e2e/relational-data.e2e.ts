@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("traces fixed queries, provenance, and the catalog rules", async ({ page }) => {
-  await page.goto("labs/relational-data", { waitUntil: "networkidle" });
+  await page.goto("labs/relational-data?showExperimentalLabs=1", { waitUntil: "networkidle" });
 
   await expect(page.getByRole("main", { name: "关系数据实验区" })).toBeVisible();
   await page.getByRole("spinbutton", { name: /行数/ }).fill("4");
@@ -34,7 +34,9 @@ test("traces fixed queries, provenance, and the catalog rules", async ({ page })
 test("selects an aggregate result and exposes linked source fields without a gate", async ({
   page,
 }) => {
-  await page.goto("labs/relational-data?scenario=catalog", { waitUntil: "networkidle" });
+  await page.goto("labs/relational-data?scenario=catalog&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("button", { name: "执行一步" }).click();
   await page.getByRole("button", { name: /查询 1：全部图书/ }).click();
   await expect(page.getByRole("table", { name: /查询结果行/ })).toContainText(/The Left Hand/);
@@ -54,7 +56,7 @@ test.describe("responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 
   test("keeps result and constraint tables usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/relational-data", { waitUntil: "networkidle" });
+    await page.goto("labs/relational-data?showExperimentalLabs=1", { waitUntil: "networkidle" });
     await page.getByRole("button", { name: "执行一步" }).click();
     await expect(page.getByRole("table", { name: /查询结果行/ })).toBeVisible();
     await expect(page.getByRole("region", { name: /关系数据约束/ })).toBeVisible();

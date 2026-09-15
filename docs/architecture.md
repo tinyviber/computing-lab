@@ -71,7 +71,12 @@ Do not create a framework package yet. All three consumers are inside one produc
 - Feature UI imports only its own feature layers and app shell.
 - Shared components do not import feature or app modules.
 - `src/app/architecture-boundaries.test.ts` scans the production import graph in CI.
-- No backend, auth, database, PWA, or cross-repository dependency is required.
+- A backend now exists: `server/` is a plain Node ≥22.13 process (Hono on `node:http`,
+  `node:sqlite` storage) that owns auth, drafts, and authoritative judging. It shares the
+  Calculator feature's pure `domain` code for circuit evaluation. Hidden test vectors live
+  only under `server/`; the SPA carries public debug cases. Feature flags in
+  `src/app/catalog/labs.ts` hide labs without deleting them; teachers and
+  `?showExperimentalLabs=1` may still open them.
 
 ## Runtime resilience
 

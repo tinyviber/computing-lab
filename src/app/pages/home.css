@@ -252,3 +252,82 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Classroom home: identity, progress, and flagged-lab presentation. */
+.home-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-user {
+  display: grid;
+  color: var(--primary);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: right;
+}
+
+.home-user-no {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.home-lede {
+  margin-top: 14px;
+  max-width: 520px;
+  color: var(--secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+
+.home-loading {
+  margin: 15vh auto;
+  color: var(--muted);
+  text-align: center;
+}
+
+.lab-card.is-primary {
+  border-color: #bfc2ff;
+  grid-column: span 2;
+}
+
+.lab-card.is-primary h4 {
+  margin-top: 14px;
+}
+
+.lab-card.is-muted {
+  opacity: 0.72;
+}
+
+.lab-card .button {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.progress-block {
+  margin: 16px 0;
+}
+
+.progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--subtle);
+  overflow: hidden;
+}
+
+.progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width 240ms ease;
+}
+
+.progress-caption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 11px;
+}

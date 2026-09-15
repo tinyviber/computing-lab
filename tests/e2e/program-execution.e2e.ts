@@ -1,7 +1,9 @@
 import { expect, test } from "@playwright/test";
 
 test("traces variable mutation and the final false loop condition", async ({ page }) => {
-  await page.goto("labs/program-execution?fixture=sum-1-to-3", { waitUntil: "networkidle" });
+  await page.goto("labs/program-execution?fixture=sum-1-to-3&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
 
   await expect(page.getByRole("main", { name: "程序执行实验区" })).toBeVisible();
   for (let index = 0; index < 5; index += 1) {
@@ -29,7 +31,9 @@ test("traces variable mutation and the final false loop condition", async ({ pag
 });
 
 test("keeps zero-iteration, off-by-one, and terminal evidence explicit", async ({ page }) => {
-  await page.goto("labs/program-execution?fixture=zero-iterations", { waitUntil: "networkidle" });
+  await page.goto("labs/program-execution?fixture=zero-iterations&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
   await page.getByRole("button", { name: "运行到结束" }).click();
   await page.getByRole("button", { name: "检查循环停止" }).click();
   await expect(page.getByRole("region", { name: /选中步骤详情/ })).toContainText(/4 <= 3.*假/);
@@ -46,7 +50,9 @@ test("keeps zero-iteration, off-by-one, and terminal evidence explicit", async (
 test("records optional assignment, condition, and print predictions without blocking Step", async ({
   page,
 }) => {
-  await page.goto("labs/program-execution?fixture=sum-1-to-3", { waitUntil: "networkidle" });
+  await page.goto("labs/program-execution?fixture=sum-1-to-3&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
 
   const integerPrediction = page.getByRole("spinbutton", { name: "输入安全整数" });
   await integerPrediction.fill("0");
@@ -77,7 +83,9 @@ test.describe("responsive evidence", () => {
   test("keeps source, controls, table, and output evidence usable on a narrow viewport", async ({
     page,
   }) => {
-    await page.goto("labs/program-execution?fixture=zero-iterations", { waitUntil: "networkidle" });
+    await page.goto("labs/program-execution?fixture=zero-iterations&showExperimentalLabs=1", {
+      waitUntil: "networkidle",
+    });
 
     await expect(page.getByRole("main", { name: "程序执行实验区" })).toBeVisible();
     await expect(page.getByRole("list", { name: "程序步骤" })).toBeVisible();

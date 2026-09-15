@@ -2,9 +2,12 @@ import { expect, test } from "@playwright/test";
 
 test.describe("Sound reference trajectories", () => {
   test("plays original and reconstructed A/B through the visual transport", async ({ page }) => {
-    await page.goto("labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     const plot = page.getByRole("img", { name: /波形图/ });
     const cursor = page.locator("#sound-cursor");
@@ -39,7 +42,7 @@ test.describe("Sound reference trajectories", () => {
 
   test("explores window, sample-rate crossings, samples, and bounded levels", async ({ page }) => {
     await page.goto(
-      "labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=4&phase=0.25&view=samples",
+      "labs/audio-encoding?source=speech&sampleRate=16000&bitDepth=4&phase=0.25&view=samples&showExperimentalLabs=1",
       { waitUntil: "networkidle" },
     );
 
@@ -81,9 +84,12 @@ test.describe("Sound reference trajectories", () => {
   test("keeps aliasing and quantization explanations available as separate evidence", async ({
     page,
   }) => {
-    await page.goto("labs/audio-encoding?source=high-pulse&sampleRate=8000&mode=aliasing", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/audio-encoding?source=high-pulse&sampleRate=8000&mode=aliasing&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     await expect(page.getByTestId("sound-aliasing-evidence")).toContainText(
       /奈奎斯特|Nyquist|混叠|aliased/i,
@@ -106,7 +112,9 @@ test.describe("Sound reference trajectories", () => {
         value: undefined,
       });
     });
-    await page.goto("labs/audio-encoding?source=pure440", { waitUntil: "networkidle" });
+    await page.goto("labs/audio-encoding?source=pure440&showExperimentalLabs=1", {
+      waitUntil: "networkidle",
+    });
 
     await page.getByRole("button", { name: "播放" }).click();
     await expect(page.getByTestId("sound-audio-status")).toContainText(/仅视觉播放|音频不可用/);
@@ -119,9 +127,12 @@ test.describe("Sound reference trajectories", () => {
   test("keeps zoomed sample markers and cursor in the plot's local time coordinate", async ({
     page,
   }) => {
-    await page.goto("labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&view=samples", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&view=samples&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     const plot = page.getByRole("img", { name: /采样点\s*波形图/ });
     await page.locator("#sound-plot-window").selectOption("1");
@@ -191,9 +202,12 @@ test.describe("Sound reference trajectories", () => {
   test("keeps high-pulse cursor controls at sub-ms precision without audio playback", async ({
     page,
   }) => {
-    await page.goto("labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8", {
-      waitUntil: "networkidle",
-    });
+    await page.goto(
+      "labs/audio-encoding?source=pure440&sampleRate=8000&bitDepth=8&showExperimentalLabs=1",
+      {
+        waitUntil: "networkidle",
+      },
+    );
 
     await page.locator("#sound-source").selectOption("high-pulse");
     const cursor = page.locator("#sound-cursor");
@@ -216,7 +230,7 @@ test.describe("Sound responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 
   test("keeps A/B transport and visual evidence usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/audio-encoding?source=pure440&mode=aliasing", {
+    await page.goto("labs/audio-encoding?source=pure440&mode=aliasing&showExperimentalLabs=1", {
       waitUntil: "networkidle",
     });
 

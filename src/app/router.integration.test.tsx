@@ -1,28 +1,39 @@
 import userEvent from "@testing-library/user-event";
 import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
-import { navigateApp, renderAppAt } from "../test/router-test-helpers";
+import {
+  anonymousAuthState,
+  navigateApp,
+  renderAppAt,
+  studentAuthState,
+  teacherAuthState,
+} from "../test/router-test-helpers";
 
 afterEach(() => {
   window.history.replaceState({}, "", "/");
 });
 
 describe("application router integration", () => {
-  it("keeps the home route free of legacy marketing copy and the ready-state label", async () => {
+  it("shows a teacher the classroom home with the enabled lab and flagged experiments", async () => {
     await renderAppAt("/");
 
+    // The enabled lab links to its class-scoped route.
+    const calculatorLinks = screen.getAllByRole("link", { name: /搭一个计算器|开始|继续/ });
+    expect(
+      calculatorLinks.some((link) => link.getAttribute("href") === "/classes/c1/labs/calculator"),
+    ).toBe(true);
+
+    // Hidden labs are visible to a teacher but labelled.
     const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
     expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
-    expect(screen.getByText("计算实验 / 01")).toBeInTheDocument();
-    expect(screen.queryByText("每个实验都从问题开始")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("图像编码实验预览")).not.toBeInTheDocument();
-    expect(screen.queryByText("INTERACTIVE COMPUTING / 01")).not.toBeInTheDocument();
-    expect(screen.queryByText("source raster → reconstruction")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("教师提出问题，学生动手改变参数，看结果、记变化、说明原因。"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("本地学习空间")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: /进入实验/ }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("未开放").length).toBeGreaterThan(0);
+
+    // The teacher dashboard card is present.
+    expect(screen.getByRole("link", { name: /打开看板/ })).toHaveAttribute(
+      "href",
+      "/classes/c1/dashboard",
+    );
+
     for (const legacyPhrase of [
       /不先背结论/,
       /把一个系统拆开/,
@@ -35,28 +46,38 @@ describe("application router integration", () => {
     expect(screen.queryByRole("link", { name: /继续图像编码/ })).not.toBeInTheDocument();
   });
 
-  it("keeps the hero CTA anchored to an existing catalog target", async () => {
-    await renderAppAt("/");
+  it("shows anonymous visitors a landing page with a sign-in entry", async () => {
+    await renderAppAt("/", { auth: anonymousAuthState });
 
-    const hero = screen.getByRole("heading", { name: "交互式计算实验" }).closest("section");
-    if (!(hero instanceof HTMLElement)) throw new Error("Home hero section not found");
-    const heroLinks = within(hero).getAllByRole("link");
-    expect(heroLinks).toHaveLength(1);
-    expect(within(hero).getByRole("link", { name: "选择一个实验" })).toHaveAttribute(
-      "href",
-      "#catalog",
-    );
-    expect(screen.queryByRole("link", { name: "了解课堂使用方式" })).not.toBeInTheDocument();
-    expect(document.getElementById("method")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "选择一个实验" })).toHaveLength(1);
-    expect(screen.queryByRole("link", { name: "浏览全部实验" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "计算实验室" })).toBeInTheDocument();
+    const entry = screen.getByRole("link", { name: /登录 \/ 加入班级/ });
+    expect(entry).toHaveAttribute("href", "/login");
 
-    for (const link of screen.getAllByRole("link")) {
-      const href = link.getAttribute("href");
-      if (href?.startsWith("#")) {
-        expect(document.getElementById(href.slice(1))).not.toBeNull();
-      }
+    // No lab links are offered to an anonymous visitor.
+    expect(screen.queryByRole("link", { name: /进入实验/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("交互式计算实验")).not.toBeInTheDocument();
+    for (const legacyPhrase of [/不先背结论/, /把一个系统拆开/, /可直接开始/]) {
+      expect(screen.queryByText(legacyPhrase)).not.toBeInTheDocument();
     }
+  });
+
+  it("hides a disabled lab from students and opens it with the override or as teacher", async () => {
+    // A student is refused.
+    const refused = await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
+    expect(screen.getByRole("heading", { name: /图像编码暂未开放/ })).toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: /图像编码实验区/ })).not.toBeInTheDocument();
+    refused.unmount();
+
+    // The explicit URL escape hatch opens it.
+    const override = await renderAppAt("/labs/image-encoding?showExperimentalLabs=1", {
+      auth: studentAuthState,
+    });
+    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
+    override.unmount();
+
+    // A teacher can always open it.
+    await renderAppAt("/labs/image-encoding", { auth: teacherAuthState });
+    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
   });
 
   it("hydrates the photo source through the canonical image query", async () => {

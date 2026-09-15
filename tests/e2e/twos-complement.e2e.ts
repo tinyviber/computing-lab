@@ -1,9 +1,12 @@
 import { expect, test } from "@playwright/test";
 
 test("explores a fixed-width two's-complement overflow trajectory", async ({ page }) => {
-  await page.goto("labs/twos-complement?width=4&a=0111&b=0001&reading=signed", {
-    waitUntil: "networkidle",
-  });
+  await page.goto(
+    "labs/twos-complement?width=4&a=0111&b=0001&reading=signed&showExperimentalLabs=1",
+    {
+      waitUntil: "networkidle",
+    },
+  );
 
   await expect(page.getByRole("main", { name: /二进制补码实验区/ })).not.toContainText(
     /\b(signed|unsigned)\b/,
@@ -45,7 +48,7 @@ test("explores a fixed-width two's-complement overflow trajectory", async ({ pag
 test("uses 4-bit progressive disclosure and preserves the domain result across readings", async ({
   page,
 }) => {
-  await page.goto("labs/twos-complement", { waitUntil: "networkidle" });
+  await page.goto("labs/twos-complement?showExperimentalLabs=1", { waitUntil: "networkidle" });
   await expect(page.getByRole("button", { name: "4 位" })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "8 位（展开后）" })).toBeDisabled();
   await expect(page.getByRole("heading", { name: "符号位与大小的冲突" })).toBeVisible();

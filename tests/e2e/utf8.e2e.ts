@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test("traces mixed Unicode scalars into UTF-8 bytes", async ({ page }) => {
-  await page.goto("labs/utf8?scenario=mixed", { waitUntil: "networkidle" });
+  await page.goto("labs/utf8?scenario=mixed&showExperimentalLabs=1", { waitUntil: "networkidle" });
 
   await expect(page.getByRole("main", { name: "UTF-8 编码实验区" })).toBeVisible();
   await page.getByRole("button", { name: "运行到结束" }).click();
@@ -73,7 +73,9 @@ test("shows exact learner-facing evidence for every UTF-8 branch boundary", asyn
   ] as const;
 
   for (const boundary of boundaries) {
-    await page.goto(`labs/utf8?scenario=${boundary.scenario}`, { waitUntil: "networkidle" });
+    await page.goto(`labs/utf8?scenario=${boundary.scenario}&showExperimentalLabs=1`, {
+      waitUntil: "networkidle",
+    });
     await page.getByRole("button", { name: "运行到结束" }).click();
 
     await expect(page.locator('output[aria-label="编码后的 UTF-8 字节"]')).toHaveText(
@@ -99,7 +101,9 @@ test.describe("responsive evidence", () => {
   test.use({ viewport: { width: 520, height: 900 } });
 
   test("keeps byte tables and output usable on a narrow viewport", async ({ page }) => {
-    await page.goto("labs/utf8?scenario=emoji", { waitUntil: "networkidle" });
+    await page.goto("labs/utf8?scenario=emoji&showExperimentalLabs=1", {
+      waitUntil: "networkidle",
+    });
     await page.getByRole("button", { name: "执行一步" }).click();
     await expect(page.getByRole("table", { name: /生成的字节/ })).toBeVisible();
     await expect(page.locator('output[aria-label="编码后的 UTF-8 字节"]')).toBeVisible();

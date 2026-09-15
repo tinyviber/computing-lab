@@ -1,95 +1,197 @@
 import { Link } from "@tanstack/react-router";
-import { labs } from "../catalog/labs";
+import { useEffect, useState } from "react";
+import { api } from "../../shared/api/client";
+import { useAuth } from "../../shared/auth";
+import { enabledLabs, experimentalLabs } from "../catalog/labs";
+import { CALCULATOR_STAGES } from "../../features/calculator";
 import "./home.css";
 
-const catalogGroups = [
-  { label: "信息编码", ids: ["image-encoding", "audio-encoding", "utf8", "byte-edit"] },
-  { label: "系统与程序", ids: ["home-network", "program-execution", "protocol-process"] },
-  { label: "数据与模拟", ids: ["twos-complement", "relational-data", "monte-carlo"] },
-];
+type ProjectSummary = { currentStage: number };
 
-export function HomePage() {
+function AnonymousLanding() {
   return (
     <div className="home-page">
       <header className="home-topbar">
-        <Link className="home-brand" to="/" aria-label="计算实验室首页">
+        <span className="home-brand">
           <span className="home-brand-mark">⌁</span>
           <span>计算实验室</span>
-        </Link>
+        </span>
         <nav aria-label="主导航" className="home-nav">
-          <a className="is-active" href="#catalog">
-            实验目录
-          </a>
           <Link to="/editor">课件编辑</Link>
         </nav>
       </header>
-
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
-            <p className="eyebrow">计算实验 / 01</p>
-            <h1 id="home-title">交互式计算实验</h1>
+            <p className="eyebrow">校内信息技术实验</p>
+            <h1 id="home-title">计算实验室</h1>
+            <p className="home-lede">
+              用逻辑门亲手搭出一个能做加减乘的计算器。每一关都由服务器判定，通过后解锁下一关。
+            </p>
             <div className="home-hero-actions">
-              <a className="button button-primary" href="#catalog">
-                选择一个实验 <span aria-hidden="true">→</span>
-              </a>
+              <Link className="button button-primary" to="/login">
+                登录 / 加入班级 <span aria-hidden="true">→</span>
+              </Link>
             </div>
-          </div>
-          <div className="home-overview" aria-label="实验目录概览">
-            <p className="eyebrow">实验目录</p>
-            <div className="home-overview-groups">
-              {catalogGroups.map((group) => (
-                <div className="home-overview-group" key={group.label}>
-                  <span>{group.label}</span>
-                  <strong>{group.ids.length} 个实验</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="catalog-section" aria-labelledby="catalog-title" id="catalog">
-          <div className="section-heading catalog-heading">
-            <div>
-              <p className="eyebrow">实验目录</p>
-              <h2 id="catalog-title">按主题进入实验室</h2>
-            </div>
-            <span className="summary-note">{labs.length} 个实验</span>
-          </div>
-          <div className="catalog-groups">
-            {catalogGroups.map((group) => (
-              <section
-                className="catalog-group"
-                key={group.label}
-                aria-labelledby={`group-${group.label}`}
-              >
-                <h3 id={`group-${group.label}`}>{group.label}</h3>
-                <div className="lab-card-grid">
-                  {group.ids.map((id) => {
-                    const lab = labs.find((item) => item.id === id);
-                    if (!lab) return null;
-                    return (
-                      <Link className="lab-card" key={lab.id} to={lab.route}>
-                        <div className="lab-card-topline">
-                          <span className="category-label">
-                            {lab.status === "available" ? "可用" : "预览"}
-                          </span>
-                          <span className="card-arrow" aria-hidden="true">
-                            ↗
-                          </span>
-                        </div>
-                        <h4>{lab.title}</h4>
-                        <p>{lab.description}</p>
-                        <span className="lab-card-action">进入实验</span>
-                      </Link>
-                    );
-                  })}
-                </div>
-              </section>
-            ))}
           </div>
         </section>
       </main>
     </div>
   );
+}
+
+function StageProgress({ currentStage }: { currentStage: number }) {
+  const total = CALCULATOR_STAGES.length;
+  const done = Math.max(0, Math.min(currentStage - 1, total));
+  return (
+    <div className="progress-block">
+      <div
+        aria-label={`已完成 ${done} / ${total} 关`}
+        aria-valuemax={total}
+        aria-valuemin={0}
+        aria-valuenow={done}
+        className="progress-track"
+        role="progressbar"
+      >
+        <span className="progress-fill" style={{ width: `${(done / total) * 100}%` }} />
+      </div>
+      <p className="progress-caption">
+        已通过 {done} / {total} 关
+      </p>
+    </div>
+  );
+}
+
+function ClassroomHome() {
+  const { session, primaryMembership, role, logout } = useAuth();
+  const [project, setProject] = useState<ProjectSummary | null>(null);
+  const classId = primaryMembership?.classId;
+
+  useEffect(() => {
+    if (!classId || role === "teacher") return;
+    void api
+      .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
+      .then(setProject)
+      .catch(() => setProject(null));
+  }, [classId, role]);
+
+  const experimental = experimentalLabs();
+
+  return (
+    <div className="home-page">
+      <header className="home-topbar">
+        <span className="home-brand">
+          <span className="home-brand-mark">⌁</span>
+          <span>计算实验室</span>
+        </span>
+        <div className="home-identity">
+          <span className="home-user">
+            {session?.user.name}
+            <span className="home-user-no">{session?.user.studentNo}</span>
+          </span>
+          <button className="button button-secondary" onClick={() => void logout()} type="button">
+            退出
+          </button>
+        </div>
+      </header>
+
+      <main>
+        <section className="home-hero" aria-labelledby="home-title">
+          <div className="home-hero-copy">
+            <p className="eyebrow">{primaryMembership?.className ?? "未加入班级"}</p>
+            <h1 id="home-title">{role === "teacher" ? "教师工作台" : "我的实验"}</h1>
+          </div>
+        </section>
+
+        <section className="catalog-section" aria-labelledby="current-title">
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">正在进行</p>
+              <h2 id="current-title">当前实验</h2>
+            </div>
+          </div>
+
+          <div className="lab-card-grid">
+            {enabledLabs().map((lab) => (
+              <article className="lab-card is-primary" key={lab.id}>
+                <div className="lab-card-topline">
+                  <span className="category-label">Lab 01</span>
+                </div>
+                <h4>{lab.title}</h4>
+                <p>{lab.description}</p>
+                {role !== "teacher" && project ? (
+                  <StageProgress currentStage={project.currentStage} />
+                ) : null}
+                {classId ? (
+                  <Link
+                    className="button button-primary"
+                    params={{ classId }}
+                    to="/classes/$classId/labs/calculator"
+                  >
+                    {project && project.currentStage > 1 ? "继续" : "开始"}
+                  </Link>
+                ) : null}
+              </article>
+            ))}
+
+            {role === "teacher" && classId ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
+                  <span className="category-label">教师</span>
+                </div>
+                <h4>班级看板</h4>
+                <p>查看每位学生的关卡进度、得分与失败用例类别。</p>
+                <Link
+                  className="button button-secondary"
+                  params={{ classId }}
+                  to="/classes/$classId/dashboard"
+                >
+                  打开看板
+                </Link>
+              </article>
+            ) : null}
+          </div>
+        </section>
+
+        {role === "teacher" && experimental.length > 0 ? (
+          <section className="catalog-section" aria-labelledby="experimental-title">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">仅教师可见</p>
+                <h2 id="experimental-title">未开放的实验</h2>
+              </div>
+              <span className="summary-note">{experimental.length} 个</span>
+            </div>
+            <div className="lab-card-grid">
+              {experimental.map((lab) => (
+                <Link className="lab-card is-muted" key={lab.id} to={lab.route}>
+                  <div className="lab-card-topline">
+                    <span className="category-label">未开放</span>
+                  </div>
+                  <h4>{lab.title}</h4>
+                  <p>{lab.description}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </main>
+    </div>
+  );
+}
+
+export function HomePage() {
+  const { status } = useAuth();
+  if (status === "loading") {
+    return (
+      <div className="home-page">
+        <main>
+          <p className="home-loading" role="status">
+            正在载入…
+          </p>
+        </main>
+      </div>
+    );
+  }
+  return status === "authenticated" ? <ClassroomHome /> : <AnonymousLanding />;
 }

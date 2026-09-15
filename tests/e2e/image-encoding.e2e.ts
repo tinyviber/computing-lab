@@ -23,7 +23,7 @@ test("runs one image-encoding feedback loop without external network access", as
     await route.continue();
   });
 
-  await page.goto("labs/image-encoding", { waitUntil: "networkidle" });
+  await page.goto("labs/image-encoding?showExperimentalLabs=1", { waitUntil: "networkidle" });
   expect(nonLocalRequests).toEqual([]);
   await expect(page.locator("h1").first()).toHaveText(/图像编码/);
   await expectSourceIdentity(page, "固定样例", "小猫插图");
@@ -81,7 +81,9 @@ test("runs one image-encoding feedback loop without external network access", as
 });
 
 test("keeps fixture, legacy URL, upload, reset, and canvas behavior", async ({ page }) => {
-  await page.goto("labs/image-encoding?scenario=low-sampling", { waitUntil: "networkidle" });
+  await page.goto("labs/image-encoding?scenario=low-sampling&showExperimentalLabs=1", {
+    waitUntil: "networkidle",
+  });
   await expectSourceIdentity(page, "兼容样例", "细棋盘格");
   await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
   await expect(page.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeVisible();
@@ -89,7 +91,7 @@ test("keeps fixture, legacy URL, upload, reset, and canvas behavior", async ({ p
   await expect(page.getByRole("img", { name: /重建图像/ })).toHaveAttribute("width", "48");
 
   await page.goto(
-    "labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=representation",
+    "labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&view=representation&showExperimentalLabs=1",
     { waitUntil: "networkidle" },
   );
   await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");

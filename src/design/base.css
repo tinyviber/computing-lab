@@ -167,6 +167,30 @@ p {
   color: var(--primary);
 }
 
+.button-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+
+.button-ghost:hover {
+  background: var(--subtle);
+  color: var(--primary);
+}
+
+/* Available to screen readers only; keeps table captions off-screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .local-dot {
   display: inline-block;
   width: 7px;

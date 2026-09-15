@@ -1,4 +1,4 @@
-import { Link, useLocation } from "@tanstack/react-router";
+import { Link, useLocation, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLabNavigationItems } from "./LabNavigationProvider";
 import "./lab.css";
@@ -16,6 +16,7 @@ type LabNavigationProps = {
   pathname: string;
   railOpen: boolean;
   setRailOpen: (open: boolean) => void;
+  preservedSearch?: { showExperimentalLabs: "1" };
 };
 
 function LabNavigation({
@@ -24,6 +25,7 @@ function LabNavigation({
   pathname,
   railOpen,
   setRailOpen,
+  preservedSearch,
 }: LabNavigationProps) {
   return (
     <aside
@@ -48,6 +50,7 @@ function LabNavigation({
                 className={`lab-link${pathname === lab.route ? " is-active" : ""}`}
                 data-status={lab.status}
                 onClick={() => isMobile && setRailOpen(false)}
+                search={preservedSearch}
                 to={lab.route}
               >
                 <span>
@@ -64,9 +67,21 @@ function LabNavigation({
   );
 }
 
+/**
+ * `?showExperimentalLabs=1` is an opaque URL flag — the shell preserves it
+ * across rail navigation without interpreting lab semantics.
+ */
+function useExperimentalSearch(): { showExperimentalLabs: "1" } | undefined {
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const raw = search.showExperimentalLabs;
+  const active = raw === "1" || raw === 1 || raw === true;
+  return active ? { showExperimentalLabs: "1" } : undefined;
+}
+
 function RoutedLabNavigation(props: Omit<LabNavigationProps, "pathname">) {
   const pathname = useLocation({ select: (location) => location.pathname });
-  return <LabNavigation {...props} pathname={pathname} />;
+  const preservedSearch = useExperimentalSearch();
+  return <LabNavigation {...props} pathname={pathname} preservedSearch={preservedSearch} />;
 }
 
 export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) {

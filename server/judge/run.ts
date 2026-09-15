@@ -1,0 +1,208 @@
+/**
+ * Server-side judge: runs hidden test vectors against a submitted circuit
+ * snapshot, persists the Submission, and advances stage progress on a full
+ * pass. All grading authority lives here; the client only runs public cases.
+ */
+
+import type { DatabaseSync } from "node:sqlite";
+import { runCases, type CaseResult } from "../../src/features/calculator/domain/evaluate.ts";
+import {
+  sanitizeGraph,
+  type Bit,
+  type CircuitGraph,
+  type ComponentDef,
+} from "../../src/features/calculator/domain/graph.ts";
+import { coreStages, getStage } from "../../src/features/calculator/domain/stages.ts";
+import { newId } from "../db/client.ts";
+import { hiddenTestsFor } from "./testcases.ts";
+
+export type TestSummary = {
+  categories: Record<string, { passed: number; total: number }>;
+  results: { name: string; category: string; passed: boolean }[];
+  /** First failing hidden case, in runCases order; null on a full pass. */
+  counterexample: {
+    name: string;
+    category: string;
+    inputs: Record<string, Bit>;
+    expected: Record<string, Bit>;
+    actual: Record<string, Bit | null>;
+  } | null;
+  error: string | null;
+};
+
+export type ProjectRow = {
+  id: string;
+  userId: string;
+  classId: string;
+  labId: string;
+  currentStage: number;
+  passedStages: number[];
+  unlockedSubmodules: ComponentDef[];
+  draftGraph: Record<string, CircuitGraph>;
+};
+
+type RawProject = {
+  id: string;
+  user_id: string;
+  class_id: string;
+  lab_id: string;
+  current_stage: number;
+  passed_stages: string;
+  unlocked_submodules: string;
+  draft_graph: string;
+};
+
+function toProject(row: RawProject): ProjectRow {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    classId: row.class_id,
+    labId: row.lab_id,
+    currentStage: row.current_stage,
+    passedStages: JSON.parse(row.passed_stages) as number[],
+    unlockedSubmodules: JSON.parse(row.unlocked_submodules) as ComponentDef[],
+    draftGraph: JSON.parse(row.draft_graph) as Record<string, CircuitGraph>,
+  };
+}
+
+export function getOrCreateProject(
+  db: DatabaseSync,
+  userId: string,
+  classId: string,
+  labId: string,
+): ProjectRow {
+  const existing = db
+    .prepare("SELECT * FROM student_projects WHERE user_id = ? AND lab_id = ?")
+    .get(userId, labId) as RawProject | undefined;
+  if (existing) return toProject(existing);
+  const id = newId();
+  db.prepare(
+    "INSERT INTO student_projects (id, user_id, class_id, lab_id) VALUES (?, ?, ?, ?)",
+  ).run(id, userId, classId, labId);
+  return toProject(db.prepare("SELECT * FROM student_projects WHERE id = ?").get(id) as RawProject);
+}
+
+export function saveDraft(
+  db: DatabaseSync,
+  project: ProjectRow,
+  stageIndex: number,
+  graph: unknown,
+): void {
+  const drafts = { ...project.draftGraph, [String(stageIndex)]: sanitizeGraph(graph) };
+  db.prepare(
+    "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+  ).run(JSON.stringify(drafts), project.id);
+}
+
+function componentMap(submodules: ComponentDef[]): Record<string, CircuitGraph> {
+  return Object.fromEntries(submodules.map((s) => [s.name, s.graph]));
+}
+
+export type JudgeOutcome = {
+  score: number;
+  total: number;
+  passed: boolean;
+  testSummary: TestSummary;
+  submissionId: string;
+  currentStage: number;
+  passedStages: number[];
+  unlockedComponent: string | null;
+};
+
+export function judgeSubmission(
+  db: DatabaseSync,
+  project: ProjectRow,
+  stageIndex: number,
+  rawGraph: unknown,
+): JudgeOutcome | { error: string; status: number } {
+  const stage = getStage(stageIndex);
+  if (!stage) return { error: "unknown-stage", status: 400 };
+  // Core stages are always judgeable in any order; challenge stages open
+  // only after every core stage has been passed.
+  if (stage.track === "challenge") {
+    const corePassed = coreStages().every((s) => project.passedStages.includes(s.index));
+    if (!corePassed) return { error: "stage-locked", status: 409 };
+  }
+
+  const graph = sanitizeGraph(rawGraph);
+  const cases = hiddenTestsFor(stageIndex);
+  const { results, score, total } = runCases(
+    graph,
+    cases,
+    componentMap(project.unlockedSubmodules),
+  );
+
+  const categories: TestSummary["categories"] = {};
+  for (const r of results as CaseResult[]) {
+    const bucket = (categories[r.category] ??= { passed: 0, total: 0 });
+    bucket.total += 1;
+    if (r.passed) bucket.passed += 1;
+  }
+  const firstError = results.find((r) => r.error)?.error;
+  const failIndex = results.findIndex((r) => !r.passed);
+  const testSummary: TestSummary = {
+    categories,
+    results: results.map((r) => ({ name: r.name, category: r.category, passed: r.passed })),
+    counterexample:
+      failIndex >= 0
+        ? {
+            name: results[failIndex].name,
+            category: results[failIndex].category,
+            inputs: cases[failIndex].inputs,
+            expected: results[failIndex].expected,
+            actual: results[failIndex].actual,
+          }
+        : null,
+    error: firstError ? `${firstError.kind}: ${firstError.detail}` : null,
+  };
+  const passed = score === total && total > 0;
+
+  const submissionId = newId();
+  db.prepare(
+    `INSERT INTO submissions
+       (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).run(
+    submissionId,
+    project.id,
+    project.userId,
+    project.labId,
+    stageIndex,
+    JSON.stringify(graph),
+    score,
+    total,
+    passed ? 1 : 0,
+    JSON.stringify(testSummary),
+  );
+
+  let currentStage = project.currentStage;
+  let passedStages = project.passedStages;
+  let unlockedComponent: string | null = null;
+  if (passed) {
+    // Passes may arrive out of order; keep the set sorted and deduplicated.
+    passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
+    currentStage = Math.min(Math.max(...passedStages) + 1, 7);
+    let submodules = project.unlockedSubmodules;
+    if (stage.unlocks) {
+      unlockedComponent = stage.unlocks;
+      const rest = submodules.filter((s) => s.name !== stage.unlocks);
+      submodules = [...rest, { name: stage.unlocks, graph }];
+    }
+    db.prepare(
+      `UPDATE student_projects
+       SET current_stage = ?, passed_stages = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE id = ?`,
+    ).run(currentStage, JSON.stringify(passedStages), JSON.stringify(submodules), project.id);
+  }
+
+  return {
+    score,
+    total,
+    passed,
+    testSummary,
+    submissionId,
+    currentStage,
+    passedStages,
+    unlockedComponent,
+  };
+}
