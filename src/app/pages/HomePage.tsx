@@ -16,6 +16,9 @@ function AnonymousLanding() {
           <span className="home-brand-mark">⌁</span>
           <span>计算实验室</span>
         </span>
+        <nav aria-label="主导航" className="home-nav">
+          <Link to="/editor">课件编辑</Link>
+        </nav>
       </header>
       <main>
         <section className="home-hero" aria-labelledby="home-title">

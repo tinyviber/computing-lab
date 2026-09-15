@@ -20,6 +20,7 @@ import { TwosComplementPage } from "../features/twos-complement";
 import { Utf8Page } from "../features/utf8";
 import { getLab } from "./catalog/labs";
 import { HomePage } from "./pages/HomePage";
+import { EditorPage } from "./pages/EditorPage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { LabGate } from "./pages/LabGate";
 import { LoginPage } from "./pages/LoginPage";
@@ -57,6 +58,11 @@ export const passThroughSearch = (search: Record<string, unknown>): Record<strin
 
 const rootRoute = createRootRoute({ component: RootLayout, notFoundComponent: NotFoundPage });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
+const editorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/editor",
+  component: EditorPage,
+});
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
@@ -146,6 +152,7 @@ const routeTree = rootRoute.addChildren([
   calculatorEntryRoute,
   calculatorLabRoute,
   dashboardRoute,
+  editorRoute,
   imageRoute,
   audioRoute,
   networkRoute,
