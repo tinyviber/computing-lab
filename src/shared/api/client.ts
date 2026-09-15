@@ -32,7 +32,7 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
 
 export function describeApiError(error: unknown): string {
   if (error instanceof ApiError) {
-    return API_ERROR_MESSAGES[error.code] ?? `请求失败（${error.code}）。`;
+    return API_ERROR_MESSAGES[error.code] ?? `请求失败，错误码 ${error.code}。`;
   }
   return API_ERROR_MESSAGES.offline;
 }

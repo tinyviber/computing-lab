@@ -1232,7 +1232,7 @@ function ImageEncodingContent({ search }: { search: Record<string, unknown> }) {
                     onClick={() => changeColorMode("rgb24")}
                     type="button"
                   >
-                    原色（RGB 24 位）
+                    原色（24 位）
                   </button>
                 </div>
                 <p className="image-control-guide">

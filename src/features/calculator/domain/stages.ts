@@ -182,7 +182,7 @@ export const CALCULATOR_STAGES: StageDef[] = [
     outputs: nib("R"),
     primitives: ALL_GATES,
     unlocks: null,
-    hint: "算出全部结果，再用 Op 位做选择器（MUX）逐位挑选输出。",
+    hint: "算出全部结果，再用操作位逐位挑选输出。",
   },
 ];
 

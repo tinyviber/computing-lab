@@ -10,6 +10,15 @@ import type { LabDefinition } from "./types";
  */
 export const labs: LabDefinition[] = [
   {
+    id: "number-conversion",
+    title: "进制转换",
+    category: "数据表示",
+    route: "/labs/number-conversion",
+    description: "分别观察整数和小数在十进制与二进制之间的转换过程。",
+    status: "available",
+    enabled: true,
+  },
+  {
     id: "calculator",
     title: "搭一个计算器",
     category: "计算机原理",

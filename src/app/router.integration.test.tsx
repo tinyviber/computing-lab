@@ -210,7 +210,7 @@ describe("application router integration", () => {
       "/labs/audio-encoding?source=sawtooth&sampleRate=16000&bitDepth=12&mode=quantization&view=levels",
     );
     expect(document.body).toHaveTextContent("锯齿波");
-    expect(document.body).toHaveTextContent(/quantization|levels/i);
+    expect(document.body).toHaveTextContent(/量化结果|量化级别/);
   });
 
   it("changes network lesson state when the same route receives a new search", async () => {

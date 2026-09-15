@@ -98,11 +98,7 @@ function statusLabel(status: "running" | "complete"): string {
 }
 
 function tableLabel(name: string): string {
-  return name === "books"
-    ? "图书（books）"
-    : name === "borrowers"
-      ? "借阅人（borrowers）"
-      : "借阅记录（loans）";
+  return name === "books" ? "图书" : name === "borrowers" ? "借阅人" : "借阅记录";
 }
 
 function formatRelationalValue(value: RelationalValue | undefined): string {
@@ -620,11 +616,7 @@ export function RelationalDataPage() {
   }, [scenario.scenario]);
 
   return (
-    <LabShell
-      eyebrow="关系数据"
-      title="关系数据"
-      subtitle="表如何回答查询（tables answer queries）"
-    >
+    <LabShell eyebrow="关系数据" title="关系数据" subtitle="表如何回答查询">
       <RelationalContent dispatch={dispatch} lesson={lesson} />
     </LabShell>
   );

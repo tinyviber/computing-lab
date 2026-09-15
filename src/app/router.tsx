@@ -13,6 +13,7 @@ import { CalculatorLabPage } from "../features/calculator";
 import { HomeNetworkPage } from "../features/home-network";
 import { ImageEncodingPage } from "../features/image-encoding";
 import { MonteCarloPage } from "../features/monte-carlo";
+import { NumberConversionPage } from "../features/number-conversion";
 import { ProgramExecutionPage } from "../features/program-execution";
 import { ProtocolProcessPage } from "../features/protocol-process";
 import { RelationalDataPage } from "../features/relational-data";
@@ -115,6 +116,11 @@ const protocolProcessRoute = legacyLabRoute(
 );
 const utf8Route = legacyLabRoute("utf8", "/labs/utf8", Utf8Page);
 const monteCarloRoute = legacyLabRoute("monte-carlo", "/labs/monte-carlo", MonteCarloPage);
+const numberConversionRoute = legacyLabRoute(
+  "number-conversion",
+  "/labs/number-conversion",
+  NumberConversionPage,
+);
 const relationalDataRoute = legacyLabRoute(
   "relational-data",
   "/labs/relational-data",
@@ -161,6 +167,7 @@ const routeTree = rootRoute.addChildren([
   protocolProcessRoute,
   utf8Route,
   monteCarloRoute,
+  numberConversionRoute,
   relationalDataRoute,
   byteEditRoute,
 ]);

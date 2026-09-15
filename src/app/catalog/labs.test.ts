@@ -7,6 +7,7 @@ describe("lab catalog", () => {
     expect(new Set(labs.map((lab) => lab.route)).size).toBe(labs.length);
     expect(labs).toEqual(
       expect.arrayContaining([
+        expect.objectContaining({ id: "number-conversion", route: "/labs/number-conversion" }),
         expect.objectContaining({ id: "image-encoding", route: "/labs/image-encoding" }),
         expect.objectContaining({ id: "audio-encoding", route: "/labs/audio-encoding" }),
         expect.objectContaining({ id: "home-network", route: "/labs/home-network" }),

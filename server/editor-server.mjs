@@ -41,8 +41,6 @@ const editableExtensions = new Set([
   ".vue",
 ]);
 
-const previewProcesses = new Map();
-let nextPreviewPort = Number(process.env.EDITOR_PREVIEW_PORT ?? 3030);
 let viteProcess = null;
 
 function normalizeBasePath(value) {
@@ -144,7 +142,7 @@ function listLessons() {
         files,
       };
     })
-    .filter((lesson) => lesson.files.some((file) => file.path === "slides.md"));
+    .filter((lesson) => lesson.files.some((file) => file.path === "lesson.pptx"));
 }
 
 function parseCookies(header) {
@@ -220,98 +218,6 @@ function writeTextAtomically(path, content) {
   renameSync(temporaryPath, path);
 }
 
-function previewRecord(slug) {
-  const lessonDir = lessonDirectory(slug);
-  if (!lessonDir || !existsSync(join(lessonDir, "slides.md"))) return null;
-
-  const existing = previewProcesses.get(slug);
-  if (existing?.child && !existing.child.killed) return existing;
-
-  const cliCandidates = [
-    resolve(editorRoot, "node_modules/@slidev/cli/bin/slidev.mjs"),
-    resolve(root, "node_modules/@slidev/cli/bin/slidev.mjs"),
-  ];
-  const cli = cliCandidates.find((candidate) => existsSync(candidate));
-  if (!cli) {
-    const unavailable = { state: "error", output: "找不到 @slidev/cli，请先安装项目依赖。" };
-    previewProcesses.set(slug, unavailable);
-    return unavailable;
-  }
-
-  const previewPort = nextPreviewPort;
-  nextPreviewPort += 1;
-  const previewBase = `${externalPath(`/__preview/${slug}/`)}`;
-  const child = spawn(
-    process.execPath,
-    [cli, "slides.md", "--port", String(previewPort), "--base", previewBase],
-    {
-      cwd: lessonDir,
-      env: { ...process.env, BROWSER: "none" },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  const record = {
-    child,
-    port: previewPort,
-    basePath: `/__preview/${slug}/`,
-    state: "starting",
-    output: "",
-  };
-  previewProcesses.set(slug, record);
-
-  const appendOutput = (chunk) => {
-    record.output = `${record.output}${chunk.toString("utf8")}`.slice(-8000);
-  };
-  child.stdout.on("data", appendOutput);
-  child.stderr.on("data", appendOutput);
-  child.on("error", (error) => {
-    record.state = "error";
-    appendOutput(error);
-  });
-  child.on("exit", (code, signal) => {
-    record.state = code === 0 ? "stopped" : "error";
-    record.exit = { code, signal };
-    record.child = null;
-  });
-  return record;
-}
-
-async function probePreview(record) {
-  if (!record?.port || record.state === "error" || record.state === "stopped") return false;
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 700);
-  try {
-    const response = await fetch(
-      `http://localhost:${record.port}${externalPath(record.basePath)}`,
-      {
-        signal: controller.signal,
-      },
-    );
-    if (response.ok) record.state = "ready";
-    return response.ok;
-  } catch {
-    return false;
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-function previewMatch(pathname) {
-  return pathname.match(/^\/__preview\/([A-Za-z0-9][A-Za-z0-9_-]*)(\/.*)?$/);
-}
-
-function proxyRequest(proxy, request, response, targetPort) {
-  proxy.web(
-    request,
-    response,
-    { target: `http://localhost:${targetPort}`, changeOrigin: true },
-    (error) => {
-      if (!response.headersSent) sendText(response, 502, `预览服务暂不可用：${error.message}`);
-      else response.destroy(error);
-    },
-  );
-}
-
 function contentType(path) {
   return (
     {
@@ -323,6 +229,7 @@ function contentType(path) {
       ".json": "application/json; charset=utf-8",
       ".map": "application/json; charset=utf-8",
       ".png": "image/png",
+      ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       ".svg": "image/svg+xml",
       ".webp": "image/webp",
       ".woff": "font/woff",
@@ -435,24 +342,6 @@ async function handleApi(request, response, route) {
     return;
   }
 
-  const statusMatch = route.match(
-    /^\/api\/editor\/lessons\/([A-Za-z0-9][A-Za-z0-9_-]*)\/preview-status$/,
-  );
-  if (statusMatch && request.method === "GET") {
-    const record = previewRecord(statusMatch[1]);
-    if (!record) {
-      sendJson(response, 404, { error: "找不到可预览的课件。" });
-      return;
-    }
-    const ready = await probePreview(record);
-    sendJson(response, 200, {
-      state: ready ? "ready" : record.state,
-      output: record.output,
-      url: externalPath(`/__preview/${statusMatch[1]}/`),
-    });
-    return;
-  }
-
   const fileMatch = route.match(
     /^\/api\/editor\/lessons\/([A-Za-z0-9][A-Za-z0-9_-]*)\/files\/(.+)$/,
   );
@@ -522,18 +411,6 @@ const server = createServer(async (request, response) => {
       return;
     }
 
-    const preview = previewMatch(route);
-    if (preview) {
-      if (!requireEditorAuth(request, response)) return;
-      const record = previewRecord(preview[1]);
-      if (!record?.port) {
-        sendText(response, 503, record?.output || "预览服务不可用");
-        return;
-      }
-      proxyRequest(proxy, request, response, record.port);
-      return;
-    }
-
     if (process.env.EDITOR_DEV === "1") {
       proxy.web(request, response, {
         target: `http://127.0.0.1:${vitePort}`,
@@ -552,23 +429,6 @@ server.on("upgrade", (request, socket, head) => {
   try {
     const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     const route = internalPath(requestUrl.pathname);
-    const preview = route && previewMatch(route);
-    if (preview) {
-      if (!authenticated(request)) {
-        socket.destroy();
-        return;
-      }
-      const record = previewRecord(preview[1]);
-      if (!record?.port) {
-        socket.destroy();
-        return;
-      }
-      proxy.ws(request, socket, head, {
-        target: `http://localhost:${record.port}`,
-        changeOrigin: true,
-      });
-      return;
-    }
     if (process.env.EDITOR_DEV === "1") {
       proxy.ws(request, socket, head, {
         target: `http://127.0.0.1:${vitePort}`,
@@ -583,7 +443,6 @@ server.on("upgrade", (request, socket, head) => {
 });
 
 function shutdown() {
-  for (const record of previewProcesses.values()) record.child?.kill("SIGTERM");
   viteProcess?.kill("SIGTERM");
   server.close(() => process.exit(0));
 }
