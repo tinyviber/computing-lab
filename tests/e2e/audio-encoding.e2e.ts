@@ -66,7 +66,7 @@ test.describe("Sound reference trajectories", () => {
     expect(await markers.count()).toBeGreaterThan(1);
     await expect(markers.first()).toHaveAttribute("data-sample-index", "0");
 
-    await page.getByRole("button", { name: "量化（quantization）" }).click();
+    await page.getByRole("button", { name: "量化", exact: true }).click();
     await page.getByRole("button", { name: "量化级别" }).click();
     await expect(page.getByTestId("sound-quantization-evidence")).toBeVisible();
     await expect(page.locator("[data-level-count]")).toHaveAttribute("data-level-count", "16");
@@ -94,7 +94,7 @@ test.describe("Sound reference trajectories", () => {
     await expect(page.getByTestId("sound-aliasing-evidence")).toContainText(
       /奈奎斯特|Nyquist|混叠|aliased/i,
     );
-    await page.getByRole("button", { name: "量化（quantization）" }).click();
+    await page.getByRole("button", { name: "量化", exact: true }).click();
     await expect(page.getByTestId("sound-quantization-evidence")).toContainText(
       /量化级别|位数|quantization/i,
     );
