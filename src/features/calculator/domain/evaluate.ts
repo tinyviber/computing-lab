@@ -122,6 +122,11 @@ export function evaluateGraph(
   const componentDefs = new Map<string, ComponentDef>(
     Object.entries(components).map(([name, g]) => [name, { name, graph: g }]),
   );
+  // A component's outputs are a pure function of its bound inputs, so once a
+  // pass has computed them we can skip re-evaluating the inner graph while
+  // the bound pins are unchanged. Without this, every fixpoint pass pays the
+  // full inner-graph cost for every component instance.
+  const componentCache = new Map<string, { bound: string; outputs: Record<string, Bit | null> }>();
 
   // Seed output ports of self-driven nodes.
   for (const node of graph.nodes) {
@@ -151,12 +156,18 @@ export function evaluateGraph(
         }
         const bound: Record<string, Bit> = {};
         for (const pin of ports.inputs) bound[pin] = ins.get(pin) ?? 0;
-        const inner = evaluateGraph(def.graph, bound, components, depth + 1);
-        if (inner.error) {
-          return { outputs: {}, pins: {}, portValues: {}, error: inner.error };
+        const boundKey = JSON.stringify(bound);
+        let cached = componentCache.get(node.id);
+        if (!cached || cached.bound !== boundKey) {
+          const inner = evaluateGraph(def.graph, bound, components, depth + 1);
+          if (inner.error) {
+            return { outputs: {}, pins: {}, portValues: {}, error: inner.error };
+          }
+          cached = { bound: boundKey, outputs: inner.outputs };
+          componentCache.set(node.id, cached);
         }
         for (const pin of ports.outputs) {
-          const next = inner.outputs[pin] ?? null;
+          const next = cached.outputs[pin] ?? null;
           if (outs.get(pin) !== next) {
             outs.set(pin, next);
             changed = true;

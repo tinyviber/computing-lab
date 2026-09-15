@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const routes = [
   { path: ".", heading: /计算实验室/ },
@@ -7,13 +7,23 @@ const routes = [
   { path: "labs/home-network?showExperimentalLabs=1", heading: /家庭网络探针/ },
 ] as const;
 
+// The static preview has no API backend, so the auth session probe to /api/*
+// legitimately 404s. Collect every other console/page error but that one.
+function collectFailures(page: Page): string[] {
+  const failures: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() !== "error") return;
+    const url = message.location()?.url ?? "";
+    if (new URL(url, "http://localhost").pathname.startsWith("/api/")) return;
+    failures.push(`console: ${message.text()}`);
+  });
+  page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
+  return failures;
+}
+
 for (const route of routes) {
   test(`preview serves ${route.path}`, async ({ page }) => {
-    const failures: string[] = [];
-    page.on("console", (message) => {
-      if (message.type() === "error") failures.push(`console: ${message.text()}`);
-    });
-    page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
+    const failures = collectFailures(page);
     const response = await page.goto(route.path, { waitUntil: "networkidle" });
     expect(response?.status()).toBe(200);
     await expect(page.locator("h1").first()).toHaveText(route.heading);
@@ -30,11 +40,7 @@ for (const route of routes) {
 }
 
 test("preview renders not-found route", async ({ page }) => {
-  const failures: string[] = [];
-  page.on("console", (message) => {
-    if (message.type() === "error") failures.push(`console: ${message.text()}`);
-  });
-  page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
+  const failures = collectFailures(page);
   const response = await page.goto("missing-route", { waitUntil: "networkidle" });
   expect(response?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText(/实验不存在|NotFound|404/i);

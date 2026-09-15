@@ -64,6 +64,9 @@ describe("hidden tests accept the reference solutions", () => {
       ).toEqual([]);
       expect(score).toBe(total);
     },
+    // Stage 7 evaluates a full multiplier per hidden case; leave headroom for
+    // slow CI runners even though memoized component evaluation is much faster.
+    20_000,
   );
 
   it("rejects a wrong half adder and classifies the failures", () => {
