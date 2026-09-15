@@ -15,7 +15,7 @@ test.describe("Sound reference trajectories", () => {
       "aria-pressed",
       "true",
     );
-    await page.getByRole("button", { name: "播放" }).click();
+    await page.getByRole("button", { name: "播放", exact: true }).click();
     await expect(page.getByTestId("sound-audio-status")).toContainText(
       /播放中|仅视觉播放|音频不可用|已激活/,
     );
@@ -36,7 +36,7 @@ test.describe("Sound reference trajectories", () => {
     await expect
       .poll(async () => Number(await cursor.inputValue()))
       .toBeGreaterThan(cursorAfterSeek);
-    await page.getByRole("button", { name: "停止" }).click();
+    await page.getByRole("button", { name: "停止", exact: true }).click();
     await expect(cursor).toHaveValue("0");
   });
 
@@ -116,7 +116,7 @@ test.describe("Sound reference trajectories", () => {
       waitUntil: "networkidle",
     });
 
-    await page.getByRole("button", { name: "播放" }).click();
+    await page.getByRole("button", { name: "播放", exact: true }).click();
     await expect(page.getByTestId("sound-audio-status")).toContainText(/仅视觉播放|音频不可用/);
     await page.getByRole("button", { name: /前进 100 毫秒/ }).click();
     await expect
@@ -237,7 +237,7 @@ test.describe("Sound responsive evidence", () => {
     await expect(page.getByRole("main", { name: /声音编码实验区|声音编码/ })).toBeVisible();
     await expect(page.getByRole("button", { name: "原始信号" })).toBeVisible();
     await expect(page.getByRole("button", { name: "重建信号" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "播放" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "播放", exact: true })).toBeVisible();
     await expect(page.getByRole("img", { name: /波形图/ })).toBeVisible();
   });
 });
