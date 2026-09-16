@@ -335,4 +335,20 @@ describe("judge persistence and unlocking", () => {
     expect(withTwo.draftGraph["2"]).toEqual({ nodes: [], edges: [] });
     expect(withTwo.draftGraph["1"].nodes.length).toBeGreaterThan(0);
   });
+
+  it("removes a learner-made component when autosave submits it as deleted", () => {
+    const { db, userId, classId } = setup();
+    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const custom = { name: "TemporaryBlock", graph: halfAdderGraph(), custom: true };
+
+    saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom]);
+    const withCustom = getOrCreateProject(db, userId, classId, "calculator");
+    expect(withCustom.unlockedSubmodules.map((component) => component.name)).toEqual([
+      "TemporaryBlock",
+    ]);
+
+    saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, []);
+    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules).toEqual([]);
+  });
 });

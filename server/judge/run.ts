@@ -128,21 +128,37 @@ function submittedCustomComponents(raw: unknown): ComponentDef[] {
  * added or updated, but a request can never replace an official component.
  */
 function mergeCustomComponents(existing: ComponentDef[], raw: unknown): ComponentDef[] {
+  // Omitting components means "leave the saved component library alone".
+  // When the client sends the list, it is authoritative for learner-made
+  // components so that deleting one can be persisted by autosave.
+  if (raw === undefined) return existing;
+
   const officialNames = new Set(
     existing
       .filter((component) => !component.custom)
       .map((component) => component.name.toLocaleLowerCase()),
   );
-  const merged = [...existing];
-  for (const component of submittedCustomComponents(raw)) {
-    const normalizedName = component.name.toLocaleLowerCase();
-    if (officialNames.has(normalizedName)) continue;
-    const index = merged.findIndex(
-      (candidate) => candidate.custom && candidate.name.toLocaleLowerCase() === normalizedName,
-    );
-    if (index >= 0) merged[index] = component;
-    else merged.push(component);
+  const submitted = submittedCustomComponents(raw).filter(
+    (component) => !officialNames.has(component.name.toLocaleLowerCase()),
+  );
+  const submittedByName = new Map(
+    submitted.map((component) => [component.name.toLocaleLowerCase(), component]),
+  );
+  const merged: ComponentDef[] = [];
+
+  for (const component of existing) {
+    if (!component.custom) {
+      merged.push(component);
+      continue;
+    }
+    const replacement = submittedByName.get(component.name.toLocaleLowerCase());
+    if (replacement) {
+      merged.push(replacement);
+      submittedByName.delete(component.name.toLocaleLowerCase());
+    }
   }
+
+  merged.push(...submittedByName.values());
   return merged;
 }
 
