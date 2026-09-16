@@ -4,7 +4,7 @@
  */
 
 import { runCases, type CaseResult } from "../domain/evaluate";
-import { componentizeSelection } from "../domain/componentize";
+import { componentizeSelection, expandComponentNode } from "../domain/componentize";
 import {
   emptyGraph,
   gateInputPorts,
@@ -89,6 +89,8 @@ export type CalculatorLessonAction =
       inputNames: string[];
       outputNames: string[];
     }
+  | { type: "expand-component"; id: string }
+  | { type: "delete-custom-component"; name: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "select-node"; id: string | null }
   | { type: "delete-node"; id: string }
@@ -342,6 +344,62 @@ export function transitionCalculatorLesson(
         judgeOutcome: null,
         message: `已封装“${name}”，现在可以从“我的组件”中重复放置。`,
         nextId: state.nextId + 1,
+      };
+    }
+
+    case "expand-component": {
+      const node = graphOf(state).nodes.find((candidate) => candidate.id === action.id);
+      const component = state.unlockedSubmodules.find(
+        (candidate) =>
+          candidate.custom &&
+          candidate.name.toLocaleLowerCase() === (node?.name ?? "").toLocaleLowerCase(),
+      );
+      if (!node || node.kind !== "component" || !component) {
+        return { ...state, message: "请先选中画布中的自定义组件。" };
+      }
+      const result = expandComponentNode({
+        graph: graphOf(state),
+        componentNodeId: action.id,
+        component,
+        edgeIdPrefix: `e${state.nextId}-split`,
+      });
+      if ("error" in result) return { ...state, message: result.error };
+      return {
+        ...updateGraph(state, () => result.graph),
+        selectedNodeId: null,
+        pendingWire: null,
+        message: `已拆分“${component.name}”，内部逻辑已恢复到画布。`,
+        nextId: state.nextId + 1,
+      };
+    }
+
+    case "delete-custom-component": {
+      const name = action.name.trim();
+      const component = state.unlockedSubmodules.find(
+        (candidate) =>
+          candidate.custom && candidate.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+      );
+      if (!component) return state;
+      const isUsed = Object.values(state.drafts).some((graph) =>
+        graph.nodes.some(
+          (node) =>
+            node.kind === "component" &&
+            node.name?.toLocaleLowerCase() === component.name.toLocaleLowerCase(),
+        ),
+      );
+      if (isUsed) {
+        return {
+          ...state,
+          message: `“${component.name}”仍在画布中使用，请先拆分或删除画布中的实例。`,
+        };
+      }
+      return {
+        ...state,
+        unlockedSubmodules: state.unlockedSubmodules.filter((candidate) => candidate !== component),
+        saveStatus: "dirty",
+        runOutcome: null,
+        judgeOutcome: null,
+        message: `已删除自定义组件“${component.name}”。`,
       };
     }
 

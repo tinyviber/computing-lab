@@ -76,6 +76,15 @@ export function CalculatorLabPage() {
   const graph = graphOf(state);
   const components = useMemo(() => componentMap(state), [state.unlockedSubmodules]);
   const stage = stageOf(state);
+  const selectedNode = graph.nodes.find((node) => node.id === state.selectedNodeId);
+  const selectedCustomComponent =
+    selectedNode?.kind === "component"
+      ? state.unlockedSubmodules.find(
+          (component) =>
+            component.custom &&
+            component.name.toLocaleLowerCase() === (selectedNode.name ?? "").toLocaleLowerCase(),
+        )
+      : undefined;
 
   // Live preview: evaluate with the pins' current toggle values.
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
@@ -212,6 +221,7 @@ export function CalculatorLabPage() {
           onPlaceComponent={(name) =>
             dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
           }
+          onDeleteCustomComponent={(name) => dispatch({ type: "delete-custom-component", name })}
           onSelectStage={(index) => dispatch({ type: "select-stage", stageIndex: index })}
           stageIndex={state.stageIndex}
           unlockedSubmodules={state.unlockedSubmodules}
@@ -338,6 +348,15 @@ export function CalculatorLabPage() {
                 type="button"
               >
                 删除选中元件
+              </button>
+            ) : null}
+            {selectedCustomComponent && selectedNode ? (
+              <button
+                className="button button-ghost"
+                onClick={() => dispatch({ type: "expand-component", id: selectedNode.id })}
+                type="button"
+              >
+                拆分回去
               </button>
             ) : null}
           </div>

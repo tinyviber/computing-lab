@@ -96,5 +96,11 @@ describe("CircuitCanvas", () => {
     expect(screen.getByRole("dialog", { name: "把框选部分变成组件" })).toBeInTheDocument();
     expect(screen.getByText("入口（2）")).toBeInTheDocument();
     expect(screen.getByText("出口（1）")).toBeInTheDocument();
+    expect(screen.getByLabelText("端口对应关系")).toHaveTextContent(
+      "I0当前名：I0← A 的 out → AND（gate） 的 in0",
+    );
+    expect(screen.getByLabelText("端口对应关系")).toHaveTextContent(
+      "O0当前名：O0← AND（gate） 的 out → P 的 in",
+    );
   });
 });

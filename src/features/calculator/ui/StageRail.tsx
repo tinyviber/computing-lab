@@ -8,6 +8,7 @@ type StageRailProps = {
   unlockedSubmodules: ComponentDef[];
   onSelectStage: (stageIndex: number) => void;
   onPlaceComponent: (name: string) => void;
+  onDeleteCustomComponent: (name: string) => void;
 };
 
 export function StageRail({
@@ -16,6 +17,7 @@ export function StageRail({
   unlockedSubmodules,
   onSelectStage,
   onPlaceComponent,
+  onDeleteCustomComponent,
 }: StageRailProps) {
   const challengeUnlocked = coreStages().every((s) => passedStages.includes(s.index));
 
@@ -80,7 +82,7 @@ export function StageRail({
         ) : (
           <ul>
             {unlockedSubmodules.map((component) => (
-              <li key={component.name}>
+              <li className="component-entry" key={component.name}>
                 <button
                   className={`component-chip${component.custom ? " is-custom" : ""}`}
                   onClick={() => onPlaceComponent(component.name)}
@@ -89,6 +91,21 @@ export function StageRail({
                   <AnnotatedText text={component.name} />
                   {component.custom ? <small>自定义</small> : null}
                 </button>
+                {component.custom ? (
+                  <button
+                    aria-label={`删除自定义组件 ${component.name}`}
+                    className="component-delete"
+                    onClick={() => {
+                      if (window.confirm(`确定删除自定义组件“${component.name}”吗？`)) {
+                        onDeleteCustomComponent(component.name);
+                      }
+                    }}
+                    title="删除自定义组件"
+                    type="button"
+                  >
+                    ×
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>

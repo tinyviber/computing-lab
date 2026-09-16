@@ -398,6 +398,7 @@ export function CircuitCanvas({
             >
               清除选区
             </button>
+            <span className="circuit-canvas-tool-note">选中画布中的自定义组件后可拆分回去</span>
           </div>
         </div>
       ) : null}

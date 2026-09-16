@@ -1,4 +1,11 @@
-import type { CircuitEdge, CircuitGraph, CircuitNode, ComponentDef, PortRef } from "./graph.ts";
+import {
+  GATE_LABEL,
+  type CircuitEdge,
+  type CircuitGraph,
+  type CircuitNode,
+  type ComponentDef,
+  type PortRef,
+} from "./graph.ts";
 
 const IDENTIFIER_PATTERN = /^[\p{L}_][\p{L}\p{N}_-]{0,31}$/u;
 
@@ -7,6 +14,8 @@ export type ComponentInputBoundary = {
   defaultName: string;
   external: PortRef;
   internal: PortRef[];
+  externalLabel: string;
+  internalLabels: string[];
 };
 
 export type ComponentOutputBoundary = {
@@ -14,6 +23,8 @@ export type ComponentOutputBoundary = {
   defaultName: string;
   internal: PortRef;
   external: PortRef[];
+  internalLabel: string;
+  externalLabels: string[];
 };
 
 export type ComponentSelection = {
@@ -36,12 +47,33 @@ export type ComponentizeRequest = {
 export type ComponentizeResult =
   { component: ComponentDef; graph: CircuitGraph } | { error: string };
 
+export type ExpandComponentRequest = {
+  graph: CircuitGraph;
+  componentNodeId: string;
+  component: ComponentDef;
+  edgeIdPrefix: string;
+};
+
+export type ExpandComponentResult = { graph: CircuitGraph } | { error: string };
+
 export function isValidComponentIdentifier(value: string): boolean {
   return IDENTIFIER_PATTERN.test(value.trim());
 }
 
 function portKey(ref: PortRef): string {
   return `${ref.node}#${ref.port}`;
+}
+
+function nodeLabel(node: CircuitNode): string {
+  if (node.kind === "input" || node.kind === "output") return node.name ?? node.id;
+  if (node.kind === "const") return `常量 ${node.value ?? 0}`;
+  if (node.kind === "component") return node.name ?? node.id;
+  return `${GATE_LABEL[node.kind] ?? node.kind}（${node.id}）`;
+}
+
+function portLabel(nodesById: Map<string, CircuitNode>, ref: PortRef): string {
+  const node = nodesById.get(ref.node);
+  return `${node ? nodeLabel(node) : ref.node} 的 ${ref.port}`;
 }
 
 function compareBoundaryPosition(
@@ -104,6 +136,7 @@ export function inspectComponentSelection(
       if (boundary) {
         if (!boundary.internal.some((target) => portKey(target) === portKey(edge.to))) {
           boundary.internal.push(edge.to);
+          boundary.internalLabels.push(portLabel(nodesById, edge.to));
         }
       } else {
         inputMap.set(key, {
@@ -111,6 +144,8 @@ export function inspectComponentSelection(
           defaultName: `I${inputMap.size}`,
           external: edge.from,
           internal: [edge.to],
+          externalLabel: portLabel(nodesById, edge.from),
+          internalLabels: [portLabel(nodesById, edge.to)],
         });
       }
     } else if (fromSelected && !toSelected) {
@@ -118,12 +153,15 @@ export function inspectComponentSelection(
       const boundary = outputMap.get(key);
       if (boundary) {
         boundary.external.push(edge.to);
+        boundary.externalLabels.push(portLabel(nodesById, edge.to));
       } else {
         outputMap.set(key, {
           key,
           defaultName: `O${outputMap.size}`,
           internal: edge.from,
           external: [edge.to],
+          internalLabel: portLabel(nodesById, edge.from),
+          externalLabels: [portLabel(nodesById, edge.to)],
         });
       }
     }
@@ -325,4 +363,80 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
     return { error: "选区边界包含无效连线，请撤销后重试。" };
   }
   return { component, graph: outerGraph };
+}
+
+/** Expand one custom black-box instance back into its editable inner nodes. */
+export function expandComponentNode(request: ExpandComponentRequest): ExpandComponentResult {
+  const componentNode = request.graph.nodes.find((node) => node.id === request.componentNodeId);
+  if (!componentNode || componentNode.kind !== "component") {
+    return { error: "请先选中画布中的自定义组件。" };
+  }
+  if (!request.component.custom) return { error: "只有自定义组件可以拆分回去。" };
+
+  const innerGraph = request.component.graph;
+  const inputNodes = new Map(
+    innerGraph.nodes
+      .filter((node) => node.kind === "input" && node.name)
+      .map((node) => [node.name as string, node]),
+  );
+  const outputNodes = new Map(
+    innerGraph.nodes
+      .filter((node) => node.kind === "output" && node.name)
+      .map((node) => [node.name as string, node]),
+  );
+  const boundaryIds = new Set([...inputNodes.values(), ...outputNodes.values()].map((n) => n.id));
+  const innerNodes = innerGraph.nodes.filter((node) => !boundaryIds.has(node.id));
+  const clonedId = (id: string) => `${request.componentNodeId}-split-${id}`;
+  const cloneNode = (node: CircuitNode): CircuitNode => ({
+    ...node,
+    id: clonedId(node.id),
+    x: Math.max(0, Math.round(componentNode.x + node.x - 180)),
+    y: Math.max(0, Math.round(componentNode.y + node.y - 32)),
+  });
+  const clonedNodeIds = new Set(innerNodes.map((node) => clonedId(node.id)));
+  const incoming = request.graph.edges.filter((edge) => edge.to.node === componentNode.id);
+  const outgoing = request.graph.edges.filter((edge) => edge.from.node === componentNode.id);
+  const edges: CircuitEdge[] = request.graph.edges.filter(
+    (edge) => edge.from.node !== componentNode.id && edge.to.node !== componentNode.id,
+  );
+  let edgeIndex = 0;
+  const addEdge = (from: PortRef, to: PortRef) => {
+    edges.push({ id: `${request.edgeIdPrefix}-${edgeIndex++}`, from, to });
+  };
+
+  for (const edge of innerGraph.edges) {
+    const fromInput = [...inputNodes.values()].find((node) => node.id === edge.from.node);
+    const toOutput = [...outputNodes.values()].find((node) => node.id === edge.to.node);
+    if (fromInput && clonedNodeIds.has(clonedId(edge.to.node))) {
+      for (const outerEdge of incoming.filter(
+        (candidate) => candidate.to.port === fromInput.name,
+      )) {
+        addEdge(outerEdge.from, { node: clonedId(edge.to.node), port: edge.to.port });
+      }
+    } else if (toOutput && clonedNodeIds.has(clonedId(edge.from.node))) {
+      for (const outerEdge of outgoing.filter(
+        (candidate) => candidate.from.port === toOutput.name,
+      )) {
+        addEdge({ node: clonedId(edge.from.node), port: edge.from.port }, outerEdge.to);
+      }
+    } else if (
+      clonedNodeIds.has(clonedId(edge.from.node)) &&
+      clonedNodeIds.has(clonedId(edge.to.node))
+    ) {
+      addEdge(
+        { node: clonedId(edge.from.node), port: edge.from.port },
+        { node: clonedId(edge.to.node), port: edge.to.port },
+      );
+    }
+  }
+
+  return {
+    graph: {
+      nodes: [
+        ...request.graph.nodes.filter((node) => node.id !== componentNode.id),
+        ...innerNodes.map(cloneNode),
+      ],
+      edges,
+    },
+  };
 }

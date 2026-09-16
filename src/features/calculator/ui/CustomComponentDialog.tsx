@@ -155,6 +155,46 @@ export function CustomComponentDialog({
             </fieldset>
           </div>
 
+          <section aria-label="端口对应关系" className="custom-component-mappings">
+            <div>
+              <p className="custom-component-mappings-title">端口对应关系</p>
+              <p className="custom-component-mappings-note">
+                封装后，左侧入口和右侧出口会按下面的关系连接原电路；名称修改只会改变黑盒外部端口名。
+              </p>
+            </div>
+            {inputNames.map((port, index) => {
+              const boundary = selection.inputPorts[index];
+              return (
+                <div className="custom-component-mapping" key={`input-mapping-${index}`}>
+                  <code>I{index}</code>
+                  <span className="custom-component-mapping-name">
+                    当前名：{port || "（未命名）"}
+                  </span>
+                  <span>
+                    ← {boundary.externalLabel} → {boundary.internalLabels.join("、")}
+                  </span>
+                </div>
+              );
+            })}
+            {outputNames.map((port, index) => {
+              const boundary = selection.outputPorts[index];
+              return (
+                <div className="custom-component-mapping" key={`output-mapping-${index}`}>
+                  <code>O{index}</code>
+                  <span className="custom-component-mapping-name">
+                    当前名：{port || "（未命名）"}
+                  </span>
+                  <span>
+                    ← {boundary.internalLabel} → {boundary.externalLabels.join("、")}
+                  </span>
+                </div>
+              );
+            })}
+            {inputNames.length === 0 && outputNames.length === 0 ? (
+              <p className="custom-component-no-ports">没有跨出选区的端口。</p>
+            ) : null}
+          </section>
+
           <p className="custom-component-selection-summary">
             已框选 {selection.selectedIds.length} 个元件 · 将生成 {inputNames.length} 个入口、
             {outputNames.length} 个出口

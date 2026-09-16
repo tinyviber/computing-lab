@@ -121,6 +121,52 @@ describe("calculator lesson state", () => {
     ).toBe(true);
   });
 
+  it("splits custom components back and protects components that are still in use", () => {
+    const withGate = apply(createCalculatorLessonState(), {
+      type: "add-node",
+      kind: "xor",
+      x: 300,
+      y: 60,
+    });
+    const gateId = withGate.selectedNodeId!;
+    const wired = apply(
+      withGate,
+      { type: "start-wire", from: { node: "in-A", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in0" } },
+      { type: "start-wire", from: { node: "in-B", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in1" } },
+      { type: "start-wire", from: { node: gateId, port: "out" } },
+      { type: "complete-wire", to: { node: "out-Sum", port: "in" } },
+    );
+    const componentized = apply(wired, {
+      type: "componentize-selection",
+      selectedIds: [gateId],
+      name: "XorBlock",
+      inputNames: ["A", "B"],
+      outputNames: ["Sum"],
+    });
+
+    const blocked = apply(componentized, {
+      type: "delete-custom-component",
+      name: "XorBlock",
+    });
+    expect(blocked.unlockedSubmodules).toHaveLength(1);
+    expect(blocked.message).toContain("先拆分或删除");
+
+    const componentId = graphOf(blocked).nodes.find((node) => node.kind === "component")?.id;
+    expect(componentId).toBeTruthy();
+    const expanded = apply(blocked, { type: "expand-component", id: componentId! });
+    expect(graphOf(expanded).nodes.some((node) => node.kind === "component")).toBe(false);
+    expect(expanded.message).toContain("已拆分");
+
+    const deleted = apply(expanded, {
+      type: "delete-custom-component",
+      name: "XorBlock",
+    });
+    expect(deleted.unlockedSubmodules).toHaveLength(0);
+    expect(deleted.message).toContain("已删除");
+  });
+
   it("keeps a single driver per input port", () => {
     const state = apply(
       createCalculatorLessonState(),

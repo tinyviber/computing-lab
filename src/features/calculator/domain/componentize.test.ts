@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { componentizeSelection, inspectComponentSelection } from "./componentize";
+import {
+  componentizeSelection,
+  expandComponentNode,
+  inspectComponentSelection,
+} from "./componentize";
 import { evaluateGraph } from "./evaluate";
 import type { CircuitGraph } from "./graph";
 
@@ -34,6 +38,13 @@ describe("componentizeSelection", () => {
     expect(selection.outputPorts).toHaveLength(2);
     expect(selection.inputPorts.map((port) => port.external.node)).toEqual(["a", "b"]);
     expect(selection.inputPorts[0].internal).toHaveLength(2);
+    expect(selection.inputPorts[0].externalLabel).toBe("A 的 out");
+    expect(selection.inputPorts[0].internalLabels).toEqual([
+      "AND（and） 的 in0",
+      "XOR（xor） 的 in0",
+    ]);
+    expect(selection.outputPorts[0].internalLabel).toBe("AND（and） 的 out");
+    expect(selection.outputPorts[0].externalLabels).toEqual(["P 的 in"]);
 
     const result = componentizeSelection({
       graph,
@@ -78,5 +89,31 @@ describe("componentizeSelection", () => {
       edgeIdPrefix: "cmp-edge",
     });
     expect("error" in result ? result.error : null).toContain("组件名称");
+  });
+
+  it("expands a custom component and reconnects its boundary wires", () => {
+    const result = componentizeSelection({
+      graph: twoGateGraph(),
+      selectedIds: ["and", "xor"],
+      name: "LogicPair",
+      inputNames: ["A", "B"],
+      outputNames: ["And", "Xor"],
+      componentNodeId: "cmp",
+      edgeIdPrefix: "cmp-edge",
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const expanded = expandComponentNode({
+      graph: result.graph,
+      componentNodeId: "cmp",
+      component: result.component,
+      edgeIdPrefix: "split-edge",
+    });
+    if ("error" in expanded) throw new Error(expanded.error);
+    expect(expanded.graph.nodes.some((node) => node.kind === "component")).toBe(false);
+
+    const preview = evaluateGraph(expanded.graph, { A: 1, B: 0 }, {});
+    expect(preview.error).toBeNull();
+    expect(preview.outputs).toEqual({ P: 0, Q: 1 });
   });
 });
