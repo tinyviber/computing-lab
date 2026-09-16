@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { halfAdderGraph } from "../domain/fixtures";
 import type { CircuitGraph } from "../domain/graph";
 import { CircuitCanvas } from "./CircuitCanvas";
+import { COLLAPSED_NODE_HEIGHT } from "./geometry";
 
 const componentGraph: CircuitGraph = {
   nodes: [{ id: "half-adder", kind: "component", name: "HalfAdder", x: 120, y: 80 }],
@@ -62,10 +63,11 @@ describe("CircuitCanvas", () => {
   });
 
   it("hides every wire connected to a collapsed component", () => {
-    render(
+    const dispatch = vi.fn();
+    const { container } = render(
       <CircuitCanvas
         components={{ HalfAdder: halfAdderGraph() }}
-        dispatch={vi.fn()}
+        dispatch={dispatch}
         graph={{
           nodes: [
             {
@@ -100,7 +102,16 @@ describe("CircuitCanvas", () => {
     );
 
     expect(screen.getAllByRole("button", { name: /连线/ })).toHaveLength(1);
-    expect(screen.getByText("⌄")).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: "展开组件 HalfAdder" });
+    expect(toggle).toHaveTextContent("+");
+    expect(screen.getByText("HalfAdder")).toBeInTheDocument();
+    expect(container.querySelector(".circuit-node.is-collapsed .node-body")).toHaveAttribute(
+      "height",
+      String(COLLAPSED_NODE_HEIGHT),
+    );
+    expect(container.querySelectorAll(".circuit-node.is-collapsed .port")).toHaveLength(0);
+    fireEvent.click(toggle);
+    expect(dispatch).toHaveBeenCalledWith({ type: "toggle-collapse-node", id: "half-adder" });
   });
 
   it("supports undo and deleting the selected node from keyboard shortcuts", () => {

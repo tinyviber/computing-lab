@@ -337,77 +337,111 @@ export function CircuitCanvas({
                     <text className="node-label" x={size.width / 2} y={15}>
                       {nodeLabel(node)}
                     </text>
-                    {node.collapsed ? (
-                      <text className="node-collapse-mark" x={size.width - 6} y={15}>
-                        ⌄
-                      </text>
+                    {node.kind === "component" ? (
+                      <g
+                        aria-label={
+                          node.collapsed
+                            ? `展开组件 ${nodeLabel(node)}`
+                            : `折叠组件 ${nodeLabel(node)}`
+                        }
+                        className="node-collapse-toggle"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          dispatch({ type: "toggle-collapse-node", id: node.id });
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ") return;
+                          event.preventDefault();
+                          event.stopPropagation();
+                          dispatch({ type: "toggle-collapse-node", id: node.id });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <rect
+                          className="node-collapse-toggle-bg"
+                          height={14}
+                          rx={3}
+                          width={14}
+                          x={size.width - 20}
+                          y={4}
+                        />
+                        <text className="node-collapse-toggle-icon" x={size.width - 13} y={15}>
+                          {node.collapsed ? "+" : "−"}
+                        </text>
+                      </g>
                     ) : null}
-                    {inputs.map((port, index) => (
-                      <text
-                        className="port-label is-in"
-                        key={`l-${port}`}
-                        x={5}
-                        y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
-                      >
-                        {port}
-                      </text>
-                    ))}
-                    {outputs.map((port, index) => (
-                      <text
-                        className="port-label is-out"
-                        key={`r-${port}`}
-                        textAnchor="start"
-                        x={size.width + 9}
-                        y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
-                      >
-                        {port}
-                      </text>
-                    ))}
+                    {!node.collapsed &&
+                      inputs.map((port, index) => (
+                        <text
+                          className="port-label is-in"
+                          key={`l-${port}`}
+                          x={5}
+                          y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
+                        >
+                          {port}
+                        </text>
+                      ))}
+                    {!node.collapsed &&
+                      outputs.map((port, index) => (
+                        <text
+                          className="port-label is-out"
+                          key={`r-${port}`}
+                          textAnchor="start"
+                          x={size.width + 9}
+                          y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
+                        >
+                          {port}
+                        </text>
+                      ))}
                   </>
                 )}
 
                 {/* Output ports start a wire. */}
-                {outputs.map((port) => {
-                  const anchor = portAnchor(node, port, "out", components);
-                  return (
-                    <circle
-                      aria-label={`${nodeLabel(node)} 输出 ${port}`}
-                      className={`port is-out${valueClass(portValues[`${node.id}#${port}`])}`}
-                      cx={anchor.x - node.x}
-                      cy={anchor.y - node.y}
-                      key={`o-${port}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        dispatch({ type: "start-wire", from: { node: node.id, port } });
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      r={5}
-                      role="button"
-                    />
-                  );
-                })}
+                {!node.collapsed &&
+                  outputs.map((port) => {
+                    const anchor = portAnchor(node, port, "out", components);
+                    return (
+                      <circle
+                        aria-label={`${nodeLabel(node)} 输出 ${port}`}
+                        className={`port is-out${valueClass(portValues[`${node.id}#${port}`])}`}
+                        cx={anchor.x - node.x}
+                        cy={anchor.y - node.y}
+                        key={`o-${port}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          dispatch({ type: "start-wire", from: { node: node.id, port } });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        r={5}
+                        role="button"
+                      />
+                    );
+                  })}
 
                 {/* Input ports complete a wire. */}
-                {inputs.map((port) => {
-                  const anchor = portAnchor(node, port, "in", components);
-                  return (
-                    <circle
-                      aria-label={`${nodeLabel(node)} 输入 ${port}`}
-                      className={`port is-in${valueClass(portValues[`${node.id}#${port}`])}`}
-                      cx={anchor.x - node.x}
-                      cy={anchor.y - node.y}
-                      key={`i-${port}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        if (pendingWire)
-                          dispatch({ type: "complete-wire", to: { node: node.id, port } });
-                      }}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      r={5}
-                      role="button"
-                    />
-                  );
-                })}
+                {!node.collapsed &&
+                  inputs.map((port) => {
+                    const anchor = portAnchor(node, port, "in", components);
+                    return (
+                      <circle
+                        aria-label={`${nodeLabel(node)} 输入 ${port}`}
+                        className={`port is-in${valueClass(portValues[`${node.id}#${port}`])}`}
+                        cx={anchor.x - node.x}
+                        cy={anchor.y - node.y}
+                        key={`i-${port}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (pendingWire)
+                            dispatch({ type: "complete-wire", to: { node: node.id, port } });
+                        }}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        r={5}
+                        role="button"
+                      />
+                    );
+                  })}
 
                 {/* Toggling a source pin drives the live preview. */}
                 {node.kind === "input" || node.kind === "const" ? (

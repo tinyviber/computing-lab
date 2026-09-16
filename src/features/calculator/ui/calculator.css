@@ -931,11 +931,29 @@
   font-weight: 700;
 }
 
-.node-collapse-mark {
+.node-collapse-toggle {
+  cursor: pointer;
+  outline: none;
+}
+
+.node-collapse-toggle-bg {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.node-collapse-toggle:hover .node-collapse-toggle-bg,
+.node-collapse-toggle:focus .node-collapse-toggle-bg {
+  fill: var(--accent-soft);
+  stroke: var(--focus-ring);
+}
+
+.node-collapse-toggle-icon {
   fill: var(--focus);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-anchor: end;
+  pointer-events: none;
 }
 
 .test-note {

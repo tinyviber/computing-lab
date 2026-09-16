@@ -7,6 +7,7 @@ import { portsForNode, type ComponentCatalog } from "../lesson/state";
 
 export const NODE_WIDTH = 78;
 export const HEADER_HEIGHT = 22;
+export const COLLAPSED_NODE_HEIGHT = HEADER_HEIGHT + 8;
 export const PORT_SPACING = 18;
 export const PIN_WIDTH = 64;
 export const PIN_HEIGHT = 30;
@@ -20,6 +21,9 @@ export function nodeSize(
   components: ComponentCatalog,
 ): { width: number; height: number } {
   if (isPinNode(node)) return { width: PIN_WIDTH, height: PIN_HEIGHT };
+  if (node.kind === "component" && node.collapsed) {
+    return { width: NODE_WIDTH, height: COLLAPSED_NODE_HEIGHT };
+  }
   const ins = portsForNode(node, components, "in").length;
   const outs = portsForNode(node, components, "out").length;
   const rows = Math.max(ins, outs, 1);
