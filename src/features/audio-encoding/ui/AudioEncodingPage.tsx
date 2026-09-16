@@ -23,9 +23,9 @@ import { createAudioPlaybackRuntime, type AudioPlaybackRequest } from "./audioPl
 import "./audio-encoding.css";
 
 const MODE_LABELS: Record<SoundMode, string> = {
-  compare: "对照",
-  aliasing: "混叠",
-  quantization: "量化",
+  compare: "对照（compare）",
+  aliasing: "混叠（aliasing）",
+  quantization: "量化（quantization）",
 };
 
 const VIEW_LABELS: Record<SoundView, string> = {
@@ -87,9 +87,9 @@ function plotPoints(values: readonly number[], scale = 1): string {
 }
 
 function classificationLabel(classification: "below" | "at" | "aliased"): string {
-  if (classification === "aliased") return "发生混叠";
-  if (classification === "at") return "恰在奈奎斯特频率";
-  return "低于奈奎斯特频率";
+  if (classification === "aliased") return "发生混叠（aliased）";
+  if (classification === "at") return "恰在奈奎斯特频率（at Nyquist）";
+  return "低于奈奎斯特频率（below Nyquist）";
 }
 
 const AUDITION_SNAPSHOT_LABELS: Record<SoundAudition, string> = {
@@ -652,7 +652,7 @@ function AudioEncodingContent({ search }: { search: Record<string, unknown> }) {
               选择采样率；可使用接近奈奎斯特频率的档位或情境值。
             </p>
             <label className="sound-label" htmlFor="sound-bits">
-              量化位数（bit） <span>{state.config.bitDepth} bit</span>
+              量化位数（bit depth） <span>{state.config.bitDepth} bit</span>
             </label>
             <input
               aria-describedby="sound-bits-description"

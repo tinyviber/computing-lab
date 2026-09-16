@@ -30,7 +30,6 @@ function contentType(path) {
       ".jpg": "image/jpeg",
       ".json": "application/json; charset=utf-8",
       ".png": "image/png",
-      ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
       ".svg": "image/svg+xml",
       ".woff2": "font/woff2",
     }[extname(path)] ?? "application/octet-stream"
@@ -49,6 +48,13 @@ function fileForRoute(pathname) {
   const relativePath = relative(dist, candidate);
   if (relativePath.startsWith("..") || relativePath.startsWith("/")) return null;
   if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+
+  const slide = route.match(/^\/slides\/([A-Za-z0-9][A-Za-z0-9_-]*)(\/.*)?$/);
+  if (slide) {
+    if (extname(route) !== "") return null;
+    const slideIndex = resolve(join(dist, "slides", slide[1], "index.html"));
+    return existsSync(slideIndex) && statSync(slideIndex).isFile() ? slideIndex : null;
+  }
 
   if (extname(route) !== "") return null;
   return join(dist, "index.html");
@@ -89,19 +95,37 @@ try {
   if (missingAssetResponse.status !== 404)
     throw new Error(`smoke: missing asset returned ${missingAssetResponse.status}`);
 
-  const lessonsRoot = join(dist, "slides");
-  if (existsSync(lessonsRoot)) {
-    const pptxPath = `${rootPath}slides/excel-01.pptx`;
-    const pptxResponse = await fetch(`${origin}${pptxPath}`);
-    if (pptxResponse.status !== 200)
-      throw new Error(`smoke: PPTX lesson returned ${pptxResponse.status}`);
-    const pptxBytes = new Uint8Array(await pptxResponse.arrayBuffer());
-    if (pptxBytes[0] !== 0x50 || pptxBytes[1] !== 0x4b)
-      throw new Error("smoke: PPTX lesson is not a ZIP package");
+  const slidesRoot = join(dist, "slides");
+  if (existsSync(slidesRoot)) {
+    const slidePath = `${rootPath}slides/excel-01/`;
+    const slideResponse = await fetch(`${origin}${slidePath}`);
+    if (slideResponse.status !== 200)
+      throw new Error(`smoke: Slidev route returned ${slideResponse.status}`);
+    const slideIndex = await slideResponse.text();
+    if (!slideIndex.includes('meta property="slidev:version"'))
+      throw new Error("smoke: Slidev index was not served");
 
-    const missingSlide = await fetch(`${origin}${rootPath}slides/unknown.pptx`);
+    const slideDeepResponse = await fetch(`${origin}${rootPath}slides/excel-01/2`);
+    if (slideDeepResponse.status !== 200)
+      throw new Error(`smoke: Slidev deep route returned ${slideDeepResponse.status}`);
+    if ((await slideDeepResponse.text()) !== slideIndex)
+      throw new Error("smoke: Slidev deep route did not use deck fallback");
+
+    const slideAssets = [...slideIndex.matchAll(/(?:src|href)="([^"]+)"/g)]
+      .map((match) => match[1])
+      .filter((path) => path.startsWith("/") && !path.endsWith(".html"));
+    for (const asset of slideAssets) {
+      const response = await fetch(`${origin}${asset}`);
+      if (response.status !== 200)
+        throw new Error(`smoke: Slidev asset ${asset} returned ${response.status}`);
+    }
+
+    const missingSlide = await fetch(`${origin}${rootPath}slides/unknown/`);
     if (missingSlide.status !== 404)
-      throw new Error(`smoke: unknown PPTX lesson returned ${missingSlide.status}`);
+      throw new Error(`smoke: unknown Slidev route returned ${missingSlide.status}`);
+    const missingSlideAsset = await fetch(`${origin}${slidePath}assets/missing.js`);
+    if (missingSlideAsset.status !== 404)
+      throw new Error(`smoke: missing Slidev asset returned ${missingSlideAsset.status}`);
   }
 
   if (base !== "/") {

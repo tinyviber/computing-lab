@@ -62,7 +62,7 @@ describe("ImageEncodingPage", () => {
     expect(slider(/采样偏移/)).toBeEnabled();
     expect(slider(/颜色位深/)).toBeDisabled();
     expect(screen.getByRole("button", { name: "调色板", exact: true })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "原色（24 位）" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "原色（RGB 24 位）" })).toBeEnabled();
     expect(screen.getAllByRole("tab").every((tab) => !tab.hasAttribute("disabled"))).toBe(true);
     for (const input of within(sectionByHeading(/数据量计算/, 3)).getAllByRole("spinbutton")) {
       expect(input).toBeEnabled();

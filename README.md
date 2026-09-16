@@ -1,7 +1,7 @@
 # computing-lab
 
 校内信息技术实验运行时。Vite + React SPA 加一个极简 Node API（认证 / 草稿 / 判题 / 看板）。
-仓库还包含一个在线课程编辑器服务，用于在浏览器里直接编辑课程源文件并下载 PPTX 课件。
+仓库还包含一个在线课程编辑器服务，用于在浏览器里直接编辑 Slidev 课程源文件。
 
 ## 本地开发
 
@@ -23,8 +23,9 @@ bun run dev              # Vite 开发服 :5173，/api 代理到 :8788
 ## Online lesson editor
 
 Open `/editor` through the editor service. It provides a password-protected browser workspace
-with a Markdown/code editor on the left and the PPTX download on the right. Saving a file writes
-it directly to `lessons/<lesson>/`; after editing, re-export and commit the PPTX artifact.
+with a Markdown/code editor on the left and a real Slidev hot-reload preview on the right. Saving
+a file writes it directly to `lessons/<lesson>/`, so there is no GitHub/Gitee promotion step in
+the editing loop.
 
 For local development, run:
 
@@ -32,9 +33,9 @@ For local development, run:
 EDITOR_PASSWORD='choose-a-password' bun run editor:dev
 ```
 
-Then open <http://localhost:8787/editor>. `editor:dev` starts the React/Vite app and editor API.
-In a server checkout that already has a built `dist/`, run
-`EDITOR_PASSWORD='choose-a-password' bun run editor:start` instead.
+Then open <http://localhost:8787/editor>. `editor:dev` starts the React/Vite app, the editor API,
+and Slidev preview processes as needed. In a server checkout that already has a built `dist/`,
+run `EDITOR_PASSWORD='choose-a-password' bun run editor:start` instead.
 
 `EDITOR_ROOT` can point the service at another checkout, and `EDITOR_PORT` changes the editor
 HTTP port. Source files with `.md`, `.vue`, `.css`, `.js`, `.ts`, `.tsx`, `.json`, or `.html`
@@ -51,7 +52,7 @@ bun run typecheck:app      # 前端真实类型检查（存量代码尚有遗留
 bun run typecheck:server   # server/ 与共享 domain 的真实类型检查
 bun run test:run
 bun run test:e2e
-bun run build              # 同时把 lessons/*/lesson.pptx 复制到 dist/slides/
+bun run build              # build:slides 需 Node ≥22（本机 bun 旧版跑不动 slidev）
 ```
 
 ## 架构边界
@@ -72,8 +73,9 @@ bun run build              # 同时把 lessons/*/lesson.pptx 复制到 dist/slid
 服务 dist，也可去掉静态托管）。
 
 The online editor is a separate long-running service: place a reverse proxy in front of its
-`EDITOR_PORT` and keep `EDITOR_PASSWORD` set. It writes the configured `EDITOR_ROOT/lessons`
-checkout directly and therefore does not use the static promotion loop.
+`EDITOR_PORT`, enable WebSocket upgrades for Slidev HMR, and keep `EDITOR_PASSWORD` set. It
+writes the configured `EDITOR_ROOT/lessons` checkout directly and therefore does not use the
+static promotion loop.
 
 Run deterministic deployment checks with:
 

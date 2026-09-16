@@ -21,6 +21,8 @@ type Lesson = {
   files: LessonFile[];
 };
 
+type PreviewState = "idle" | "starting" | "ready" | "error" | "stopped";
+
 type ApiError = Error & { status?: number };
 
 const appBase = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
@@ -36,7 +38,7 @@ function apiFileUrl(slug: string, path: string): string {
 }
 
 async function responseError(response: Response): Promise<ApiError> {
-  let message = `请求失败，状态码 ${response.status}`;
+  let message = `请求失败（${response.status}）`;
   try {
     const payload = (await response.json()) as { error?: string };
     if (payload.error) message = payload.error;
@@ -159,7 +161,7 @@ function LoginPanel({ onLogin }: { onLogin: (password: string) => Promise<string
         <p className="editor-kicker">COMPUTING LAB / EDITOR</p>
         <h1>在线课件编辑</h1>
         <p className="editor-login-copy">
-          这里会直接修改服务器上的 Markdown、Vue 组件和样式文件；PPTX 成品需要重新导出。
+          这里会直接修改服务器上的 Markdown、Vue 组件和样式文件，并通过 Slidev 实时预览。
         </p>
         <label className="editor-field-label" htmlFor="editor-password">
           编辑密码
@@ -197,6 +199,9 @@ export function EditorPage() {
   const [loadingFile, setLoadingFile] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "dirty" | "saving" | "error">("saved");
   const [saveMessage, setSaveMessage] = useState("尚未加载课件");
+  const [previewState, setPreviewState] = useState<PreviewState>("idle");
+  const [previewOutput, setPreviewOutput] = useState("");
+  const [previewVersion, setPreviewVersion] = useState(0);
   const [pageError, setPageError] = useState<string | null>(null);
 
   const selectedLesson = useMemo(
@@ -361,6 +366,43 @@ export function EditorPage() {
     }
   }, [content, dirty, loadingFile, requireLogin, selectedPath, selectedSlug]);
 
+  useEffect(() => {
+    if (!authenticated || !selectedSlug) return;
+    let cancelled = false;
+    const checkPreview = async () => {
+      try {
+        const response = await fetch(
+          appUrl(`/api/editor/lessons/${encodeURIComponent(selectedSlug)}/preview-status`),
+        );
+        if (response.status === 401) {
+          requireLogin();
+          return;
+        }
+        if (!response.ok) throw await responseError(response);
+        const payload = (await response.json()) as {
+          state: PreviewState;
+          output?: string;
+        };
+        if (!cancelled) {
+          setPreviewState(payload.state);
+          setPreviewOutput(payload.output ?? "");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setPreviewState("error");
+          setPreviewOutput((error as Error).message);
+        }
+      }
+    };
+    setPreviewState("starting");
+    void checkPreview();
+    const timer = window.setInterval(() => void checkPreview(), 1500);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [authenticated, requireLogin, selectedSlug]);
+
   const chooseLesson = (slug: string) => {
     if (dirty && !window.confirm("当前文件有未保存修改，切换课件会丢失这些修改。继续吗？")) return;
     const lesson = lessons.find((item) => item.slug === slug);
@@ -410,6 +452,16 @@ export function EditorPage() {
       <div className="editor-loading">连接编辑服务…</div>
     );
   }
+
+  const previewUrl = selectedSlug ? appUrl(`/__preview/${encodeURIComponent(selectedSlug)}/`) : "";
+  const previewLabel =
+    previewState === "ready"
+      ? "实时预览已连接"
+      : previewState === "starting"
+        ? "正在启动 Slidev…"
+        : previewState === "error"
+          ? "预览启动失败"
+          : "等待预览";
 
   return (
     <div className="editor-page">
@@ -463,7 +515,7 @@ export function EditorPage() {
             </div>
             <span className="editor-file-count">{editableFiles.length}</span>
           </div>
-          <p className="editor-panel-copy">修改后点击保存，重新导出后会更新 PPTX 课件。</p>
+          <p className="editor-panel-copy">修改后点击保存，右侧 Slidev 会自动更新。</p>
           <div className="editor-file-list">
             {selectedLesson?.files.map((file) => (
               <button
@@ -518,31 +570,43 @@ export function EditorPage() {
           </div>
         </section>
 
-        <section className="editor-preview-panel" aria-label="PPTX 课件">
+        <section className="editor-preview-panel" aria-label="Slidev 实时预览">
           <div className="editor-panel-heading editor-preview-heading">
             <div>
-              <p className="editor-panel-kicker">PPTX FILE</p>
-              <h2>课件文件</h2>
+              <p className="editor-panel-kicker">LIVE PREVIEW</p>
+              <h2>Slidev 预览</h2>
             </div>
+            <div className={`editor-preview-status is-${previewState}`}>
+              <span className="editor-status-dot" />
+              {previewLabel}
+            </div>
+            <button
+              aria-label="刷新预览"
+              className="editor-refresh-button"
+              onClick={() => setPreviewVersion((version) => version + 1)}
+              title="刷新预览"
+              type="button"
+            >
+              ↻
+            </button>
           </div>
           <div className="editor-preview-wrap">
-            {selectedSlug ? (
-              <div className="editor-pptx-download">
-                <span className="editor-pptx-icon" aria-hidden="true">
-                  PPTX
-                </span>
-                <strong>课件已生成</strong>
-                <p>源码保存到服务器后，需要重新导出并提交 PPTX 成品。</p>
-                <a
-                  className="button button-primary editor-pptx-link"
-                  download
-                  href={appUrl(`/slides/${encodeURIComponent(selectedSlug)}.pptx`)}
-                >
-                  下载 PPTX 课件
-                </a>
+            {previewState === "error" ? (
+              <div className="editor-preview-error">
+                <strong>Slidev 没有正常启动</strong>
+                <pre>{previewOutput || "请检查服务器依赖和课件源码。"}</pre>
               </div>
+            ) : previewState === "ready" && previewUrl ? (
+              <iframe
+                className="editor-preview-frame"
+                key={`${previewUrl}-${previewVersion}`}
+                src={previewUrl}
+                title="Slidev 课件实时预览"
+              />
             ) : (
-              <div className="editor-empty-state">选择课件后下载 PPTX</div>
+              <div className="editor-empty-state">
+                {previewState === "starting" ? "正在启动 Slidev…" : "选择课件后启动预览"}
+              </div>
             )}
           </div>
         </section>

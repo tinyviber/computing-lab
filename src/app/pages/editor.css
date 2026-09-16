@@ -20,6 +20,7 @@
 .editor-toolbar,
 .editor-back,
 .editor-save-status,
+.editor-preview-status,
 .editor-file-note {
   display: flex;
   align-items: center;
@@ -98,7 +99,8 @@
   padding: 7px 15px;
 }
 
-.editor-logout {
+.editor-logout,
+.editor-refresh-button {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -106,7 +108,8 @@
   font-size: 12px;
 }
 
-.editor-logout:hover {
+.editor-logout:hover,
+.editor-refresh-button:hover {
   color: var(--accent);
 }
 
@@ -279,7 +282,8 @@
   font-size: 12px;
 }
 
-.editor-save-status {
+.editor-save-status,
+.editor-preview-status {
   gap: 7px;
   flex: 0 0 auto;
   color: var(--muted);
@@ -292,7 +296,8 @@
   color: var(--warning);
 }
 
-.editor-save-status.is-error {
+.editor-save-status.is-error,
+.editor-preview-status.is-error {
   color: var(--danger);
 }
 
@@ -301,8 +306,24 @@
   background: var(--warning);
 }
 
-.editor-save-status.is-error .editor-status-dot {
+.editor-save-status.is-error .editor-status-dot,
+.editor-preview-status.is-error .editor-status-dot {
   background: var(--danger);
+}
+
+.editor-preview-status.is-starting .editor-status-dot {
+  background: var(--warning);
+}
+
+.editor-preview-status.is-stopped .editor-status-dot,
+.editor-preview-status.is-idle .editor-status-dot {
+  background: var(--muted);
+}
+
+.editor-refresh-button {
+  padding: 3px 0 3px 4px;
+  font-size: 19px;
+  line-height: 20px;
 }
 
 .editor-code-wrap,
@@ -366,48 +387,29 @@
   box-shadow: 0 8px 22px rgb(23 40 61 / 8%);
 }
 
-.editor-pptx-download {
-  display: grid;
-  align-content: center;
-  justify-items: center;
+.editor-preview-frame {
+  display: block;
+  width: 100%;
   height: 100%;
-  min-height: 280px;
-  padding: 32px;
-  color: var(--secondary);
-  text-align: center;
+  border: 0;
+  background: #fff;
 }
 
-.editor-pptx-icon {
-  display: grid;
-  width: 74px;
-  height: 74px;
-  margin-bottom: 19px;
-  place-items: center;
-  border-radius: 17px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-}
-
-.editor-pptx-download strong {
-  color: var(--primary);
-  font-size: 17px;
-}
-
-.editor-pptx-download p {
-  max-width: 250px;
-  margin-top: 9px;
-  color: var(--muted);
+.editor-preview-error {
+  height: 100%;
+  padding: 26px;
+  overflow: auto;
+  color: var(--danger);
   font-size: 12px;
-  line-height: 19px;
 }
 
-.editor-pptx-link {
-  margin-top: 22px;
-  text-decoration: none;
+.editor-preview-error pre {
+  margin-top: 13px;
+  white-space: pre-wrap;
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.6;
 }
 
 .editor-login-page {
