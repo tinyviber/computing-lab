@@ -144,6 +144,12 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: nib("R", 2),
     },
     {
+      name: "减：3 - 5 → 1110",
+      category: "op-sub",
+      inputs: { ...nib("A", 3), ...nib("B", 5), Op1: 0, Op0: 1 },
+      outputs: nib("R", 14),
+    },
+    {
       name: "乘：3 × 5 → 1111",
       category: "op-mul",
       inputs: { ...nib("A", 3), ...nib("B", 5), Op1: 1, Op0: 0 },

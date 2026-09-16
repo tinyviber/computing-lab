@@ -7,6 +7,7 @@ import type { JudgeOutcome } from "../lesson/state";
 
 const stage3 = getStage(3)!; // add4: buses A, B, 真实和（5 位）, 存进 4 位字的结果
 const stage5 = getStage(5)!; // sub4: signed R bus
+const stage7 = getStage(7)!; // final calculator: R is an unsigned 4-bit word
 
 function passResult(name: string): CaseResult {
   return {
@@ -69,6 +70,28 @@ describe("TestPanel", () => {
     const row = screen.getByRole("rowheader", { name: "0 - 1 → 1111" }).closest("tr")!;
     expect(row).toHaveTextContent("1111（15）");
     expect(row).toHaveTextContent("（补码 -1）");
+  });
+
+  it("keeps final calculator results as unsigned words", () => {
+    const result: CaseResult = {
+      name: "乘：3 × 5 → 1111",
+      category: "op-mul",
+      passed: true,
+      expected: { R3: 1, R2: 1, R1: 1, R0: 1 },
+      actual: { R3: 1, R2: 1, R1: 1, R0: 1 },
+      error: null,
+    };
+    render(
+      <TestPanel
+        judgeOutcome={null}
+        runOutcome={{ results: [result], score: 1, total: 1 }}
+        stage={stage7}
+      />,
+    );
+
+    const row = screen.getByRole("rowheader", { name: "乘：3 × 5 → 1111" }).closest("tr")!;
+    expect(row).toHaveTextContent("1111（15）");
+    expect(row).not.toHaveTextContent("补码");
   });
 
   it("shows the judge counterexample with inputs, expected, actual and a sentence", () => {

@@ -28,6 +28,13 @@ import "./calculator.css";
 
 const AUTOSAVE_DELAY_MS = 1500;
 
+type DraftSavePayload = {
+  classId: string;
+  stageIndex: number;
+  graph: CircuitGraph;
+  components: ComponentDef[];
+};
+
 type ProjectPayload = {
   currentStage: number;
   passedStages: number[];
@@ -71,7 +78,11 @@ export function CalculatorLabPage() {
   );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
+  const autosaveContextRef = useRef({ classId, stageIndex: state.stageIndex });
+  const saveStatusRef = useRef(state.saveStatus);
+  autosaveContextRef.current = { classId, stageIndex: state.stageIndex };
+  saveStatusRef.current = state.saveStatus;
 
   const graph = graphOf(state);
   const components = useMemo(() => componentMap(state), [state.unlockedSubmodules]);
@@ -107,26 +118,46 @@ export function CalculatorLabPage() {
       .catch((error) => setLoadError(describeApiError(error)));
   }, [classId, status]);
 
-  // Silent debounced autosave of the active stage's draft.
+  // Silent debounced autosave. Timers are keyed by stage so switching stages
+  // does not cancel a payload captured for the stage the learner edited.
   const stageIndex = state.stageIndex;
   useEffect(() => {
-    if (state.saveStatus !== "dirty" || !classId) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
+    if (saveStatusRef.current !== "dirty" || !classId) return;
+    const payload: DraftSavePayload = {
+      classId,
+      stageIndex,
+      graph,
+      components: state.unlockedSubmodules,
+    };
+    const previousTimer = saveTimers.current.get(stageIndex);
+    if (previousTimer) clearTimeout(previousTimer);
+    const timer = setTimeout(() => {
+      saveTimers.current.delete(stageIndex);
       dispatch({ type: "mark-saving" });
       void api
-        .put(`/api/classes/${classId}/labs/calculator/draft`, {
-          stageIndex,
-          graph,
-          components: state.unlockedSubmodules,
+        .put(`/api/classes/${payload.classId}/labs/calculator/draft`, {
+          stageIndex: payload.stageIndex,
+          graph: payload.graph,
+          components: payload.components,
         })
         .then(() => dispatch({ type: "mark-saved" }))
         .catch(() => dispatch({ type: "mark-save-error" }));
     }, AUTOSAVE_DELAY_MS);
+    saveTimers.current.set(stageIndex, timer);
     return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
+      // A graph edit on the same stage should debounce its previous payload.
+      // A stage switch must leave the old stage's timer alive because its
+      // payload is already bound to the old stage and graph.
+      if (
+        autosaveContextRef.current.classId === classId &&
+        autosaveContextRef.current.stageIndex === stageIndex &&
+        saveTimers.current.get(stageIndex) === timer
+      ) {
+        clearTimeout(timer);
+        saveTimers.current.delete(stageIndex);
+      }
     };
-  }, [state.saveStatus, state.unlockedSubmodules, graph, stageIndex, classId]);
+  }, [state.unlockedSubmodules, graph, stageIndex, classId]);
 
   const onSubmit = useCallback(async () => {
     if (!classId) return;

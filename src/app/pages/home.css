@@ -253,28 +253,7 @@
   }
 }
 
-/* Classroom home: identity, progress, and flagged-lab presentation. */
-.home-identity {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.home-user {
-  display: grid;
-  color: var(--primary);
-  font-size: 13px;
-  font-weight: 650;
-  text-align: right;
-}
-
-.home-user-no {
-  color: var(--muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  font-weight: 500;
-}
-
+/* Classroom home: progress and flagged-lab presentation. */
 .home-lede {
   margin-top: 14px;
   max-width: 520px;

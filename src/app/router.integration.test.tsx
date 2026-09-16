@@ -14,6 +14,15 @@ afterEach(() => {
 });
 
 describe("application router integration", () => {
+  it("shows the signed-in name only inside the account dropdown trigger", async () => {
+    await renderAppAt("/");
+
+    const topbar = screen.getByRole("banner");
+    expect(within(topbar).getAllByText("教师", { exact: true })).toHaveLength(1);
+    expect(within(topbar).getByRole("button", { name: /教师/ })).toBeInTheDocument();
+    expect(within(topbar).queryByText("teacher", { exact: true })).not.toBeInTheDocument();
+  });
+
   it("shows a teacher the classroom home with the enabled lab and flagged experiments", async () => {
     await renderAppAt("/");
 

@@ -186,7 +186,10 @@ export const CALCULATOR_STAGES: StageDef[] = [
     buses: [
       { name: "A", pins: busNib("A"), role: "input", signed: false },
       { name: "B", pins: busNib("B"), role: "input", signed: false },
-      { name: "R", pins: busNib("R"), role: "output", signed: true },
+      // The final calculator operates on unsigned operands and exposes the
+      // low 4-bit word. Keep its result unsigned; signed interpretation is
+      // taught explicitly in stage 5 rather than implied here.
+      { name: "R", pins: busNib("R"), role: "output", signed: false },
     ],
     inputs: [...nib("A"), ...nib("B"), "Op0", "Op1"],
     outputs: nib("R"),

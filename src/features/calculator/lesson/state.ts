@@ -132,6 +132,43 @@ export function componentMap(state: CalculatorLessonState): Record<string, Circu
 }
 
 /**
+ * Find component definitions that directly or indirectly depend on a named
+ * component. A component definition is also a graph, so checking only stage
+ * drafts would leave nested black boxes pointing at a deleted definition.
+ */
+function componentDependents(state: CalculatorLessonState, targetName: string): string[] {
+  const reverseDependencies = new Map<string, Set<string>>();
+
+  for (const component of state.unlockedSubmodules) {
+    const componentKey = component.name.toLocaleLowerCase();
+    for (const node of component.graph.nodes) {
+      if (node.kind !== "component" || !node.name) continue;
+      const dependencyKey = node.name.toLocaleLowerCase();
+      const dependents = reverseDependencies.get(dependencyKey) ?? new Set<string>();
+      dependents.add(componentKey);
+      reverseDependencies.set(dependencyKey, dependents);
+    }
+  }
+
+  const targetKey = targetName.toLocaleLowerCase();
+  const dependentKeys = new Set<string>();
+  const pending = [targetKey];
+  while (pending.length > 0) {
+    const dependencyKey = pending.shift();
+    if (!dependencyKey) continue;
+    for (const dependentKey of reverseDependencies.get(dependencyKey) ?? []) {
+      if (dependentKey === targetKey || dependentKeys.has(dependentKey)) continue;
+      dependentKeys.add(dependentKey);
+      pending.push(dependentKey);
+    }
+  }
+
+  return state.unlockedSubmodules
+    .filter((component) => dependentKeys.has(component.name.toLocaleLowerCase()))
+    .map((component) => component.name);
+}
+
+/**
  * A stage starts with its required pins already placed, so a student never has
  * to guess pin names — they wire between a fixed contract.
  */
@@ -387,10 +424,14 @@ export function transitionCalculatorLesson(
             node.name?.toLocaleLowerCase() === component.name.toLocaleLowerCase(),
         ),
       );
-      if (isUsed) {
+      const usedByComponents = componentDependents(state, component.name);
+      if (isUsed || usedByComponents.length > 0) {
+        const usageMessage = usedByComponents.length
+          ? `仍被组件定义“${usedByComponents.join("、")}”使用，请先拆分或删除这些组件。`
+          : "仍在画布中使用，请先拆分或删除画布中的实例。";
         return {
           ...state,
-          message: `“${component.name}”仍在画布中使用，请先拆分或删除画布中的实例。`,
+          message: `“${component.name}”${usageMessage}`,
         };
       }
       return {

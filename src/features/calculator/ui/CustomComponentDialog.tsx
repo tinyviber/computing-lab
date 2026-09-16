@@ -41,6 +41,11 @@ function portNamesError(inputNames: string[], outputNames: string[]): string | n
   return null;
 }
 
+function suggestedPortName(label: string, fallback: string): string {
+  const candidate = label.split(" 的 ", 1)[0];
+  return isValidComponentIdentifier(candidate) ? candidate : fallback;
+}
+
 export function CustomComponentDialog({
   existingNames,
   selection,
@@ -49,10 +54,12 @@ export function CustomComponentDialog({
 }: CustomComponentDialogProps) {
   const [name, setName] = useState(() => firstAvailableName(existingNames));
   const [inputNames, setInputNames] = useState(() =>
-    selection.inputPorts.map((port) => port.defaultName),
+    selection.inputPorts.map((port) => suggestedPortName(port.externalLabel, port.defaultName)),
   );
   const [outputNames, setOutputNames] = useState(() =>
-    selection.outputPorts.map((port) => port.defaultName),
+    selection.outputPorts.map((port) =>
+      suggestedPortName(port.externalLabels[0] ?? port.internalLabel, port.defaultName),
+    ),
   );
 
   const componentNameError = useMemo(
@@ -159,40 +166,68 @@ export function CustomComponentDialog({
             <div>
               <p className="custom-component-mappings-title">端口对应关系</p>
               <p className="custom-component-mappings-note">
-                封装后，左侧入口和右侧出口会按下面的关系连接原电路；名称修改只会改变黑盒外部端口名。
+                封装后，入口和出口会按顺序连接原电路；名称修改只会改变黑盒外部端口名。
               </p>
             </div>
-            {inputNames.map((port, index) => {
-              const boundary = selection.inputPorts[index];
-              return (
-                <div className="custom-component-mapping" key={`input-mapping-${index}`}>
-                  <code>I{index}</code>
-                  <span className="custom-component-mapping-name">
-                    当前名：{port || "（未命名）"}
-                  </span>
-                  <span>
-                    ← {boundary.externalLabel} → {boundary.internalLabels.join("、")}
-                  </span>
+            {inputNames.length > 0 || outputNames.length > 0 ? (
+              <>
+                <div aria-label="端口摘要" className="custom-component-mapping-summary">
+                  {inputNames.map((port, index) => (
+                    <div
+                      className="custom-component-mapping-summary-row"
+                      key={`input-summary-${index}`}
+                    >
+                      <strong>{port || "（未命名）"}</strong>
+                      <span>→ 输入 {index + 1}</span>
+                    </div>
+                  ))}
+                  {outputNames.map((port, index) => (
+                    <div
+                      className="custom-component-mapping-summary-row"
+                      key={`output-summary-${index}`}
+                    >
+                      <strong>{port || "（未命名）"}</strong>
+                      <span>→ 输出 {index + 1}</span>
+                    </div>
+                  ))}
                 </div>
-              );
-            })}
-            {outputNames.map((port, index) => {
-              const boundary = selection.outputPorts[index];
-              return (
-                <div className="custom-component-mapping" key={`output-mapping-${index}`}>
-                  <code>O{index}</code>
-                  <span className="custom-component-mapping-name">
-                    当前名：{port || "（未命名）"}
-                  </span>
-                  <span>
-                    ← {boundary.internalLabel} → {boundary.externalLabels.join("、")}
-                  </span>
-                </div>
-              );
-            })}
-            {inputNames.length === 0 && outputNames.length === 0 ? (
+                <details className="custom-component-mapping-details">
+                  <summary>查看详细端口对应关系</summary>
+                  <div className="custom-component-mapping-details-content">
+                    {inputNames.map((port, index) => {
+                      const boundary = selection.inputPorts[index];
+                      return (
+                        <div className="custom-component-mapping" key={`input-mapping-${index}`}>
+                          <code>I{index}</code>
+                          <span className="custom-component-mapping-name">
+                            当前名：{port || "（未命名）"}
+                          </span>
+                          <span>
+                            ← {boundary.externalLabel} → {boundary.internalLabels.join("、")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {outputNames.map((port, index) => {
+                      const boundary = selection.outputPorts[index];
+                      return (
+                        <div className="custom-component-mapping" key={`output-mapping-${index}`}>
+                          <code>O{index}</code>
+                          <span className="custom-component-mapping-name">
+                            当前名：{port || "（未命名）"}
+                          </span>
+                          <span>
+                            ← {boundary.internalLabel} → {boundary.externalLabels.join("、")}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </details>
+              </>
+            ) : (
               <p className="custom-component-no-ports">没有跨出选区的端口。</p>
-            ) : null}
+            )}
           </section>
 
           <p className="custom-component-selection-summary">

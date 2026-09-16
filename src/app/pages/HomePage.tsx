@@ -63,7 +63,7 @@ function StageProgress({ currentStage }: { currentStage: number }) {
 }
 
 function ClassroomHome() {
-  const { session, primaryMembership, role } = useAuth();
+  const { primaryMembership, role } = useAuth();
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
 
@@ -84,13 +84,7 @@ function ClassroomHome() {
           <span className="home-brand-mark">⌁</span>
           <span>计算实验室</span>
         </span>
-        <div className="home-identity">
-          <span className="home-user">
-            {session?.user.name}
-            <span className="home-user-no">{session?.user.studentNo}</span>
-          </span>
-          <AccountMenu />
-        </div>
+        <AccountMenu />
       </header>
 
       <main>

@@ -9,6 +9,7 @@ import {
   type CalculatorLessonState,
 } from "./state";
 import { halfAdderGraph } from "../domain/fixtures";
+import type { CircuitGraph } from "../domain/graph";
 import { CALCULATOR_STAGES } from "../domain/stages";
 
 function apply(
@@ -165,6 +166,99 @@ describe("calculator lesson state", () => {
     });
     expect(deleted.unlockedSubmodules).toHaveLength(0);
     expect(deleted.message).toContain("已删除");
+  });
+
+  it("protects a custom component used inside another component definition", () => {
+    const nested = apply(
+      createCalculatorLessonState(),
+      {
+        type: "load-project",
+        currentStage: 1,
+        passedStages: [],
+        unlockedSubmodules: [
+          {
+            name: "A",
+            custom: true,
+            graph: {
+              nodes: [{ id: "a-out", kind: "output", name: "out", x: 100, y: 40 }],
+              edges: [],
+            },
+          },
+          {
+            name: "B",
+            custom: true,
+            graph: {
+              nodes: [
+                { id: "b-a", kind: "component", name: "A", x: 100, y: 40 },
+                { id: "b-out", kind: "output", name: "out", x: 300, y: 40 },
+              ],
+              edges: [
+                {
+                  id: "b-wire",
+                  from: { node: "b-a", port: "out" },
+                  to: { node: "b-out", port: "in" },
+                },
+              ],
+            },
+          },
+        ],
+        drafts: {
+          1: {
+            nodes: [{ id: "stage-b", kind: "component", name: "B", x: 300, y: 60 }],
+            edges: [],
+          },
+        },
+      },
+      { type: "delete-custom-component", name: "A" },
+    );
+
+    expect(nested.unlockedSubmodules.map((component) => component.name)).toEqual(["A", "B"]);
+    expect(nested.message).toContain("B");
+    expect(nested.message).toContain("仍被");
+  });
+
+  it("protects transitive component dependencies when only the outer component is on the canvas", () => {
+    const dependencyGraph = (name: string, id: string): CircuitGraph => ({
+      nodes: [
+        { id: `${id}-dependency`, kind: "component", name, x: 100, y: 40 },
+        { id: `${id}-out`, kind: "output", name: "out", x: 300, y: 40 },
+      ],
+      edges: [
+        {
+          id: `${id}-wire`,
+          from: { node: `${id}-dependency`, port: "out" },
+          to: { node: `${id}-out`, port: "in" },
+        },
+      ],
+    });
+    const state = apply(createCalculatorLessonState(), {
+      type: "load-project",
+      currentStage: 1,
+      passedStages: [],
+      unlockedSubmodules: [
+        {
+          name: "A",
+          custom: true,
+          graph: {
+            nodes: [{ id: "a-out", kind: "output", name: "out", x: 100, y: 40 }],
+            edges: [],
+          },
+        },
+        { name: "B", custom: true, graph: dependencyGraph("A", "b") },
+        { name: "C", custom: true, graph: dependencyGraph("B", "c") },
+      ],
+      drafts: {
+        1: {
+          nodes: [{ id: "stage-c", kind: "component", name: "C", x: 300, y: 60 }],
+          edges: [],
+        },
+      },
+    });
+
+    const blocked = apply(state, { type: "delete-custom-component", name: "A" });
+
+    expect(blocked.unlockedSubmodules.map((component) => component.name)).toEqual(["A", "B", "C"]);
+    expect(blocked.message).toContain("B、C");
   });
 
   it("keeps a single driver per input port", () => {
