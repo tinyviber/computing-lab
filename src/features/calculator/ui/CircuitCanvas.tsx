@@ -7,7 +7,12 @@ import {
 } from "react";
 import { inspectComponentSelection } from "../domain/componentize";
 import { GATE_LABEL, type Bit, type CircuitGraph, type CircuitNode } from "../domain/graph";
-import { portsForNode, type CalculatorLessonAction, type PendingWire } from "../lesson/state";
+import {
+  portsForNode,
+  type CalculatorLessonAction,
+  type ComponentCatalog,
+  type PendingWire,
+} from "../lesson/state";
 import { CALCULATOR_TERM_NOTES } from "./CalculatorTerms";
 import { CustomComponentDialog, type ComponentizeForm } from "./CustomComponentDialog";
 import {
@@ -22,7 +27,7 @@ import {
 
 type CircuitCanvasProps = {
   graph: CircuitGraph;
-  components: Record<string, CircuitGraph>;
+  components: ComponentCatalog;
   portValues: Record<string, Bit | null>;
   selectedNodeId: string | null;
   pendingWire: PendingWire;
@@ -92,6 +97,7 @@ export function CircuitCanvas({
     const point = toCanvas(event);
     dragRef.current = { id: node.id, dx: point.x - node.x, dy: point.y - node.y };
     setSelectedNodeIds([node.id]);
+    dispatch({ type: "start-node-move", id: node.id });
     dispatch({ type: "select-node", id: node.id });
     (event.target as Element).setPointerCapture?.(event.pointerId);
   };
@@ -104,6 +110,7 @@ export function CircuitCanvas({
     }
     const point = toCanvas(event);
     setSelectedNodeIds([]);
+    dispatch({ type: "select-node", id: null });
     setMarquee({ start: point, current: point });
     svgRef.current?.setPointerCapture?.(event.pointerId);
   };
@@ -136,6 +143,7 @@ export function CircuitCanvas({
   };
 
   const endPointerInteraction = (event?: ReactPointerEvent) => {
+    const hadNodeDrag = Boolean(dragRef.current);
     if (marquee) {
       const point = event ? toCanvas(event) : marquee.current;
       const rectangle = {
@@ -167,7 +175,38 @@ export function CircuitCanvas({
       }
     }
     dragRef.current = null;
+    if (hadNodeDrag) dispatch({ type: "finish-node-move" });
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        target instanceof Element &&
+        target.closest(
+          ".custom-component-dialog, input, textarea, select, [contenteditable='true']",
+        )
+      ) {
+        return;
+      }
+
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "z") {
+        event.preventDefault();
+        dispatch({ type: "undo" });
+        return;
+      }
+      if (event.key !== "Delete") return;
+
+      const ids = selectedNodeIds.length ? selectedNodeIds : selectedNodeId ? [selectedNodeId] : [];
+      if (ids.length === 0) return;
+      event.preventDefault();
+      dispatch({ type: "delete-nodes", ids });
+      setSelectedNodeIds([]);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dispatch, selectedNodeId, selectedNodeIds]);
 
   const marqueeRectangle = selectionRectangle();
   const onCreateComponent = (form: ComponentizeForm) => {
@@ -177,6 +216,8 @@ export function CircuitCanvas({
       name: form.name,
       inputNames: form.inputNames,
       outputNames: form.outputNames,
+      inputPortKeys: form.inputPortKeys,
+      outputPortKeys: form.outputPortKeys,
     });
     setComponentDialogOpen(false);
     setSelectedNodeIds([]);
@@ -226,7 +267,7 @@ export function CircuitCanvas({
           {graph.edges.map((edge) => {
             const fromNode = nodesById.get(edge.from.node);
             const toNode = nodesById.get(edge.to.node);
-            if (!fromNode || !toNode) return null;
+            if (!fromNode || !toNode || fromNode.collapsed || toNode.collapsed) return null;
             const from = portAnchor(fromNode, edge.from.port, "out", components);
             const to = portAnchor(toNode, edge.to.port, "in", components);
             const value = portValues[`${edge.from.node}#${edge.from.port}`];
@@ -266,12 +307,18 @@ export function CircuitCanvas({
 
             return (
               <g
-                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}`}
+                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}${node.collapsed ? " is-collapsed" : ""}`}
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 transform={`translate(${node.x} ${node.y})`}
               >
-                {nodeHelp(node) ? <title>{`${nodeLabel(node)}：${nodeHelp(node)}`}</title> : null}
+                {nodeHelp(node) || node.collapsed ? (
+                  <title>
+                    {[nodeHelp(node), node.collapsed ? "已折叠，连接线已隐藏" : null]
+                      .filter(Boolean)
+                      .join("；")}
+                  </title>
+                ) : null}
                 {isPinNode(node) ? (
                   <>
                     <rect
@@ -290,6 +337,11 @@ export function CircuitCanvas({
                     <text className="node-label" x={size.width / 2} y={15}>
                       {nodeLabel(node)}
                     </text>
+                    {node.collapsed ? (
+                      <text className="node-collapse-mark" x={size.width - 6} y={15}>
+                        ⌄
+                      </text>
+                    ) : null}
                     {inputs.map((port, index) => (
                       <text
                         className="port-label is-in"

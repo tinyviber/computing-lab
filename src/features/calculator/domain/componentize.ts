@@ -40,12 +40,31 @@ export type ComponentizeRequest = {
   name: string;
   inputNames: string[];
   outputNames: string[];
+  /** Boundary keys in the user-selected visual order. */
+  inputPortKeys?: string[];
+  outputPortKeys?: string[];
   componentNodeId: string;
   edgeIdPrefix: string;
 };
 
 export type ComponentizeResult =
   { component: ComponentDef; graph: CircuitGraph } | { error: string };
+
+export type ComponentPortEditRequest = {
+  component: ComponentDef;
+  inputNames: string[];
+  outputNames: string[];
+  inputPortKeys?: string[];
+  outputPortKeys?: string[];
+};
+
+export type ComponentPortEditResult =
+  | {
+      component: ComponentDef;
+      inputPortRenames: Record<string, string>;
+      outputPortRenames: Record<string, string>;
+    }
+  | { error: string };
 
 export type ExpandComponentRequest = {
   graph: CircuitGraph;
@@ -201,6 +220,78 @@ function validPortNames(names: string[], kind: "入口" | "出口"): string | nu
   return null;
 }
 
+function reorderBoundaries<T extends { key: string }>(
+  boundaries: T[],
+  keys: string[] | undefined,
+): T[] | null {
+  if (keys === undefined) return boundaries;
+  if (keys.length !== boundaries.length || new Set(keys).size !== keys.length) return null;
+  const byKey = new Map(boundaries.map((boundary) => [boundary.key, boundary]));
+  const ordered = keys.map((key) => byKey.get(key));
+  return ordered.every((boundary): boundary is T => Boolean(boundary)) ? ordered : null;
+}
+
+function reorderPortNodes(nodes: CircuitNode[], keys: string[] | undefined): CircuitNode[] | null {
+  if (keys === undefined) return nodes;
+  if (keys.length !== nodes.length || new Set(keys).size !== keys.length) return null;
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const ordered = keys.map((key) => byId.get(key));
+  return ordered.every((node): node is CircuitNode => Boolean(node)) ? ordered : null;
+}
+
+/** Update a custom component's public port names and ordering without changing its logic. */
+export function editComponentPorts(request: ComponentPortEditRequest): ComponentPortEditResult {
+  const inputNodes = request.component.graph.nodes.filter(
+    (node) => node.kind === "input" && node.name,
+  );
+  const outputNodes = request.component.graph.nodes.filter(
+    (node) => node.kind === "output" && node.name,
+  );
+  const orderedInputs = reorderPortNodes(inputNodes, request.inputPortKeys);
+  const orderedOutputs = reorderPortNodes(outputNodes, request.outputPortKeys);
+  if (!orderedInputs || !orderedOutputs) {
+    return { error: "端口顺序已变化，请重新打开编辑面板。" };
+  }
+
+  const inputNames = request.inputNames.map((name) => name.trim());
+  const outputNames = request.outputNames.map((name) => name.trim());
+  if (inputNames.length !== orderedInputs.length || outputNames.length !== orderedOutputs.length) {
+    return { error: "端口数量已变化，请重新打开编辑面板。" };
+  }
+  const inputError = validPortNames(inputNames, "入口");
+  if (inputError) return { error: inputError };
+  const outputError = validPortNames(outputNames, "出口");
+  if (outputError) return { error: outputError };
+  if (new Set([...inputNames, ...outputNames]).size !== inputNames.length + outputNames.length) {
+    return { error: "入口和出口名称不能相同。" };
+  }
+
+  const inputPortRenames = Object.fromEntries(
+    orderedInputs.map((node, index) => [node.name as string, inputNames[index]]),
+  );
+  const outputPortRenames = Object.fromEntries(
+    orderedOutputs.map((node, index) => [node.name as string, outputNames[index]]),
+  );
+  const inputIds = new Set(inputNodes.map((node) => node.id));
+  const outputIds = new Set(outputNodes.map((node) => node.id));
+  const innerNodes = request.component.graph.nodes.filter(
+    (node) => !inputIds.has(node.id) && !outputIds.has(node.id),
+  );
+  const graph: CircuitGraph = {
+    ...request.component.graph,
+    nodes: [
+      ...orderedInputs.map((node, index) => ({ ...node, name: inputNames[index] })),
+      ...innerNodes,
+      ...orderedOutputs.map((node, index) => ({ ...node, name: outputNames[index] })),
+    ],
+  };
+  return {
+    component: { ...request.component, graph },
+    inputPortRenames,
+    outputPortRenames,
+  };
+}
+
 function cloneInnerNode(node: CircuitNode, id: string, minX: number, minY: number): CircuitNode {
   return {
     ...node,
@@ -215,16 +306,23 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
   const selection = inspectComponentSelection(request.graph, request.selectedIds);
   if (selection.error) return { error: selection.error };
 
+  const inputPorts = reorderBoundaries(selection.inputPorts, request.inputPortKeys);
+  const outputPorts = reorderBoundaries(selection.outputPorts, request.outputPortKeys);
+  if (!inputPorts || !outputPorts) {
+    return { error: "端口顺序已变化，请重新打开封装面板。" };
+  }
+  const orderedSelection = { ...selection, inputPorts, outputPorts };
+
   const name = request.name.trim();
   const inputNames = request.inputNames.map((value) => value.trim());
   const outputNames = request.outputNames.map((value) => value.trim());
   if (!isValidComponentIdentifier(name)) {
     return { error: "组件名称不能为空，只能使用字母、数字、下划线或连字符。" };
   }
-  if (inputNames.length !== selection.inputPorts.length) {
+  if (inputNames.length !== orderedSelection.inputPorts.length) {
     return { error: "入口数量已变化，请重新打开封装面板。" };
   }
-  if (outputNames.length !== selection.outputPorts.length) {
+  if (outputNames.length !== orderedSelection.outputPorts.length) {
     return { error: "出口数量已变化，请重新打开封装面板。" };
   }
   const inputError = validPortNames(inputNames, "入口");
@@ -238,7 +336,7 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
     return { error: "组件标识生成失败，请重试。" };
   }
 
-  const selected = new Set(selection.selectedIds);
+  const selected = new Set(orderedSelection.selectedIds);
   const selectedNodes = request.graph.nodes.filter((node) => selected.has(node.id));
   const nodesById = new Map(request.graph.nodes.map((node) => [node.id, node]));
   const minX = Math.min(...selectedNodes.map((node) => node.x));
@@ -247,7 +345,7 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
   const inputId = (index: number) => `${request.componentNodeId}-input-${index}`;
   const outputId = (index: number) => `${request.componentNodeId}-output-${index}`;
 
-  const inputNodes: CircuitNode[] = selection.inputPorts.map((_, index) => ({
+  const inputNodes: CircuitNode[] = orderedSelection.inputPorts.map((_, index) => ({
     id: inputId(index),
     kind: "input",
     name: inputNames[index],
@@ -259,7 +357,7 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
     cloneInnerNode(node, innerId(node.id), minX, minY),
   );
   const maxInnerX = Math.max(...innerNodes.map((node) => node.x), 180);
-  const outputNodes: CircuitNode[] = selection.outputPorts.map((_, index) => ({
+  const outputNodes: CircuitNode[] = orderedSelection.outputPorts.map((_, index) => ({
     id: outputId(index),
     kind: "output",
     name: outputNames[index],
@@ -278,7 +376,9 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
         to: { node: innerId(edge.to.node), port: edge.to.port },
       });
     } else if (!fromSelected && toSelected) {
-      const index = selection.inputPorts.findIndex((port) => port.key === portKey(edge.from));
+      const index = orderedSelection.inputPorts.findIndex(
+        (port) => port.key === portKey(edge.from),
+      );
       if (index >= 0) {
         const alreadyConnected = innerEdges.some(
           (innerEdge) =>
@@ -293,7 +393,9 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
         }
       }
     } else if (fromSelected && !toSelected) {
-      const index = selection.outputPorts.findIndex((port) => port.key === portKey(edge.from));
+      const index = orderedSelection.outputPorts.findIndex(
+        (port) => port.key === portKey(edge.from),
+      );
       if (index >= 0) {
         const alreadyConnected = innerEdges.some(
           (innerEdge) =>
@@ -326,14 +428,14 @@ export function componentizeSelection(request: ComponentizeRequest): Componentiz
     }
   }
 
-  selection.inputPorts.forEach((port, index) => {
+  orderedSelection.inputPorts.forEach((port, index) => {
     outerEdges.push({
       id: `${request.edgeIdPrefix}-input-${index}`,
       from: port.external,
       to: { node: request.componentNodeId, port: inputNames[index] },
     });
   });
-  selection.outputPorts.forEach((port, index) => {
+  orderedSelection.outputPorts.forEach((port, index) => {
     for (const target of port.external) {
       outerEdges.push({
         id: `${request.edgeIdPrefix}-output-${index}-${outerEdges.length}`,

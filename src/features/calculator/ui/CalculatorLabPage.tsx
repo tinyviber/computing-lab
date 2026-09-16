@@ -12,6 +12,7 @@ import {
 } from "../domain/graph";
 import {
   componentMap,
+  componentCatalog,
   createCalculatorLessonState,
   graphOf,
   paletteGates,
@@ -24,6 +25,7 @@ import { HintDisclosure } from "./HintDisclosure";
 import { StageRail } from "./StageRail";
 import { TestPanel } from "./TestPanel";
 import { AnnotatedText, CalculatorTermGuide } from "./CalculatorTerms";
+import { CustomComponentDialog, type ComponentizeForm } from "./CustomComponentDialog";
 import "./calculator.css";
 
 const AUTOSAVE_DELAY_MS = 1500;
@@ -78,6 +80,7 @@ export function CalculatorLabPage() {
   );
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [editingComponentName, setEditingComponentName] = useState<string | null>(null);
   const saveTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const autosaveContextRef = useRef({ classId, stageIndex: state.stageIndex });
   const saveStatusRef = useRef(state.saveStatus);
@@ -86,6 +89,7 @@ export function CalculatorLabPage() {
 
   const graph = graphOf(state);
   const components = useMemo(() => componentMap(state), [state.unlockedSubmodules]);
+  const componentDefinitions = useMemo(() => componentCatalog(state), [state.unlockedSubmodules]);
   const stage = stageOf(state);
   const selectedNode = graph.nodes.find((node) => node.id === state.selectedNodeId);
   const selectedCustomComponent =
@@ -96,6 +100,13 @@ export function CalculatorLabPage() {
             component.name.toLocaleLowerCase() === (selectedNode.name ?? "").toLocaleLowerCase(),
         )
       : undefined;
+  const editingComponent = editingComponentName
+    ? state.unlockedSubmodules.find(
+        (component) =>
+          component.custom &&
+          component.name.toLocaleLowerCase() === editingComponentName.toLocaleLowerCase(),
+      )
+    : undefined;
 
   // Live preview: evaluate with the pins' current toggle values.
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
@@ -252,6 +263,7 @@ export function CalculatorLabPage() {
           onPlaceComponent={(name) =>
             dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
           }
+          onEditCustomComponent={setEditingComponentName}
           onDeleteCustomComponent={(name) => dispatch({ type: "delete-custom-component", name })}
           onSelectStage={(index) => dispatch({ type: "select-stage", stageIndex: index })}
           stageIndex={state.stageIndex}
@@ -319,7 +331,7 @@ export function CalculatorLabPage() {
           {stage ? <BusReadout pins={preview.pins} stage={stage} /> : null}
 
           <CircuitCanvas
-            components={components}
+            components={componentDefinitions}
             dispatch={dispatch}
             graph={graph}
             pendingWire={state.pendingWire}
@@ -330,7 +342,8 @@ export function CalculatorLabPage() {
           <section className="canvas-help">
             <p>
               点输出端口再点输入端口即可连线；点连线可删除；点输入引脚可切换 0/1
-              观察电路实时反应；在空白处拖动可框选元件并封装为自定义组件。
+              观察电路实时反应；在空白处拖动可框选元件并封装为自定义组件。选中组件后可折叠，隐藏其全部连接线；也可用
+              Ctrl/Cmd+Z 撤销、Delete 删除。
             </p>
             {preview.error ? (
               <p className="test-error" role="alert">
@@ -381,6 +394,15 @@ export function CalculatorLabPage() {
                 删除选中元件
               </button>
             ) : null}
+            {selectedNode?.kind === "component" ? (
+              <button
+                className="button button-ghost"
+                onClick={() => dispatch({ type: "toggle-collapse-node", id: selectedNode.id })}
+                type="button"
+              >
+                {selectedNode.collapsed ? "展开组件" : "折叠组件"}
+              </button>
+            ) : null}
             {selectedCustomComponent && selectedNode ? (
               <button
                 className="button button-ghost"
@@ -399,6 +421,23 @@ export function CalculatorLabPage() {
           />
         </main>
       </div>
+      {editingComponent ? (
+        <CustomComponentDialog
+          component={editingComponent}
+          onCancel={() => setEditingComponentName(null)}
+          onUpdate={(form: ComponentizeForm) => {
+            dispatch({
+              type: "edit-custom-component",
+              name: editingComponent.name,
+              inputNames: form.inputNames,
+              outputNames: form.outputNames,
+              inputPortKeys: form.inputPortKeys,
+              outputPortKeys: form.outputPortKeys,
+            });
+            setEditingComponentName(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

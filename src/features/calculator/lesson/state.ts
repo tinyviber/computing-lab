@@ -4,7 +4,11 @@
  */
 
 import { runCases, type CaseResult } from "../domain/evaluate";
-import { componentizeSelection, expandComponentNode } from "../domain/componentize";
+import {
+  componentizeSelection,
+  editComponentPorts,
+  expandComponentNode,
+} from "../domain/componentize";
 import {
   emptyGraph,
   gateInputPorts,
@@ -61,7 +65,9 @@ export type CalculatorLessonState = {
   /** Draft graph per stage index. */
   drafts: Record<number, CircuitGraph>;
   /** Undo snapshots: the graph before each edit, tagged with its stage. */
-  past: { stageIndex: number; graph: CircuitGraph }[];
+  past: UndoSnapshot[];
+  /** A node drag is kept out of history until the pointer is released. */
+  nodeMove: { stageIndex: number; nodeId: string; graph: CircuitGraph } | null;
   selectedNodeId: string | null;
   pendingWire: PendingWire;
   saveStatus: SaveStatus;
@@ -81,6 +87,8 @@ export type CalculatorLessonAction =
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "undo" }
+  | { type: "start-node-move"; id: string }
+  | { type: "finish-node-move" }
   | { type: "add-node"; kind: NodeKind; name?: string; value?: Bit; x: number; y: number }
   | {
       type: "componentize-selection";
@@ -88,12 +96,24 @@ export type CalculatorLessonAction =
       name: string;
       inputNames: string[];
       outputNames: string[];
+      inputPortKeys?: string[];
+      outputPortKeys?: string[];
+    }
+  | {
+      type: "edit-custom-component";
+      name: string;
+      inputNames: string[];
+      outputNames: string[];
+      inputPortKeys?: string[];
+      outputPortKeys?: string[];
     }
   | { type: "expand-component"; id: string }
+  | { type: "toggle-collapse-node"; id: string }
   | { type: "delete-custom-component"; name: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "select-node"; id: string | null }
   | { type: "delete-node"; id: string }
+  | { type: "delete-nodes"; ids: string[] }
   | { type: "toggle-input"; id: string }
   | { type: "start-wire"; from: PortRef }
   | { type: "complete-wire"; to: PortRef }
@@ -130,6 +150,22 @@ function nextCurrentStage(passedStages: number[]): number {
 export function componentMap(state: CalculatorLessonState): Record<string, CircuitGraph> {
   return Object.fromEntries(state.unlockedSubmodules.map((s) => [s.name, s.graph]));
 }
+
+export type ComponentCatalog = Record<string, CircuitGraph | ComponentDef>;
+
+/** Keep custom-component metadata available to the canvas for explicit port ordering. */
+export function componentCatalog(state: CalculatorLessonState): Record<string, ComponentDef> {
+  return Object.fromEntries(
+    state.unlockedSubmodules.map((component) => [component.name, component]),
+  );
+}
+
+type UndoSnapshot = {
+  stageIndex: number;
+  graph: CircuitGraph;
+  unlockedSubmodules?: ComponentDef[];
+  drafts?: Record<number, CircuitGraph>;
+};
 
 /**
  * Find component definitions that directly or indirectly depend on a named
@@ -193,6 +229,7 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     unlockedSubmodules: [],
     drafts: { [stageIndex]: scaffoldGraph(stageIndex) },
     past: [],
+    nodeMove: null,
     selectedNodeId: null,
     pendingWire: null,
     saveStatus: "idle",
@@ -242,23 +279,27 @@ function orderComponentPorts(names: string[]): string[] {
 /** A component instance's ports come from the referenced graph's pins. */
 function componentPortsOf(
   node: CircuitNode,
-  components: Record<string, CircuitGraph>,
+  components: ComponentCatalog,
   direction: "in" | "out",
 ): string[] {
-  const graph = components[node.name ?? ""];
+  const definition = components[node.name ?? ""];
+  const graph = definition && "graph" in definition ? definition.graph : definition;
   if (!graph) return [];
   const kind = direction === "in" ? "input" : "output";
-  return orderComponentPorts(
-    graph.nodes
-      .filter((n) => n.kind === kind)
-      .map((n) => n.name ?? "")
-      .filter(Boolean),
-  );
+  const names = graph.nodes
+    .filter((n) => n.kind === kind)
+    .map((n) => n.name ?? "")
+    .filter(Boolean);
+  // Legacy built-ins may have been persisted in arbitrary node order. Custom
+  // components use node order as the learner's explicit port order.
+  return definition && "graph" in definition && definition.custom
+    ? names
+    : orderComponentPorts(names);
 }
 
 export function portsForNode(
   node: CircuitNode,
-  components: Record<string, CircuitGraph>,
+  components: ComponentCatalog,
   direction: "in" | "out",
 ): string[] {
   if (node.kind === "component") return componentPortsOf(node, components, direction);
@@ -267,22 +308,163 @@ export function portsForNode(
 
 const MAX_UNDO = 50;
 
+function appendPast(
+  past: CalculatorLessonState["past"],
+  snapshot: UndoSnapshot,
+): CalculatorLessonState["past"] {
+  const next = [...past, snapshot];
+  if (next.length > MAX_UNDO) next.splice(0, next.length - MAX_UNDO);
+  return next;
+}
+
 function updateGraph(
   state: CalculatorLessonState,
   update: (graph: CircuitGraph) => CircuitGraph,
+  recordHistory = true,
 ): CalculatorLessonState {
   const before = graphOf(state);
   const next = update(before);
-  const past = [...state.past, { stageIndex: state.stageIndex, graph: before }];
-  if (past.length > MAX_UNDO) past.splice(0, past.length - MAX_UNDO);
+  if (next === before) return state;
   return {
     ...state,
     drafts: { ...state.drafts, [state.stageIndex]: next },
-    past,
+    past: recordHistory
+      ? appendPast(state.past, {
+          stageIndex: state.stageIndex,
+          graph: before,
+          unlockedSubmodules: state.unlockedSubmodules,
+        })
+      : state.past,
     saveStatus: "dirty",
     // Editing invalidates any previous verdict.
     runOutcome: null,
     judgeOutcome: null,
+  };
+}
+
+function finishNodeMove(state: CalculatorLessonState): CalculatorLessonState {
+  const move = state.nodeMove;
+  if (!move) return state;
+  if (move.stageIndex !== state.stageIndex) return { ...state, nodeMove: null };
+  const current = graphOf(state);
+  if (current === move.graph) return { ...state, nodeMove: null };
+  return {
+    ...state,
+    nodeMove: null,
+    past: appendPast(state.past, {
+      stageIndex: state.stageIndex,
+      graph: move.graph,
+      unlockedSubmodules: state.unlockedSubmodules,
+    }),
+  };
+}
+
+function deleteNodes(state: CalculatorLessonState, ids: string[]): CalculatorLessonState {
+  const requested = new Set(ids);
+  const graph = graphOf(state);
+  const removable = new Set(
+    graph.nodes
+      .filter((node) => requested.has(node.id) && node.kind !== "input" && node.kind !== "output")
+      .map((node) => node.id),
+  );
+  if (removable.size === 0) return state;
+  return {
+    ...updateGraph(state, (current) => ({
+      nodes: current.nodes.filter((node) => !removable.has(node.id)),
+      edges: current.edges.filter(
+        (edge) => !removable.has(edge.from.node) && !removable.has(edge.to.node),
+      ),
+    })),
+    selectedNodeId:
+      state.selectedNodeId && removable.has(state.selectedNodeId) ? null : state.selectedNodeId,
+    nodeMove: null,
+  };
+}
+
+function rewriteComponentPortReferences(
+  graph: CircuitGraph,
+  componentName: string,
+  inputPortRenames: Record<string, string>,
+  outputPortRenames: Record<string, string>,
+): CircuitGraph {
+  let changed = false;
+  const nodesById = new Map(graph.nodes.map((node) => [node.id, node]));
+  const edges = graph.edges.map((edge) => {
+    const fromNode = nodesById.get(edge.from.node);
+    const toNode = nodesById.get(edge.to.node);
+    const fromPort =
+      fromNode?.kind === "component" && fromNode.name === componentName
+        ? (outputPortRenames[edge.from.port] ?? edge.from.port)
+        : edge.from.port;
+    const toPort =
+      toNode?.kind === "component" && toNode.name === componentName
+        ? (inputPortRenames[edge.to.port] ?? edge.to.port)
+        : edge.to.port;
+    if (fromPort === edge.from.port && toPort === edge.to.port) return edge;
+    changed = true;
+    return {
+      ...edge,
+      from: { ...edge.from, port: fromPort },
+      to: { ...edge.to, port: toPort },
+    };
+  });
+  return changed ? { ...graph, edges } : graph;
+}
+
+function editCustomComponent(
+  state: CalculatorLessonState,
+  action: Extract<CalculatorLessonAction, { type: "edit-custom-component" }>,
+): CalculatorLessonState {
+  const component = state.unlockedSubmodules.find(
+    (candidate) =>
+      candidate.custom && candidate.name.toLocaleLowerCase() === action.name.toLocaleLowerCase(),
+  );
+  if (!component) return { ...state, message: "找不到要编辑的自定义组件。" };
+
+  const result = editComponentPorts({
+    component,
+    inputNames: action.inputNames,
+    outputNames: action.outputNames,
+    inputPortKeys: action.inputPortKeys,
+    outputPortKeys: action.outputPortKeys,
+  });
+  if ("error" in result) return { ...state, message: result.error };
+
+  const updateReferences = (graph: CircuitGraph) =>
+    rewriteComponentPortReferences(
+      graph,
+      component.name,
+      result.inputPortRenames,
+      result.outputPortRenames,
+    );
+  const editedComponent = {
+    ...result.component,
+    graph: updateReferences(result.component.graph),
+  };
+  const unlockedSubmodules = state.unlockedSubmodules.map((candidate) => {
+    if (candidate === component) return editedComponent;
+    const graph = updateReferences(candidate.graph);
+    return graph === candidate.graph ? candidate : { ...candidate, graph };
+  });
+  const drafts = Object.fromEntries(
+    Object.entries(state.drafts).map(([stage, graph]) => [stage, updateReferences(graph)]),
+  );
+
+  return {
+    ...state,
+    drafts,
+    unlockedSubmodules,
+    past: appendPast(state.past, {
+      stageIndex: state.stageIndex,
+      graph: graphOf(state),
+      drafts: state.drafts,
+      unlockedSubmodules: state.unlockedSubmodules,
+    }),
+    nodeMove: null,
+    saveStatus: "dirty",
+    runOutcome: null,
+    judgeOutcome: null,
+    message: `已更新自定义组件“${component.name}”。`,
   };
 }
 
@@ -306,6 +488,7 @@ export function transitionCalculatorLesson(
         unlockedSubmodules: action.unlockedSubmodules,
         drafts,
         past: [],
+        nodeMove: null,
         saveStatus: "idle",
         runOutcome: null,
         judgeOutcome: null,
@@ -322,6 +505,7 @@ export function transitionCalculatorLesson(
           ...state.drafts,
           [action.stageIndex]: withScaffold(existing ?? emptyGraph(), action.stageIndex),
         },
+        nodeMove: null,
         selectedNodeId: null,
         pendingWire: null,
         runOutcome: null,
@@ -346,6 +530,30 @@ export function transitionCalculatorLesson(
       };
     }
 
+    case "start-node-move": {
+      if (!graphOf(state).nodes.some((node) => node.id === action.id)) return state;
+      return {
+        ...state,
+        nodeMove: { stageIndex: state.stageIndex, nodeId: action.id, graph: graphOf(state) },
+      };
+    }
+
+    case "finish-node-move":
+      return finishNodeMove(state);
+
+    case "toggle-collapse-node": {
+      const node = graphOf(state).nodes.find((candidate) => candidate.id === action.id);
+      if (!node || node.kind !== "component") return state;
+      return updateGraph(state, (graph) => ({
+        ...graph,
+        nodes: graph.nodes.map((candidate) =>
+          candidate.id === action.id
+            ? { ...candidate, collapsed: !candidate.collapsed }
+            : candidate,
+        ),
+      }));
+    }
+
     case "componentize-selection": {
       const name = action.name.trim();
       if (
@@ -362,17 +570,22 @@ export function transitionCalculatorLesson(
         name,
         inputNames: action.inputNames,
         outputNames: action.outputNames,
+        inputPortKeys: action.inputPortKeys,
+        outputPortKeys: action.outputPortKeys,
         componentNodeId,
         edgeIdPrefix: `e${state.nextId}-component`,
       });
       if ("error" in result) return { ...state, message: result.error };
       const before = graphOf(state);
-      const past = [...state.past, { stageIndex: state.stageIndex, graph: before }];
-      if (past.length > MAX_UNDO) past.splice(0, past.length - MAX_UNDO);
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: result.graph },
-        past,
+        past: appendPast(state.past, {
+          stageIndex: state.stageIndex,
+          graph: before,
+          unlockedSubmodules: state.unlockedSubmodules,
+        }),
+        nodeMove: null,
         unlockedSubmodules: [...state.unlockedSubmodules, result.component],
         selectedNodeId: componentNodeId,
         pendingWire: null,
@@ -383,6 +596,9 @@ export function transitionCalculatorLesson(
         nextId: state.nextId + 1,
       };
     }
+
+    case "edit-custom-component":
+      return editCustomComponent(state, action);
 
     case "expand-component": {
       const node = graphOf(state).nodes.find((candidate) => candidate.id === action.id);
@@ -445,28 +661,28 @@ export function transitionCalculatorLesson(
     }
 
     case "move-node":
-      return updateGraph(state, (graph) => ({
-        ...graph,
-        nodes: graph.nodes.map((n) =>
-          n.id === action.id ? { ...n, x: action.x, y: action.y } : n,
-        ),
-      }));
+      return updateGraph(
+        state,
+        (graph) => {
+          let changed = false;
+          const nodes = graph.nodes.map((node) => {
+            if (node.id !== action.id || (node.x === action.x && node.y === action.y)) return node;
+            changed = true;
+            return { ...node, x: action.x, y: action.y };
+          });
+          return changed ? { ...graph, nodes } : graph;
+        },
+        !state.nodeMove || state.nodeMove.nodeId !== action.id,
+      );
 
     case "select-node":
       return { ...state, selectedNodeId: action.id };
 
-    case "delete-node": {
-      const node = graphOf(state).nodes.find((n) => n.id === action.id);
-      // The stage contract pins are permanent.
-      if (!node || node.kind === "input" || node.kind === "output") return state;
-      return {
-        ...updateGraph(state, (graph) => ({
-          nodes: graph.nodes.filter((n) => n.id !== action.id),
-          edges: graph.edges.filter((e) => e.from.node !== action.id && e.to.node !== action.id),
-        })),
-        selectedNodeId: null,
-      };
-    }
+    case "delete-node":
+      return deleteNodes(state, [action.id]);
+
+    case "delete-nodes":
+      return deleteNodes(state, action.ids);
 
     case "toggle-input":
       return updateGraph(state, (graph) => ({
@@ -518,18 +734,22 @@ export function transitionCalculatorLesson(
     case "reset-stage":
       return {
         ...updateGraph(state, () => scaffoldGraph(state.stageIndex)),
+        nodeMove: null,
         selectedNodeId: null,
         pendingWire: null,
       };
 
     case "undo": {
-      const top = state.past[state.past.length - 1];
+      const settled = finishNodeMove(state);
+      const top = settled.past[settled.past.length - 1];
       // Only restore a snapshot made on the stage currently on screen.
-      if (!top || top.stageIndex !== state.stageIndex) return state;
+      if (!top || top.stageIndex !== settled.stageIndex) return settled;
       return {
-        ...state,
-        drafts: { ...state.drafts, [state.stageIndex]: top.graph },
-        past: state.past.slice(0, -1),
+        ...settled,
+        drafts: top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph },
+        unlockedSubmodules: top.unlockedSubmodules ?? settled.unlockedSubmodules,
+        past: settled.past.slice(0, -1),
+        nodeMove: null,
         saveStatus: "dirty",
         runOutcome: null,
         judgeOutcome: null,

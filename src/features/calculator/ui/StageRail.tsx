@@ -8,6 +8,7 @@ type StageRailProps = {
   unlockedSubmodules: ComponentDef[];
   onSelectStage: (stageIndex: number) => void;
   onPlaceComponent: (name: string) => void;
+  onEditCustomComponent: (name: string) => void;
   onDeleteCustomComponent: (name: string) => void;
 };
 
@@ -17,6 +18,7 @@ export function StageRail({
   unlockedSubmodules,
   onSelectStage,
   onPlaceComponent,
+  onEditCustomComponent,
   onDeleteCustomComponent,
 }: StageRailProps) {
   const challengeUnlocked = coreStages().every((s) => passedStages.includes(s.index));
@@ -92,19 +94,33 @@ export function StageRail({
                   {component.custom ? <small>自定义</small> : null}
                 </button>
                 {component.custom ? (
-                  <button
-                    aria-label={`删除自定义组件 ${component.name}`}
-                    className="component-delete"
-                    onClick={() => {
-                      if (window.confirm(`确定删除自定义组件“${component.name}”吗？`)) {
-                        onDeleteCustomComponent(component.name);
-                      }
-                    }}
-                    title="删除自定义组件"
-                    type="button"
-                  >
-                    ×
-                  </button>
+                  <span className="component-entry-actions">
+                    <button
+                      aria-label={`编辑自定义组件 ${component.name}`}
+                      className="component-edit"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onEditCustomComponent(component.name);
+                      }}
+                      title="编辑自定义组件"
+                      type="button"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      aria-label={`删除自定义组件 ${component.name}`}
+                      className="component-delete"
+                      onClick={() => {
+                        if (window.confirm(`确定删除自定义组件“${component.name}”吗？`)) {
+                          onDeleteCustomComponent(component.name);
+                        }
+                      }}
+                      title="删除自定义组件"
+                      type="button"
+                    >
+                      ×
+                    </button>
+                  </span>
                 ) : null}
               </li>
             ))}

@@ -3,7 +3,7 @@
  */
 
 import type { CircuitGraph, CircuitNode } from "../domain/graph";
-import { portsForNode } from "../lesson/state";
+import { portsForNode, type ComponentCatalog } from "../lesson/state";
 
 export const NODE_WIDTH = 78;
 export const HEADER_HEIGHT = 22;
@@ -17,7 +17,7 @@ export function isPinNode(node: CircuitNode): boolean {
 
 export function nodeSize(
   node: CircuitNode,
-  components: Record<string, CircuitGraph>,
+  components: ComponentCatalog,
 ): { width: number; height: number } {
   if (isPinNode(node)) return { width: PIN_WIDTH, height: PIN_HEIGHT };
   const ins = portsForNode(node, components, "in").length;
@@ -31,7 +31,7 @@ export function portAnchor(
   node: CircuitNode,
   port: string,
   direction: "in" | "out",
-  components: Record<string, CircuitGraph>,
+  components: ComponentCatalog,
 ): { x: number; y: number } {
   const { width, height } = nodeSize(node, components);
   if (isPinNode(node)) {
@@ -56,7 +56,7 @@ export function wirePath(from: { x: number; y: number }, to: { x: number; y: num
 
 export function canvasBounds(
   graph: CircuitGraph,
-  components: Record<string, CircuitGraph>,
+  components: ComponentCatalog,
 ): { width: number; height: number } {
   let width = 820;
   let height = 420;

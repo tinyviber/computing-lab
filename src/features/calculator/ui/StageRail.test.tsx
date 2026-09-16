@@ -10,6 +10,7 @@ describe("StageRail custom components", () => {
   it("confirms and delegates deletion of a custom component", async () => {
     const user = userEvent.setup();
     const onDelete = vi.fn();
+    const onEdit = vi.fn();
     vi.stubGlobal(
       "confirm",
       vi.fn(() => true),
@@ -23,6 +24,7 @@ describe("StageRail custom components", () => {
     render(
       <StageRail
         onDeleteCustomComponent={onDelete}
+        onEditCustomComponent={onEdit}
         onPlaceComponent={vi.fn()}
         onSelectStage={vi.fn()}
         passedStages={[]}
@@ -34,5 +36,8 @@ describe("StageRail custom components", () => {
     await user.click(screen.getByRole("button", { name: "删除自定义组件 PartialProduct" }));
     expect(window.confirm).toHaveBeenCalledWith("确定删除自定义组件“PartialProduct”吗？");
     expect(onDelete).toHaveBeenCalledWith("PartialProduct");
+
+    await user.click(screen.getByRole("button", { name: "编辑自定义组件 PartialProduct" }));
+    expect(onEdit).toHaveBeenCalledWith("PartialProduct");
   });
 });

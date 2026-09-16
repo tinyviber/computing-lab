@@ -209,6 +209,14 @@
   gap: 4px;
 }
 
+.component-entry-actions {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+
+.component-edit,
 .component-delete {
   width: 22px;
   height: 22px;
@@ -220,6 +228,16 @@
   cursor: pointer;
   font-size: 16px;
   line-height: 1;
+}
+
+.component-edit {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.component-edit:hover {
+  border-color: #c9c7f4;
+  background: var(--accent-soft);
 }
 
 .component-delete:hover {
@@ -602,6 +620,31 @@
   border-radius: var(--radius-control);
 }
 
+.custom-component-port-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.custom-component-port-drag-handle {
+  display: inline-grid;
+  place-items: center;
+  min-height: 32px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: grab;
+  font-size: 14px;
+  letter-spacing: -4px;
+  line-height: 1;
+  user-select: none;
+}
+
+.custom-component-port-drag-handle:active {
+  cursor: grabbing;
+}
+
 .custom-component-port-groups legend {
   padding: 0 5px;
   color: var(--primary);
@@ -766,6 +809,11 @@
   stroke-width: 2;
 }
 
+.circuit-node.is-collapsed .node-body {
+  stroke: var(--focus);
+  stroke-dasharray: 4 3;
+}
+
 .node-label {
   fill: var(--primary);
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -881,6 +929,13 @@
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 15px;
   font-weight: 700;
+}
+
+.node-collapse-mark {
+  fill: var(--focus);
+  font-size: 10px;
+  font-weight: 700;
+  text-anchor: end;
 }
 
 .test-note {

@@ -23,6 +23,8 @@ export type CircuitNode = {
   name?: string;
   /** Manual value for input nodes and const nodes. */
   value?: Bit;
+  /** Whether a component instance hides every wire connected to it on the canvas. */
+  collapsed?: boolean;
   x: number;
   y: number;
 };
@@ -103,6 +105,7 @@ export function sanitizeGraph(value: unknown): CircuitGraph {
       kind: n.kind,
       name: typeof n.name === "string" ? n.name : undefined,
       value: n.value === 1 ? (1 as Bit) : n.value === 0 ? (0 as Bit) : undefined,
+      collapsed: n.collapsed === true ? true : undefined,
       x: Math.round(n.x),
       y: Math.round(n.y),
     }));

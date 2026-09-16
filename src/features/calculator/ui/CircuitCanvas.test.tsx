@@ -61,6 +61,71 @@ describe("CircuitCanvas", () => {
     ).toEqual(["S0", "S1", "S2", "S3", "Cout"]);
   });
 
+  it("hides every wire connected to a collapsed component", () => {
+    render(
+      <CircuitCanvas
+        components={{ HalfAdder: halfAdderGraph() }}
+        dispatch={vi.fn()}
+        graph={{
+          nodes: [
+            {
+              id: "half-adder",
+              kind: "component",
+              name: "HalfAdder",
+              collapsed: true,
+              x: 120,
+              y: 80,
+            },
+            { id: "out", kind: "output", name: "Sum", x: 420, y: 80 },
+            { id: "source", kind: "input", name: "A", value: 1, x: 20, y: 250 },
+            { id: "other-out", kind: "output", name: "Other", x: 420, y: 250 },
+          ],
+          edges: [
+            {
+              id: "hidden",
+              from: { node: "half-adder", port: "Sum" },
+              to: { node: "out", port: "in" },
+            },
+            {
+              id: "visible",
+              from: { node: "source", port: "out" },
+              to: { node: "other-out", port: "in" },
+            },
+          ],
+        }}
+        pendingWire={null}
+        portValues={{}}
+        selectedNodeId={null}
+      />,
+    );
+
+    expect(screen.getAllByRole("button", { name: /连线/ })).toHaveLength(1);
+    expect(screen.getByText("⌄")).toBeInTheDocument();
+  });
+
+  it("supports undo and deleting the selected node from keyboard shortcuts", () => {
+    const dispatch = vi.fn();
+    render(
+      <CircuitCanvas
+        components={{}}
+        dispatch={dispatch}
+        graph={{
+          nodes: [{ id: "gate", kind: "not", x: 200, y: 40 }],
+          edges: [],
+        }}
+        pendingWire={null}
+        portValues={{}}
+        selectedNodeId="gate"
+      />,
+    );
+
+    fireEvent.keyDown(window, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(window, { key: "Delete" });
+
+    expect(dispatch).toHaveBeenCalledWith({ type: "undo" });
+    expect(dispatch).toHaveBeenCalledWith({ type: "delete-nodes", ids: ["gate"] });
+  });
+
   it("offers dynamic component ports after a marquee selection", () => {
     const graph: CircuitGraph = {
       nodes: [
@@ -97,11 +162,20 @@ describe("CircuitCanvas", () => {
     expect(screen.getByText("入口（2）")).toBeInTheDocument();
     expect(screen.getByText("出口（1）")).toBeInTheDocument();
     const mappings = screen.getByLabelText("端口对应关系");
-    expect(mappings).toHaveTextContent(/A\s*→\s*输入 1/);
+    const dataTransfer = {
+      effectAllowed: "",
+      setData: vi.fn(),
+    };
+    const portRows = container.querySelectorAll(".custom-component-port-row");
+    fireEvent.dragStart(screen.getByLabelText("拖动入口 2"), { dataTransfer });
+    fireEvent.dragOver(portRows[0], { dataTransfer });
+    fireEvent.drop(portRows[0], { dataTransfer });
+    expect(mappings).toHaveTextContent(/B\s*→\s*输入 1/);
+    expect(mappings).toHaveTextContent(/A\s*→\s*输入 2/);
     expect(mappings.querySelector("details")).not.toHaveAttribute("open");
     fireEvent.click(screen.getByText("查看详细端口对应关系"));
     expect(mappings.querySelector("details")).toHaveAttribute("open");
-    expect(mappings).toHaveTextContent("I0当前名：A← A 的 out → AND（gate） 的 in0");
+    expect(mappings).toHaveTextContent("I0当前名：B← B 的 out → AND（gate） 的 in1");
     expect(mappings).toHaveTextContent("O0当前名：P← AND（gate） 的 out → P 的 in");
   });
 });

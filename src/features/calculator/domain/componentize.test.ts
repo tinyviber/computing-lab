@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   componentizeSelection,
+  editComponentPorts,
   expandComponentNode,
   inspectComponentSelection,
 } from "./componentize";
@@ -91,6 +92,43 @@ describe("componentizeSelection", () => {
     expect("error" in result ? result.error : null).toContain("组件名称");
   });
 
+  it("keeps boundary wiring aligned when inputs and outputs are reordered", () => {
+    const result = componentizeSelection({
+      graph: twoGateGraph(),
+      selectedIds: ["and", "xor"],
+      name: "LogicPair",
+      inputNames: ["B", "A"],
+      outputNames: ["Xor", "And"],
+      inputPortKeys: ["b#out", "a#out"],
+      outputPortKeys: ["xor#out", "and#out"],
+      componentNodeId: "cmp",
+      edgeIdPrefix: "cmp-edge",
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    expect(
+      result.component.graph.nodes
+        .filter((node) => node.kind === "input" || node.kind === "output")
+        .map((node) => node.name),
+    ).toEqual(["B", "A", "Xor", "And"]);
+    expect(
+      result.graph.edges
+        .filter((edge) => edge.to.node === "cmp")
+        .map((edge) => [edge.from.node, edge.to.port]),
+    ).toEqual([
+      ["b", "B"],
+      ["a", "A"],
+    ]);
+    expect(
+      result.graph.edges
+        .filter((edge) => edge.from.node === "cmp")
+        .map((edge) => [edge.from.port, edge.to.node]),
+    ).toEqual([
+      ["Xor", "q"],
+      ["And", "p"],
+    ]);
+  });
+
   it("expands a custom component and reconnects its boundary wires", () => {
     const result = componentizeSelection({
       graph: twoGateGraph(),
@@ -115,5 +153,44 @@ describe("componentizeSelection", () => {
     const preview = evaluateGraph(expanded.graph, { A: 1, B: 0 }, {});
     expect(preview.error).toBeNull();
     expect(preview.outputs).toEqual({ P: 0, Q: 1 });
+  });
+
+  it("edits a custom component without changing its internal logic", () => {
+    const result = componentizeSelection({
+      graph: twoGateGraph(),
+      selectedIds: ["and", "xor"],
+      name: "LogicPair",
+      inputNames: ["A", "B"],
+      outputNames: ["And", "Xor"],
+      componentNodeId: "cmp",
+      edgeIdPrefix: "cmp-edge",
+    });
+    if ("error" in result) throw new Error(result.error);
+
+    const edited = editComponentPorts({
+      component: result.component,
+      inputNames: ["B", "A"],
+      outputNames: ["Xor", "And"],
+      inputPortKeys: [
+        result.component.graph.nodes.find((node) => node.kind === "input" && node.name === "B")!.id,
+        result.component.graph.nodes.find((node) => node.kind === "input" && node.name === "A")!.id,
+      ],
+      outputPortKeys: [
+        result.component.graph.nodes.find((node) => node.kind === "output" && node.name === "Xor")!
+          .id,
+        result.component.graph.nodes.find((node) => node.kind === "output" && node.name === "And")!
+          .id,
+      ],
+    });
+    if ("error" in edited) throw new Error(edited.error);
+
+    expect(
+      edited.component.graph.nodes
+        .filter((node) => node.kind === "input" || node.kind === "output")
+        .map((node) => node.name),
+    ).toEqual(["B", "A", "Xor", "And"]);
+    expect(edited.inputPortRenames).toEqual({ A: "A", B: "B" });
+    expect(edited.outputPortRenames).toEqual({ And: "And", Xor: "Xor" });
+    expect(edited.component.graph.edges).toEqual(result.component.graph.edges);
   });
 });

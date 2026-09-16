@@ -82,6 +82,31 @@ describe("calculator lesson state", () => {
     expect(wired.saveStatus).toBe("dirty");
   });
 
+  it("toggles component collapse as one undoable graph edit", () => {
+    const withComponent = apply(createCalculatorLessonState(), {
+      type: "add-node",
+      kind: "component",
+      name: "HalfAdder",
+      x: 300,
+      y: 60,
+    });
+    const componentId = withComponent.selectedNodeId!;
+
+    const collapsed = apply(withComponent, {
+      type: "toggle-collapse-node",
+      id: componentId,
+    });
+    expect(graphOf(collapsed).nodes.find((node) => node.id === componentId)?.collapsed).toBe(true);
+    expect(collapsed.past).toHaveLength(2);
+
+    const expanded = apply(collapsed, {
+      type: "toggle-collapse-node",
+      id: componentId,
+    });
+    expect(graphOf(expanded).nodes.find((node) => node.id === componentId)?.collapsed).toBe(false);
+    expect(apply(expanded, { type: "undo" }).drafts[1].nodes).toEqual(graphOf(collapsed).nodes);
+  });
+
   it("replaces a selected subgraph with a reusable custom component", () => {
     const withGate = apply(createCalculatorLessonState(), {
       type: "add-node",
@@ -120,6 +145,31 @@ describe("calculator lesson state", () => {
         (node) => node.kind === "component" && node.name === "XorBlock",
       ),
     ).toBe(true);
+
+    const definition = componentized.unlockedSubmodules[0];
+    const inputNodes = definition.graph.nodes.filter((node) => node.kind === "input");
+    const outputNodes = definition.graph.nodes.filter((node) => node.kind === "output");
+    const edited = apply(componentized, {
+      type: "edit-custom-component",
+      name: "XorBlock",
+      inputNames: ["B", "A"],
+      outputNames: ["Sum"],
+      inputPortKeys: [inputNodes[1].id, inputNodes[0].id],
+      outputPortKeys: [outputNodes[0].id],
+    });
+    expect(
+      edited.unlockedSubmodules[0].graph.nodes
+        .filter((node) => node.kind === "input" || node.kind === "output")
+        .map((node) => node.name),
+    ).toEqual(["B", "A", "Sum"]);
+    expect(edited.message).toContain("已更新");
+
+    const editUndone = apply(edited, { type: "undo" });
+    expect(
+      editUndone.unlockedSubmodules[0].graph.nodes
+        .filter((node) => node.kind === "input" || node.kind === "output")
+        .map((node) => node.name),
+    ).toEqual(["A", "B", "Sum"]);
   });
 
   it("splits custom components back and protects components that are still in use", () => {
@@ -422,6 +472,36 @@ describe("calculator lesson state", () => {
     expect(graphOf(undone)).toEqual(graphOf(base));
     expect(undone.past).toHaveLength(0);
     expect(undone.saveStatus).toBe("dirty");
+  });
+
+  it("groups continuous node dragging into one undo step", () => {
+    const base = apply(createCalculatorLessonState(), {
+      type: "add-node",
+      kind: "xor",
+      x: 10,
+      y: 10,
+    });
+    const nodeId = base.selectedNodeId!;
+    const dragged = apply(
+      base,
+      { type: "start-node-move", id: nodeId },
+      { type: "move-node", id: nodeId, x: 11, y: 11 },
+      { type: "move-node", id: nodeId, x: 12, y: 12 },
+      { type: "move-node", id: nodeId, x: 13, y: 13 },
+      { type: "finish-node-move" },
+    );
+
+    expect(dragged.past).toHaveLength(2);
+    expect(graphOf(dragged).nodes.find((node) => node.id === nodeId)).toMatchObject({
+      x: 13,
+      y: 13,
+    });
+    const undone = apply(dragged, { type: "undo" });
+    expect(graphOf(undone).nodes.find((node) => node.id === nodeId)).toMatchObject({
+      x: 10,
+      y: 10,
+    });
+    expect(undone.past).toHaveLength(1);
   });
 
   it("undoes a reset back to the working draft", () => {
