@@ -81,6 +81,46 @@ describe("calculator lesson state", () => {
     expect(wired.saveStatus).toBe("dirty");
   });
 
+  it("replaces a selected subgraph with a reusable custom component", () => {
+    const withGate = apply(createCalculatorLessonState(), {
+      type: "add-node",
+      kind: "xor",
+      x: 300,
+      y: 60,
+    });
+    const gateId = withGate.selectedNodeId!;
+    const wired = apply(
+      withGate,
+      { type: "start-wire", from: { node: "in-A", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in0" } },
+      { type: "start-wire", from: { node: "in-B", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in1" } },
+      { type: "start-wire", from: { node: gateId, port: "out" } },
+      { type: "complete-wire", to: { node: "out-Sum", port: "in" } },
+    );
+
+    const componentized = apply(wired, {
+      type: "componentize-selection",
+      selectedIds: [gateId],
+      name: "XorBlock",
+      inputNames: ["A", "B"],
+      outputNames: ["Sum"],
+    });
+    expect(componentized.unlockedSubmodules).toHaveLength(1);
+    expect(componentized.unlockedSubmodules[0].custom).toBe(true);
+    expect(
+      componentized.unlockedSubmodules[0].graph.nodes
+        .filter((node) => node.kind === "input" || node.kind === "output")
+        .map((node) => node.name),
+    ).toEqual(["A", "B", "Sum"]);
+    expect(graphOf(componentized).nodes.some((node) => node.id === gateId)).toBe(false);
+    expect(
+      graphOf(componentized).nodes.some(
+        (node) => node.kind === "component" && node.name === "XorBlock",
+      ),
+    ).toBe(true);
+  });
+
   it("keeps a single driver per input port", () => {
     const state = apply(
       createCalculatorLessonState(),

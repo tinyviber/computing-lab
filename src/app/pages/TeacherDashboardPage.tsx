@@ -104,7 +104,6 @@ export function TeacherDashboardPage() {
     <div className="dashboard-page">
       <header className="dashboard-topbar">
         <div>
-          <p className="eyebrow">{payload?.className ?? "班级看板"}</p>
           <h1>学生进度</h1>
         </div>
         <div className="dashboard-actions">

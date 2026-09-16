@@ -74,17 +74,20 @@ export function StageRail({
           我的组件 <span aria-hidden="true">/</span> MY COMPONENTS
         </p>
         {unlockedSubmodules.length === 0 ? (
-          <p className="my-components-empty">通过一关后，成果会变成可复用的组件。</p>
+          <p className="my-components-empty">
+            通过关卡解锁，或在画布框选后封装，就能得到可复用组件。
+          </p>
         ) : (
           <ul>
             {unlockedSubmodules.map((component) => (
               <li key={component.name}>
                 <button
-                  className="component-chip"
+                  className={`component-chip${component.custom ? " is-custom" : ""}`}
                   onClick={() => onPlaceComponent(component.name)}
                   type="button"
                 >
                   <AnnotatedText text={component.name} />
+                  {component.custom ? <small>自定义</small> : null}
                 </button>
               </li>
             ))}

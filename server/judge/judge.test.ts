@@ -210,6 +210,53 @@ describe("judge persistence and unlocking", () => {
     expect(stage2.currentStage).toBe(3);
   });
 
+  it("judges with a learner-made component and persists it", () => {
+    const { db, userId, classId } = setup();
+    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const custom = { name: "PackedHalfAdder", graph: halfAdderGraph(), custom: true };
+    const graph: CircuitGraph = {
+      nodes: [
+        { id: "a", kind: "input", name: "A", value: 0, x: 40, y: 40 },
+        { id: "b", kind: "input", name: "B", value: 0, x: 40, y: 86 },
+        { id: "component", kind: "component", name: custom.name, x: 220, y: 60 },
+        { id: "sum", kind: "output", name: "Sum", x: 480, y: 40 },
+        { id: "carry", kind: "output", name: "Carry", x: 480, y: 86 },
+      ],
+      edges: [
+        {
+          id: "a-component",
+          from: { node: "a", port: "out" },
+          to: { node: "component", port: "A" },
+        },
+        {
+          id: "b-component",
+          from: { node: "b", port: "out" },
+          to: { node: "component", port: "B" },
+        },
+        {
+          id: "component-sum",
+          from: { node: "component", port: "Sum" },
+          to: { node: "sum", port: "in" },
+        },
+        {
+          id: "component-carry",
+          from: { node: "component", port: "Carry" },
+          to: { node: "carry", port: "in" },
+        },
+      ],
+    };
+
+    const outcome = judgeSubmission(db, project, 1, graph, [custom]);
+    if ("error" in outcome) throw new Error(outcome.error);
+    expect(outcome.passed).toBe(true);
+    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
+      "PackedHalfAdder",
+      "HalfAdder",
+    ]);
+    expect(reloaded.unlockedSubmodules[0].custom).toBe(true);
+  });
+
   it("does not advance on a partial pass but records the score", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");

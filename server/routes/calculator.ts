@@ -32,7 +32,13 @@ export function calculatorRoutes() {
     }
     const db = c.get("db");
     const project = getOrCreateProject(db, auth.user.id, auth.membership.classId, LAB_ID);
-    saveDraft(db, project, stageIndex, (body as { graph?: unknown })?.graph ?? {});
+    saveDraft(
+      db,
+      project,
+      stageIndex,
+      (body as { graph?: unknown })?.graph ?? {},
+      (body as { components?: unknown })?.components,
+    );
     return c.json({ ok: true, savedAt: new Date().toISOString() });
   });
 
@@ -47,7 +53,13 @@ export function calculatorRoutes() {
     }
     const db = c.get("db");
     const project = getOrCreateProject(db, auth.user.id, auth.membership.classId, LAB_ID);
-    const outcome = judgeSubmission(db, project, stageIndex, (body as { graph?: unknown })?.graph);
+    const outcome = judgeSubmission(
+      db,
+      project,
+      stageIndex,
+      (body as { graph?: unknown })?.graph,
+      (body as { components?: unknown })?.components,
+    );
     if ("error" in outcome) return jsonError(c, outcome.status, outcome.error);
     return c.json(outcome);
   });

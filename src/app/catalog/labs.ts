@@ -11,7 +11,7 @@ import type { LabDefinition } from "./types";
 export const labs: LabDefinition[] = [
   {
     id: "calculator",
-    title: "搭一个计算器",
+    title: "实现ALU",
     category: "计算机原理",
     route: "/labs/calculator",
     description: "从半加器到完整计算器：用逻辑门逐关搭出运算电路。",

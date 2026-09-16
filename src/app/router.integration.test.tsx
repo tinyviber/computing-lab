@@ -18,7 +18,7 @@ describe("application router integration", () => {
     await renderAppAt("/");
 
     // The enabled lab links to its class-scoped route.
-    const calculatorLinks = screen.getAllByRole("link", { name: /搭一个计算器|开始|继续/ });
+    const calculatorLinks = screen.getAllByRole("link", { name: /实现ALU|开始|继续/ });
     expect(
       calculatorLinks.some((link) => link.getAttribute("href") === "/classes/c1/labs/calculator"),
     ).toBe(true);

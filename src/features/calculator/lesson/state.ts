@@ -4,6 +4,7 @@
  */
 
 import { runCases, type CaseResult } from "../domain/evaluate";
+import { componentizeSelection } from "../domain/componentize";
 import {
   emptyGraph,
   gateInputPorts,
@@ -81,6 +82,13 @@ export type CalculatorLessonAction =
   | { type: "select-stage"; stageIndex: number }
   | { type: "undo" }
   | { type: "add-node"; kind: NodeKind; name?: string; value?: Bit; x: number; y: number }
+  | {
+      type: "componentize-selection";
+      selectedIds: string[];
+      name: string;
+      inputNames: string[];
+      outputNames: string[];
+    }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "select-node"; id: string | null }
   | { type: "delete-node"; id: string }
@@ -171,6 +179,27 @@ function portsOf(node: CircuitNode, direction: "in" | "out"): string[] {
   return direction === "in" ? gateInputPorts(node) : gateOutputPorts(node);
 }
 
+function numericPortName(name: string): { prefix: string; index: number } | null {
+  const match = /^(.*?)(\d+)$/.exec(name);
+  return match ? { prefix: match[1], index: Number(match[2]) } : null;
+}
+
+/** Keep numbered component ports low-to-high while preserving named ports. */
+function orderComponentPorts(names: string[]): string[] {
+  return names
+    .map((name, originalIndex) => ({ name, originalIndex, numeric: numericPortName(name) }))
+    .sort((left, right) => {
+      if (!left.numeric && !right.numeric) return left.originalIndex - right.originalIndex;
+      if (!left.numeric) return 1;
+      if (!right.numeric) return -1;
+      if (left.numeric.prefix !== right.numeric.prefix) {
+        return left.originalIndex - right.originalIndex;
+      }
+      return left.numeric.index - right.numeric.index;
+    })
+    .map(({ name }) => name);
+}
+
 /** A component instance's ports come from the referenced graph's pins. */
 function componentPortsOf(
   node: CircuitNode,
@@ -180,10 +209,12 @@ function componentPortsOf(
   const graph = components[node.name ?? ""];
   if (!graph) return [];
   const kind = direction === "in" ? "input" : "output";
-  return graph.nodes
-    .filter((n) => n.kind === kind)
-    .map((n) => n.name ?? "")
-    .filter(Boolean);
+  return orderComponentPorts(
+    graph.nodes
+      .filter((n) => n.kind === kind)
+      .map((n) => n.name ?? "")
+      .filter(Boolean),
+  );
 }
 
 export function portsForNode(
@@ -273,6 +304,44 @@ export function transitionCalculatorLesson(
         ...updateGraph(state, (graph) => ({ ...graph, nodes: [...graph.nodes, node] })),
         nextId: state.nextId + 1,
         selectedNodeId: id,
+      };
+    }
+
+    case "componentize-selection": {
+      const name = action.name.trim();
+      if (
+        state.unlockedSubmodules.some(
+          (component) => component.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+        )
+      ) {
+        return { ...state, message: `组件名称“${name}”已存在，请换一个名称。` };
+      }
+      const componentNodeId = `n${state.nextId}`;
+      const result = componentizeSelection({
+        graph: graphOf(state),
+        selectedIds: action.selectedIds,
+        name,
+        inputNames: action.inputNames,
+        outputNames: action.outputNames,
+        componentNodeId,
+        edgeIdPrefix: `e${state.nextId}-component`,
+      });
+      if ("error" in result) return { ...state, message: result.error };
+      const before = graphOf(state);
+      const past = [...state.past, { stageIndex: state.stageIndex, graph: before }];
+      if (past.length > MAX_UNDO) past.splice(0, past.length - MAX_UNDO);
+      return {
+        ...state,
+        drafts: { ...state.drafts, [state.stageIndex]: result.graph },
+        past,
+        unlockedSubmodules: [...state.unlockedSubmodules, result.component],
+        selectedNodeId: componentNodeId,
+        pendingWire: null,
+        saveStatus: "dirty",
+        runOutcome: null,
+        judgeOutcome: null,
+        message: `已封装“${name}”，现在可以从“我的组件”中重复放置。`,
+        nextId: state.nextId + 1,
       };
     }
 
@@ -390,7 +459,9 @@ export function transitionCalculatorLesson(
       const unlocked = action.outcome.unlockedComponent;
       const submodules = unlocked
         ? [
-            ...state.unlockedSubmodules.filter((s) => s.name !== unlocked),
+            ...state.unlockedSubmodules.filter(
+              (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
+            ),
             { name: unlocked, graph: graphOf(state) },
           ]
         : state.unlockedSubmodules;

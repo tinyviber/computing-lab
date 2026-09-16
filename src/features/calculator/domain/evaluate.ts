@@ -99,7 +99,7 @@ function componentPorts(def: ComponentDef | undefined): { inputs: string[]; outp
 
 /**
  * Evaluate one graph once for a fixed input assignment.
- * `components` maps component names to their graphs (unlocked submodules).
+ * `components` maps reusable component names to their graphs.
  * `inputValues` binds named `input` nodes; unbound input pins use their
  * stored `value` (interactive toggle) or 0.
  */

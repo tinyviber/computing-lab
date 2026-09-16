@@ -46,17 +46,22 @@ export type StageDef = {
 
 const ALL_GATES: GateKind[] = ["and", "or", "xor", "not", "nand", "nor", "buffer"];
 
-const nib = (prefix: string) => [`${prefix}3`, `${prefix}2`, `${prefix}1`, `${prefix}0`];
+/** Visual pin order: the least-significant bit is the top pin. */
+const nib = (prefix: string) => [`${prefix}0`, `${prefix}1`, `${prefix}2`, `${prefix}3`];
 const byte = (prefix: string) => [
-  `${prefix}7`,
-  `${prefix}6`,
-  `${prefix}5`,
-  `${prefix}4`,
-  `${prefix}3`,
-  `${prefix}2`,
-  `${prefix}1`,
   `${prefix}0`,
+  `${prefix}1`,
+  `${prefix}2`,
+  `${prefix}3`,
+  `${prefix}4`,
+  `${prefix}5`,
+  `${prefix}6`,
+  `${prefix}7`,
 ];
+
+/** Numeric readouts stay MSB first even though canvas pins run low to high. */
+const busNib = (prefix: string) => [...nib(prefix)].reverse();
+const busByte = (prefix: string) => [...byte(prefix)].reverse();
 
 export const CALCULATOR_STAGES: StageDef[] = [
   {
@@ -95,15 +100,20 @@ export const CALCULATOR_STAGES: StageDef[] = [
     description: "把四个全加器串成进位链，计算 A + B（4 位无符号）。",
     track: "core",
     buses: [
-      { name: "A", pins: nib("A"), role: "input", signed: false },
-      { name: "B", pins: nib("B"), role: "input", signed: false },
+      { name: "A", pins: busNib("A"), role: "input", signed: false },
+      { name: "B", pins: busNib("B"), role: "input", signed: false },
       {
         name: "真实和（5 位）",
-        pins: ["Cout", "S3", "S2", "S1", "S0"],
+        pins: ["Cout", ...busNib("S")],
         role: "output",
         signed: false,
       },
-      { name: "存进 4 位字的结果", pins: nib("S"), role: "output", signed: false },
+      {
+        name: "存进 4 位字的结果",
+        pins: busNib("S"),
+        role: "output",
+        signed: false,
+      },
     ],
     inputs: [...nib("A"), ...nib("B")],
     outputs: [...nib("S"), "Cout"],
@@ -116,11 +126,12 @@ export const CALCULATOR_STAGES: StageDef[] = [
     id: "negate4",
     title: "求补码",
     englishTitle: "Negation",
-    description: "计算 -A（二进制补码）：按位取反再加 1。",
+    description:
+      "已知 A 是 4 位无符号正数（1≤A≤15；A=0 仅作为零的边界用例），求 −A 的 4 位二进制补码 R。计算固定在 4 位内，按位取反再加 1，最高位之外的进位不保留。",
     track: "core",
     buses: [
-      { name: "A", pins: nib("A"), role: "input", signed: false },
-      { name: "R", pins: nib("R"), role: "output", signed: true },
+      { name: "A", pins: busNib("A"), role: "input", signed: false },
+      { name: "R", pins: busNib("R"), role: "output", signed: true },
     ],
     inputs: nib("A"),
     outputs: nib("R"),
@@ -136,9 +147,9 @@ export const CALCULATOR_STAGES: StageDef[] = [
     description: "计算 A − B（模 16 环绕）：A + (−B)。",
     track: "core",
     buses: [
-      { name: "A", pins: nib("A"), role: "input", signed: false },
-      { name: "B", pins: nib("B"), role: "input", signed: false },
-      { name: "R", pins: nib("R"), role: "output", signed: true },
+      { name: "A", pins: busNib("A"), role: "input", signed: false },
+      { name: "B", pins: busNib("B"), role: "input", signed: false },
+      { name: "R", pins: busNib("R"), role: "output", signed: true },
     ],
     inputs: [...nib("A"), ...nib("B")],
     outputs: nib("R"),
@@ -152,12 +163,12 @@ export const CALCULATOR_STAGES: StageDef[] = [
     title: "4 位乘法器",
     englishTitle: "Multiplication",
     description:
-      "计算 A × B，输出 8 位乘积 P。工作量很大：参考实现约 35 个元件、近百根连线，适合课后或社团时间挑战，不是课堂必做。",
+      "计算 A × B，输出 8 位乘积 P。例如可把 A0～A3 分别与同一个 Bi 做 AND，框选后封装成一组部分积组件，再反复使用。",
     track: "challenge",
     buses: [
-      { name: "A", pins: nib("A"), role: "input", signed: false },
-      { name: "B", pins: nib("B"), role: "input", signed: false },
-      { name: "P（8 位）", pins: byte("P"), role: "output", signed: false },
+      { name: "A", pins: busNib("A"), role: "input", signed: false },
+      { name: "B", pins: busNib("B"), role: "input", signed: false },
+      { name: "P（8 位）", pins: busByte("P"), role: "output", signed: false },
     ],
     inputs: [...nib("A"), ...nib("B")],
     outputs: byte("P"),
@@ -170,15 +181,14 @@ export const CALCULATOR_STAGES: StageDef[] = [
     id: "calculator",
     title: "完整计算器",
     englishTitle: "Final Calculator",
-    description:
-      "用 Op1、Op0 选择运算：00 加、01 减、10 乘（低 4 位）、11 按位异或。工作量比第 6 关还大，适合课后或社团时间挑战，不是课堂必做。",
+    description: "用 Op1、Op0 选择运算：00 加、01 减、10 乘（低 4 位）、11 按位异或。",
     track: "challenge",
     buses: [
-      { name: "A", pins: nib("A"), role: "input", signed: false },
-      { name: "B", pins: nib("B"), role: "input", signed: false },
-      { name: "R", pins: nib("R"), role: "output", signed: true },
+      { name: "A", pins: busNib("A"), role: "input", signed: false },
+      { name: "B", pins: busNib("B"), role: "input", signed: false },
+      { name: "R", pins: busNib("R"), role: "output", signed: true },
     ],
-    inputs: [...nib("A"), ...nib("B"), "Op1", "Op0"],
+    inputs: [...nib("A"), ...nib("B"), "Op0", "Op1"],
     outputs: nib("R"),
     primitives: ALL_GATES,
     unlocks: null,

@@ -6,6 +6,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import { runCases, type CaseResult } from "../../src/features/calculator/domain/evaluate.ts";
+import { isValidComponentIdentifier } from "../../src/features/calculator/domain/componentize.ts";
 import {
   sanitizeGraph,
   type Bit,
@@ -87,15 +88,62 @@ export function saveDraft(
   project: ProjectRow,
   stageIndex: number,
   graph: unknown,
+  rawComponents?: unknown,
 ): void {
   const drafts = { ...project.draftGraph, [String(stageIndex)]: sanitizeGraph(graph) };
+  if (rawComponents === undefined) {
+    db.prepare(
+      "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    ).run(JSON.stringify(drafts), project.id);
+    return;
+  }
+  const submodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
   db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(drafts), project.id);
+    "UPDATE student_projects SET draft_graph = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+  ).run(JSON.stringify(drafts), JSON.stringify(submodules), project.id);
 }
 
 function componentMap(submodules: ComponentDef[]): Record<string, CircuitGraph> {
   return Object.fromEntries(submodules.map((s) => [s.name, s.graph]));
+}
+
+function submittedCustomComponents(raw: unknown): ComponentDef[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((value): ComponentDef[] => {
+    if (!value || typeof value !== "object") return [];
+    const candidate = value as { name?: unknown; graph?: unknown; custom?: unknown };
+    if (
+      candidate.custom !== true ||
+      typeof candidate.name !== "string" ||
+      !isValidComponentIdentifier(candidate.name)
+    ) {
+      return [];
+    }
+    return [{ name: candidate.name.trim(), graph: sanitizeGraph(candidate.graph), custom: true }];
+  });
+}
+
+/**
+ * The server owns stage-unlocked components. Learner-made components may be
+ * added or updated, but a request can never replace an official component.
+ */
+function mergeCustomComponents(existing: ComponentDef[], raw: unknown): ComponentDef[] {
+  const officialNames = new Set(
+    existing
+      .filter((component) => !component.custom)
+      .map((component) => component.name.toLocaleLowerCase()),
+  );
+  const merged = [...existing];
+  for (const component of submittedCustomComponents(raw)) {
+    const normalizedName = component.name.toLocaleLowerCase();
+    if (officialNames.has(normalizedName)) continue;
+    const index = merged.findIndex(
+      (candidate) => candidate.custom && candidate.name.toLocaleLowerCase() === normalizedName,
+    );
+    if (index >= 0) merged[index] = component;
+    else merged.push(component);
+  }
+  return merged;
 }
 
 export type JudgeOutcome = {
@@ -114,6 +162,7 @@ export function judgeSubmission(
   project: ProjectRow,
   stageIndex: number,
   rawGraph: unknown,
+  rawComponents?: unknown,
 ): JudgeOutcome | { error: string; status: number } {
   const stage = getStage(stageIndex);
   if (!stage) return { error: "unknown-stage", status: 400 };
@@ -125,12 +174,9 @@ export function judgeSubmission(
   }
 
   const graph = sanitizeGraph(rawGraph);
+  const submodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
   const cases = hiddenTestsFor(stageIndex);
-  const { results, score, total } = runCases(
-    graph,
-    cases,
-    componentMap(project.unlockedSubmodules),
-  );
+  const { results, score, total } = runCases(graph, cases, componentMap(submodules));
 
   const categories: TestSummary["categories"] = {};
   for (const r of results as CaseResult[]) {
@@ -182,17 +228,22 @@ export function judgeSubmission(
     // Passes may arrive out of order; keep the set sorted and deduplicated.
     passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
     currentStage = Math.min(Math.max(...passedStages) + 1, 7);
-    let submodules = project.unlockedSubmodules;
     if (stage.unlocks) {
       unlockedComponent = stage.unlocks;
-      const rest = submodules.filter((s) => s.name !== stage.unlocks);
-      submodules = [...rest, { name: stage.unlocks, graph }];
+      const unlockName = stage.unlocks.toLocaleLowerCase();
+      const rest = submodules.filter((s) => s.name.toLocaleLowerCase() !== unlockName);
+      submodules.splice(0, submodules.length, ...rest, { name: stage.unlocks, graph });
     }
     db.prepare(
       `UPDATE student_projects
        SET current_stage = ?, passed_stages = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
        WHERE id = ?`,
     ).run(currentStage, JSON.stringify(passedStages), JSON.stringify(submodules), project.id);
+  } else if (rawComponents !== undefined) {
+    // Keep learner-made blocks even when the current circuit still needs work.
+    db.prepare(
+      "UPDATE student_projects SET unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    ).run(JSON.stringify(submodules), project.id);
   }
 
   return {

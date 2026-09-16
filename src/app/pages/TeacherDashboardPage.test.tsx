@@ -28,6 +28,11 @@ describe("TeacherDashboardPage", () => {
 
     const { history } = await renderAppAt("/classes/c11/dashboard", { auth: multiClassTeacher });
     expect(screen.getByRole("navigation", { name: "班级切换" })).toBeInTheDocument();
+    expect(
+      screen.queryByText("2026-高二信息技术-11", {
+        selector: ".dashboard-topbar > div:first-child .eyebrow",
+      }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "2026-高二信息技术-12" })).toHaveAttribute(
       "href",
       "/classes/c12/dashboard",

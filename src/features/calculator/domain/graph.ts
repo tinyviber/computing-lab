@@ -31,8 +31,8 @@ export type CircuitEdge = { id: string; from: PortRef; to: PortRef };
 
 export type CircuitGraph = { nodes: CircuitNode[]; edges: CircuitEdge[] };
 
-/** An unlocked black-box component: a name bound to a previously-passed graph. */
-export type ComponentDef = { name: string; graph: CircuitGraph };
+/** A reusable black-box component, either unlocked by a stage or made by a learner. */
+export type ComponentDef = { name: string; graph: CircuitGraph; custom?: boolean };
 
 export const GATE_INPUT_PORTS: Record<GateKind, string[]> = {
   and: ["in0", "in1"],

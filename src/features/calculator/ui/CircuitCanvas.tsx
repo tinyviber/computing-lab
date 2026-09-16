@@ -1,7 +1,15 @@
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
+import { inspectComponentSelection } from "../domain/componentize";
 import { GATE_LABEL, type Bit, type CircuitGraph, type CircuitNode } from "../domain/graph";
 import { portsForNode, type CalculatorLessonAction, type PendingWire } from "../lesson/state";
 import { CALCULATOR_TERM_NOTES } from "./CalculatorTerms";
+import { CustomComponentDialog, type ComponentizeForm } from "./CustomComponentDialog";
 import {
   canvasBounds,
   isPinNode,
@@ -51,9 +59,27 @@ export function CircuitCanvas({
 }: CircuitCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const [marquee, setMarquee] = useState<{
+    start: { x: number; y: number };
+    current: { x: number; y: number };
+  } | null>(null);
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  const [componentDialogOpen, setComponentDialogOpen] = useState(false);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
   const bounds = canvasBounds(graph, components);
   const nodesById = new Map(graph.nodes.map((n) => [n.id, n]));
+  const selection = useMemo(
+    () => inspectComponentSelection(graph, selectedNodeIds),
+    [graph, selectedNodeIds],
+  );
+
+  useEffect(() => {
+    const graphNodeIds = new Set(graph.nodes.map((node) => node.id));
+    setSelectedNodeIds((current) => {
+      const next = current.filter((id) => graphNodeIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [graph]);
 
   const toCanvas = (event: { clientX: number; clientY: number }) => {
     const rect = svgRef.current?.getBoundingClientRect();
@@ -65,12 +91,39 @@ export function CircuitCanvas({
     event.stopPropagation();
     const point = toCanvas(event);
     dragRef.current = { id: node.id, dx: point.x - node.x, dy: point.y - node.y };
+    setSelectedNodeIds([node.id]);
     dispatch({ type: "select-node", id: node.id });
     (event.target as Element).setPointerCapture?.(event.pointerId);
   };
 
+  const onCanvasPointerDown = (event: ReactPointerEvent) => {
+    if ((event.target as Element).closest(".wire")) return;
+    if (pendingWire) {
+      dispatch({ type: "cancel-wire" });
+      return;
+    }
+    const point = toCanvas(event);
+    setSelectedNodeIds([]);
+    setMarquee({ start: point, current: point });
+    svgRef.current?.setPointerCapture?.(event.pointerId);
+  };
+
+  const selectionRectangle = () => {
+    if (!marquee) return null;
+    return {
+      x: Math.min(marquee.start.x, marquee.current.x),
+      y: Math.min(marquee.start.y, marquee.current.y),
+      width: Math.abs(marquee.current.x - marquee.start.x),
+      height: Math.abs(marquee.current.y - marquee.start.y),
+    };
+  };
+
   const onPointerMove = (event: ReactPointerEvent) => {
     const point = toCanvas(event);
+    if (marquee) {
+      setMarquee((current) => (current ? { ...current, current: point } : current));
+      return;
+    }
     if (pendingWire) setCursor(point);
     const drag = dragRef.current;
     if (!drag) return;
@@ -82,8 +135,51 @@ export function CircuitCanvas({
     });
   };
 
-  const endDrag = () => {
+  const endPointerInteraction = (event?: ReactPointerEvent) => {
+    if (marquee) {
+      const point = event ? toCanvas(event) : marquee.current;
+      const rectangle = {
+        x: Math.min(marquee.start.x, point.x),
+        y: Math.min(marquee.start.y, point.y),
+        width: Math.abs(point.x - marquee.start.x),
+        height: Math.abs(point.y - marquee.start.y),
+      };
+      if (rectangle.width >= 8 && rectangle.height >= 8) {
+        setSelectedNodeIds(
+          graph.nodes
+            .filter((node) => {
+              const size = nodeSize(node, components);
+              return (
+                node.x >= rectangle.x &&
+                node.y >= rectangle.y &&
+                node.x + size.width <= rectangle.x + rectangle.width &&
+                node.y + size.height <= rectangle.y + rectangle.height
+              );
+            })
+            .map((node) => node.id),
+        );
+      } else {
+        setSelectedNodeIds([]);
+      }
+      setMarquee(null);
+      if (event && svgRef.current?.hasPointerCapture?.(event.pointerId)) {
+        svgRef.current.releasePointerCapture?.(event.pointerId);
+      }
+    }
     dragRef.current = null;
+  };
+
+  const marqueeRectangle = selectionRectangle();
+  const onCreateComponent = (form: ComponentizeForm) => {
+    dispatch({
+      type: "componentize-selection",
+      selectedIds: selection.selectedIds,
+      name: form.name,
+      inputNames: form.inputNames,
+      outputNames: form.outputNames,
+    });
+    setComponentDialogOpen(false);
+    setSelectedNodeIds([]);
   };
 
   return (
@@ -92,9 +188,10 @@ export function CircuitCanvas({
         aria-label="电路画布"
         className="circuit-canvas"
         height={bounds.height}
-        onPointerCancel={endDrag}
+        onPointerCancel={() => endPointerInteraction()}
         onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
+        onPointerDown={onCanvasPointerDown}
+        onPointerUp={(event) => endPointerInteraction(event)}
         onClick={() => {
           if (pendingWire) dispatch({ type: "cancel-wire" });
         }}
@@ -114,6 +211,16 @@ export function CircuitCanvas({
           width={bounds.width}
           fill="url(#grid)"
         />
+        {marqueeRectangle ? (
+          <rect
+            className="selection-box"
+            height={marqueeRectangle.height}
+            pointerEvents="none"
+            width={marqueeRectangle.width}
+            x={marqueeRectangle.x}
+            y={marqueeRectangle.y}
+          />
+        ) : null}
 
         <g className="wires">
           {graph.edges.map((edge) => {
@@ -153,7 +260,7 @@ export function CircuitCanvas({
             const size = nodeSize(node, components);
             const inputs = portsForNode(node, components, "in");
             const outputs = portsForNode(node, components, "out");
-            const isSelected = node.id === selectedNodeId;
+            const isSelected = node.id === selectedNodeId || selectedNodeIds.includes(node.id);
             const pinValue =
               node.kind === "output" ? portValues[`${node.id}#in`] : portValues[`${node.id}#out`];
 
@@ -188,6 +295,17 @@ export function CircuitCanvas({
                         className="port-label is-in"
                         key={`l-${port}`}
                         x={5}
+                        y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
+                      >
+                        {port}
+                      </text>
+                    ))}
+                    {outputs.map((port, index) => (
+                      <text
+                        className="port-label is-out"
+                        key={`r-${port}`}
+                        textAnchor="start"
+                        x={size.width + 9}
                         y={HEADER_HEIGHT + index * PORT_SPACING + PORT_SPACING / 2 + 3}
                       >
                         {port}
@@ -258,6 +376,39 @@ export function CircuitCanvas({
           })}
         </g>
       </svg>
+      {selectedNodeIds.length > 0 ? (
+        <div className="circuit-canvas-tools">
+          <span>
+            已框选 {selection.selectedIds.length} 个元件
+            {selection.error ? ` · ${selection.error}` : "，可封装为可重复使用的组件"}
+          </span>
+          <div>
+            <button
+              className="button button-secondary"
+              disabled={Boolean(selection.error)}
+              onClick={() => setComponentDialogOpen(true)}
+              type="button"
+            >
+              封装为自定义组件
+            </button>
+            <button
+              className="button button-ghost"
+              onClick={() => setSelectedNodeIds([])}
+              type="button"
+            >
+              清除选区
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {componentDialogOpen ? (
+        <CustomComponentDialog
+          existingNames={Object.keys(components)}
+          onCancel={() => setComponentDialogOpen(false)}
+          onCreate={onCreateComponent}
+          selection={selection}
+        />
+      ) : null}
     </div>
   );
 }

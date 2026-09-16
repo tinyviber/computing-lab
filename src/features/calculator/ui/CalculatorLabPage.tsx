@@ -20,6 +20,7 @@ import {
 } from "../lesson/state";
 import { BusReadout } from "./BusReadout";
 import { CircuitCanvas } from "./CircuitCanvas";
+import { HintDisclosure } from "./HintDisclosure";
 import { StageRail } from "./StageRail";
 import { TestPanel } from "./TestPanel";
 import { AnnotatedText, CalculatorTermGuide } from "./CalculatorTerms";
@@ -105,14 +106,18 @@ export function CalculatorLabPage() {
     saveTimer.current = setTimeout(() => {
       dispatch({ type: "mark-saving" });
       void api
-        .put(`/api/classes/${classId}/labs/calculator/draft`, { stageIndex, graph })
+        .put(`/api/classes/${classId}/labs/calculator/draft`, {
+          stageIndex,
+          graph,
+          components: state.unlockedSubmodules,
+        })
         .then(() => dispatch({ type: "mark-saved" }))
         .catch(() => dispatch({ type: "mark-save-error" }));
     }, AUTOSAVE_DELAY_MS);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [state.saveStatus, graph, stageIndex, classId]);
+  }, [state.saveStatus, state.unlockedSubmodules, graph, stageIndex, classId]);
 
   const onSubmit = useCallback(async () => {
     if (!classId) return;
@@ -121,6 +126,7 @@ export function CalculatorLabPage() {
       const result = await api.post<JudgePayload>(`/api/classes/${classId}/labs/calculator/judge`, {
         stageIndex,
         graph,
+        components: state.unlockedSubmodules,
       });
       dispatch({
         type: "judge-result",
@@ -140,7 +146,7 @@ export function CalculatorLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stageIndex, graph]);
+  }, [classId, stageIndex, graph, state.unlockedSubmodules]);
 
   const addGate = (kind: GateKind) =>
     dispatch({ type: "add-node", kind, x: 300, y: 60 + (state.nextId % 6) * 44 });
@@ -188,9 +194,7 @@ export function CalculatorLabPage() {
             <span className="brand-mark-symbol">⌁</span>
           </Link>
           <div>
-            <h1>
-              {stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "搭一个计算器"}
-            </h1>
+            <h1>{stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU"}</h1>
             <p>{stage ? <AnnotatedText text={stage.englishTitle} /> : null}</p>
           </div>
         </div>
@@ -216,10 +220,7 @@ export function CalculatorLabPage() {
         <main aria-label="计算器实验区" className="calculator-workspace">
           <section className="stage-brief">
             <p>{stage ? <AnnotatedText text={stage.description} /> : null}</p>
-            <details>
-              <summary>提示</summary>
-              <p>{stage ? <AnnotatedText text={stage.hint} /> : null}</p>
-            </details>
+            {stage ? <HintDisclosure hint={stage.hint} key={stage.id} /> : null}
             <CalculatorTermGuide />
           </section>
 
@@ -287,7 +288,8 @@ export function CalculatorLabPage() {
 
           <section className="canvas-help">
             <p>
-              点输出端口再点输入端口即可连线；点连线可删除；点输入引脚可切换 0/1 观察电路实时反应。
+              点输出端口再点输入端口即可连线；点连线可删除；点输入引脚可切换 0/1
+              观察电路实时反应；在空白处拖动可框选元件并封装为自定义组件。
             </p>
             {preview.error ? (
               <p className="test-error" role="alert">
