@@ -1,6 +1,7 @@
 import { Link, useLocation, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLabNavigationItems } from "./LabNavigationProvider";
+import { AccountMenu } from "../auth";
 import "./lab.css";
 
 type LabShellProps = {
@@ -141,9 +142,12 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
             </p>
           </div>
         </div>
-        <div className="topbar-context">
-          <span className="context-label">实验</span>
-          <span className="context-value">{eyebrow}</span>
+        <div className="topbar-actions">
+          <div className="topbar-context">
+            <span className="context-label">实验</span>
+            <span className="context-value">{eyebrow}</span>
+          </div>
+          <AccountMenu />
         </div>
       </header>
 

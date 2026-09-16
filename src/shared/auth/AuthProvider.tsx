@@ -33,6 +33,7 @@ export type AuthContextValue = AuthState & {
     name: string;
     password: string;
   }) => Promise<void>;
+  changePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -83,6 +84,13 @@ export function AuthProvider({
     setState({ status: "anonymous", session: null });
   }, []);
 
+  const changePassword = useCallback(
+    async (input: { currentPassword: string; newPassword: string }) => {
+      await api.post("/api/auth/change-password", input);
+    },
+    [],
+  );
+
   const value = useMemo<AuthContextValue>(() => {
     const primaryMembership = state.session?.memberships[0] ?? null;
     return {
@@ -91,10 +99,11 @@ export function AuthProvider({
       role: primaryMembership?.role ?? null,
       login,
       join,
+      changePassword,
       logout,
       refresh,
     };
-  }, [state, login, join, logout, refresh]);
+  }, [state, login, join, changePassword, logout, refresh]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

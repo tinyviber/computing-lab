@@ -7,6 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { AccountMenu } from "../../shared/auth";
 import "./editor.css";
 
 type LessonFile = {
@@ -503,6 +504,7 @@ export function EditorPage() {
           <button className="editor-logout" onClick={() => void logout()} type="button">
             退出
           </button>
+          <AccountMenu />
         </div>
       </header>
 

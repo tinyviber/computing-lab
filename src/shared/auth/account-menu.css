@@ -1,0 +1,95 @@
+.account-menu {
+  position: relative;
+  z-index: 40;
+}
+
+.account-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 6px 9px 6px 11px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.account-menu-trigger:hover {
+  border-color: #b8c3ce;
+  background: var(--subtle);
+}
+
+.account-menu-chevron {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.account-menu-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  min-width: 174px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.account-menu-summary {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px 9px;
+  border-bottom: 1px solid var(--border);
+}
+
+.account-menu-summary strong {
+  color: var(--primary);
+  font-size: 12px;
+}
+
+.account-menu-summary span {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+}
+
+.account-menu-item {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--secondary);
+  cursor: pointer;
+  font-size: 12px;
+  text-align: left;
+  text-decoration: none;
+}
+
+.account-menu-item:hover {
+  background: var(--subtle);
+  color: var(--primary);
+}
+
+.account-menu-logout {
+  border-top: 1px solid var(--border);
+  border-radius: 0 0 6px 6px;
+  color: var(--danger);
+}
+
+@media (max-width: 520px) {
+  .account-menu-name {
+    max-width: 7em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

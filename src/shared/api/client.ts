@@ -21,6 +21,8 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-student-no": "学号只能包含字母、数字、下划线或连字符。",
   "invalid-name": "请填写姓名。",
   "weak-password": "密码至少 4 位。",
+  "current-password-incorrect": "当前密码不正确。",
+  "same-password": "新密码不能与当前密码相同。",
   unauthenticated: "请先登录。",
   "not-a-member": "你不在这个班级里。",
   "teacher-required": "只有教师可以查看看板。",

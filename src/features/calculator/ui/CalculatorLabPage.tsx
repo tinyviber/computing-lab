@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
-import { useAuth } from "../../../shared/auth";
+import { AccountMenu, useAuth } from "../../../shared/auth";
 import { evaluateGraph } from "../domain/evaluate";
 import {
   GATE_LABEL,
@@ -65,7 +65,7 @@ const SAVE_LABEL: Record<string, string> = {
 
 export function CalculatorLabPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
-  const { status, session } = useAuth();
+  const { status } = useAuth();
   const [state, dispatch] = useReducer(transitionCalculatorLesson, undefined, () =>
     createCalculatorLessonState(1),
   );
@@ -202,7 +202,7 @@ export function CalculatorLabPage() {
           <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
             {SAVE_LABEL[state.saveStatus]}
           </span>
-          <span className="calculator-user">{session?.user.name}</span>
+          <AccountMenu />
         </div>
       </header>
 

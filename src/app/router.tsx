@@ -27,6 +27,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { ProfilePage } from "./pages/ProfilePage";
 
 function RootLayout() {
   return <Outlet />;
@@ -67,6 +68,11 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginPage,
+});
+const profileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/profile",
+  component: ProfilePage,
 });
 
 /**
@@ -149,6 +155,7 @@ const dashboardRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  profileRoute,
   calculatorEntryRoute,
   calculatorLabRoute,
   dashboardRoute,

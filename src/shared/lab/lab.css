@@ -19,6 +19,7 @@
 
 .brand-lockup,
 .topbar-context,
+.topbar-actions,
 .rail-heading,
 .preview-panel-header,
 .preview-panel-footer,
@@ -70,6 +71,10 @@
 
 .topbar-context {
   gap: 10px;
+}
+
+.topbar-actions {
+  gap: 18px;
 }
 
 .context-value {

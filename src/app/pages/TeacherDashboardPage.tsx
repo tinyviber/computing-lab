@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
-import { useAuth } from "../../shared/auth";
+import { AccountMenu, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import "./dashboard.css";
 
@@ -124,6 +124,7 @@ export function TeacherDashboardPage() {
           <Link className="button button-secondary" to="/">
             返回首页
           </Link>
+          <AccountMenu />
         </div>
       </header>
 

@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
-import { useAuth } from "../../shared/auth";
+import { AccountMenu, useAuth } from "../../shared/auth";
 import { enabledLabs, experimentalLabs } from "../catalog/labs";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import "./home.css";
@@ -63,7 +63,7 @@ function StageProgress({ currentStage }: { currentStage: number }) {
 }
 
 function ClassroomHome() {
-  const { session, primaryMembership, role, logout } = useAuth();
+  const { session, primaryMembership, role } = useAuth();
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
 
@@ -89,9 +89,7 @@ function ClassroomHome() {
             {session?.user.name}
             <span className="home-user-no">{session?.user.studentNo}</span>
           </span>
-          <button className="button button-secondary" onClick={() => void logout()} type="button">
-            退出
-          </button>
+          <AccountMenu />
         </div>
       </header>
 
