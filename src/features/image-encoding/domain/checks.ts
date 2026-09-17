@@ -1,4 +1,4 @@
-import { FIXTURE_TARGET_REGIONS } from "./fixture";
+import { FIXTURE_TARGET_REGIONS } from "./fixture.ts";
 import {
   countPixelDiffs,
   cropRegion,
@@ -7,15 +7,15 @@ import {
   patchRegion,
   regionError,
   type RasterImage,
-} from "./model";
-import { hotspotHits, type RestorationCase } from "./restoration";
+} from "./model.ts";
+import { hotspotHits, type RestorationCase } from "./restoration.ts";
 import {
   artifactOptions,
   artifactRawBits,
   budgetBits,
   DEFAULT_BUDGET_RATIO,
   type Artifact,
-} from "./stops";
+} from "./stops.ts";
 
 export type CheckResult = { passed: boolean; detail: string };
 

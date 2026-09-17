@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getImageFixture } from "./fixture";
-import { deriveImageEncodingModel, type RGB } from "./model";
+import { getImageFixture } from "./fixture.ts";
+import { deriveImageEncodingModel, type RGB } from "./model.ts";
 
 function pixelAt(x: number, y: number): RGB {
   const photo = getImageFixture("photo");

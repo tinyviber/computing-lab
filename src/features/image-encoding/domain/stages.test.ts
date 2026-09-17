@@ -6,7 +6,7 @@ import {
   IMAGE_STAGES,
   isStageUnlocked,
   stageCount,
-} from "./stages";
+} from "./stages.ts";
 
 describe("image restoration stage contracts", () => {
   it("defines three core stages and two challenges", () => {

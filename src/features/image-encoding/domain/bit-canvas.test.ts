@@ -7,7 +7,7 @@ import {
   decodeBits,
   encodeCells,
   encodeRow,
-} from "./bit-canvas";
+} from "./bit-canvas.ts";
 
 describe("bit canvas (Core 1)", () => {
   it("is an 8×8 grid of 2-bit symbols", () => {
