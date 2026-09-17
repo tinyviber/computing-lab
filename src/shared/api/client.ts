@@ -15,9 +15,7 @@ export class ApiError extends Error {
 }
 
 export const API_ERROR_MESSAGES: Record<string, string> = {
-  "invite-code-not-found": "邀请码不存在，请向老师确认。",
   "invalid-credentials": "学号或密码不正确。",
-  "wrong-password": "该学号已注册，密码不正确。",
   "invalid-student-no": "学号只能包含字母、数字、下划线或连字符。",
   "invalid-name": "请填写姓名。",
   "weak-password": "密码至少 4 位。",
@@ -25,7 +23,15 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "same-password": "新密码不能与当前密码相同。",
   unauthenticated: "请先登录。",
   "not-a-member": "你不在这个班级里。",
-  "teacher-required": "只有教师可以查看看板。",
+  "teacher-required": "只有教师或管理员可以访问。",
+  "admin-required": "需要管理员权限。",
+  "student-no-taken": "该学号已被占用。",
+  "class-not-found": "班级不存在，请检查班级或邀请码。",
+  "invalid-role": "角色无效（可选：admin / teacher / user）。",
+  "invalid-row": "该行格式不正确。",
+  "invalid-import": "导入内容为空或格式不正确。",
+  "invalid-invite-code": "邀请码只能包含字母、数字、下划线或连字符。",
+  "invite-code-taken": "该邀请码已被使用。",
   "stage-locked": "这一关还没有解锁。",
   "invalid-stage": "关卡编号无效。",
   "internal-error": "服务器出错了，请稍后再试。",

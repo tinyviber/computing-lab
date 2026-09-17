@@ -1,5 +1,9 @@
 # Image Encoding rebuild — implementation handoff
 
+> **Superseded (2026-09, issue #35)**: this documents the previous exploratory build.
+> The current staged "AI 修复老照片" lesson is documented in
+> `image-encoding-learning-flow.md` (Chinese).
+
 ## 1. Exploratory model
 
 Image Encoding keeps its feature-local raster model, with an exploratory feedback loop plus two optional note/feedback tools:

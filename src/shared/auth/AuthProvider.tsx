@@ -9,11 +9,15 @@ import {
 } from "react";
 import { api } from "../api/client";
 
+/** Account-level role: admin ⊃ teacher ⊃ user. */
+export type AccountRole = "admin" | "teacher" | "user";
+
+/** Per-class membership role, assigned by an admin when provisioning accounts. */
 export type LabRole = "student" | "teacher";
 
 export type Membership = { classId: string; className: string; role: LabRole };
 
-export type AuthUser = { id: string; studentNo: string; name: string };
+export type AuthUser = { id: string; studentNo: string; name: string; role: AccountRole };
 
 export type AuthSession = { user: AuthUser; memberships: Membership[] };
 
@@ -25,17 +29,22 @@ export type AuthState =
 export type AuthContextValue = AuthState & {
   /** Primary class for the classroom flow (first membership). */
   primaryMembership: Membership | null;
-  role: LabRole | null;
+  /** The signed-in account's global role. */
+  role: AccountRole | null;
   login: (input: { studentNo: string; password: string }) => Promise<void>;
-  join: (input: {
-    inviteCode: string;
-    studentNo: string;
-    name: string;
-    password: string;
-  }) => Promise<void>;
   changePassword: (input: { currentPassword: string; newPassword: string }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+};
+
+export function isStaffRole(role: AccountRole | null | undefined): boolean {
+  return role === "teacher" || role === "admin";
+}
+
+export const ROLE_LABELS: Record<AccountRole, string> = {
+  admin: "管理员",
+  teacher: "教师",
+  user: "学生",
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -71,14 +80,6 @@ export function AuthProvider({
     setState({ status: "authenticated", session });
   }, []);
 
-  const join = useCallback(
-    async (input: { inviteCode: string; studentNo: string; name: string; password: string }) => {
-      const session = await api.post<AuthSession>("/api/auth/join", input);
-      setState({ status: "authenticated", session });
-    },
-    [],
-  );
-
   const logout = useCallback(async () => {
     await api.post("/api/auth/logout");
     setState({ status: "anonymous", session: null });
@@ -96,14 +97,13 @@ export function AuthProvider({
     return {
       ...state,
       primaryMembership,
-      role: primaryMembership?.role ?? null,
+      role: state.session?.user.role ?? null,
       login,
-      join,
       changePassword,
       logout,
       refresh,
     };
-  }, [state, login, join, changePassword, logout, refresh]);
+  }, [state, login, changePassword, logout, refresh]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

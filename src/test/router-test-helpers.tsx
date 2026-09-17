@@ -14,7 +14,7 @@ import { visibleLabs } from "../app/catalog/labs";
 export const teacherAuthState: AuthState = {
   status: "authenticated",
   session: {
-    user: { id: "u-teacher", studentNo: "teacher", name: "教师" },
+    user: { id: "u-teacher", studentNo: "teacher", name: "教师", role: "teacher" },
     memberships: [{ classId: "c1", className: "测试班级", role: "teacher" }],
   },
 };
@@ -22,8 +22,16 @@ export const teacherAuthState: AuthState = {
 export const studentAuthState: AuthState = {
   status: "authenticated",
   session: {
-    user: { id: "u-student", studentNo: "20260101", name: "张三" },
+    user: { id: "u-student", studentNo: "20260101", name: "张三", role: "user" },
     memberships: [{ classId: "c1", className: "测试班级", role: "student" }],
+  },
+};
+
+export const adminAuthState: AuthState = {
+  status: "authenticated",
+  session: {
+    user: { id: "u-admin", studentNo: "admin", name: "管理员", role: "admin" },
+    memberships: [{ classId: "c1", className: "测试班级", role: "teacher" }],
   },
 };
 
@@ -39,7 +47,7 @@ export async function renderAppAt(
     typeof basepathOrOptions === "string" ? { basepath: basepathOrOptions } : basepathOrOptions;
   const basepath = options.basepath ?? "/";
   const auth = options.auth ?? teacherAuthState;
-  const role = auth.session?.memberships[0]?.role ?? null;
+  const role = auth.session?.user.role ?? null;
   const showExperimental = /[?&]showExperimentalLabs=1(?:&|$)/.test(initialEntry);
 
   const history = createMemoryHistory({ initialEntries: [initialEntry] });

@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { useAuth } from "./AuthProvider";
+import { ROLE_LABELS, useAuth } from "./AuthProvider";
 import "./account-menu.css";
 
 export function AccountMenu() {
@@ -44,8 +44,20 @@ export function AccountMenu() {
         <div aria-label="账户菜单" className="account-menu-popover" role="menu">
           <div className="account-menu-summary">
             <strong>{session.user.name}</strong>
-            <span>{session.user.studentNo}</span>
+            <span>
+              {session.user.studentNo} · {ROLE_LABELS[session.user.role]}
+            </span>
           </div>
+          {session.user.role === "admin" ? (
+            <Link
+              className="account-menu-item"
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              to="/admin"
+            >
+              账号管理
+            </Link>
+          ) : null}
           <Link
             className="account-menu-item"
             onClick={() => setOpen(false)}

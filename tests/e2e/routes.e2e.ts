@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 const routes = [
   { path: ".", heading: /计算实验室/ },
-  { path: "labs/image-encoding?showExperimentalLabs=1", heading: /图像编码/ },
+  { path: "labs/image-encoding?showExperimentalLabs=1", heading: /AI 修复老照片/ },
   { path: "labs/audio-encoding?showExperimentalLabs=1", heading: /声音编码|ComingSoon/i },
   { path: "labs/home-network?showExperimentalLabs=1", heading: /家庭网络探针/ },
 ] as const;
@@ -28,8 +28,8 @@ for (const route of routes) {
     expect(response?.status()).toBe(200);
     await expect(page.locator("h1").first()).toHaveText(route.heading);
     if (route.path === "labs/image-encoding?showExperimentalLabs=1") {
-      await expect(page.getByRole("slider", { name: /空间采样/ })).toBeVisible();
-      await expect(page.getByRole("img", { name: /重建图像/ })).toBeVisible();
+      await expect(page.getByRole("heading", { name: /约定决定 bit 的意义/ })).toBeVisible();
+      await expect(page.getByRole("textbox", { name: /高亮行的 16 bit/ })).toBeVisible();
     }
     if (route.path === "labs/home-network?showExperimentalLabs=1") {
       await expect(page.getByRole("button", { name: /发送探针/ })).toBeVisible();
@@ -49,13 +49,19 @@ test("preview renders not-found route", async ({ page }) => {
 
 test("hydrates a direct query for every lesson", async ({ page }) => {
   await page.goto(
-    "labs/image-encoding?image=checkerboard&sample=25&phase=0.5&bits=2&showExperimentalLabs=1",
+    "labs/image-encoding?stage=2&image=checkerboard&res=25&colors=palette2&showExperimentalLabs=1",
     {
       waitUntil: "networkidle",
     },
   );
-  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
-  await expect(page.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
+  await expect(page.getByRole("button", { name: "25%", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "4 色", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
   await page.goto(
     "labs/audio-encoding?source=high-pulse&sampleRate=16000&bitDepth=12&showExperimentalLabs=1",
@@ -77,25 +83,21 @@ test("hydrates a direct query for every lesson", async ({ page }) => {
   );
 });
 
-test("changes image encoding parameters through keyboard controls", async ({ page }) => {
+test("types the row encoding through keyboard controls", async ({ page }) => {
   await page.goto("labs/image-encoding?showExperimentalLabs=1", { waitUntil: "networkidle" });
 
-  const sampling = page.getByRole("slider", { name: /空间采样/ });
-  await sampling.press("ArrowLeft");
-  await expect(sampling).toHaveValue("45");
-
-  await page.getByRole("button", { name: "调色板" }).click();
-  const bitDepth = page.getByRole("slider", { name: /颜色位深/ });
-  await bitDepth.press("ArrowDown");
-  await bitDepth.press("ArrowDown");
-  await expect(bitDepth).toHaveValue("2");
+  const bits = page.getByRole("textbox", { name: /高亮行的 16 bit/ });
+  await bits.pressSequentially("0111010101011001");
+  await expect(bits).toHaveValue("0111010101011001");
+  await page.getByRole("button", { name: "检查编码" }).click();
+  await expect(page.locator(".stage-feedback")).toContainText("通过");
 });
 
 test("navigates between labs with SPA links and restores back/forward state", async ({ page }) => {
   // The static preview serves anonymous sessions; the experimental flag opens
   // hidden labs and the rail preserves it across navigation.
   await page.goto("labs/image-encoding?showExperimentalLabs=1", { waitUntil: "networkidle" });
-  await expect(page.locator("h1").first()).toHaveText(/图像编码/);
+  await expect(page.locator("h1").first()).toHaveText(/AI 修复老照片/);
   await page.locator("a.lab-link", { hasText: "声音编码" }).click();
   await expect(page.locator("h1").first()).toHaveText(/声音编码/);
   await page.locator("a.lab-link", { hasText: "家庭网络配置" }).click();
@@ -111,21 +113,39 @@ test("changes same-route image search through browser navigation and restores it
   page,
 }) => {
   await page.goto(
-    "labs/image-encoding?image=checkerboard&sample=25&bits=2&showExperimentalLabs=1",
+    "labs/image-encoding?stage=2&image=checkerboard&res=25&colors=palette2&showExperimentalLabs=1",
     {
       waitUntil: "networkidle",
     },
   );
-  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
-  await page.goto("labs/image-encoding?image=gradient&sample=75&bits=6&showExperimentalLabs=1", {
-    waitUntil: "networkidle",
-  });
-  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("75");
-  await expect(page.getByRole("slider", { name: /颜色位深/ })).toHaveValue("6");
+  await expect(page.getByRole("button", { name: "25%", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await page.goto(
+    "labs/image-encoding?stage=2&image=gradient&res=50&colors=palette8&showExperimentalLabs=1",
+    {
+      waitUntil: "networkidle",
+    },
+  );
+  await expect(page.getByRole("button", { name: "50%", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(page.getByRole("button", { name: "256 色", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await page.goBack();
-  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
+  await expect(page.getByRole("button", { name: "25%", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await page.goForward();
-  await expect(page.getByRole("slider", { name: /空间采样/ })).toHaveValue("75");
+  await expect(page.getByRole("button", { name: "50%", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 });
 
 test("serves a base-prefixed deep link with history fallback", async ({ page }) => {
@@ -136,7 +156,7 @@ test("serves a base-prefixed deep link with history fallback", async ({ page }) 
     },
   );
   expect(response?.status()).toBe(200);
-  await expect(page.locator("h1").first()).toHaveText(/图像编码/);
+  await expect(page.locator("h1").first()).toHaveText(/AI 修复老照片/);
   const imageLink = page.locator("a.lab-link", { hasText: "图像编码" });
   await expect(imageLink).toHaveCount(1);
   await expect(imageLink).toHaveClass(/is-active/);

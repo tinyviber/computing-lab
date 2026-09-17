@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
-import { AccountMenu, useAuth } from "../../shared/auth";
+import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
 import { enabledLabs, experimentalLabs } from "../catalog/labs";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import "./home.css";
@@ -30,7 +30,7 @@ function AnonymousLanding() {
             </p>
             <div className="home-hero-actions">
               <Link className="button button-primary" to="/login">
-                登录 / 加入班级 <span aria-hidden="true">→</span>
+                登录 <span aria-hidden="true">→</span>
               </Link>
             </div>
           </div>
@@ -66,14 +66,15 @@ function ClassroomHome() {
   const { primaryMembership, role } = useAuth();
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
+  const isStaff = isStaffRole(role);
 
   useEffect(() => {
-    if (!classId || role === "teacher") return;
+    if (!classId || isStaff) return;
     void api
       .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
       .then(setProject)
       .catch(() => setProject(null));
-  }, [classId, role]);
+  }, [classId, isStaff]);
 
   const experimental = experimentalLabs();
 
@@ -91,7 +92,9 @@ function ClassroomHome() {
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
             <p className="eyebrow">{primaryMembership?.className ?? "未加入班级"}</p>
-            <h1 id="home-title">{role === "teacher" ? "教师工作台" : "我的实验"}</h1>
+            <h1 id="home-title">
+              {role === "admin" ? "管理工作台" : role === "teacher" ? "教师工作台" : "我的实验"}
+            </h1>
           </div>
         </section>
 
@@ -111,22 +114,20 @@ function ClassroomHome() {
                 </div>
                 <h4>{lab.title}</h4>
                 <p>{lab.description}</p>
-                {role !== "teacher" && project ? (
+                {!isStaff && project && lab.id === "calculator" ? (
                   <StageProgress currentStage={project.currentStage} />
                 ) : null}
                 {classId ? (
-                  <Link
-                    className="button button-primary"
-                    params={{ classId }}
-                    to="/classes/$classId/labs/calculator"
-                  >
-                    {project && project.currentStage > 1 ? "继续" : "开始"}
+                  <Link className="button button-primary" to={lab.route}>
+                    {lab.id === "calculator" && project && project.currentStage > 1
+                      ? "继续"
+                      : "开始"}
                   </Link>
                 ) : null}
               </article>
             ))}
 
-            {role === "teacher" && classId ? (
+            {isStaff && classId ? (
               <article className="lab-card">
                 <div className="lab-card-topline">
                   <span className="category-label">教师</span>
@@ -142,10 +143,23 @@ function ClassroomHome() {
                 </Link>
               </article>
             ) : null}
+
+            {role === "admin" ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
+                  <span className="category-label">管理</span>
+                </div>
+                <h4>账号与班级管理</h4>
+                <p>创建账号、批量导入学生、管理班级与邀请码。</p>
+                <Link className="button button-secondary" to="/admin">
+                  打开管理页
+                </Link>
+              </article>
+            ) : null}
           </div>
         </section>
 
-        {role === "teacher" && experimental.length > 0 ? (
+        {isStaff && experimental.length > 0 ? (
           <section className="catalog-section" aria-labelledby="experimental-title">
             <div className="section-heading">
               <div>

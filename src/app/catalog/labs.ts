@@ -1,3 +1,4 @@
+import { isStaffRole, type AccountRole } from "../../shared/auth";
 import type { LabDefinition } from "./types";
 
 /**
@@ -23,9 +24,9 @@ export const labs: LabDefinition[] = [
     title: "图像编码",
     category: "信息编码",
     route: "/labs/image-encoding",
-    description: "采样、量化、重建图像与数据量。",
+    description: "把照片压进 bit 预算、验证丢掉的信息回不来，再看 AI 修复“猜”出了什么。",
     status: "available",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "audio-encoding",
@@ -124,22 +125,22 @@ export function experimentalLabs(): LabDefinition[] {
 }
 
 /**
- * Which labs a viewer may navigate to. Teachers and the explicit escape hatch
- * see everything; students see only enabled labs.
+ * Which labs a viewer may navigate to. Staff (teachers and admins) and the
+ * explicit escape hatch see everything; students see only enabled labs.
  */
 export function visibleLabs(options: {
-  role?: "student" | "teacher" | null;
+  role?: AccountRole | null;
   showExperimental?: boolean;
 }): LabDefinition[] {
-  if (options.role === "teacher" || options.showExperimental) return labs;
+  if (isStaffRole(options.role) || options.showExperimental) return labs;
   return enabledLabs();
 }
 
 export function isLabAccessible(
   id: string,
-  options: { role?: "student" | "teacher" | null; showExperimental?: boolean },
+  options: { role?: AccountRole | null; showExperimental?: boolean },
 ): boolean {
   const lab = getLab(id);
   if (!lab) return false;
-  return lab.enabled || options.role === "teacher" || options.showExperimental === true;
+  return lab.enabled || isStaffRole(options.role) || options.showExperimental === true;
 }

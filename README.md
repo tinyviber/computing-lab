@@ -12,13 +12,27 @@ node server/index.ts     # API 服务 :8788（也会服务构建出的 dist/）
 bun run dev              # Vite 开发服 :5173，/api 代理到 :8788
 ```
 
-默认种子：班级 `2026-高一信息技术-01`，邀请码 `CLASS26`，教师学号 `teacher`，
+默认种子：班级 `2026-高一信息技术-01`，邀请码 `CLASS26`；管理员学号 `admin`，
+密码 `admin-dev-password`（`LAB_ADMIN_PASSWORD` 覆盖）；教师学号 `teacher`，
 密码 `teacher-dev-password`（用 `LAB_TEACHER_PASSWORD` 覆盖）。
 
-学生流程：`/login` 用邀请码+学号+姓名+初始密码加入 → 首页进入
+角色分三级：`admin`（管理员）拥有全部教师权限，并在 `/admin` 管理账号与班级；
+`teacher` 可查看所教班级的看板和未开放实验；`user` 是学生。自助注册已关闭，
+账号只能由管理员在 `/admin` 单个创建或批量导入（CSV 或 JSON，格式
+`学号,姓名,密码[,角色][,班级邀请码]`）。
+
+学生流程：管理员导入账号并把学生分配进班级 → `/login` 登录 → 首页进入
 `/classes/:classId/labs/calculator` → 画布连线 → 公开测试 → 提交（服务端隐藏
 用例判定，全过才解锁下一关并把成果封装成可复用组件）。教师入口
 `/classes/:classId/dashboard`。
+
+图像编码实验（`图像编码` / “AI 修复老照片”）：`/classes/:classId/labs/image-encoding`
+按 `stage=1..5` 组织——约定表编码、预算内保存、many-to-one 信息损失三个核心关
+由服务端复核；AI 修复与抓幻觉为选做挑战。Challenge 1 已展示
+`public/labs/image-encoding/restored/` 下预生成的 Real-ESRGAN 输出
+（生成管线见 `scripts/restoration/`）；Challenge 2 在双人复核幻觉热点前
+保持占位（`HALLUCINATION_CASES` 为空）。匿名访客仍可在
+`/labs/image-encoding` 本地体验，离线无 API 依赖。
 
 ## Online lesson editor
 

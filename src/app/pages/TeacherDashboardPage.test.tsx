@@ -7,7 +7,7 @@ import type { AuthState } from "../../shared/auth";
 const multiClassTeacher: AuthState = {
   status: "authenticated",
   session: {
-    user: { id: "u-admin", studentNo: "admin", name: "管理员" },
+    user: { id: "u-admin", studentNo: "admin", name: "管理员", role: "admin" },
     memberships: [
       { classId: "c11", className: "2026-高二信息技术-11", role: "teacher" },
       { classId: "c12", className: "2026-高二信息技术-12", role: "teacher" },

@@ -73,7 +73,8 @@ Do not create a framework package yet. All three consumers are inside one produc
 - `src/app/architecture-boundaries.test.ts` scans the production import graph in CI.
 - A backend now exists: `server/` is a plain Node ≥22.13 process (Hono on `node:http`,
   `node:sqlite` storage) that owns auth, drafts, and authoritative judging. It shares the
-  Calculator feature's pure `domain` code for circuit evaluation. Hidden test vectors live
+  Calculator feature's pure `domain` code for circuit evaluation and the Image feature's
+  `domain/checks.ts` for stage checks. Hidden test vectors live
   only under `server/`; the SPA carries public debug cases. Feature flags in
   `src/app/catalog/labs.ts` hide labs without deleting them; teachers and
   `?showExperimentalLabs=1` may still open them.

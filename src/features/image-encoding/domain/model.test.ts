@@ -3,16 +3,21 @@ import { getImageFixture } from "./fixture";
 import {
   buildPalette,
   calculateImageEncoding,
+  countPixelDiffs,
+  cropRegion,
   deriveImageEncodingModel,
+  encodingSignature,
   inspectPixel,
   normalizeCalculatorBitsPerPixel,
   normalizeCalculatorDimension,
   normalizeBitDepth,
   rawPayload,
   reconstructImage,
+  regionError,
   sampleImage,
   sampledDimensions,
   quantizeSampledImage,
+  type RasterImage,
 } from "./model";
 
 describe("image encoding domain model", () => {
@@ -407,5 +412,95 @@ describe("image encoding domain model", () => {
       expect(value).toEqual(expect.any(Number));
       expect(Number.isFinite(value)).toBe(true);
     }
+  });
+});
+
+describe("restoration-era model extensions", () => {
+  const redGreen: RasterImage = {
+    id: "rg",
+    label: "rg",
+    sourceKind: "upload",
+    width: 2,
+    height: 1,
+    pixels: [
+      { r: 255, g: 0, b: 0 },
+      { r: 0, g: 130, b: 0 },
+    ],
+  };
+
+  it("quantizes colors to one 8-bit luma channel in gray mode", () => {
+    const sampled = sampleImage(redGreen, { samplingPercent: 100, phase: 0 });
+    const quantized = quantizeSampledImage(sampled, 8, "gray");
+    expect(quantized.bitDepth).toBe(8);
+    expect(quantized.colorMode).toBe("gray");
+    for (const pixel of quantized.pixels) {
+      expect(pixel.quantizedColor.r).toBe(pixel.quantizedColor.g);
+      expect(pixel.quantizedColor.g).toBe(pixel.quantizedColor.b);
+      expect(pixel.encodedBits).toHaveLength(8);
+    }
+    expect(quantized.pixels[0].encodedBits).toBe(quantized.pixels[1].encodedBits);
+    expect(quantized.pixels[0].encodedBits).toBe("01001100");
+  });
+
+  it("charges 8 bits per sampled pixel for gray mode", () => {
+    const model = deriveImageEncodingModel(getImageFixture("photo"), {
+      samplingPercent: 50,
+      bitDepth: 8,
+      colorMode: "gray",
+      phase: 0,
+    });
+    expect(model.rawPayload).toMatchObject({ width: 120, height: 80, bitDepth: 8 });
+    expect(model.rawPayload.bits).toBe(120 * 80 * 8);
+  });
+
+  it("tags the encoding signature with the geometry needed to decode it", () => {
+    const model = deriveImageEncodingModel(getImageFixture("photo"), {
+      samplingPercent: 50,
+      bitDepth: 4,
+      colorMode: "palette",
+      phase: 0,
+    });
+    expect(encodingSignature(model.quantized)).toMatch(/^120x80@palette\/4:[01]+$/);
+    const same = deriveImageEncodingModel(getImageFixture("photo"), {
+      samplingPercent: 50,
+      bitDepth: 4,
+      colorMode: "palette",
+      phase: 0,
+    });
+    expect(encodingSignature(same.quantized)).toBe(encodingSignature(model.quantized));
+  });
+
+  it("reports region error as the mean error-map magnitude inside a clamped rect", () => {
+    const model = deriveImageEncodingModel(getImageFixture("photo"), {
+      samplingPercent: 25,
+      bitDepth: 2,
+      colorMode: "palette",
+      phase: 0,
+    });
+    const whole = regionError(model, { x: 0, y: 0, width: 240, height: 160 });
+    expect(whole).toBeCloseTo(model.averageError, 10);
+    const clamped = regionError(model, { x: -50, y: -50, width: 10, height: 10 });
+    expect(clamped).toBeGreaterThanOrEqual(0);
+    expect(clamped).toBeLessThanOrEqual(1);
+  });
+
+  it("counts pixel diffs only between same-sized rasters", () => {
+    const a = getImageFixture("pixel-grid");
+    expect(countPixelDiffs(a, a)).toBe(0);
+    const edited = { ...a, pixels: a.pixels.map((p, i) => (i < 3 ? { r: 1, g: 2, b: 3 } : p)) };
+    expect(countPixelDiffs(a, edited)).toBe(3);
+    expect(countPixelDiffs(a, getImageFixture("gradient"))).toBe(
+      getImageFixture("gradient").pixels.length,
+    );
+  });
+
+  it("crops a source rect into a standalone raster", () => {
+    const photo = getImageFixture("photo");
+    const crop = cropRegion(photo, { x: 10, y: 20, width: 8, height: 4 });
+    expect(crop.width).toBe(8);
+    expect(crop.height).toBe(4);
+    expect(crop.pixels).toHaveLength(32);
+    expect(crop.pixels[0]).toEqual(photo.pixels[20 * 240 + 10]);
+    expect(crop.pixels[9]).toEqual(photo.pixels[21 * 240 + 11]);
   });
 });

@@ -19,7 +19,9 @@ export type ImageEncodingOptions = {
   colorMode?: ImageColorMode;
 };
 
-export type ImageColorMode = "palette" | "rgb24";
+export type ImageColorMode = "palette" | "rgb24" | "gray";
+
+export type Rect = { x: number; y: number; width: number; height: number };
 
 export type SampledPixel = {
   sampleX: number;
@@ -127,6 +129,7 @@ export const MAX_SAMPLING_PERCENT = 100;
 export const MIN_BIT_DEPTH = 1;
 export const MAX_BIT_DEPTH = 8;
 export const RGB24_BIT_DEPTH = 24;
+export const GRAY_BIT_DEPTH = 8;
 export const MIN_PHASE = 0;
 export const MAX_PHASE = 0.99;
 export const MIN_CALCULATOR_DIMENSION = 1;
@@ -151,7 +154,7 @@ export function normalizeBitDepth(value: number): number {
 }
 
 export function normalizeColorMode(value: unknown): ImageColorMode {
-  return value === "rgb24" ? "rgb24" : "palette";
+  return value === "rgb24" ? "rgb24" : value === "gray" ? "gray" : "palette";
 }
 
 export function normalizePhase(value: number): number {
@@ -190,6 +193,10 @@ function channel(value: number): number {
 
 function normalizeRgb(color: RGB): RGB {
   return { r: channel(color.r), g: channel(color.g), b: channel(color.b) };
+}
+
+function luminanceChannel(color: RGB): number {
+  return channel(0.299 * color.r + 0.587 * color.g + 0.114 * color.b);
 }
 
 export function rgbToHex(color: RGB): string {
@@ -422,7 +429,8 @@ export function quantizeSampledImage(
   bitDepth: number,
   colorMode: ImageColorMode = "palette",
 ): QuantizedRepresentation {
-  if (normalizeColorMode(colorMode) === "rgb24") {
+  const mode = normalizeColorMode(colorMode);
+  if (mode === "rgb24") {
     const pixels = sampled.pixels.map((pixel) => {
       const color = normalizeRgb(pixel.sourceColor);
       const encodedBits = [color.r, color.g, color.b]
@@ -443,6 +451,29 @@ export function quantizeSampledImage(
       palette: [],
       bitDepth: RGB24_BIT_DEPTH,
       colorMode: "rgb24",
+      requestedPhase: sampled.requestedPhase,
+    };
+  }
+
+  if (mode === "gray") {
+    const pixels = sampled.pixels.map((pixel) => {
+      const luma = luminanceChannel(normalizeRgb(pixel.sourceColor));
+      const gray = { r: luma, g: luma, b: luma };
+      return {
+        ...pixel,
+        paletteIndex: luma,
+        encodedBits: luma.toString(2).padStart(8, "0"),
+        quantizedColor: gray,
+        quantizedHex: rgbToHex(gray),
+      };
+    });
+    return {
+      width: sampled.width,
+      height: sampled.height,
+      pixels,
+      palette: [],
+      bitDepth: GRAY_BIT_DEPTH,
+      colorMode: "gray",
       requestedPhase: sampled.requestedPhase,
     };
   }
@@ -616,4 +647,87 @@ export function inspectPixel(
 
 export function imageFixtureId(source: RasterImage): ImageFixtureId | undefined {
   return source.sourceKind === "fixture" ? (source.id as ImageFixtureId) : undefined;
+}
+
+export function encodingSignature(quantized: QuantizedRepresentation): string {
+  const bits = quantized.pixels.map((pixel) => pixel.encodedBits).join("");
+  return `${quantized.width}x${quantized.height}@${quantized.colorMode}/${quantized.bitDepth}:${bits}`;
+}
+
+export function normalizeRect(rect: Rect, source: { width: number; height: number }): Rect {
+  const x = clamp(Math.floor(rect.x), 0, Math.max(0, source.width - 1));
+  const y = clamp(Math.floor(rect.y), 0, Math.max(0, source.height - 1));
+  return {
+    x,
+    y,
+    width: clamp(Math.floor(rect.width), 1, source.width - x),
+    height: clamp(Math.floor(rect.height), 1, source.height - y),
+  };
+}
+
+export function regionError(model: ImageEncodingModel, rectInput: Rect): number {
+  const rect = normalizeRect(rectInput, model.source);
+  let sum = 0;
+  let count = 0;
+  for (let y = rect.y; y < rect.y + rect.height; y += 1) {
+    for (let x = rect.x; x < rect.x + rect.width; x += 1) {
+      sum += model.errorMap[y * model.source.width + x]?.magnitude ?? 0;
+      count += 1;
+    }
+  }
+  return count === 0 ? 0 : sum / count;
+}
+
+export function countPixelDiffs(first: RasterImage, second: RasterImage): number {
+  if (first.width !== second.width || first.height !== second.height) {
+    return Math.max(first.pixels.length, second.pixels.length);
+  }
+  let diffs = 0;
+  for (let index = 0; index < first.pixels.length; index += 1) {
+    const a = first.pixels[index] ?? { r: 0, g: 0, b: 0 };
+    const b = second.pixels[index] ?? { r: 0, g: 0, b: 0 };
+    if (colorKey(a) !== colorKey(b)) diffs += 1;
+  }
+  return diffs;
+}
+
+export function cropRegion(sourceInput: RasterImage, rectInput: Rect): RasterImage {
+  const source = normalizeImage(sourceInput);
+  const rect = normalizeRect(rectInput, source);
+  const pixels = Array.from({ length: rect.width * rect.height }, (_, index) => {
+    const x = rect.x + (index % rect.width);
+    const y = rect.y + Math.floor(index / rect.width);
+    return normalizeRgb(source.pixels[y * source.width + x]);
+  });
+  return {
+    ...source,
+    id: `${source.id}-crop`,
+    label: `${source.label} · 局部`,
+    width: rect.width,
+    height: rect.height,
+    pixels,
+    sourceDimensions: undefined,
+  };
+}
+
+/** Returns a copy of `source` with `patch` written over `rect` (overlap-clipped). */
+export function patchRegion(
+  sourceInput: RasterImage,
+  rectInput: Rect,
+  patchInput: RasterImage,
+): RasterImage {
+  const source = normalizeImage(sourceInput);
+  const patch = normalizeImage(patchInput);
+  const rect = normalizeRect(rectInput, source);
+  const width = Math.min(rect.width, patch.width);
+  const height = Math.min(rect.height, patch.height);
+  const pixels = source.pixels.slice();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      pixels[(rect.y + y) * source.width + (rect.x + x)] = normalizeRgb(
+        patch.pixels[y * patch.width + x],
+      );
+    }
+  }
+  return { ...source, pixels };
 }

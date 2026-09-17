@@ -17,7 +17,7 @@ describe("ProfilePage", () => {
     await renderAppAt("/profile");
 
     expect(screen.getByRole("heading", { name: "个人资料" })).toBeInTheDocument();
-    expect(screen.getAllByText("教师")).toHaveLength(2);
+    expect(screen.getAllByText("教师")).toHaveLength(3);
     await user.type(screen.getByLabelText("当前密码"), "old-pass");
     await user.type(screen.getByLabelText("新密码"), "new-pass");
     await user.type(screen.getByLabelText("确认新密码"), "new-pass");
