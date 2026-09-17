@@ -1,8 +1,8 @@
-# Computing Lab static deployment foundation
+# Computing Lab deployment foundation
 
-This repository is a static Vite SPA. Tencent Cloud runs no application server,
-Node/Bun web process, Docker service, database, migration, or Computing Lab
-systemd service. Caddy reads immutable files only.
+The frontend is a static Vite SPA: Caddy reads immutable files only. The app
+also ships a Node (Hono + `node:sqlite`) API managed by `api-deploy.sh`; see
+[API process deployment](#api-process-deployment).
 
 ## Architecture
 
@@ -357,3 +357,56 @@ active, so the next timer cannot silently undo the operator decision.
 Never force a pointer to an unverified branch, delete a current release, erase
 the quarantine directory, or change databases/secrets—none are part of this
 static deployment.
+
+## API process deployment
+
+The Node API (`server/index.ts`, Hono + `node:sqlite`) runs as
+`computing-lab-api.service` from a plain checkout at `$API_ROOT/source`
+(default `/srv/computing-lab-api/source`, owned by `computing-lab-editor`).
+`deploy/api-deploy.sh` is the deterministic, no-agent entry point:
+
+```text
+git fetch → resolve exact SHA (origin/main or --sha)
+   → assert clean checkout (only untracked node_modules/ allowed)
+   → record previous SHA intent
+   → systemctl stop → cp lab.db backup → git checkout --detach <sha>
+   → bun install --frozen-lockfile (only when lockfile/manifest changed)
+   → optional seed via systemd-run -p EnvironmentFile=api.env
+   → systemctl start → poll /api/health
+   → systemctl start computing-lab-reconcile.service (static side)
+```
+
+Commands:
+
+```sh
+sudo /usr/local/libexec/computing-lab-api/api-deploy.sh deploy
+sudo /usr/local/libexec/computing-lab-api/api-deploy.sh deploy --seed --dry-run
+sudo /usr/local/libexec/computing-lab-api/api-deploy.sh rollback
+sudo /usr/local/libexec/computing-lab-api/api-deploy.sh status
+```
+
+- `deploy` is a strict no-op when the checkout already matches the target.
+- `rollback` returns to the last recorded SHA; it never touches the database.
+  Restore `lab.db.backup-*` by hand if a schema change must be undone.
+- `seed` runs `server/db/seed.ts` as the service user. `api.env` is
+  `root:root 0600`; systemd loads it as root and drops privileges, so the
+  service account never reads the file directly.
+- A failed health gate leaves `state/previous.sha` pointing at the last good
+  revision; `rollback` converges back to it.
+- `systemctl start computing-lab-api-deploy.service` is a shorthand for
+  `deploy` without flags.
+
+Install once per host:
+
+```sh
+sudo install -d -o root -g root -m 0755 /usr/local/libexec/computing-lab-api
+sudo install -o root -g root -m 0755 deploy/api-deploy.sh /usr/local/libexec/computing-lab-api/
+sudo install -o root -g root -m 0644 deploy/systemd/computing-lab-api-deploy.service /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Optional overrides live in `/etc/computing-lab/api-deploy.env` (root-owned,
+not group/world-writable): `API_ROOT`, `API_USER`, `API_SERVICE`,
+`NODE_BIN`, `BUN_BIN`, `API_ENV_FILE`, `KEEP_DB_BACKUPS`,
+`HEALTH_TIMEOUT_SEC`. `BUN_BIN` must be exactly Bun 1.2.17 when a dependency
+install runs.
