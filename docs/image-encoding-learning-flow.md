@@ -1,56 +1,99 @@
-# 图像编码：统一实验循环
+# 图像编码：AI 修复老照片
 
-## 学习目标
+> 2026-09 起本实验改为**分关课程**（见 issue #35 设计评审）。本文描述当前实现；旧的
+> 连续探索模型只作为历史记录保留在 `image-encoding-optimization.md` /
+> `image-encoding-pr-handoff.md`。
 
-用户可以从自己感兴趣的现象开始，通过同一个反馈循环理解图像编码中的取舍：
+## 驱动问题
+
+> AI 修复老照片，究竟是在“找回”已经丢失的信息，还是根据已有信息和模型先验
+> 生成一个合理但未必真实的版本？
+
+## 课堂结构（约 45 分钟）
+
+三个必做核心关 + 两个选做挑战，左侧 `ImageStageRail` 显示进度：
+
+| 关卡                             | 任务                                          | 客观通过条件                                              |
+| -------------------------------- | --------------------------------------------- | --------------------------------------------------------- |
+| Core 1 约定决定 bit 的意义（8′） | 把 8×8 四符号画布的高亮行编成 16 bit          | `checkCore1`：学生位串与 `encodeRow` 一致                 |
+| Core 2 在预算内保存（12′）       | 在分辨率档 × 颜色档中选一个组合“存下”照片     | `checkCore2`：`rawBits ≤ budget` 且目标区域平均误差 ≤ 12% |
+| Core 3 丢掉的信息回不来（12′）   | 在目标区域 16×16 窗口里改原图，让编码签名不变 | `checkCore3`：≥ 8 个像素不同且编码签名完全相同            |
+| Challenge 1 AI 修复（选做）      | 对照原图 / 编码结果 / 普通放大 / AI 修复      | 已生成的档位显示真实 AI 输出；未生成档位保持占位，不出题  |
+| Challenge 2 抓幻觉（选做）       | 在 AI 修复图上点出“修错”的细节                | `checkChallenge2`：命中人工标注热点 ≥ 要求数              |
+
+挑战关只在三个核心关全部通过后解锁（`isStageUnlocked`）。修改 artifact 会撤销
+Core 2 / Core 3 的通过状态，防止用过期进度解锁挑战。
+
+## Artifact 与档位
+
+学生保存的“老照片”是一个可写进 URL 的确定性 artifact：
 
 ```text
-选择一个问题 → 改一个变量 → 看原图 / 重建图 → 看数据和平均 RGB 颜色差异 → 自己调整方案
+artifact = { image, resStop, colorStop }
+resStop   ∈ { 100, 50, 25, 10 }
+colorStop ∈ { rgb24, gray8, palette8, palette4, palette2 }
 ```
 
-页面没有必须遵循的顺序。页面顶部只给出一行轻量提示：先比较原图和重建图，每次只改一个参数，最后把观察写下来；25% 理论数据量预算是一个可选的扩展方向。
+离散档位让 artifact 能映射到离线预生成的 AI 修复案例（`restoration.ts` 的命名
+契约：`restored/<image>-<resStop>-<colorStop>.webp`）。v1 不做实时模型推理。
 
-## 页面行为
-
-- 首屏先展示原图和重建图，旁边保留采样、颜色和数据量的即时反馈。
-- 顶部实验提示是静态线索，不锁定颜色、采样偏移、视图、像素详情或计算器，也不根据控件操作推断学习进度。
-- 每次改动后，图像、采样尺寸、原始位数 / 字节、误差和语义反馈一起更新。
-- 页面展示图像和数据变化，使用者根据结果调整参数。
-- 原图和重建图继续使用同一显示坐标，视图 tab、误差图、编码网格和像素 inspector 继续可用。
-- 原理区直接解释采样尺寸、颜色表示、像素编码和原始数据量；不按课程步骤解锁。
-- 计算器用于计算数据量，格式边界说明始终可见。
-
-## 可选预算的 baseline
-
-可选预算挑战使用当前源图和初始情境配置生成 baseline。普通 slider 或按钮变化不会把实验操作解释成学习进度。
-
-```text
-budgetBits = floor(baseline.rawPayload.bits × 0.25)
-```
-
-挑战区只比较挑战方案自身的 rawBits 与预算；核心实验仍直接展示当前模型的图像、数据量和误差。`changedPixelCount` 指当前重建图相对源图发生颜色差异的像素数。
-
-所有数据量都标注为理论原始像素数据：
+Core 2 预算为源图理论 RGB24 数据量的 1/8（`DEFAULT_BUDGET_RATIO`）。所有数据量
+仍是理论原始像素数据：
 
 ```text
 rawBits = sampledWidth × sampledHeight × bitsPerPixel
 rawBytes = ceil(rawBits / 8)
 ```
 
-这不是 PNG、JPEG 或 WebP 文件大小估算。实际格式大小受内容、编码方式、编码器设置、文件头、颜色表和元数据影响。
+不是 PNG/JPEG/WebP 文件大小估算，UI 持续标注这条边界。
 
-## 状态和兼容性
+## URL 情境
 
-`state.ts` 保存实验控件、实验笔记和可选预算挑战；不保存 step 或 progress。reducer 继续负责合法值归一化：
+```text
+/labs/image-encoding?stage=2&image=photo&res=25&colors=palette8
+```
 
-- RGB24 下 bit depth 不适用；
-- 完整采样密度下采样偏移固定为 0；
-- 非法数值继续归一化；
-- 上传失败不清空当前实验；
-- URL 只携带可复现实验情境，不携带学习进度。
+- `stage` ∈ 1–5；`image` 选内置 fixture；`res`/`colors` 选档位。
+- 旧参数继续可用：`sample`/`sampling` → 最近分辨率档，`bits`/`bitDepth`/`color`
+  → 颜色档，`view=representation|compare|error` → stage 1/2/3，
+  `scenario=low-sampling|high-quantization` → 兼容 fixture。
+- URL 只携带可复现情境，不携带学习进度；非法值在 domain 边界归一化。
+- 当 URL 显式给出 artifact 参数时，它优先于服务端保存的草稿。
 
-笔记只记录两个独立的采样设置槽位、观察位置和开放式观察文字；重新记录 A 或 B 不会清掉另一槽位或文字，明确 reset 才会清空它。它不会解锁或锁定任何实验控件。
+## 持久化与服务端复核
 
-## 保留能力
+班级路由 `/classes/:classId/labs/image-encoding` 提供：
 
-固定样例、兼容 fixture URL、legacy URL、上传、reset、实时画布、视图 tabs、误差图、采样偏移几何、像素 inspector、palette / RGB24 语义和确定性模型继续保留。目标是让视觉观察、数字反馈和代价判断发生在同一实验上下文中。
+- `GET project`：读取 `student_projects.draft_graph`（image 专用 sanitizer）。
+- `PUT draft`：800ms 防抖自动保存 artifact + 各关草稿。
+- `POST judge`：服务端用共享 `domain/checks.ts` 重新判定，不信任客户端的
+  `passed`/`currentStage`。
+
+旧入口 `/labs/image-encoding`：已登录且有班级 → 跳班级路由；无班级 → 提示加入；
+匿名 → 直接在本地运行（无 API 依赖，静态预览/离线课堂可用，通过状态只存本地）。
+API 不可用时本地判定先行，页面明确标注“未同步，需重新提交”。
+
+## 测试
+
+- domain：`stops`、`stages`、`bit-canvas`、`checks`、`restoration`、`model` 各带
+  vitest；`checks.test.ts` 还回归“预算内既有多个可行解也有不可行解”。
+- lesson：scenario 解析/序列化与状态迁移（含改 artifact 撤销通过状态）。
+- ui：`ImageEncodingPage.test.tsx` 覆盖三关交互、解锁顺序与 URL 优先级。
+- server：`server/judge/image.test.ts` + `server/routes/image-encoding.test.ts`。
+- e2e：`tests/e2e/image-encoding.e2e.ts` 跑 Core 1→3 无外链请求闭环；
+  `routes.e2e.ts` 覆盖 canonical/legacy URL 与历史恢复。
+
+## 资产管线状态
+
+`scripts/restoration/generate-inputs.ts` 按命名契约导出量化栅格 PNG +
+manifest。已用仓库外工具（Real-ESRGAN ncnn `realesrgan-x4plus`，`-j 1:1:1`，
+无 TTA）为 `photo` 生成 7 张输出并转为无损 WebP，入库于
+`public/labs/image-encoding/restored/`，注册在
+`domain/restoration.ts` 的 `RESTORATION_ASSETS`（含存在性测试）。
+
+Challenge 1 对这些档位已展示真实 AI 输出。仍待办：
+
+- `photo-50-gray8` / `photo-25-gray8` 目前只有超分结果，DDColor 上色未跑
+  （模型登记仍为 `realesrgan-x4plus`，如实展示灰度输出）。
+- `HALLUCINATION_CASES` 保持为空：幻觉热点需双人按
+  `scripts/restoration/README.md` §4 复核后填写，因此 Challenge 2 仍是占位。

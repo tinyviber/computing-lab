@@ -26,15 +26,17 @@ describe("application router integration", () => {
   it("shows a teacher the classroom home with the enabled lab and flagged experiments", async () => {
     await renderAppAt("/");
 
-    // The enabled lab links to its class-scoped route.
-    const calculatorLinks = screen.getAllByRole("link", { name: /实现ALU|开始|继续/ });
-    expect(
-      calculatorLinks.some((link) => link.getAttribute("href") === "/classes/c1/labs/calculator"),
-    ).toBe(true);
+    // Enabled labs link to their catalog route; the entry page forwards
+    // members to their own class-scoped route.
+    const startHrefs = screen
+      .getAllByRole("link", { name: /^开始$|^继续$/ })
+      .map((link) => link.getAttribute("href"));
+    expect(startHrefs).toEqual(
+      expect.arrayContaining(["/labs/calculator", "/labs/image-encoding"]),
+    );
 
-    // Hidden labs are visible to a teacher but labelled.
-    const imageLinks = screen.getAllByRole("link", { name: /图像编码/ });
-    expect(imageLinks.map((link) => link.getAttribute("href"))).toContain("/labs/image-encoding");
+    // The image lab is enabled too; other labs stay teacher-only previews.
+    expect(screen.getByRole("heading", { name: "图像编码" })).toBeInTheDocument();
     expect(screen.getAllByText("未开放").length).toBeGreaterThan(0);
 
     // The teacher dashboard card is present.
@@ -71,39 +73,47 @@ describe("application router integration", () => {
   });
 
   it("hides a disabled lab from students and opens it with the override or as teacher", async () => {
-    // A student is refused.
-    const refused = await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
-    expect(screen.getByRole("heading", { name: /图像编码暂未开放/ })).toBeInTheDocument();
-    expect(screen.queryByRole("main", { name: /图像编码实验区/ })).not.toBeInTheDocument();
+    // A student is refused on a lab that is still flagged experimental.
+    const refused = await renderAppAt("/labs/audio-encoding", { auth: studentAuthState });
+    expect(screen.getByRole("heading", { name: /声音编码暂未开放/ })).toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: /声音编码实验区/ })).not.toBeInTheDocument();
     refused.unmount();
 
     // The explicit URL escape hatch opens it.
-    const override = await renderAppAt("/labs/image-encoding?showExperimentalLabs=1", {
+    const override = await renderAppAt("/labs/audio-encoding?showExperimentalLabs=1", {
       auth: studentAuthState,
     });
-    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /声音编码实验区/ })).toBeInTheDocument();
     override.unmount();
 
     // A teacher can always open it.
-    await renderAppAt("/labs/image-encoding", { auth: teacherAuthState });
-    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
+    await renderAppAt("/labs/audio-encoding", { auth: teacherAuthState });
+    expect(screen.getByRole("main", { name: /声音编码实验区/ })).toBeInTheDocument();
+  });
+
+  it("lets a student open the enabled image lab on its class route", async () => {
+    await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
+    expect(screen.getByRole("main", { name: /AI 修复老照片实验区/ })).toBeInTheDocument();
   });
 
   it("hydrates the photo source through the canonical image query", async () => {
+    // `view=compare` maps to Core 2; sample=25 snaps to the 25% resolution stop.
     await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare");
 
-    expect(screen.getAllByText("小猫插图")).toHaveLength(2);
-    expect(screen.queryByLabelText("内置素材")).not.toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("width", "240");
-    expect(screen.getByRole("img", { name: /原始源图像/ })).toHaveAttribute("height", "160");
+    expect(screen.getByRole("heading", { name: /用八分之一的 bit 保存照片/ })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "原始照片" })).toHaveAttribute("width", "240");
+    expect(screen.getByRole("img", { name: "原始照片" })).toHaveAttribute("height", "160");
+    // Reconstruction is drawn at source size but the encoded grid is 60 × 40.
+    expect(screen.getByRole("img", { name: "预算内重建照片" })).toHaveAttribute("width", "240");
+    expect(screen.getByText(/编码栅格 60 × 40/)).toBeInTheDocument();
   });
 
   it.each([
     [
       "image lesson",
       "/labs/image-encoding?image=checkerboard&sample=25&bits=2&view=representation",
-      /图像编码实验区/,
-      /12 × 8 编码采样网格/,
+      /AI 修复老照片实验区/,
+      /约定决定 bit 的意义/,
     ],
     [
       "audio lesson",
@@ -158,7 +168,7 @@ describe("application router integration", () => {
     await renderAppAt(entry);
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
     if (_name === "image lesson") {
-      expect(screen.getByRole("grid", { name: expected })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 2, name: expected })).toBeInTheDocument();
     } else if (_name === "audio lesson") {
       expect(document.body).toHaveTextContent(expected);
     } else if (_name === "network lesson") {
@@ -198,17 +208,18 @@ describe("application router integration", () => {
       "/computing-lab/labs/image-encoding?image=checkerboard&sample=25",
       "/computing-lab",
     );
-    expect(document.querySelector("h1")).toHaveTextContent("图像编码");
-    expect(screen.getByRole("grid", { name: /12 × 8 编码采样网格/ })).toBeInTheDocument();
+    expect(document.querySelector("h1")).toHaveTextContent("AI 修复老照片");
+    expect(screen.getByRole("img", { name: /同一串 bit 按约定 A · 灰阶解码/ })).toBeInTheDocument();
   });
 
   it("changes image lesson state when the same route receives a new search", async () => {
     const { router } = await renderAppAt("/labs/image-encoding");
-    expect(screen.getByRole("img", { name: /120 × 80 编码采样网格/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /约定决定 bit 的意义/ })).toBeInTheDocument();
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
-    expect(screen.getByRole("slider", { name: /空间采样/ })).toHaveValue("25");
-    expect(screen.getByRole("slider", { name: /颜色位深/ })).toHaveValue("2");
-    expect(screen.getByRole("img", { name: /像素颜色差异图/ })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: /改原图，但让编码一个 bit 都不变/ }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("grid", { name: "可编辑原图窗口" })).toBeInTheDocument();
   });
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {

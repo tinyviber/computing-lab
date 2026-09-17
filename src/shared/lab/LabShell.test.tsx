@@ -11,8 +11,8 @@ describe("LabShell", () => {
   it("renders the lesson shell workspace and available lab links through the app router", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    expect(screen.getByRole("heading", { level: 1, name: "图像编码" })).toBeInTheDocument();
-    expect(screen.getByRole("main", { name: /图像编码实验区/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "AI 修复老照片" })).toBeInTheDocument();
+    expect(screen.getByRole("main", { name: /AI 修复老照片实验区/ })).toBeInTheDocument();
     expect(screen.getByRole("navigation", { name: /可用实验/ })).toBeInTheDocument();
     expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(
       expect.arrayContaining([
@@ -26,8 +26,10 @@ describe("LabShell", () => {
   it("renders feature children directly in the shell-owned main without legacy slot wrappers", async () => {
     await renderAppAt("/labs/image-encoding");
 
-    const main = screen.getByRole("main", { name: /图像编码实验区/ });
-    expect(main).toContainElement(screen.getByRole("img", { name: /120 × 80 编码采样网格/ }));
+    const main = screen.getByRole("main", { name: /AI 修复老照片实验区/ });
+    expect(main).toContainElement(
+      screen.getByRole("img", { name: /同一串 bit 按约定 A · 灰阶解码/ }),
+    );
     expect(main.querySelector("#lab-navigation")).toBeNull();
     expect(main.querySelector(".lab-visualization")).toBeNull();
     expect(main.querySelector(".lab-controls")).toBeNull();

@@ -111,16 +111,14 @@ function ClassroomHome() {
                 </div>
                 <h4>{lab.title}</h4>
                 <p>{lab.description}</p>
-                {role !== "teacher" && project ? (
+                {role !== "teacher" && project && lab.id === "calculator" ? (
                   <StageProgress currentStage={project.currentStage} />
                 ) : null}
                 {classId ? (
-                  <Link
-                    className="button button-primary"
-                    params={{ classId }}
-                    to="/classes/$classId/labs/calculator"
-                  >
-                    {project && project.currentStage > 1 ? "继续" : "开始"}
+                  <Link className="button button-primary" to={lab.route}>
+                    {lab.id === "calculator" && project && project.currentStage > 1
+                      ? "继续"
+                      : "开始"}
                   </Link>
                 ) : null}
               </article>

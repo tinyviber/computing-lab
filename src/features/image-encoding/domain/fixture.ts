@@ -1,4 +1,4 @@
-import type { RGB, RasterImage } from "./model";
+import type { Rect, RGB, RasterImage } from "./model";
 
 export type ImageFixtureId = "photo" | "gradient" | "checkerboard" | "text-edge" | "pixel-grid";
 
@@ -105,6 +105,14 @@ export const IMAGE_FIXTURES: Record<ImageFixtureId, RasterImage> = {
 };
 
 export const IMAGE_FIXTURE_LIST = Object.values(IMAGE_FIXTURES);
+
+export const FIXTURE_TARGET_REGIONS: Record<ImageFixtureId, Rect> = {
+  photo: { x: 84, y: 40, width: 72, height: 48 },
+  gradient: { x: 16, y: 10, width: 16, height: 12 },
+  checkerboard: { x: 12, y: 10, width: 12, height: 12 },
+  "text-edge": { x: 13, y: 12, width: 16, height: 10 },
+  "pixel-grid": { x: 4, y: 4, width: 4, height: 4 },
+};
 
 export function getImageFixture(id: ImageFixtureId): RasterImage {
   return IMAGE_FIXTURES[id] ?? IMAGE_FIXTURES.photo;

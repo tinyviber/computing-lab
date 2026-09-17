@@ -23,9 +23,9 @@ export const labs: LabDefinition[] = [
     title: "图像编码",
     category: "信息编码",
     route: "/labs/image-encoding",
-    description: "采样、量化、重建图像与数据量。",
+    description: "把照片压进 bit 预算、验证丢掉的信息回不来，再看 AI 修复“猜”出了什么。",
     status: "available",
-    enabled: false,
+    enabled: true,
   },
   {
     id: "audio-encoding",

@@ -1,139 +1,68 @@
 import { describe, expect, it } from "vitest";
 import { parseImageEncodingScenario, serializeImageEncodingScenario } from "./scenario";
 
-describe("image lesson scenario", () => {
-  it("parses canonical shareable source and configuration keys", () => {
+describe("image restoration scenario", () => {
+  it("parses the canonical stage and artifact keys", () => {
+    expect(parseImageEncodingScenario("stage=3&image=checkerboard&res=25&colors=gray8")).toEqual({
+      stageIndex: 3,
+      artifact: { image: "checkerboard", resStop: 25, colorStop: "gray8" },
+    });
+  });
+
+  it("clamps malformed values at the domain boundary", () => {
+    expect(parseImageEncodingScenario("stage=999&image=nope&res=37&colors=nope&case=nope")).toEqual(
+      {
+        stageIndex: 5,
+        artifact: { image: "photo", resStop: 25, colorStop: "palette4" },
+      },
+    );
+    expect(parseImageEncodingScenario("stage=-4&res=abc")).toEqual({
+      stageIndex: 1,
+      artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
+    });
+  });
+
+  it("uses the first value when query keys repeat", () => {
+    expect(parseImageEncodingScenario("stage=2&stage=5&res=25&res=100&colors=palette2")).toEqual({
+      stageIndex: 2,
+      artifact: { image: "photo", resStop: 25, colorStop: "palette2" },
+    });
+  });
+
+  it("maps old sampling, bit-depth, and view links onto the nearest new scenario", () => {
     expect(
-      parseImageEncodingScenario("image=checkerboard&sample=25&phase=0.5&bits=2&view=error"),
+      parseImageEncodingScenario("image=gradient&sample=40&bits=8&view=representation"),
     ).toEqual({
-      fixture: "checkerboard",
-      samplingPercent: 25,
-      phase: 0.5,
-      bitDepth: 2,
-      view: "error",
-      colorMode: "rgb24",
+      stageIndex: 1,
+      artifact: { image: "gradient", resStop: 50, colorStop: "palette8" },
+    });
+    expect(parseImageEncodingScenario("image=photo&sample=25&color=rgb24&view=error")).toEqual({
+      stageIndex: 3,
+      artifact: { image: "photo", resStop: 25, colorStop: "rgb24" },
     });
   });
 
-  it("keeps the photo image query as a supported shareable source", () => {
-    expect(parseImageEncodingScenario("image=photo&sample=25&bits=8&view=error")).toEqual({
-      fixture: "photo",
-      samplingPercent: 25,
-      phase: 0,
-      bitDepth: 8,
-      view: "error",
-      colorMode: "rgb24",
+  it("keeps named legacy scenarios readable", () => {
+    expect(parseImageEncodingScenario("scenario=low-sampling")).toEqual({
+      stageIndex: 1,
+      artifact: { image: "checkerboard", resStop: 25, colorStop: "palette4" },
+    });
+    expect(parseImageEncodingScenario("scenario=high-quantization&bits=2")).toEqual({
+      stageIndex: 1,
+      artifact: { image: "gradient", resStop: 50, colorStop: "palette2" },
     });
   });
 
-  it("reads legacy color=palette links as the original RGB24 state", () => {
-    const state = parseImageEncodingScenario(
-      "image=photo&sample=100&bits=4&color=palette&view=compare",
-    );
-
-    expect(state).toMatchObject({
-      fixture: "photo",
-      samplingPercent: 100,
-      bitDepth: 4,
-      colorMode: "rgb24",
+  it("serializes only the reproducible artifact and stage", () => {
+    const serialized = serializeImageEncodingScenario({
+      stageIndex: 2,
+      artifact: { image: "photo", resStop: 10, colorStop: "gray8" },
+      caseId: "not-reviewed",
     });
-  });
-
-  it("ignores unsupported URL parameters", () => {
-    const state = parseImageEncodingScenario(
-      "image=photo&sample=50&bits=4&legacy_progress=ignored",
-    );
-
-    expect(state.colorMode).toBe("rgb24");
-
-    const serialized = serializeImageEncodingScenario(state);
-    expect(serialized).not.toContain("color=");
-    expect(serialized).not.toContain("legacy_progress");
-  });
-
-  it("defaults and clamps malformed values without accepting unsupported values", () => {
-    expect(
-      parseImageEncodingScenario("image=nope&sample=999&phase=-2&bits=99&view=submit"),
-    ).toMatchObject({
-      fixture: "photo",
-      samplingPercent: 100,
-      phase: 0,
-      bitDepth: 8,
-      view: "compare",
-      colorMode: "rgb24",
-    });
-    expect(parseImageEncodingScenario("sample=abc&bits=2.5")).toMatchObject({
-      samplingPercent: 50,
-      bitDepth: 4,
-      colorMode: "rgb24",
-    });
-  });
-
-  it("uses first duplicate values and keeps legacy scenario links readable", () => {
-    expect(parseImageEncodingScenario("sample=25&sample=80&bits=2&bits=8")).toMatchObject({
-      samplingPercent: 25,
-      bitDepth: 2,
-      colorMode: "rgb24",
-    });
-    expect(parseImageEncodingScenario("scenario=low-sampling")).toMatchObject({
-      fixture: "checkerboard",
-      samplingPercent: 25,
-      colorMode: "rgb24",
-    });
-    expect(parseImageEncodingScenario("scenario=high-quantization")).toMatchObject({
-      fixture: "gradient",
-      samplingPercent: 75,
-      bitDepth: 2,
-      colorMode: "rgb24",
-    });
-  });
-
-  it.each([
-    ["gradient", "gradient"],
-    ["checkerboard", "checkerboard"],
-  ] as const)("preserves %s as a compatible fixture query", (query, fixture) => {
-    expect(parseImageEncodingScenario(`image=${query}&sample=25&bits=2`)).toMatchObject({
-      fixture,
-      samplingPercent: 25,
-      bitDepth: 2,
-      colorMode: "rgb24",
-    });
-  });
-
-  it("canonicalizes phase from rounded fixture geometry rather than percentage alone", () => {
-    expect(parseImageEncodingScenario("image=checkerboard&sample=99&phase=0.8")).toMatchObject({
-      fixture: "checkerboard",
-      samplingPercent: 99,
-      phase: 0,
-      colorMode: "rgb24",
-    });
-    expect(
-      serializeImageEncodingScenario({
-        fixture: "checkerboard",
-        samplingPercent: 99,
-        phase: 0.8,
-        bitDepth: 4,
-        view: "compare",
-        colorMode: "rgb24",
-      }),
-    ).toBe("image=checkerboard&sample=99&phase=0.00&bits=4&view=compare");
-  });
-
-  it("serializes only reproducible configuration and omits color state", () => {
-    const state = {
-      fixture: "gradient" as const,
-      samplingPercent: 40,
-      phase: 0.25,
-      bitDepth: 3,
-      view: "representation" as const,
-      colorMode: "palette" as const,
-    };
-    const serialized = serializeImageEncodingScenario(state);
-    expect(serialized).toBe("image=gradient&sample=40&phase=0.25&bits=3&view=representation");
-    expect(serialized).not.toContain("color=");
-    expect(parseImageEncodingScenario(serialized)).toMatchObject({
-      ...state,
-      colorMode: "rgb24",
+    expect(serialized).toBe("stage=2&image=photo&res=10&colors=gray8");
+    expect(parseImageEncodingScenario(serialized)).toEqual({
+      stageIndex: 2,
+      artifact: { image: "photo", resStop: 10, colorStop: "gray8" },
     });
   });
 });

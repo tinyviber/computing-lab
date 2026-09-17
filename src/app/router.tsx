@@ -26,6 +26,7 @@ import { LabGate } from "./pages/LabGate";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
+import { ImageEncodingRedirectPage } from "./pages/ImageEncodingRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 
@@ -101,7 +102,20 @@ function legacyLabRoute<Path extends string>(labId: string, path: Path, Page: Co
   });
 }
 
-const imageRoute = legacyLabRoute("image-encoding", "/labs/image-encoding", ImageEncodingPage);
+const imageEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/image-encoding",
+  validateSearch: passThroughSearch,
+  component: gatedLab("image-encoding", ImageEncodingRedirectPage),
+  errorComponent: LabErrorPage,
+});
+const imageLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/image-encoding",
+  validateSearch: passThroughSearch,
+  component: gatedLab("image-encoding", ImageEncodingPage),
+  errorComponent: LabErrorPage,
+});
 const audioRoute = legacyLabRoute("audio-encoding", "/labs/audio-encoding", AudioEncodingPage);
 const networkRoute = legacyLabRoute("home-network", "/labs/home-network", HomeNetworkPage);
 const twosComplementRoute = legacyLabRoute(
@@ -160,7 +174,8 @@ const routeTree = rootRoute.addChildren([
   calculatorLabRoute,
   dashboardRoute,
   editorRoute,
-  imageRoute,
+  imageEntryRoute,
+  imageLabRoute,
   audioRoute,
   networkRoute,
   twosComplementRoute,

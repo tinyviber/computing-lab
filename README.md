@@ -20,6 +20,14 @@ bun run dev              # Vite 开发服 :5173，/api 代理到 :8788
 用例判定，全过才解锁下一关并把成果封装成可复用组件）。教师入口
 `/classes/:classId/dashboard`。
 
+图像编码实验（`图像编码` / “AI 修复老照片”）：`/classes/:classId/labs/image-encoding`
+按 `stage=1..5` 组织——约定表编码、预算内保存、many-to-one 信息损失三个核心关
+由服务端复核；AI 修复与抓幻觉为选做挑战。Challenge 1 已展示
+`public/labs/image-encoding/restored/` 下预生成的 Real-ESRGAN 输出
+（生成管线见 `scripts/restoration/`）；Challenge 2 在双人复核幻觉热点前
+保持占位（`HALLUCINATION_CASES` 为空）。匿名访客仍可在
+`/labs/image-encoding` 本地体验，离线无 API 依赖。
+
 ## Online lesson editor
 
 Open `/editor` through the editor service. It provides a password-protected browser workspace

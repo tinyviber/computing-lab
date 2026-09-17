@@ -1,45 +1,25 @@
 import { getImageFixture, type ImageFixtureId } from "../domain/fixture";
+import { getHallucinationCase } from "../domain/restoration";
 import {
-  MAX_BIT_DEPTH,
-  MAX_PHASE,
-  MAX_SAMPLING_PERCENT,
-  MIN_BIT_DEPTH,
-  MIN_PHASE,
-  MIN_SAMPLING_PERCENT,
-  isSamplingPhaseInert,
-  normalizeBitDepth,
-  normalizePhase,
-  normalizeSamplingPercent,
-} from "../domain/model";
-import type { ImageView } from "./state";
+  normalizeArtifact,
+  normalizeColorStop,
+  type Artifact,
+  type ColorStop,
+} from "../domain/stops";
+import { stageCount } from "../domain/stages";
 
 export type ImageScenarioSearch = URLSearchParams | string | Record<string, unknown>;
 
 export type ImageScenarioState = {
-  fixture: ImageFixtureId;
-  samplingPercent: number;
-  bitDepth: number;
-  phase: number;
-  view: ImageView;
-  colorMode?: "palette" | "rgb24";
+  stageIndex: number;
+  artifact: Artifact;
+  caseId?: string;
 };
 
 export const DEFAULT_IMAGE_SCENARIO: ImageScenarioState = {
-  fixture: "photo",
-  samplingPercent: 50,
-  bitDepth: 4,
-  phase: 0,
-  view: "compare",
-  colorMode: "rgb24",
+  stageIndex: 1,
+  artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
 };
-
-const IMAGE_VIEWS: readonly ImageView[] = [
-  "compare",
-  "sampling",
-  "quantization",
-  "representation",
-  "error",
-];
 
 function toParams(input: ImageScenarioSearch): URLSearchParams {
   if (input instanceof URLSearchParams) return input;
@@ -62,97 +42,68 @@ function firstNumber(params: URLSearchParams, keys: readonly string[]): number |
   return undefined;
 }
 
-function firstInteger(params: URLSearchParams, keys: readonly string[]): number | undefined {
-  const value = firstNumber(params, keys);
-  return value !== undefined && Number.isInteger(value) ? value : undefined;
-}
-
 function fixtureFromParams(params: URLSearchParams): ImageFixtureId {
-  const requested = params.get("image") ?? params.get("fixture");
-  if (
-    requested === "gradient" ||
-    requested === "checkerboard" ||
-    requested === "text-edge" ||
-    requested === "pixel-grid" ||
-    requested === "photo"
-  )
-    return requested;
   const legacy = params.get("scenario");
+  const requested = params.get("image") ?? params.get("fixture");
   if (legacy === "low-sampling") return "checkerboard";
   if (legacy === "high-quantization") return "gradient";
-  return DEFAULT_IMAGE_SCENARIO.fixture;
+  return getImageFixture(requested as ImageFixtureId).id as ImageFixtureId;
 }
 
-function viewFromParams(params: URLSearchParams): ImageView {
-  const requested = params.get("view");
-  return IMAGE_VIEWS.includes(requested as ImageView)
-    ? (requested as ImageView)
-    : DEFAULT_IMAGE_SCENARIO.view;
+function colorStopFromLegacy(params: URLSearchParams): ColorStop {
+  const canonical = params.get("colors");
+  if (canonical !== null) return normalizeColorStop(canonical);
+  if (params.get("color") === "rgb24") return "rgb24";
+  const bits = firstNumber(params, ["bits", "bitDepth"]);
+  if (bits === undefined) return DEFAULT_IMAGE_SCENARIO.artifact.colorStop;
+  if (bits >= 8) return "palette8";
+  if (bits >= 4) return "palette4";
+  return "palette2";
 }
 
-function canonicalPhaseForFixture(
-  fixture: ImageFixtureId,
-  samplingPercent: number,
-  phase: number,
-): number {
-  return isSamplingPhaseInert(getImageFixture(fixture), samplingPercent)
-    ? MIN_PHASE
-    : normalizePhase(phase);
+function stageFromParams(params: URLSearchParams): number {
+  const requested = firstNumber(params, ["stage"]);
+  if (requested !== undefined) {
+    return Math.min(stageCount(), Math.max(1, Math.floor(requested)));
+  }
+  const view = params.get("view");
+  if (view === "representation") return 1;
+  if (view === "error") return 3;
+  if (view !== null) return 2;
+  return DEFAULT_IMAGE_SCENARIO.stageIndex;
 }
 
 export function parseImageEncodingScenario(input: ImageScenarioSearch): ImageScenarioState {
   const params = toParams(input);
-  const fixture = fixtureFromParams(params);
   const legacy = params.get("scenario");
-  const legacySampling =
-    legacy === "low-sampling" ? 25 : legacy === "high-quantization" ? 75 : undefined;
-  const samplingPercent = normalizeSamplingPercent(
-    firstInteger(params, ["sample", "sampling"]) ??
-      legacySampling ??
-      DEFAULT_IMAGE_SCENARIO.samplingPercent,
-  );
-  const bitDepth = normalizeBitDepth(
-    firstInteger(params, ["bits", "bitDepth"]) ??
-      (legacy === "high-quantization" ? 2 : DEFAULT_IMAGE_SCENARIO.bitDepth),
-  );
-  const phase = canonicalPhaseForFixture(
-    fixture,
-    samplingPercent,
-    firstNumber(params, ["phase"]) ?? DEFAULT_IMAGE_SCENARIO.phase,
-  );
+  const sampling =
+    firstNumber(params, ["res", "sample", "sampling"]) ??
+    (legacy === "low-sampling" ? 25 : legacy === "high-quantization" ? 50 : 50);
+  const artifact = normalizeArtifact({
+    image: fixtureFromParams(params),
+    resStop: sampling,
+    colorStop: colorStopFromLegacy(params),
+  });
+  const requestedCase = params.get("case") ?? undefined;
+  const caseId = requestedCase && getHallucinationCase(requestedCase) ? requestedCase : undefined;
   return {
-    fixture,
-    samplingPercent,
-    bitDepth,
-    phase,
-    view: viewFromParams(params),
-    colorMode: "rgb24",
+    stageIndex: stageFromParams(params),
+    artifact,
+    ...(caseId ? { caseId } : {}),
   };
 }
 
 export function serializeImageEncodingScenario(state: ImageScenarioState): string {
+  const normalized = normalizeArtifact(state.artifact);
   const params = new URLSearchParams();
-  params.set("image", state.fixture);
-  const samplingPercent = normalizeSamplingPercent(state.samplingPercent);
-  params.set("sample", String(samplingPercent));
-  params.set(
-    "phase",
-    canonicalPhaseForFixture(state.fixture, samplingPercent, state.phase).toFixed(2),
-  );
-  params.set("bits", String(normalizeBitDepth(state.bitDepth)));
-  params.set("view", state.view);
+  params.set("stage", String(Math.min(stageCount(), Math.max(1, Math.floor(state.stageIndex)))));
+  params.set("image", normalized.image);
+  params.set("res", String(normalized.resStop));
+  params.set("colors", normalized.colorStop);
+  if (state.caseId && getHallucinationCase(state.caseId)) params.set("case", state.caseId);
   return params.toString();
 }
 
 export function scenarioSource(state: ImageScenarioState) {
-  return getImageFixture(state.fixture);
+  return getImageFixture(state.artifact.image);
 }
-
-export const IMAGE_SCENARIO_LIMITS = {
-  minSampling: MIN_SAMPLING_PERCENT,
-  maxSampling: MAX_SAMPLING_PERCENT,
-  minBits: MIN_BIT_DEPTH,
-  maxBits: MAX_BIT_DEPTH,
-  minPhase: MIN_PHASE,
-  maxPhase: MAX_PHASE,
-};
