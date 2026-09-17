@@ -203,8 +203,11 @@ backup_db() {
   count=0
   while IFS= read -r old; do
     count=$((count + 1))
-    (( count > KEEP_DB_BACKUPS )) && as_api rm -f -- "$old"
+    if (( count > KEEP_DB_BACKUPS )); then
+      as_api rm -f -- "$old"
+    fi
   done < <(ls -1t "$API_ROOT"/lab.db.backup-* 2>/dev/null)
+  return 0
 }
 
 install_deps_if_needed() {
@@ -263,6 +266,14 @@ switch_to() {
   current="$(current_sha)"
   if [[ "$current" == "$target" ]]; then
     log "already at $target; strict no-op"
+    if [[ "$DRY_RUN" != 1 && "$DEPLOY_TEST_MODE" != 1 ]]; then
+      if ! systemctl is-active --quiet "$API_SERVICE"; then
+        log 'service is not active; starting it'
+        systemctl start "$API_SERVICE" || die 'service start failed'
+      fi
+      wait_health || die 'health check failed'
+      write_state "$target" "$DEPLOYED_SHA_FILE"
+    fi
     return 0
   fi
   [[ "$(remote_main_sha)" == "$(git_api rev-parse "refs/remotes/$GIT_REMOTE/$GIT_REF")" ]] \
@@ -271,12 +282,14 @@ switch_to() {
   # last known-good revision even if this run is interrupted.
   write_state "$current" "$PREVIOUS_SHA_FILE"
   log "deploying $current -> $target"
-  run service_control stop
-  run backup_db
-  run git_api checkout --quiet --detach "$target"
-  install_deps_if_needed "$current" "$target"
-  [[ "$DO_SEED" == 1 ]] && seed_accounts
-  run service_control start
+  run service_control stop || die 'service stop failed; deploy aborted'
+  if ! { run backup_db \
+      && run git_api checkout --quiet --detach "$target" \
+      && install_deps_if_needed "$current" "$target"; }; then
+    service_control start 2>/dev/null || true
+    die 'switch failed mid-deploy; restart attempted — run `status`, then `rollback`'
+  fi
+  run service_control start || die 'service start failed'
   if [[ "$DRY_RUN" == 1 ]]; then return 0; fi
   if ! wait_health; then
     printf 'computing-lab-api-deploy: health check failed; service left for diagnosis.\n' >&2
@@ -286,6 +299,11 @@ switch_to() {
   fi
   write_state "$target" "$DEPLOYED_SHA_FILE"
   log "deployed $target"
+  # Seed runs only after the service is healthy: a seed failure must not
+  # strand a stopped API.
+  if [[ "$DO_SEED" == 1 ]]; then
+    seed_accounts || die 'seed failed; deployed code is live but accounts were not seeded'
+  fi
 }
 
 cmd_deploy() {
