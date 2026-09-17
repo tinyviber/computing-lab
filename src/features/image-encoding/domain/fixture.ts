@@ -1,4 +1,4 @@
-import type { Rect, RGB, RasterImage } from "./model";
+import type { Rect, RGB, RasterImage } from "./model.ts";
 
 export type ImageFixtureId = "photo" | "gradient" | "checkerboard" | "text-edge" | "pixel-grid";
 
@@ -57,7 +57,7 @@ function makeRasterFromRgb(
   };
 }
 
-import { PHOTO_RGB_BASE64 } from "./photo-rgb";
+import { PHOTO_RGB_BASE64 } from "./photo-rgb.ts";
 // Generated local RGB source, fixed at 240 × 160 for the sampling comparison.
 const photo = makeRasterFromRgb("photo", "小猫插图", 240, 160, PHOTO_RGB_BASE64);
 const gradient = makeRaster("gradient", "平滑色彩渐变", 48, 32, (x, y) => {

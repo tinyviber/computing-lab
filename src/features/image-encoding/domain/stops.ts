@@ -1,4 +1,4 @@
-import { getImageFixture, type ImageFixtureId } from "./fixture";
+import { getImageFixture, type ImageFixtureId } from "./fixture.ts";
 import {
   normalizeSamplingPercent,
   rawPayload,
@@ -6,7 +6,7 @@ import {
   type ImageColorMode,
   type ImageEncodingOptions,
   type RasterImage,
-} from "./model";
+} from "./model.ts";
 
 export const RESOLUTION_STOPS = [100, 50, 25, 10] as const;
 export type ResolutionStop = (typeof RESOLUTION_STOPS)[number];

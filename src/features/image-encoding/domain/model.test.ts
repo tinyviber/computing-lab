@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getImageFixture } from "./fixture";
+import { getImageFixture } from "./fixture.ts";
 import {
   buildPalette,
   calculateImageEncoding,
@@ -18,7 +18,7 @@ import {
   sampledDimensions,
   quantizeSampledImage,
   type RasterImage,
-} from "./model";
+} from "./model.ts";
 
 describe("image encoding domain model", () => {
   const source = getImageFixture("photo");

@@ -1,4 +1,4 @@
-import type { RGB } from "./model";
+import type { RGB } from "./model.ts";
 
 export const BIT_CANVAS_SIZE = 8;
 export const BIT_CANVAS_BITS_PER_PIXEL = 2;

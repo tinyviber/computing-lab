@@ -1,4 +1,4 @@
-import type { ImageFixtureId } from "./fixture";
+import type { ImageFixtureId } from "./fixture.ts";
 
 export type RGB = { r: number; g: number; b: number };
 

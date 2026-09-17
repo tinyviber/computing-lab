@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getImageFixture, FIXTURE_TARGET_REGIONS } from "./fixture";
+import { getImageFixture, FIXTURE_TARGET_REGIONS } from "./fixture.ts";
 import {
   checkChallenge2,
   checkCore1,
@@ -7,10 +7,10 @@ import {
   checkCore3,
   core3Window,
   CORE3_MIN_DIFF_PIXELS,
-} from "./checks";
-import type { RGB, RasterImage } from "./model";
-import { budgetCombos, type Artifact } from "./stops";
-import type { RestorationCase } from "./restoration";
+} from "./checks.ts";
+import type { RGB, RasterImage } from "./model.ts";
+import { budgetCombos, type Artifact } from "./stops.ts";
+import type { RestorationCase } from "./restoration.ts";
 
 function makeRaster(
   id: string,

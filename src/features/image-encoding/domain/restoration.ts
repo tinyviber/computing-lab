@@ -1,6 +1,6 @@
-import type { ImageFixtureId } from "./fixture";
-import type { Rect } from "./model";
-import type { ColorStop, ResolutionStop } from "./stops";
+import type { ImageFixtureId } from "./fixture.ts";
+import type { Rect } from "./model.ts";
+import type { ColorStop, ResolutionStop } from "./stops.ts";
 
 export type RestorationCase = {
   id: string;

@@ -9,7 +9,7 @@ import {
   hotspotHits,
   pointInRect,
   restorationAssetPath,
-} from "./restoration";
+} from "./restoration.ts";
 
 describe("restoration cases", () => {
   it("builds the deterministic asset path the offline pipeline writes", () => {

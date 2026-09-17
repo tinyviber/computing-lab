@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getImageFixture } from "./fixture";
+import { getImageFixture } from "./fixture.ts";
 import {
   artifactOptions,
   artifactRawBits,
@@ -9,7 +9,7 @@ import {
   DEFAULT_BUDGET_RATIO,
   normalizeArtifact,
   stopBitDepth,
-} from "./stops";
+} from "./stops.ts";
 
 const photo = getImageFixture("photo");
 
