@@ -211,37 +211,39 @@
 
 .component-entry-actions {
   display: inline-flex;
-  flex-direction: column;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
 }
 
 .component-edit,
 .component-delete {
-  width: 22px;
-  height: 22px;
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
   padding: 0;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 50%;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  font-size: 16px;
+  font-size: 14px;
   line-height: 1;
 }
 
 .component-edit {
   color: var(--accent);
-  font-size: 14px;
+}
+
+.component-edit svg {
+  display: block;
 }
 
 .component-edit:hover {
-  border-color: #c9c7f4;
   background: var(--accent-soft);
 }
 
 .component-delete:hover {
-  border-color: #f0cfcb;
   background: #fdf0ef;
   color: var(--danger);
 }
@@ -621,24 +623,56 @@
 }
 
 .custom-component-port-row {
+  position: relative;
   display: grid;
   grid-template-columns: 22px minmax(0, 1fr);
   align-items: center;
   gap: 6px;
 }
 
+.custom-component-port-row.is-drag-source {
+  opacity: 0.45;
+}
+
+.custom-component-port-row.drop-before::before,
+.custom-component-port-row.drop-after::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  left: -4px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--primary);
+  pointer-events: none;
+}
+
+.custom-component-port-row.drop-before::before {
+  top: -6px;
+}
+
+.custom-component-port-row.drop-after::after {
+  bottom: -6px;
+}
+
 .custom-component-port-drag-handle {
   display: inline-grid;
   place-items: center;
   min-height: 32px;
-  border: 1px dashed var(--border);
+  border: 0;
   border-radius: 6px;
   color: var(--muted);
   cursor: grab;
-  font-size: 14px;
-  letter-spacing: -4px;
   line-height: 1;
   user-select: none;
+}
+
+.custom-component-port-drag-handle svg {
+  fill: currentColor;
+}
+
+.custom-component-port-drag-handle:hover {
+  background: var(--subtle);
+  color: var(--secondary);
 }
 
 .custom-component-port-drag-handle:active {
@@ -937,23 +971,24 @@
 }
 
 .node-collapse-toggle-bg {
-  fill: var(--surface);
-  stroke: var(--border);
-  stroke-width: 1;
+  fill: transparent;
 }
 
 .node-collapse-toggle:hover .node-collapse-toggle-bg,
 .node-collapse-toggle:focus .node-collapse-toggle-bg {
-  fill: var(--accent-soft);
-  stroke: var(--focus-ring);
+  fill: var(--subtle);
 }
 
 .node-collapse-toggle-icon {
-  fill: var(--focus);
-  font-size: 12px;
+  fill: var(--muted);
+  font-size: 13px;
   font-weight: 700;
-  text-anchor: end;
   pointer-events: none;
+}
+
+.node-collapse-toggle:hover .node-collapse-toggle-icon,
+.node-collapse-toggle:focus .node-collapse-toggle-icon {
+  fill: var(--primary);
 }
 
 .test-note {

@@ -54,14 +54,31 @@ function suggestedPortName(label: string, fallback: string): string {
   return isValidComponentIdentifier(candidate) ? candidate : fallback;
 }
 
-function reorderPorts(ports: PortDraft[], draggedKey: string, targetKey: string): PortDraft[] {
+/** Reinsert the dragged port at an index captured by the drop indicator. */
+function reorderPorts(ports: PortDraft[], draggedKey: string, insertIndex: number): PortDraft[] {
   const fromIndex = ports.findIndex((port) => port.key === draggedKey);
-  const targetIndex = ports.findIndex((port) => port.key === targetKey);
-  if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return ports;
+  if (fromIndex < 0) return ports;
   const next = [...ports];
   const [moved] = next.splice(fromIndex, 1);
-  next.splice(targetIndex, 0, moved);
+  const target = Math.min(
+    Math.max(insertIndex - (insertIndex > fromIndex ? 1 : 0), 0),
+    next.length,
+  );
+  next.splice(target, 0, moved);
   return next;
+}
+
+function DragGripIcon() {
+  return (
+    <svg aria-hidden="true" height="14" viewBox="0 0 10 16" width="9">
+      <circle cx="2.6" cy="3" r="1.4" />
+      <circle cx="7.4" cy="3" r="1.4" />
+      <circle cx="2.6" cy="8" r="1.4" />
+      <circle cx="7.4" cy="8" r="1.4" />
+      <circle cx="2.6" cy="13" r="1.4" />
+      <circle cx="7.4" cy="13" r="1.4" />
+    </svg>
+  );
 }
 
 export function CustomComponentDialog({
@@ -95,12 +112,20 @@ export function CustomComponentDialog({
         })),
   );
   const [draggedPort, setDraggedPort] = useState<{ kind: PortKind; key: string } | null>(null);
+  const [dropIndex, setDropIndex] = useState<{ kind: PortKind; index: number } | null>(null);
   const inputNames = inputPorts.map((port) => port.name);
   const outputNames = outputPorts.map((port) => port.name);
 
+  const otherNames = useMemo(
+    () =>
+      existingNames.filter(
+        (existing) => existing.toLocaleLowerCase() !== (component?.name ?? "").toLocaleLowerCase(),
+      ),
+    [component?.name, existingNames],
+  );
   const componentNameError = useMemo(
-    () => (isEditing ? null : nameError(name, existingNames, "组件名称")),
-    [existingNames, isEditing, name],
+    () => nameError(name, otherNames, "组件名称"),
+    [otherNames, name],
   );
   const portsError = useMemo(
     () => portNamesError(inputNames, outputNames),
@@ -118,18 +143,60 @@ export function CustomComponentDialog({
     );
   };
 
+  const clearDrag = () => {
+    setDraggedPort(null);
+    setDropIndex(null);
+  };
+
   const onPortDragStart = (event: DragEvent, kind: PortKind, key: string) => {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", key);
     setDraggedPort({ kind, key });
   };
 
-  const onPortDrop = (event: DragEvent, kind: PortKind, targetKey: string) => {
+  /**
+   * One dragover listener per list: the insertion index comes from comparing
+   * the pointer against each row's midpoint, so hovering gaps still resolves
+   * to the nearest slot and the indicator can render between rows.
+   */
+  const onListDragOver = (event: DragEvent, kind: PortKind, count: number) => {
+    if (draggedPort?.kind !== kind) return;
     event.preventDefault();
-    if (!draggedPort || draggedPort.kind !== kind) return;
-    const setter = kind === "input" ? setInputPorts : setOutputPorts;
-    setter((current) => reorderPorts(current, draggedPort.key, targetKey));
-    setDraggedPort(null);
+    const rows = event.currentTarget.querySelectorAll("[data-port-key]");
+    const pointerY = Number.isFinite(event.clientY) ? event.clientY : 0;
+    let index = count;
+    for (let i = 0; i < rows.length; i += 1) {
+      const rect = rows[i].getBoundingClientRect();
+      if (pointerY <= rect.top + rect.height / 2) {
+        index = i;
+        break;
+      }
+    }
+    setDropIndex({ kind, index });
+  };
+
+  const onPortDrop = (event: DragEvent, kind: PortKind, fallbackIndex: number) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (draggedPort?.kind === kind) {
+      const index = dropIndex?.kind === kind ? dropIndex.index : fallbackIndex;
+      const setter = kind === "input" ? setInputPorts : setOutputPorts;
+      setter((current) => reorderPorts(current, draggedPort.key, index));
+    }
+    clearDrag();
+  };
+
+  const onListDragLeave = (event: DragEvent, kind: PortKind) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setDropIndex((current) => (current?.kind === kind ? null : current));
+    }
+  };
+
+  const dropClass = (kind: PortKind, index: number, count: number): string => {
+    if (dropIndex?.kind !== kind) return "";
+    if (dropIndex.index === index) return " drop-before";
+    if (dropIndex.index >= count && index === count - 1) return " drop-after";
+    return "";
   };
 
   return (
@@ -178,43 +245,45 @@ export function CustomComponentDialog({
             else onCreate?.(form);
           }}
         >
-          {isEditing ? (
-            <label className="custom-component-field">
-              <span>组件名称</span>
-              <input disabled value={name} />
-            </label>
-          ) : (
-            <label className="custom-component-field">
-              <span>组件名称</span>
-              <input autoFocus onChange={(event) => setName(event.target.value)} value={name} />
-            </label>
-          )}
+          <label className="custom-component-field">
+            <span>组件名称</span>
+            <input
+              autoFocus={!isEditing}
+              onChange={(event) => setName(event.target.value)}
+              value={name}
+            />
+          </label>
 
           <div className="custom-component-port-groups">
-            <fieldset>
+            <fieldset
+              onDragLeave={(event) => onListDragLeave(event, "input")}
+              onDragOver={(event) => onListDragOver(event, "input", inputPorts.length)}
+              onDrop={(event) => onPortDrop(event, "input", inputPorts.length)}
+            >
               <legend>入口（{inputPorts.length}）</legend>
               {inputPorts.length === 0 ? (
                 <p className="custom-component-no-ports">无入口</p>
               ) : (
                 inputPorts.map((port, index) => (
                   <div
-                    className="custom-component-port-row"
+                    className={`custom-component-port-row${
+                      draggedPort?.kind === "input" && draggedPort.key === port.key
+                        ? " is-drag-source"
+                        : ""
+                    }${dropClass("input", index, inputPorts.length)}`}
                     data-port-key={port.key}
                     key={port.key}
-                    onDragOver={(event) => {
-                      if (draggedPort?.kind === "input") event.preventDefault();
-                    }}
-                    onDrop={(event) => onPortDrop(event, "input", port.key)}
+                    onDrop={(event) => onPortDrop(event, "input", index)}
                   >
                     <span
                       aria-label={`拖动入口 ${index + 1}`}
                       className="custom-component-port-drag-handle"
                       draggable
-                      onDragEnd={() => setDraggedPort(null)}
+                      onDragEnd={clearDrag}
                       onDragStart={(event) => onPortDragStart(event, "input", port.key)}
                       title="拖动调整顺序"
                     >
-                      ⋮⋮
+                      <DragGripIcon />
                     </span>
                     <input
                       aria-label={`入口 ${index + 1} 名称`}
@@ -225,30 +294,35 @@ export function CustomComponentDialog({
                 ))
               )}
             </fieldset>
-            <fieldset>
+            <fieldset
+              onDragLeave={(event) => onListDragLeave(event, "output")}
+              onDragOver={(event) => onListDragOver(event, "output", outputPorts.length)}
+              onDrop={(event) => onPortDrop(event, "output", outputPorts.length)}
+            >
               <legend>出口（{outputPorts.length}）</legend>
               {outputPorts.length === 0 ? (
                 <p className="custom-component-no-ports">无出口</p>
               ) : (
                 outputPorts.map((port, index) => (
                   <div
-                    className="custom-component-port-row"
+                    className={`custom-component-port-row${
+                      draggedPort?.kind === "output" && draggedPort.key === port.key
+                        ? " is-drag-source"
+                        : ""
+                    }${dropClass("output", index, outputPorts.length)}`}
                     data-port-key={port.key}
                     key={port.key}
-                    onDragOver={(event) => {
-                      if (draggedPort?.kind === "output") event.preventDefault();
-                    }}
-                    onDrop={(event) => onPortDrop(event, "output", port.key)}
+                    onDrop={(event) => onPortDrop(event, "output", index)}
                   >
                     <span
                       aria-label={`拖动出口 ${index + 1}`}
                       className="custom-component-port-drag-handle"
                       draggable
-                      onDragEnd={() => setDraggedPort(null)}
+                      onDragEnd={clearDrag}
                       onDragStart={(event) => onPortDragStart(event, "output", port.key)}
                       title="拖动调整顺序"
                     >
-                      ⋮⋮
+                      <DragGripIcon />
                     </span>
                     <input
                       aria-label={`出口 ${index + 1} 名称`}

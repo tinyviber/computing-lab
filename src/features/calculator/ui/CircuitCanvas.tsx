@@ -361,13 +361,19 @@ export function CircuitCanvas({
                       >
                         <rect
                           className="node-collapse-toggle-bg"
-                          height={14}
-                          rx={3}
-                          width={14}
-                          x={size.width - 20}
-                          y={4}
+                          height={16}
+                          rx={4}
+                          width={16}
+                          x={size.width - 21}
+                          y={3}
                         />
-                        <text className="node-collapse-toggle-icon" x={size.width - 13} y={15}>
+                        <text
+                          className="node-collapse-toggle-icon"
+                          dominantBaseline="central"
+                          textAnchor="middle"
+                          x={size.width - 13}
+                          y={11}
+                        >
                           {node.collapsed ? "+" : "−"}
                         </text>
                       </g>

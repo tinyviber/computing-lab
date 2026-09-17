@@ -424,11 +424,13 @@ export function CalculatorLabPage() {
       {editingComponent ? (
         <CustomComponentDialog
           component={editingComponent}
+          existingNames={state.unlockedSubmodules.map((component) => component.name)}
           onCancel={() => setEditingComponentName(null)}
           onUpdate={(form: ComponentizeForm) => {
             dispatch({
               type: "edit-custom-component",
               name: editingComponent.name,
+              newName: form.name,
               inputNames: form.inputNames,
               outputNames: form.outputNames,
               inputPortKeys: form.inputPortKeys,

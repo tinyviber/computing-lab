@@ -8,6 +8,7 @@ import {
   componentizeSelection,
   editComponentPorts,
   expandComponentNode,
+  isValidComponentIdentifier,
 } from "../domain/componentize";
 import {
   emptyGraph,
@@ -102,6 +103,8 @@ export type CalculatorLessonAction =
   | {
       type: "edit-custom-component";
       name: string;
+      /** New component name; omitted or equal to `name` keeps the old name. */
+      newName?: string;
       inputNames: string[];
       outputNames: string[];
       inputPortKeys?: string[];
@@ -240,6 +243,42 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
   };
 }
 
+/**
+ * Re-place contract pins that still sit on scaffold slots. Drafts saved before
+ * a pin contract changed keep the old slot order (e.g. Op1 above Op0 in the
+ * calculator stage); if every pin is still on a slot the learner never moved
+ * them, so snapping to the current contract order is safe. Any pin dragged
+ * off the column leaves all positions untouched.
+ */
+function realignScaffoldPins(graph: CircuitGraph, scaffold: CircuitGraph): CircuitGraph {
+  const canonical = new Map(
+    scaffold.nodes.map((node) => [`${node.kind}:${node.name ?? ""}`, node]),
+  );
+  const slots = new Map<string, Set<string>>();
+  for (const node of scaffold.nodes) {
+    const set = slots.get(node.kind) ?? new Set<string>();
+    set.add(`${node.x},${node.y}`);
+    slots.set(node.kind, set);
+  }
+  const pins = graph.nodes.filter((node) => node.kind === "input" || node.kind === "output");
+  if (pins.length === 0) return graph;
+  const untouched = pins.every(
+    (node) =>
+      canonical.has(`${node.kind}:${node.name ?? ""}`) &&
+      slots.get(node.kind)?.has(`${node.x},${node.y}`),
+  );
+  if (!untouched) return graph;
+  let changed = false;
+  const nodes = graph.nodes.map((node) => {
+    if (node.kind !== "input" && node.kind !== "output") return node;
+    const target = canonical.get(`${node.kind}:${node.name ?? ""}`);
+    if (!target || (node.x === target.x && node.y === target.y)) return node;
+    changed = true;
+    return { ...node, x: target.x, y: target.y };
+  });
+  return changed ? { ...graph, nodes } : graph;
+}
+
 /** Ensure the stage's required pins exist even in a restored draft. */
 function withScaffold(graph: CircuitGraph, stageIndex: number): CircuitGraph {
   const scaffold = scaffoldGraph(stageIndex);
@@ -248,7 +287,8 @@ function withScaffold(graph: CircuitGraph, stageIndex: number): CircuitGraph {
     graph.nodes.filter((n) => n.kind === "input" || n.kind === "output").map((n) => n.name),
   );
   const missing = scaffold.nodes.filter((n) => !names.has(n.name));
-  return missing.length === 0 ? graph : { ...graph, nodes: [...graph.nodes, ...missing] };
+  const merged = missing.length === 0 ? graph : { ...graph, nodes: [...graph.nodes, ...missing] };
+  return realignScaffoldPins(merged, scaffold);
 }
 
 function portsOf(node: CircuitNode, direction: "in" | "out"): string[] {
@@ -381,6 +421,23 @@ function deleteNodes(state: CalculatorLessonState, ids: string[]): CalculatorLes
   };
 }
 
+/** Point every component instance that referenced `from` at the new name. */
+function rewriteComponentNameReferences(
+  graph: CircuitGraph,
+  from: string,
+  to: string,
+): CircuitGraph {
+  let changed = false;
+  const nodes = graph.nodes.map((node) => {
+    if (node.kind === "component" && node.name === from) {
+      changed = true;
+      return { ...node, name: to };
+    }
+    return node;
+  });
+  return changed ? { ...graph, nodes } : graph;
+}
+
 function rewriteComponentPortReferences(
   graph: CircuitGraph,
   componentName: string,
@@ -421,6 +478,25 @@ function editCustomComponent(
   );
   if (!component) return { ...state, message: "找不到要编辑的自定义组件。" };
 
+  const nextName = (action.newName ?? component.name).trim();
+  if (!isValidComponentIdentifier(nextName)) {
+    return {
+      ...state,
+      message: "组件名称只能使用字母、数字、下划线或连字符，且需以字母或下划线开头。",
+    };
+  }
+  const renamed = nextName !== component.name;
+  if (
+    renamed &&
+    state.unlockedSubmodules.some(
+      (candidate) =>
+        candidate !== component &&
+        candidate.name.toLocaleLowerCase() === nextName.toLocaleLowerCase(),
+    )
+  ) {
+    return { ...state, message: `组件名称“${nextName}”已存在，请换一个名称。` };
+  }
+
   const result = editComponentPorts({
     component,
     inputNames: action.inputNames,
@@ -430,15 +506,20 @@ function editCustomComponent(
   });
   if ("error" in result) return { ...state, message: result.error };
 
-  const updateReferences = (graph: CircuitGraph) =>
-    rewriteComponentPortReferences(
+  const updateReferences = (graph: CircuitGraph) => {
+    const portsRewritten = rewriteComponentPortReferences(
       graph,
       component.name,
       result.inputPortRenames,
       result.outputPortRenames,
     );
+    return renamed
+      ? rewriteComponentNameReferences(portsRewritten, component.name, nextName)
+      : portsRewritten;
+  };
   const editedComponent = {
     ...result.component,
+    name: nextName,
     graph: updateReferences(result.component.graph),
   };
   const unlockedSubmodules = state.unlockedSubmodules.map((candidate) => {
@@ -464,7 +545,7 @@ function editCustomComponent(
     saveStatus: "dirty",
     runOutcome: null,
     judgeOutcome: null,
-    message: `已更新自定义组件“${component.name}”。`,
+    message: `已更新自定义组件“${nextName}”。`,
   };
 }
 

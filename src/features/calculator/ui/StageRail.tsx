@@ -105,7 +105,19 @@ export function StageRail({
                       title="编辑自定义组件"
                       type="button"
                     >
-                      ✎
+                      <svg
+                        aria-hidden="true"
+                        fill="none"
+                        height="13"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="2"
+                        viewBox="0 0 24 24"
+                        width="13"
+                      >
+                        <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+                      </svg>
                     </button>
                     <button
                       aria-label={`删除自定义组件 ${component.name}`}

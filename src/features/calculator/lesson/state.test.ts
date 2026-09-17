@@ -172,6 +172,68 @@ describe("calculator lesson state", () => {
     ).toEqual(["A", "B", "Sum"]);
   });
 
+  it("renames a custom component and rewrites every instance reference", () => {
+    const withGate = apply(createCalculatorLessonState(), {
+      type: "add-node",
+      kind: "xor",
+      x: 300,
+      y: 60,
+    });
+    const gateId = withGate.selectedNodeId!;
+    const wired = apply(
+      withGate,
+      { type: "start-wire", from: { node: "in-A", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in0" } },
+      { type: "start-wire", from: { node: "in-B", port: "out" } },
+      { type: "complete-wire", to: { node: gateId, port: "in1" } },
+      { type: "start-wire", from: { node: gateId, port: "out" } },
+      { type: "complete-wire", to: { node: "out-Sum", port: "in" } },
+    );
+    const componentized = apply(wired, {
+      type: "componentize-selection",
+      selectedIds: [gateId],
+      name: "XorBlock",
+      inputNames: ["A", "B"],
+      outputNames: ["Sum"],
+    });
+
+    const renamed = apply(componentized, {
+      type: "edit-custom-component",
+      name: "XorBlock",
+      newName: "PairXor",
+      inputNames: ["A", "B"],
+      outputNames: ["Sum"],
+    });
+    expect(renamed.unlockedSubmodules.map((component) => component.name)).toEqual(["PairXor"]);
+    expect(
+      graphOf(renamed).nodes.some((node) => node.kind === "component" && node.name === "PairXor"),
+    ).toBe(true);
+
+    // Renaming to a name taken by another component is refused.
+    const withTwo = apply(renamed, {
+      type: "load-project",
+      currentStage: 1,
+      passedStages: [],
+      unlockedSubmodules: [
+        ...renamed.unlockedSubmodules,
+        { name: "Used", custom: true, graph: { nodes: [], edges: [] } },
+      ],
+      drafts: renamed.drafts,
+    });
+    const conflicted = apply(withTwo, {
+      type: "edit-custom-component",
+      name: "PairXor",
+      newName: "Used",
+      inputNames: ["A", "B"],
+      outputNames: ["Sum"],
+    });
+    expect(conflicted.unlockedSubmodules.map((component) => component.name)).toEqual([
+      "PairXor",
+      "Used",
+    ]);
+    expect(conflicted.message).toContain("已存在");
+  });
+
   it("splits custom components back and protects components that are still in use", () => {
     const withGate = apply(createCalculatorLessonState(), {
       type: "add-node",
@@ -434,6 +496,45 @@ describe("calculator lesson state", () => {
       .nodes.filter((n) => n.kind === "input" || n.kind === "output")
       .map((n) => n.name);
     expect(names).toEqual(expect.arrayContaining(["A", "B", "Sum", "Carry"]));
+  });
+
+  it("re-sorts untouched scaffold pins to the current contract order", () => {
+    // A draft saved when stage 7 listed Op1 above Op0.
+    const staleNodes = scaffoldGraph(7).nodes.map((node) =>
+      node.name === "Op0" ? { ...node, y: 454 } : node.name === "Op1" ? { ...node, y: 408 } : node,
+    );
+    const loaded = apply(createCalculatorLessonState(7), {
+      type: "load-project",
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5],
+      unlockedSubmodules: [],
+      drafts: { 7: { nodes: staleNodes, edges: [] } },
+    });
+    const pins = graphOf(loaded).nodes;
+    expect(pins.find((node) => node.name === "Op0")?.y).toBe(408);
+    expect(pins.find((node) => node.name === "Op1")?.y).toBe(454);
+  });
+
+  it("leaves pin positions alone once the learner has moved one", () => {
+    const staleNodes = scaffoldGraph(7).nodes.map((node) =>
+      node.name === "Op0"
+        ? { ...node, y: 454 }
+        : node.name === "Op1"
+          ? { ...node, y: 408 }
+          : node.name === "A0"
+            ? { ...node, x: 90, y: 200 }
+            : node,
+    );
+    const loaded = apply(createCalculatorLessonState(7), {
+      type: "load-project",
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5],
+      unlockedSubmodules: [],
+      drafts: { 7: { nodes: staleNodes, edges: [] } },
+    });
+    const pins = graphOf(loaded).nodes;
+    expect(pins.find((node) => node.name === "Op0")?.y).toBe(454);
+    expect(pins.find((node) => node.name === "Op1")?.y).toBe(408);
   });
 
   it("resets a stage back to its scaffold", () => {
