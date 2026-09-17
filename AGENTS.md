@@ -5,6 +5,10 @@
 - Use Bun `1.2.17` and `bun install --frozen-lockfile`.
 - Keep repository as one Vite package. Do not add workspace packages.
 - Run `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test:run`, and `bun run build` before handoff.
+- `local/` holds gitignored local-only material that is never committed. Check
+  `local/deploy/` for the production deployment scripts (`api-deploy.sh`, the
+  systemd unit) before any deploy work; see `docs/deployment.md` and
+  `local/README.md`.
 
 ## Boundaries
 

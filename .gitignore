@@ -14,3 +14,6 @@ logs/
 
 # Lab runtime local data
 data/
+
+# Local-only ops material (deploy scripts, host notes) — never committed
+local/

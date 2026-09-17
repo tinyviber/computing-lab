@@ -363,7 +363,10 @@ static deployment.
 The Node API (`server/index.ts`, Hono + `node:sqlite`) runs as
 `computing-lab-api.service` from a plain checkout at `$API_ROOT/source`
 (default `/srv/computing-lab-api/source`, owned by `computing-lab-editor`).
-`deploy/api-deploy.sh` is the deterministic, no-agent entry point:
+`local/deploy/api-deploy.sh` is the deterministic, no-agent entry point. The
+script lives in the gitignored `local/` directory (host-specific ops material
+is never committed); the reviewed copy is installed at
+`/usr/local/libexec/computing-lab-api/api-deploy.sh`:
 
 ```text
 git fetch → resolve exact SHA (origin/main or --sha)
@@ -400,8 +403,8 @@ Install once per host:
 
 ```sh
 sudo install -d -o root -g root -m 0755 /usr/local/libexec/computing-lab-api
-sudo install -o root -g root -m 0755 deploy/api-deploy.sh /usr/local/libexec/computing-lab-api/
-sudo install -o root -g root -m 0644 deploy/systemd/computing-lab-api-deploy.service /etc/systemd/system/
+sudo install -o root -g root -m 0755 local/deploy/api-deploy.sh /usr/local/libexec/computing-lab-api/
+sudo install -o root -g root -m 0644 local/deploy/computing-lab-api-deploy.service /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
 
