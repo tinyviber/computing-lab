@@ -26,6 +26,7 @@ import {
 } from "../../src/features/image-encoding/domain/stops.ts";
 import {
   getStage,
+  isArtifactBoundStage,
   isStageUnlocked,
   stageCount,
 } from "../../src/features/image-encoding/domain/stages.ts";
@@ -33,8 +34,18 @@ import {
 const LAB_ID = "image-encoding";
 const DEFAULT_ARTIFACT: Artifact = { image: "photo", resStop: 50, colorStop: "palette4" };
 
+function sameArtifact(first: Artifact, second: Artifact): boolean {
+  return (
+    first.image === second.image &&
+    first.resStop === second.resStop &&
+    first.colorStop === second.colorStop
+  );
+}
+
 type PersistedImageDraft = {
   artifact: Artifact;
+  /** Artifact the artifact-bound passes in `passed_stages` were earned under. */
+  passedArtifact: Artifact;
   core1Bits: string;
   conventionRevealed: boolean;
   core3Edited?: RasterImage;
@@ -120,6 +131,7 @@ export function sanitizeImageDraft(raw: unknown, artifactInput?: unknown): Persi
   const original = core3Window(source, artifact).original;
   return {
     artifact,
+    passedArtifact: normalizeArtifact(object(input.passedArtifact) ?? artifact),
     core1Bits: String(input.core1Bits ?? "")
       .replace(/[^01]/g, "")
       .slice(0, 16),
@@ -140,13 +152,18 @@ function toProject(row: RawProject): ImageProject {
   const draft = sanitizeImageDraft(persisted);
   const parsed = parseJson(row.passed_stages);
   const passed: unknown[] = Array.isArray(parsed) ? parsed : [];
-  const passedStages = [
+  const storedPasses = [
     ...new Set(
       passed.filter(
         (value): value is number => Number.isInteger(value) && !!getStage(value as number),
       ),
     ),
   ].sort((a, b) => a - b);
+  // Passes bound to an artifact stop counting the moment the stored working
+  // artifact no longer matches the artifact they were earned under.
+  const passedStages = sameArtifact(draft.artifact, draft.passedArtifact)
+    ? storedPasses
+    : storedPasses.filter((index) => !isArtifactBoundStage(index));
   return {
     id: row.id,
     userId: row.user_id,
@@ -182,9 +199,16 @@ export function saveImageDraft(
   rawDraft: unknown,
 ): PersistedImageDraft {
   const draft = sanitizeImageDraft(rawDraft, artifactInput);
+  // Artifact-bound passes survive only while the saved artifact still equals
+  // the artifact they were earned under; revoke them in the same write.
+  const keepBoundPasses = sameArtifact(draft.artifact, project.draft.passedArtifact);
+  draft.passedArtifact = keepBoundPasses ? project.draft.passedArtifact : draft.artifact;
+  const passedStages = keepBoundPasses
+    ? project.passedStages
+    : project.passedStages.filter((index) => !isArtifactBoundStage(index));
   db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(draft), project.id);
+    "UPDATE student_projects SET draft_graph = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+  ).run(JSON.stringify(draft), JSON.stringify(passedStages), project.id);
   return draft;
 }
 
@@ -206,7 +230,7 @@ function checkEvidence(
     const original = core3Window(source, artifact).original;
     const edited = sanitizePixels(evidence.edited, original);
     return edited
-      ? checkCore3({ artifact, original, edited })
+      ? checkCore3({ source, artifact, original, edited })
       : { error: "invalid-evidence", status: 400 };
   }
   if (stageIndex === 5) {
@@ -235,10 +259,15 @@ export function judgeImageSubmission(
 ): ImageJudgeOutcome | { error: string; status: 400 | 409 } {
   const stage = getStage(stageIndex);
   if (!stage) return { error: "invalid-stage", status: 400 };
-  if (!isStageUnlocked(project.passedStages, stageIndex)) {
+  const artifact = normalizeArtifact(object(artifactInput) ?? DEFAULT_ARTIFACT);
+  // Unlocking and pass-keeping are evaluated against the artifact the student
+  // submitted under — passes earned under a different artifact do not carry.
+  const workingPasses = sameArtifact(artifact, project.draft.passedArtifact)
+    ? project.passedStages
+    : project.passedStages.filter((index) => !isArtifactBoundStage(index));
+  if (!isStageUnlocked(workingPasses, stageIndex)) {
     return { error: "stage-locked", status: 409 };
   }
-  const artifact = normalizeArtifact(object(artifactInput) ?? DEFAULT_ARTIFACT);
   const checked = checkEvidence(stageIndex, artifact, rawEvidence);
   if ("error" in checked) return checked;
 
@@ -261,15 +290,19 @@ export function judgeImageSubmission(
   );
 
   const passedStages = checked.passed
-    ? [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b)
+    ? [...new Set([...workingPasses, stageIndex])].sort((a, b) => a - b)
     : project.passedStages;
   const currentStage = checked.passed
     ? Math.min(Math.max(...passedStages) + 1, stageCount())
     : project.currentStage;
   if (checked.passed) {
+    // Bind the new pass to the artifact it was earned under and make that the
+    // stored working artifact in the same write, so a later draft save of a
+    // different artifact revokes it.
+    const nextDraft = { ...project.draft, artifact, passedArtifact: artifact };
     db.prepare(
-      "UPDATE student_projects SET current_stage = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-    ).run(currentStage, JSON.stringify(passedStages), project.id);
+      "UPDATE student_projects SET current_stage = ?, passed_stages = ?, draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    ).run(currentStage, JSON.stringify(passedStages), JSON.stringify(nextDraft), project.id);
   }
 
   return {

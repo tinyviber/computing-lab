@@ -4,6 +4,7 @@ import {
   cropRegion,
   deriveImageEncodingModel,
   encodingSignature,
+  patchRegion,
   regionError,
   type RasterImage,
 } from "./model";
@@ -64,16 +65,17 @@ export function checkCore2(input: {
   if (error > CORE2_REGION_ERROR_MAX) {
     return {
       passed: false,
-      detail: `在预算内（${bits} ≤ ${budget} bit），但目标区域的平均颜色误差 ${(error * 100).toFixed(1)}% 超过 ${(CORE2_REGION_ERROR_MAX * 100).toFixed(0)}%，牌子上的细节认不出来了。`,
+      detail: `在预算内（${bits} ≤ ${budget} bit），但目标区域的平均颜色误差 ${(error * 100).toFixed(1)}% 超过 ${(CORE2_REGION_ERROR_MAX * 100).toFixed(0)}% 的上限。`,
     };
   }
   return {
     passed: true,
-    detail: `在预算内且目标细节仍可辨认（区域误差 ${(error * 100).toFixed(1)}%）。这就是你的“老照片”。`,
+    detail: `在预算内，目标区域平均颜色误差 ${(error * 100).toFixed(1)}%（≤ ${(CORE2_REGION_ERROR_MAX * 100).toFixed(0)}%）。这就是你的“老照片”——它和原图还差多少，由你自己判断。`,
   };
 }
 
 export function checkCore3(input: {
+  source: RasterImage;
   artifact: Artifact;
   original: RasterImage;
   edited: RasterImage;
@@ -83,12 +85,12 @@ export function checkCore3(input: {
     return { passed: false, detail: "还没有改动：试着涂几个像素，看看编码会不会变。" };
   }
   const options = artifactOptions(input.artifact);
+  const { region } = core3Window(input.source, input.artifact);
+  const patched = patchRegion(input.source, region, input.edited);
   const originalSignature = encodingSignature(
-    deriveImageEncodingModel(input.original, options).quantized,
+    deriveImageEncodingModel(input.source, options).quantized,
   );
-  const editedSignature = encodingSignature(
-    deriveImageEncodingModel(input.edited, options).quantized,
-  );
+  const editedSignature = encodingSignature(deriveImageEncodingModel(patched, options).quantized);
   if (originalSignature !== editedSignature) {
     return {
       passed: false,

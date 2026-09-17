@@ -8,6 +8,12 @@ export type ImageStageDef = {
   description: string;
   track: StageTrack;
   timeBudgetMin: number;
+  /**
+   * Whether a pass only counts while the student keeps working on the artifact
+   * it was earned under. Stage 1 encodes a fixed convention row and survives
+   * artifact changes; everything else is bound to the saved artifact.
+   */
+  artifactBound: boolean;
 };
 
 export const IMAGE_STAGES: ImageStageDef[] = [
@@ -20,6 +26,7 @@ export const IMAGE_STAGES: ImageStageDef[] = [
       "亲手把一行像素编成 bit，再换一张约定表解码同一串 bit：bit 本身没有意义，解码器就是约定。",
     track: "core",
     timeBudgetMin: 8,
+    artifactBound: false,
   },
   {
     index: 2,
@@ -27,9 +34,10 @@ export const IMAGE_STAGES: ImageStageDef[] = [
     title: "在预算内保存",
     englishTitle: "Save within a budget",
     description:
-      "只有原图八分之一的 bit 可用。选分辨率档和颜色档“存下”这张照片，让牌子上的数字还能认出来。",
+      "只有原图八分之一的 bit 可用。选分辨率档和颜色档“存下”这张照片，让目标区域的平均颜色误差不超过 12%。",
     track: "core",
     timeBudgetMin: 12,
+    artifactBound: true,
   },
   {
     index: 3,
@@ -40,6 +48,7 @@ export const IMAGE_STAGES: ImageStageDef[] = [
       "改原图，让编码完全不变：哪些像素算数、哪些被直接丢掉？再把你的“老照片”普通放大，看哪些细节回不来。",
     track: "core",
     timeBudgetMin: 12,
+    artifactBound: true,
   },
   {
     index: 4,
@@ -50,6 +59,7 @@ export const IMAGE_STAGES: ImageStageDef[] = [
       "同一张老照片：原图 / 你的编码 / 普通放大 / AI 修复，四张并排。AI 给出的细节从哪里来？",
     track: "challenge",
     timeBudgetMin: 0,
+    artifactBound: true,
   },
   {
     index: 5,
@@ -59,6 +69,7 @@ export const IMAGE_STAGES: ImageStageDef[] = [
     description: "AI 修复“看起来合理”的细节，输入里并没有证据。在修复图上点出你认为它修错的地方。",
     track: "challenge",
     timeBudgetMin: 0,
+    artifactBound: true,
   },
 ];
 
@@ -83,4 +94,9 @@ export function isStageUnlocked(passedStages: readonly number[], index: number):
   if (!stage) return false;
   if (stage.track === "core") return true;
   return coreStages().every((core) => passedStages.includes(core.index));
+}
+
+/** Passes for artifact-bound stages are revoked whenever the artifact changes. */
+export function isArtifactBoundStage(index: number): boolean {
+  return getStage(index)?.artifactBound ?? false;
 }

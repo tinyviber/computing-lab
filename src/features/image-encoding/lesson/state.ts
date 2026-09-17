@@ -1,13 +1,14 @@
 import { core3Window } from "../domain/checks";
 import { getImageFixture } from "../domain/fixture";
 import { clamp, type RasterImage, type RGB } from "../domain/model";
+import { HALLUCINATION_CASES } from "../domain/restoration";
 import {
   normalizeArtifact,
   type Artifact,
   type ColorStop,
   type ResolutionStop,
 } from "../domain/stops";
-import { getStage, isStageUnlocked } from "../domain/stages";
+import { getStage, isArtifactBoundStage, isStageUnlocked } from "../domain/stages";
 import type { ImageScenarioState } from "./scenario";
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -42,6 +43,11 @@ export type ImageLessonState = {
   hallucinationCaseId?: string;
   hallucinationClicks: readonly { x: number; y: number }[];
   saveStatus: SaveStatus;
+  /** Bumped on every draft-affecting edit; the autosave loop only reports
+   * "saved" once the server acknowledged this exact revision. */
+  draftRevision: number;
+  savedRevision: number;
+  saveInFlight: boolean;
   stageOutcome: ImageStageOutcome;
   message: string | null;
 };
@@ -70,7 +76,7 @@ export type ImageLessonAction =
   | { type: "set-stage-outcome"; outcome: NonNullable<ImageStageOutcome> }
   | { type: "mark-stage-passed"; stageIndex: number; detail: string }
   | { type: "mark-saving" }
-  | { type: "mark-saved" }
+  | { type: "mark-saved"; revision: number }
   | { type: "mark-save-error" }
   | { type: "set-message"; message: string }
   | { type: "dismiss-message" }
@@ -87,8 +93,17 @@ function legalPassedStages(values: readonly number[]): number[] {
   );
 }
 
+function challenge2Open(): boolean {
+  return HALLUCINATION_CASES.length > 0;
+}
+
+function stageSelectable(passedStages: readonly number[], index: number): boolean {
+  if (index === 5 && !challenge2Open()) return false;
+  return isStageUnlocked(passedStages, index);
+}
+
 function initialStage(requested: number, passedStages: readonly number[]): number {
-  return isStageUnlocked(passedStages, requested) ? requested : 1;
+  return stageSelectable(passedStages, requested) ? requested : 1;
 }
 
 function sameArtifact(first: Artifact, second: Artifact): boolean {
@@ -116,6 +131,9 @@ function stateForScenario(scenario: ImageScenarioState): ImageLessonState {
     hallucinationCaseId: scenario.caseId,
     hallucinationClicks: [],
     saveStatus: "idle",
+    draftRevision: 0,
+    savedRevision: 0,
+    saveInFlight: false,
     stageOutcome: null,
     message: null,
   };
@@ -139,9 +157,10 @@ function withArtifact(state: ImageLessonState, artifactInput: Artifact): ImageLe
     ...state,
     source,
     artifact,
-    passedStages: state.passedStages.filter((stage) => stage !== 2 && stage !== 3),
+    passedStages: state.passedStages.filter((stage) => !isArtifactBoundStage(stage)),
     ...core3State(source, artifact),
     saveStatus: "dirty",
+    draftRevision: state.draftRevision + 1,
     stageOutcome: null,
   };
 }
@@ -168,6 +187,7 @@ function editCore3Pixel(
     ...state,
     core3Edited: { ...state.core3Edited, pixels },
     saveStatus: "dirty",
+    draftRevision: state.draftRevision + 1,
     stageOutcome: null,
   };
 }
@@ -181,7 +201,7 @@ export function transitionImageLesson(
       const next = stateForScenario(action.scenario);
       const passedStages = sameArtifact(next.artifact, state.artifact)
         ? state.passedStages
-        : state.passedStages.filter((stage) => stage !== 2 && stage !== 3);
+        : state.passedStages.filter((stage) => !isArtifactBoundStage(stage));
       return {
         ...next,
         passedStages,
@@ -195,7 +215,7 @@ export function transitionImageLesson(
         normalizeArtifact(action.artifact),
       )
         ? rawPassed
-        : rawPassed.filter((stage) => stage !== 2 && stage !== 3);
+        : rawPassed.filter((stage) => !isArtifactBoundStage(stage));
       const next = withArtifact(state, action.artifact);
       const edited = action.draft?.core3Edited;
       const core3Edited =
@@ -219,9 +239,15 @@ export function transitionImageLesson(
       };
     }
     case "select-stage":
-      return isStageUnlocked(state.passedStages, action.stageIndex)
+      return stageSelectable(state.passedStages, action.stageIndex)
         ? { ...state, stageIndex: action.stageIndex, stageOutcome: null, message: null }
-        : { ...state, message: "完成全部三个主线关卡后再来挑战。" };
+        : {
+            ...state,
+            message:
+              action.stageIndex === 5 && !challenge2Open()
+                ? "抓幻觉案例还在人工复核中，暂未开放。"
+                : "完成全部三个主线关卡后再来挑战。",
+          };
     case "set-resolution-stop":
       return withArtifact(state, { ...state.artifact, resStop: action.resStop });
     case "set-color-stop":
@@ -231,10 +257,16 @@ export function transitionImageLesson(
         ...state,
         core1Bits: action.bits.replace(/[^01]/g, "").slice(0, 16),
         saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
         stageOutcome: null,
       };
     case "reveal-convention":
-      return { ...state, conventionRevealed: action.revealed, saveStatus: "dirty" };
+      return {
+        ...state,
+        conventionRevealed: action.revealed,
+        saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
+      };
     case "edit-core3-pixel":
       return editCore3Pixel(state, action);
     case "reset-core3":
@@ -242,6 +274,7 @@ export function transitionImageLesson(
         ...state,
         core3Edited: state.core3Original,
         saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
         stageOutcome: null,
       };
     case "set-restore-observation":
@@ -249,12 +282,15 @@ export function transitionImageLesson(
         ...state,
         restoreObservation: action.observation.slice(0, 1000),
         saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
       };
     case "set-hallucination-case":
       return {
         ...state,
         hallucinationCaseId: action.caseId,
         hallucinationClicks: [],
+        saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
         stageOutcome: null,
       };
     case "add-hallucination-click":
@@ -266,10 +302,17 @@ export function transitionImageLesson(
           { x: Math.max(0, action.x), y: Math.max(0, action.y) },
         ].slice(-20),
         saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
         stageOutcome: null,
       };
     case "clear-hallucination-clicks":
-      return { ...state, hallucinationClicks: [], stageOutcome: null };
+      return {
+        ...state,
+        hallucinationClicks: [],
+        saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
+        stageOutcome: null,
+      };
     case "set-stage-outcome":
       return { ...state, stageOutcome: action.outcome };
     case "mark-stage-passed": {
@@ -279,21 +322,36 @@ export function transitionImageLesson(
         passedStages: legalPassedStages([...state.passedStages, action.stageIndex]),
         stageOutcome: { stageIndex: action.stageIndex, passed: true, detail: action.detail },
         saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
       };
     }
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
-    case "mark-saved":
-      return { ...state, saveStatus: "saved" };
+      return { ...state, saveStatus: "saving", saveInFlight: true };
+    case "mark-saved": {
+      const savedRevision = Math.max(state.savedRevision, action.revision);
+      return {
+        ...state,
+        savedRevision,
+        saveInFlight: false,
+        saveStatus: savedRevision >= state.draftRevision ? "saved" : "dirty",
+      };
+    }
     case "mark-save-error":
-      return { ...state, saveStatus: "error" };
+      return { ...state, saveStatus: "error", saveInFlight: false };
     case "set-message":
       return { ...state, message: action.message };
     case "dismiss-message":
       return { ...state, message: null };
     case "reset-stage":
       if (state.stageIndex === 1) {
-        return { ...state, core1Bits: "", conventionRevealed: false, stageOutcome: null };
+        return {
+          ...state,
+          core1Bits: "",
+          conventionRevealed: false,
+          saveStatus: "dirty",
+          draftRevision: state.draftRevision + 1,
+          stageOutcome: null,
+        };
       }
       if (state.stageIndex === 2) {
         return {
@@ -302,12 +360,30 @@ export function transitionImageLesson(
         };
       }
       if (state.stageIndex === 3) {
-        return { ...state, core3Edited: state.core3Original, stageOutcome: null };
+        return {
+          ...state,
+          core3Edited: state.core3Original,
+          saveStatus: "dirty",
+          draftRevision: state.draftRevision + 1,
+          stageOutcome: null,
+        };
       }
       if (state.stageIndex === 4) {
-        return { ...state, restoreObservation: "", stageOutcome: null };
+        return {
+          ...state,
+          restoreObservation: "",
+          saveStatus: "dirty",
+          draftRevision: state.draftRevision + 1,
+          stageOutcome: null,
+        };
       }
-      return { ...state, hallucinationClicks: [], stageOutcome: null };
+      return {
+        ...state,
+        hallucinationClicks: [],
+        saveStatus: "dirty",
+        draftRevision: state.draftRevision + 1,
+        stageOutcome: null,
+      };
   }
 }
 

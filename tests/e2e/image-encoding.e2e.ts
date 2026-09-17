@@ -42,29 +42,23 @@ test("runs the core stages without external network access", async ({ page }) =>
   await expect(page.locator(".stage-feedback")).toContainText("通过");
 
   // Core 3: invert eight unsampled pixels; the encoding signature must not
-  // change. At 25% sampling only every fourth source column is stored, and the
-  // 16×16 window starts on a sampled column, so x = 1, 2, 3 are never read.
+  // change. The signature is computed on the FULL image grid: at 25% the kept
+  // source columns are x ≡ 2 (mod 4) and rows y ≡ 2 (mod 4); the 16×16 window
+  // starts at global (112, 56), so its local y = 0 row (global 56) is never
+  // sampled at all.
   await page.getByRole("button", { name: /丢掉的信息回不来/ }).click();
-  for (const [x, y] of [
-    [1, 0],
-    [2, 0],
-    [3, 0],
-    [1, 1],
-    [2, 1],
-    [3, 1],
-    [1, 2],
-    [2, 2],
-  ]) {
-    await page.getByRole("button", { name: `像素 ${x},${y}`, exact: true }).click();
+  for (const x of [0, 1, 3, 4, 5, 7, 8, 9]) {
+    await page.getByRole("button", { name: `像素 ${x},0`, exact: true }).click();
   }
   await expect(page.locator(".collision-evidence")).toContainText("完全相同");
   await page.getByRole("button", { name: "检查是否 many-to-one" }).click();
   await expect(page.locator(".stage-feedback")).toContainText("通过");
   await expect(page.locator(".image-stage-heading strong").first()).toHaveText("3 / 3");
 
-  // With all three cores passed the challenge rail entries unlock.
+  // Challenge 1 unlocks once the cores pass; Challenge 2 stays closed while no
+  // reviewed hallucination cases exist.
   await expect(page.getByRole("button", { name: /AI 修复/ })).toBeEnabled();
-  await expect(page.getByRole("button", { name: /抓幻觉/ })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /抓幻觉/ })).toBeDisabled();
   expect(nonLocalRequests).toEqual([]);
 });
 

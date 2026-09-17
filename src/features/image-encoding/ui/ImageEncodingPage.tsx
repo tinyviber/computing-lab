@@ -1,14 +1,21 @@
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useParams, useSearch } from "@tanstack/react-router";
 import { api, describeApiError } from "../../../shared/api/client";
 import { LabShell } from "../../../shared/lab/LabShell";
 import { encodeRow, BIT_CANVAS_CELLS, BIT_CANVAS_EDIT_ROW } from "../domain/bit-canvas";
-import { checkCore1, checkCore2, checkCore3, CORE2_REGION_ERROR_MAX } from "../domain/checks";
+import {
+  checkCore1,
+  checkCore2,
+  checkCore3,
+  CORE2_REGION_ERROR_MAX,
+  core3Window,
+} from "../domain/checks";
 import { FIXTURE_TARGET_REGIONS } from "../domain/fixture";
 import {
   countPixelDiffs,
   deriveImageEncodingModel,
   encodingSignature,
+  patchRegion,
   regionError,
 } from "../domain/model";
 import { getRestorationAsset, HALLUCINATION_CASES } from "../domain/restoration";
@@ -93,29 +100,30 @@ function ImageEncodingContent({
     };
   }, [classId, scenario, scenarioControlsArtifact]);
 
+  const latestDraft = useRef({
+    artifact: lesson.artifact,
+    draft: imageDraft(lesson),
+    revision: lesson.draftRevision,
+  });
+  latestDraft.current = {
+    artifact: lesson.artifact,
+    draft: imageDraft(lesson),
+    revision: lesson.draftRevision,
+  };
+
   useEffect(() => {
-    if (!classId || lesson.saveStatus !== "dirty") return undefined;
-    const artifact = lesson.artifact;
-    const draft = imageDraft(lesson);
+    if (!classId || lesson.saveStatus === "error") return undefined;
+    if (lesson.saveInFlight || lesson.draftRevision <= lesson.savedRevision) return undefined;
     const timer = window.setTimeout(() => {
+      const { artifact, draft, revision } = latestDraft.current;
       dispatch({ type: "mark-saving" });
       void api
         .put(`/api/classes/${classId}/labs/image-encoding/draft`, { artifact, draft })
-        .then(() => dispatch({ type: "mark-saved" }))
+        .then(() => dispatch({ type: "mark-saved", revision }))
         .catch(() => dispatch({ type: "mark-save-error" }));
     }, 800);
     return () => window.clearTimeout(timer);
-  }, [
-    classId,
-    lesson.artifact,
-    lesson.conventionRevealed,
-    lesson.core1Bits,
-    lesson.core3Edited,
-    lesson.hallucinationCaseId,
-    lesson.hallucinationClicks,
-    lesson.restoreObservation,
-    lesson.saveStatus,
-  ]);
+  }, [classId, lesson.draftRevision, lesson.savedRevision, lesson.saveInFlight, lesson.saveStatus]);
 
   const options = artifactOptions(lesson.artifact);
   const model = useMemo(
@@ -124,16 +132,27 @@ function ImageEncodingContent({
   );
   const core2Error = regionError(model, FIXTURE_TARGET_REGIONS[lesson.artifact.image]);
   const core2Budget = budgetBits(lesson.source);
-  const core3OriginalModel = useMemo(
-    () => deriveImageEncodingModel(lesson.core3Original, options),
-    [lesson.core3Original, options.bitDepth, options.colorMode, options.samplingPercent],
+  const core3Region = useMemo(
+    () => core3Window(lesson.source, lesson.artifact).region,
+    [lesson.source, lesson.artifact],
   );
-  const core3EditedModel = useMemo(
-    () => deriveImageEncodingModel(lesson.core3Edited, options),
-    [lesson.core3Edited, options.bitDepth, options.colorMode, options.samplingPercent],
+  const core3PatchedModel = useMemo(
+    () =>
+      deriveImageEncodingModel(
+        patchRegion(lesson.source, core3Region, lesson.core3Edited),
+        options,
+      ),
+    [
+      lesson.source,
+      core3Region,
+      lesson.core3Edited,
+      options.bitDepth,
+      options.colorMode,
+      options.samplingPercent,
+    ],
   );
-  const originalSignature = encodingSignature(core3OriginalModel.quantized);
-  const editedSignature = encodingSignature(core3EditedModel.quantized);
+  const originalSignature = encodingSignature(model.quantized);
+  const editedSignature = encodingSignature(core3PatchedModel.quantized);
   const changedPixels = countPixelDiffs(lesson.core3Original, lesson.core3Edited);
   const expectedCore1Bits = encodeRow(BIT_CANVAS_CELLS, BIT_CANVAS_EDIT_ROW);
   const shareSearch = serializeImageEncodingScenario({
@@ -243,6 +262,7 @@ function ImageEncodingContent({
               void recordResult(
                 3,
                 checkCore3({
+                  source: lesson.source,
                   artifact: lesson.artifact,
                   original: lesson.core3Original,
                   edited: lesson.core3Edited,

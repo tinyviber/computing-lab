@@ -44,7 +44,7 @@ export function BudgetStage({
       <div className="stage-copy">
         <p className="eyebrow">CORE 2 · 12 分钟</p>
         <h2 id="image-stage-title">用八分之一的 bit 保存照片</h2>
-        <p>选一档分辨率和颜色。既不能超过预算，也要让目标区域的细节仍可辨认。</p>
+        <p>选一档分辨率和颜色。既不能超过预算，目标区域的平均颜色误差也要控制在 12% 以内。</p>
       </div>
 
       <div className="budget-controls">

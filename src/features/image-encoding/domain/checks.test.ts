@@ -124,16 +124,23 @@ describe("checkCore3", () => {
     return { ...base, pixels };
   }
 
-  const original = makeRaster("window", 16, 16, () => ({ r: 10, g: 10, b: 10 }));
+  // The edit window sits at the fixture target region; signatures must be
+  // computed by patching the window back into the FULL source, because the
+  // sampling grid is defined on the full image (240×160 photo → window at
+  // global (112,56)).
+  const uniformSource = makeRaster("full", 240, 160, () => ({ r: 10, g: 10, b: 10 }));
+  const photoArtifact: Artifact = { image: "photo", resStop: 50, colorStop: "palette4" };
 
   it("passes when many pixels changed but the encoding did not", () => {
+    const { original } = core3Window(uniformSource, photoArtifact);
     const edits = Array.from({ length: CORE3_MIN_DIFF_PIXELS }, (_, i) => ({
       x: (i * 2) % 16,
       y: 0,
       color: { r: 250, g: 250, b: 250 },
     }));
     const result = checkCore3({
-      artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
+      source: uniformSource,
+      artifact: photoArtifact,
       original,
       edited: withEdits(original, edits),
     });
@@ -141,8 +148,10 @@ describe("checkCore3", () => {
   });
 
   it("rejects an edit that reaches a kept pixel", () => {
+    const { original } = core3Window(uniformSource, photoArtifact);
     const result = checkCore3({
-      artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
+      source: uniformSource,
+      artifact: photoArtifact,
       original,
       edited: withEdits(original, [{ x: 1, y: 1, color: { r: 250, g: 250, b: 250 } }]),
     });
@@ -150,14 +159,37 @@ describe("checkCore3", () => {
     expect(result.detail).toContain("编码变了");
   });
 
+  it("uses the full-image sampling grid, not a re-derived crop grid", () => {
+    // At 10% the full 240×160 grid samples global x ∈ {5,15,25,…}; inside the
+    // window (x offset 112) that means local x ∈ {3,13} and local y = 9.
+    // Encoding the 16×16 crop standalone would sample local {4,12} instead and
+    // wrongly call this edit invisible.
+    const lowArtifact: Artifact = { image: "photo", resStop: 10, colorStop: "rgb24" };
+    const { original } = core3Window(uniformSource, lowArtifact);
+    const result = checkCore3({
+      source: uniformSource,
+      artifact: lowArtifact,
+      original,
+      edited: withEdits(original, [{ x: 3, y: 9, color: { r: 250, g: 250, b: 250 } }]),
+    });
+    expect(result.passed).toBe(false);
+    expect(result.detail).toContain("编码变了");
+  });
+
   it("accepts color collisions too — quantization is also many-to-one", () => {
+    const splitSource = makeRaster("split", 240, 160, (x) =>
+      x < 120 ? { r: 10, g: 10, b: 10 } : { r: 245, g: 245, b: 245 },
+    );
+    const artifact: Artifact = { image: "photo", resStop: 100, colorStop: "palette2" };
+    const { original } = core3Window(splitSource, artifact);
     const edits = Array.from({ length: CORE3_MIN_DIFF_PIXELS }, (_, i) => ({
       x: i,
       y: 0,
-      color: { r: 30, g: 30, b: 30 }, // still maps to the same palette entry as {10,10,10}
+      color: { r: 30, g: 30, b: 30 }, // still maps to the dark palette entry
     }));
     const result = checkCore3({
-      artifact: { image: "photo", resStop: 100, colorStop: "palette2" },
+      source: splitSource,
+      artifact,
       original,
       edited: withEdits(original, edits),
     });
@@ -165,8 +197,10 @@ describe("checkCore3", () => {
   });
 
   it("asks for a bolder edit below the diff threshold", () => {
+    const { original } = core3Window(uniformSource, photoArtifact);
     const result = checkCore3({
-      artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
+      source: uniformSource,
+      artifact: photoArtifact,
       original,
       edited: withEdits(original, [{ x: 0, y: 0, color: { r: 250, g: 250, b: 250 } }]),
     });
@@ -175,8 +209,10 @@ describe("checkCore3", () => {
   });
 
   it("rejects an unchanged image before computing anything else", () => {
+    const { original } = core3Window(uniformSource, photoArtifact);
     const result = checkCore3({
-      artifact: { image: "photo", resStop: 50, colorStop: "palette4" },
+      source: uniformSource,
+      artifact: photoArtifact,
       original,
       edited: original,
     });

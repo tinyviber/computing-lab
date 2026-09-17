@@ -1,3 +1,4 @@
+import { HALLUCINATION_CASES } from "../domain/restoration";
 import { challengeStages, coreStages, IMAGE_STAGES, isStageUnlocked } from "../domain/stages";
 
 type ImageStageRailProps = {
@@ -8,7 +9,8 @@ type ImageStageRailProps = {
 
 export function ImageStageRail({ stageIndex, passedStages, onSelect }: ImageStageRailProps) {
   const renderStage = (stage: (typeof IMAGE_STAGES)[number]) => {
-    const unlocked = isStageUnlocked(passedStages, stage.index);
+    const pendingReview = stage.index === 5 && HALLUCINATION_CASES.length === 0;
+    const unlocked = isStageUnlocked(passedStages, stage.index) && !pendingReview;
     const active = stage.index === stageIndex;
     const passed = passedStages.includes(stage.index);
     return (
@@ -23,7 +25,7 @@ export function ImageStageRail({ stageIndex, passedStages, onSelect }: ImageStag
           <span>{String(stage.index).padStart(2, "0")}</span>
           <span>
             <strong>{stage.title}</strong>
-            <small>{stage.englishTitle}</small>
+            <small>{pendingReview ? "待开放 · 案例复核中" : stage.englishTitle}</small>
           </span>
           <span aria-hidden="true">{passed ? "✓" : unlocked ? "○" : "—"}</span>
         </button>

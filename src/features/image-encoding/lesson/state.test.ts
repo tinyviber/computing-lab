@@ -54,8 +54,33 @@ describe("image restoration lesson state", () => {
     expect(locked.message).toContain("三个主线关卡");
 
     let completed = pass(pass(pass(initial, 1), 2), 3);
-    completed = transitionImageLesson(completed, { type: "select-stage", stageIndex: 5 });
-    expect(completed.stageIndex).toBe(5);
+    completed = transitionImageLesson(completed, { type: "select-stage", stageIndex: 4 });
+    expect(completed.stageIndex).toBe(4);
+  });
+
+  it("keeps the hallucination challenge closed until reviewed cases exist", () => {
+    const completed = pass(pass(pass(state(), 1), 2), 3);
+    const blocked = transitionImageLesson(completed, { type: "select-stage", stageIndex: 5 });
+    expect(blocked.stageIndex).not.toBe(5);
+    expect(blocked.message).toContain("复核中");
+  });
+
+  it("only reports saved once the acknowledged draft revision is current", () => {
+    let current = transitionImageLesson(state(), {
+      type: "set-core1-bits",
+      bits: "01",
+    });
+    expect(current.draftRevision).toBe(1);
+    current = transitionImageLesson(current, { type: "mark-saving" });
+    expect(current.saveInFlight).toBe(true);
+    current = transitionImageLesson(current, { type: "set-core1-bits", bits: "0111" });
+    // Acknowledgement for revision 1 arrives while revision 2 is pending.
+    current = transitionImageLesson(current, { type: "mark-saved", revision: 1 });
+    expect(current.saveStatus).toBe("dirty");
+    expect(current.saveInFlight).toBe(false);
+    current = transitionImageLesson(current, { type: "mark-saving" });
+    current = transitionImageLesson(current, { type: "mark-saved", revision: 2 });
+    expect(current.saveStatus).toBe("saved");
   });
 
   it("normalizes bit entry to 16 binary digits", () => {

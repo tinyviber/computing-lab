@@ -709,3 +709,25 @@ export function cropRegion(sourceInput: RasterImage, rectInput: Rect): RasterIma
     sourceDimensions: undefined,
   };
 }
+
+/** Returns a copy of `source` with `patch` written over `rect` (overlap-clipped). */
+export function patchRegion(
+  sourceInput: RasterImage,
+  rectInput: Rect,
+  patchInput: RasterImage,
+): RasterImage {
+  const source = normalizeImage(sourceInput);
+  const patch = normalizeImage(patchInput);
+  const rect = normalizeRect(rectInput, source);
+  const width = Math.min(rect.width, patch.width);
+  const height = Math.min(rect.height, patch.height);
+  const pixels = source.pixels.slice();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      pixels[(rect.y + y) * source.width + (rect.x + x)] = normalizeRgb(
+        patch.pixels[y * patch.width + x],
+      );
+    }
+  }
+  return { ...source, pixels };
+}

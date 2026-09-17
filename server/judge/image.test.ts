@@ -139,6 +139,60 @@ describe("image server judge", () => {
     expect(unchanged).toMatchObject({ passed: false });
   });
 
+  it("revokes artifact-bound passes when the saved artifact changes", () => {
+    const { db, project } = setup();
+    const earned = { image: "photo" as const, resStop: 25 as const, colorStop: "rgb24" as const };
+    const switched = {
+      image: "photo" as const,
+      resStop: 50 as const,
+      colorStop: "palette4" as const,
+    };
+    judgeImageSubmission(db, project, 1, project.artifact, {
+      studentBits: "0111010101011001",
+    });
+    const after1 = getOrCreateImageProject(db, project.userId, project.classId);
+    const core2 = judgeImageSubmission(db, after1, 2, earned, {});
+    expect(core2).toMatchObject({ passed: true, passedStages: [1, 2] });
+
+    const beforeSave = getOrCreateImageProject(db, project.userId, project.classId);
+    expect(beforeSave.passedStages).toEqual([1, 2]);
+    saveImageDraft(db, beforeSave, switched, { core1Bits: "01" });
+
+    const reloaded = getOrCreateImageProject(db, project.userId, project.classId);
+    expect(reloaded.draft.artifact).toEqual(switched);
+    expect(reloaded.passedStages).toEqual([1]);
+    expect(judgeImageSubmission(db, reloaded, 4, switched, {})).toEqual({
+      error: "stage-locked",
+      status: 409,
+    });
+  });
+
+  it("does not carry bound passes when judging under a different artifact", () => {
+    const { db, project } = setup();
+    const a = { image: "photo" as const, resStop: 25 as const, colorStop: "rgb24" as const };
+    const b = { image: "photo" as const, resStop: 50 as const, colorStop: "palette4" as const };
+    judgeImageSubmission(db, project, 1, a, { studentBits: "0111010101011001" });
+    judgeImageSubmission(
+      db,
+      getOrCreateImageProject(db, project.userId, project.classId),
+      2,
+      a,
+      {},
+    );
+
+    // Submitting under artifact B before the draft autosave lands must not
+    // reuse the Core 2 pass earned under A.
+    const withB = getOrCreateImageProject(db, project.userId, project.classId);
+    const stage4 = judgeImageSubmission(db, withB, 4, b, {});
+    expect(stage4).toEqual({ error: "stage-locked", status: 409 });
+
+    // Stage 1 is artifact-independent: it still passes under B.
+    const core1Again = judgeImageSubmission(db, withB, 1, b, {
+      studentBits: "0111010101011001",
+    });
+    expect(core1Again).toMatchObject({ passed: true, passedStages: [1] });
+  });
+
   it("rejects locked, unknown, and non-judge stages", () => {
     const { db, project } = setup();
     expect(judgeImageSubmission(db, project, 5, project.artifact, {})).toEqual({

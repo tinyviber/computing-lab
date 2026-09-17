@@ -11,7 +11,7 @@ beforeEach(() => {
         const body = JSON.parse(String(init.body)) as { stageIndex: number };
         const details: Record<number, string> = {
           1: "这一行的编码和系统一致。",
-          2: "在预算内且目标细节仍可辨认。",
+          2: "在预算内，目标区域平均颜色误差 8.0%（≤ 12%）。",
           3: "改了 8 个像素，编码完全相同。",
         };
         return new Response(
@@ -63,7 +63,7 @@ async function passCore2() {
   await userEvent.click(screen.getByRole("button", { name: "25%" }));
   await userEvent.click(screen.getByRole("button", { name: "RGB 24 位" }));
   await userEvent.click(screen.getByRole("button", { name: "保存这张老照片" }));
-  await screen.findByText("在预算内且目标细节仍可辨认。");
+  await screen.findByText(/在预算内，目标区域平均颜色误差/);
 }
 
 async function passCore3() {
@@ -122,9 +122,9 @@ describe("ImageEncodingPage", () => {
 
     await user.click(screen.getByRole("button", { name: "25%" }));
     await user.click(screen.getByRole("button", { name: "保存这张老照片" }));
-    await screen.findByText("在预算内且目标细节仍可辨认。");
+    await screen.findByText(/在预算内，目标区域平均颜色误差/);
     expect(screen.getByRole("status")).toHaveTextContent("通过");
-    expect(screen.getByRole("status")).toHaveTextContent("目标细节仍可辨认");
+    expect(screen.getByRole("status")).toHaveTextContent("平均颜色误差");
     expect(screen.getByText(/不是 PNG、JPEG 或 WebP 的实际文件大小/)).toBeInTheDocument();
   });
 
