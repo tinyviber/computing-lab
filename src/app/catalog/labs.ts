@@ -26,7 +26,7 @@ export const labs: LabDefinition[] = [
     route: "/labs/image-encoding",
     description: "把照片压进 bit 预算、验证丢掉的信息回不来，再看 AI 修复“猜”出了什么。",
     status: "available",
-    enabled: true,
+    enabled: false,
   },
   {
     id: "audio-encoding",

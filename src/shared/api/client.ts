@@ -32,6 +32,11 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-import": "导入内容为空或格式不正确。",
   "invalid-invite-code": "邀请码只能包含字母、数字、下划线或连字符。",
   "invite-code-taken": "该邀请码已被使用。",
+  "admin-role-not-editable": "不能把角色设置为管理员。",
+  "cannot-edit-own-role": "不能修改自己的角色。",
+  "user-not-found": "账号不存在。",
+  "class-not-empty": "班级里还有成员，请先移除全部成员。",
+  "membership-not-found": "该用户不在这个班级里。",
   "stage-locked": "这一关还没有解锁。",
   "invalid-stage": "关卡编号无效。",
   "internal-error": "服务器出错了，请稍后再试。",
@@ -73,4 +78,5 @@ export const api = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body?: unknown) => request<T>("POST", path, body ?? {}),
   put: <T>(path: string, body?: unknown) => request<T>("PUT", path, body ?? {}),
+  del: <T>(path: string) => request<T>("DELETE", path),
 };

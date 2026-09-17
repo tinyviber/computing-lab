@@ -265,6 +265,35 @@ export function adminRoutes() {
     });
   });
 
+  // Edit an account's global role. The target role is limited to
+  // teacher/user — admin accounts only ever come from seed, never from this
+  // endpoint. Editing your own role is refused to prevent self-lockout.
+  // Class memberships follow the new role so roster semantics stay coherent.
+  app.put("/users/:id/role", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const rawRole =
+      body && typeof body === "object" ? (body as Record<string, unknown>).role : undefined;
+    const role = normalizeRole(typeof rawRole === "string" ? rawRole : undefined);
+    if (role === null) return jsonError(c, 400, "invalid-role");
+    if (role === "admin") return jsonError(c, 400, "admin-role-not-editable");
+
+    const targetId = c.req.param("id");
+    const caller = c.get("user")!;
+    if (targetId === caller.id) return jsonError(c, 400, "cannot-edit-own-role");
+
+    const db = c.get("db");
+    const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(targetId) as
+      { id: string; role: AccountRole } | undefined;
+    if (!target) return jsonError(c, 404, "user-not-found");
+
+    db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, targetId);
+    db.prepare("UPDATE class_members SET role = ? WHERE user_id = ?").run(
+      role === "teacher" ? "teacher" : "student",
+      targetId,
+    );
+    return c.json({ user: { id: targetId, role } });
+  });
+
   app.get("/classes", (c) => {
     const classes = c
       .get("db")
@@ -299,6 +328,36 @@ export function adminRoutes() {
       inviteCode,
     );
     return c.json({ class: { id, name: name.trim(), inviteCode } }, 201);
+  });
+
+  // Delete a class. Only empty classes may be deleted — remove every member
+  // first so a roster is never dropped silently.
+  app.delete("/classes/:id", (c) => {
+    const db = c.get("db");
+    const classId = c.req.param("id");
+    const klass = db.prepare("SELECT id FROM classes WHERE id = ?").get(classId);
+    if (!klass) return jsonError(c, 404, "class-not-found");
+    const { count } = db
+      .prepare("SELECT COUNT(*) AS count FROM class_members WHERE class_id = ?")
+      .get(classId) as { count: number };
+    if (count > 0) return jsonError(c, 409, "class-not-empty");
+    db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
+    return c.json({ deleted: classId });
+  });
+
+  // Remove one user from a class. Users may belong to any number of classes,
+  // including zero — membership rows are independent.
+  app.delete("/classes/:classId/members/:userId", (c) => {
+    const db = c.get("db");
+    const classId = c.req.param("classId");
+    const userId = c.req.param("userId");
+    const klass = db.prepare("SELECT id FROM classes WHERE id = ?").get(classId);
+    if (!klass) return jsonError(c, 404, "class-not-found");
+    const result = db
+      .prepare("DELETE FROM class_members WHERE class_id = ? AND user_id = ?")
+      .run(classId, userId);
+    if (result.changes === 0) return jsonError(c, 404, "membership-not-found");
+    return c.json({ removed: { classId, userId } });
   });
 
   return app;

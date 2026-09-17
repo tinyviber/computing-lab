@@ -58,6 +58,22 @@ function post(
   );
 }
 
+function request(
+  app: Hono<{ Variables: AppVariables }>,
+  method: string,
+  path: string,
+  body: unknown,
+  cookie?: string,
+) {
+  return app.fetch(
+    new Request(`http://lab.test${path}`, {
+      method,
+      headers: { "content-type": "application/json", ...(cookie ? { cookie } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
+}
+
 describe("admin guard", () => {
   it("rejects anonymous, student, and teacher callers", async () => {
     const { app } = setup();
@@ -202,6 +218,144 @@ describe("class management", () => {
       classes: { name: string; inviteCode: string }[];
     };
     expect(classes.map((c) => c.name)).toContain("2026-新班");
+  });
+
+  it("deletes an empty class but refuses a class with members", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const created = await post(app, "/api/admin/classes", { name: "空班级" }, cookie);
+    const { class: empty } = (await created.json()) as { class: { id: string } };
+
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+
+    const refused = await request(app, "DELETE", "/api/admin/classes/c1", undefined, cookie);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toEqual({ error: "class-not-empty" });
+
+    const removed = await request(
+      app,
+      "DELETE",
+      `/api/admin/classes/${empty.id}`,
+      undefined,
+      cookie,
+    );
+    expect(removed.status).toBe(200);
+    expect(db.prepare("SELECT id FROM classes WHERE id = ?").get(empty.id)).toBeUndefined();
+  });
+});
+
+describe("role editing", () => {
+  it("promotes a user to teacher and syncs membership role", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+
+    const response = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${studentId}/role`,
+      { role: "teacher" },
+      cookie,
+    );
+    expect(response.status).toBe(200);
+    expect(db.prepare("SELECT role FROM users WHERE id = ?").get(studentId)).toEqual({
+      role: "teacher",
+    });
+    expect(
+      db
+        .prepare("SELECT role FROM class_members WHERE class_id = 'c1' AND user_id = ?")
+        .get(studentId),
+    ).toEqual({ role: "teacher" });
+
+    const dashboard = await app.fetch(
+      new Request("http://lab.test/api/classes/c1/dashboard", {
+        headers: { cookie: await login(app, "20260101", "student-pass") },
+      }),
+    );
+    expect(dashboard.status).toBe(200);
+  });
+
+  it("refuses to set anyone's role to admin", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    const response = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${studentId}/role`,
+      { role: "admin" },
+      cookie,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "admin-role-not-editable" });
+  });
+
+  it("refuses to edit the caller's own role", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const adminId = (
+      db.prepare("SELECT id FROM users WHERE student_no = 'admin'").get() as { id: string }
+    ).id;
+    const response = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${adminId}/role`,
+      { role: "user" },
+      cookie,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "cannot-edit-own-role" });
+  });
+});
+
+describe("member removal", () => {
+  it("removes a member while other memberships survive", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES ('c2', '二班', 'CLASS2')").run();
+    for (const classId of ["c1", "c2"]) {
+      db.prepare(
+        "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, 'student')",
+      ).run(newId(), classId, studentId);
+    }
+
+    const removed = await request(
+      app,
+      "DELETE",
+      `/api/admin/classes/c1/members/${studentId}`,
+      undefined,
+      cookie,
+    );
+    expect(removed.status).toBe(200);
+    const remaining = db
+      .prepare("SELECT class_id AS classId FROM class_members WHERE user_id = ?")
+      .all(studentId) as { classId: string }[];
+    expect(remaining.map((row) => row.classId)).toEqual(["c2"]);
+
+    const again = await request(
+      app,
+      "DELETE",
+      `/api/admin/classes/c1/members/${studentId}`,
+      undefined,
+      cookie,
+    );
+    expect(again.status).toBe(404);
+    expect(await again.json()).toEqual({ error: "membership-not-found" });
   });
 });
 

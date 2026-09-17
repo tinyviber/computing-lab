@@ -1,7 +1,7 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { API_ERROR_MESSAGES, api, describeApiError } from "../../shared/api/client";
-import { AccountMenu, ROLE_LABELS, useAuth, type AccountRole } from "../../shared/auth";
+import { AccountMenu, useAuth, type AccountRole } from "../../shared/auth";
 import "./admin.css";
 
 type AdminClass = { id: string; name: string; inviteCode: string; memberCount: number };
@@ -303,10 +303,11 @@ function CreateClassForm({ onCreated }: { onCreated: () => void }) {
 }
 
 export function AdminPage() {
-  const { status, role } = useAuth();
+  const { status, role, session } = useAuth();
   const [classes, setClasses] = useState<AdminClass[]>([]);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
 
   const reload = useCallback(() => {
     void api
@@ -322,6 +323,22 @@ export function AdminPage() {
   useEffect(() => {
     if (status === "authenticated" && role === "admin") reload();
   }, [status, role, reload]);
+
+  const run = useCallback(
+    async (action: () => Promise<unknown>) => {
+      setError(null);
+      setBusy(true);
+      try {
+        await action();
+        reload();
+      } catch (caught) {
+        setError(describeApiError(caught));
+      } finally {
+        setBusy(false);
+      }
+    },
+    [reload],
+  );
 
   if (status === "loading") {
     return (
@@ -402,6 +419,7 @@ export function AdminPage() {
                   <th scope="col">班级</th>
                   <th scope="col">邀请码</th>
                   <th scope="col">成员数</th>
+                  <th scope="col">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -412,11 +430,26 @@ export function AdminPage() {
                       <code>{klass.inviteCode}</code>
                     </td>
                     <td>{klass.memberCount}</td>
+                    <td>
+                      <button
+                        className="button button-ghost admin-inline-button"
+                        disabled={busy || klass.memberCount > 0}
+                        onClick={() => {
+                          if (window.confirm(`确定删除班级「${klass.name}」？`)) {
+                            void run(() => api.del(`/api/admin/classes/${klass.id}`));
+                          }
+                        }}
+                        title={klass.memberCount > 0 ? "先移除全部成员才能删除" : "删除班级"}
+                        type="button"
+                      >
+                        删除
+                      </button>
+                    </td>
                   </tr>
                 ))}
                 {classes.length === 0 ? (
                   <tr>
-                    <td colSpan={3}>还没有班级。</td>
+                    <td colSpan={4}>还没有班级。</td>
                   </tr>
                 ) : null}
               </tbody>
@@ -442,8 +475,59 @@ export function AdminPage() {
                   <tr key={user.id}>
                     <td>{user.studentNo}</td>
                     <td>{user.name}</td>
-                    <td>{ROLE_LABELS[user.role]}</td>
-                    <td>{user.classes.map((m) => m.className).join("、") || "—"}</td>
+                    <td>
+                      <select
+                        aria-label={`${user.name} 的角色`}
+                        className="admin-role-select"
+                        disabled={busy || user.id === session?.user.id}
+                        onChange={(e) =>
+                          void run(() =>
+                            api.put(`/api/admin/users/${user.id}/role`, {
+                              role: e.target.value,
+                            }),
+                          )
+                        }
+                        title={
+                          user.id === session?.user.id
+                            ? "不能修改自己的角色"
+                            : "管理员角色不能在此设置"
+                        }
+                        value={user.role}
+                      >
+                        <option value="user">学生</option>
+                        <option value="teacher">教师</option>
+                        <option disabled value="admin">
+                          管理员
+                        </option>
+                      </select>
+                    </td>
+                    <td>
+                      {user.classes.length === 0 ? (
+                        "—"
+                      ) : (
+                        <span className="admin-class-chips">
+                          {user.classes.map((m) => (
+                            <span className="admin-class-chip" key={m.classId}>
+                              {m.className}
+                              <button
+                                aria-label={`把 ${user.name} 移出 ${m.className}`}
+                                className="admin-chip-remove"
+                                disabled={busy}
+                                onClick={() =>
+                                  void run(() =>
+                                    api.del(`/api/admin/classes/${m.classId}/members/${user.id}`),
+                                  )
+                                }
+                                title="移出该班级"
+                                type="button"
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
                 {users.length === 0 ? (

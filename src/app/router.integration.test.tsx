@@ -31,11 +31,10 @@ describe("application router integration", () => {
     const startHrefs = screen
       .getAllByRole("link", { name: /^开始$|^继续$/ })
       .map((link) => link.getAttribute("href"));
-    expect(startHrefs).toEqual(
-      expect.arrayContaining(["/labs/calculator", "/labs/image-encoding"]),
-    );
+    expect(startHrefs).toEqual(expect.arrayContaining(["/labs/calculator"]));
 
-    // The image lab is enabled too; other labs stay teacher-only previews.
+    // The image lab is hidden for now: it shows up only as a teacher-only
+    // preview card like the other unfinished labs.
     expect(screen.getByRole("heading", { name: "图像编码" })).toBeInTheDocument();
     expect(screen.getAllByText("未开放").length).toBeGreaterThan(0);
 
@@ -91,8 +90,19 @@ describe("application router integration", () => {
     expect(screen.getByRole("main", { name: /声音编码实验区/ })).toBeInTheDocument();
   });
 
-  it("lets a student open the enabled image lab on its class route", async () => {
-    await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
+  it("hides the image lab from students and opens it with the override or as teacher", async () => {
+    const refused = await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
+    expect(screen.getByRole("heading", { name: /图像编码暂未开放/ })).toBeInTheDocument();
+    expect(screen.queryByRole("main", { name: /AI 修复老照片实验区/ })).not.toBeInTheDocument();
+    refused.unmount();
+
+    const override = await renderAppAt("/labs/image-encoding?showExperimentalLabs=1", {
+      auth: studentAuthState,
+    });
+    expect(screen.getByRole("main", { name: /AI 修复老照片实验区/ })).toBeInTheDocument();
+    override.unmount();
+
+    await renderAppAt("/labs/image-encoding", { auth: teacherAuthState });
     expect(screen.getByRole("main", { name: /AI 修复老照片实验区/ })).toBeInTheDocument();
   });
 
