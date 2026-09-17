@@ -100,3 +100,13 @@ export function isStageUnlocked(passedStages: readonly number[], index: number):
 export function isArtifactBoundStage(index: number): boolean {
   return getStage(index)?.artifactBound ?? false;
 }
+
+/**
+ * The stage the student should resume at: the first core stage not yet
+ * passed, or the first challenge once all three cores are done. Derived from
+ * `passedStages` everywhere so pass/revoke can never disagree with progress.
+ */
+export function deriveCurrentStage(passedStages: readonly number[]): number {
+  const pending = coreStages().find((stage) => !passedStages.includes(stage.index));
+  return pending?.index ?? challengeStages()[0]?.index ?? stageCount();
+}

@@ -1,6 +1,8 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { checkCore2 } from "./checks.ts";
+import { getImageFixture } from "./fixture.ts";
 import {
   getHallucinationCase,
   getRestorationAsset,
@@ -10,6 +12,7 @@ import {
   pointInRect,
   restorationAssetPath,
 } from "./restoration.ts";
+import { budgetCombos } from "./stops.ts";
 
 describe("restoration cases", () => {
   it("builds the deterministic asset path the offline pipeline writes", () => {
@@ -66,5 +69,20 @@ describe("restoration cases", () => {
     }
     expect(getRestorationAsset("photo", 25, "palette8")?.model).toBe("realesrgan-x4plus");
     expect(getRestorationAsset("photo", 100, "palette2")).toBeUndefined();
+  });
+
+  it("covers every artifact that can pass Core 2 with a generated asset", () => {
+    // A student who legally saves any of these artifacts reaches Challenge 1;
+    // none of them may open it to a bare placeholder.
+    const photo = getImageFixture("photo");
+    const passing = budgetCombos(photo).filter(
+      (artifact) => checkCore2({ source: photo, artifact }).passed,
+    );
+    expect(passing.length).toBeGreaterThan(0);
+    for (const artifact of passing) {
+      const asset = getRestorationAsset(artifact.image, artifact.resStop, artifact.colorStop);
+      if (!asset) throw new Error(`missing asset ${artifact.resStop}%/${artifact.colorStop}`);
+      expect(existsSync(join(process.cwd(), "public", asset.asset))).toBe(true);
+    }
   });
 });

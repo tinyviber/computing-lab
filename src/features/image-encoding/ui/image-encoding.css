@@ -361,6 +361,23 @@
   font-size: 10px;
 }
 
+.raster-frame {
+  position: relative;
+}
+
+.target-region {
+  position: absolute;
+  border: 2px dashed var(--accent);
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+.target-note {
+  margin: 8px 24px 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .budget-evidence,
 .collision-evidence {
   display: grid;

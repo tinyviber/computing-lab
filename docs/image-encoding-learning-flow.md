@@ -69,6 +69,16 @@ rawBytes = ceil(rawBits / 8)
 - `POST judge`：服务端用共享 `domain/checks.ts` 重新判定，不信任客户端的
   `passed`/`currentStage`。
 
+两个持久化语义约定（与 calculator 一致，属平台级约束而非本实验特例）：
+
+- 进度身份是 `(user_id, lab_id)`：同一学生在多个班级间共享同一份
+  image-encoding 进度；`class_id` 只记录创建位置，成员资格仍按请求校验。
+- `current_stage` 始终从 `passed_stages` 派生（第一个未完成的 core，
+  三 core 全过后为 4），pass 与 artifact 撤销路径都重写它，不会出现
+  “currentStage=4 但只过了 stage 1”的矛盾。
+- `passed_artifact` 存在草稿内：artifact 一旦改变，绑定它的 2/3/4/5 关
+  pass 在同一次写入中撤销，stage 1 不受影响。
+
 旧入口 `/labs/image-encoding`：已登录且有班级 → 跳班级路由；无班级 → 提示加入；
 匿名 → 直接在本地运行（无 API 依赖，静态预览/离线课堂可用，通过状态只存本地）。
 API 不可用时本地判定先行，页面明确标注“未同步，需重新提交”。

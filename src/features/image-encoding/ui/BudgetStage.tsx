@@ -1,4 +1,5 @@
 import { CORE2_REGION_ERROR_MAX } from "../domain/checks";
+import { FIXTURE_TARGET_REGIONS } from "../domain/fixture";
 import type { ImageEncodingModel, RasterImage } from "../domain/model";
 import {
   COLOR_STOPS,
@@ -39,6 +40,13 @@ export function BudgetStage({
   onCheck,
 }: BudgetStageProps) {
   const withinBudget = model.rawPayload.bits <= budget;
+  const target = FIXTURE_TARGET_REGIONS[artifact.image];
+  const targetStyle = {
+    left: `${(target.x / source.width) * 100}%`,
+    top: `${(target.y / source.height) * 100}%`,
+    width: `${(target.width / source.width) * 100}%`,
+    height: `${(target.height / source.height) * 100}%`,
+  };
   return (
     <section aria-labelledby="image-stage-title" className="image-stage-card">
       <div className="stage-copy">
@@ -84,18 +92,25 @@ export function BudgetStage({
 
       <div className="image-comparison">
         <figure>
-          <RasterCanvas label="原始照片" raster={source} />
+          <div className="raster-frame">
+            <RasterCanvas label="原始照片" raster={source} />
+            <div aria-hidden="true" className="target-region" style={targetStyle} />
+          </div>
           <figcaption>
             原图 · {source.width} × {source.height}
           </figcaption>
         </figure>
         <figure>
-          <RasterCanvas label="预算内重建照片" raster={model.reconstructed} />
+          <div className="raster-frame">
+            <RasterCanvas label="预算内重建照片" raster={model.reconstructed} />
+            <div aria-hidden="true" className="target-region" style={targetStyle} />
+          </div>
           <figcaption>
             重建 · 编码栅格 {model.quantized.width} × {model.quantized.height}
           </figcaption>
         </figure>
       </div>
+      <p className="target-note">虚线框是系统重点比较的目标区域——先盯着它看，再决定档位。</p>
 
       <dl className="budget-evidence">
         <div className={withinBudget ? "is-good" : "is-bad"}>

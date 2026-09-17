@@ -127,7 +127,8 @@ describe("image server judge", () => {
     }
     const edited = { ...original, pixels };
     const outcome = judgeImageSubmission(db, project, 3, artifact, { edited, passed: true });
-    expect(outcome).toMatchObject({ passed: true, passedStages: [3] });
+    // currentStage means "first unfinished core", not "highest passed + 1".
+    expect(outcome).toMatchObject({ passed: true, passedStages: [3], currentStage: 1 });
 
     const unchanged = judgeImageSubmission(
       db,
@@ -161,6 +162,8 @@ describe("image server judge", () => {
     const reloaded = getOrCreateImageProject(db, project.userId, project.classId);
     expect(reloaded.draft.artifact).toEqual(switched);
     expect(reloaded.passedStages).toEqual([1]);
+    // Revocation also rolls currentStage back to the first unfinished core.
+    expect(reloaded.currentStage).toBe(2);
     expect(judgeImageSubmission(db, reloaded, 4, switched, {})).toEqual({
       error: "stage-locked",
       status: 409,

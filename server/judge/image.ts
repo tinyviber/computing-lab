@@ -25,10 +25,10 @@ import {
   type Artifact,
 } from "../../src/features/image-encoding/domain/stops.ts";
 import {
+  deriveCurrentStage,
   getStage,
   isArtifactBoundStage,
   isStageUnlocked,
-  stageCount,
 } from "../../src/features/image-encoding/domain/stages.ts";
 
 const LAB_ID = "image-encoding";
@@ -168,13 +168,20 @@ function toProject(row: RawProject): ImageProject {
     id: row.id,
     userId: row.user_id,
     classId: row.class_id,
-    currentStage: Math.min(stageCount(), Math.max(1, row.current_stage)),
+    // Derived from effective passes so stored/current stage can never
+    // contradict revoked artifact-bound progress.
+    currentStage: deriveCurrentStage(passedStages),
     passedStages,
     artifact: draft.artifact,
     draft,
   };
 }
 
+// Project identity is (user_id, lab_id), matching the shared
+// student_projects UNIQUE(user_id, lab_id) constraint and the calculator
+// lab: progress follows the student across classes rather than resetting
+// per class. Class membership is still enforced per request by
+// requireMembership; class_id on the row records where it was created.
 export function getOrCreateImageProject(
   db: DatabaseSync,
   userId: string,
@@ -207,8 +214,13 @@ export function saveImageDraft(
     ? project.passedStages
     : project.passedStages.filter((index) => !isArtifactBoundStage(index));
   db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(draft), JSON.stringify(passedStages), project.id);
+    "UPDATE student_projects SET draft_graph = ?, passed_stages = ?, current_stage = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+  ).run(
+    JSON.stringify(draft),
+    JSON.stringify(passedStages),
+    deriveCurrentStage(passedStages),
+    project.id,
+  );
   return draft;
 }
 
@@ -292,9 +304,7 @@ export function judgeImageSubmission(
   const passedStages = checked.passed
     ? [...new Set([...workingPasses, stageIndex])].sort((a, b) => a - b)
     : project.passedStages;
-  const currentStage = checked.passed
-    ? Math.min(Math.max(...passedStages) + 1, stageCount())
-    : project.currentStage;
+  const currentStage = checked.passed ? deriveCurrentStage(passedStages) : project.currentStage;
   if (checked.passed) {
     // Bind the new pass to the artifact it was earned under and make that the
     // stored working artifact in the same write, so a later draft save of a
