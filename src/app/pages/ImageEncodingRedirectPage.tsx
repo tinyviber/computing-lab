@@ -30,10 +30,10 @@ export function ImageEncodingRedirectPage() {
       <div className="not-found" role="status">
         <p className="eyebrow">实验 / 未加入班级</p>
         <h1>你还没有加入班级</h1>
-        <p>请用老师给的邀请码加入班级后再开始实验。</p>
+        <p>请联系管理员把你的账号分配到班级后再开始实验。</p>
         <div className="error-actions">
-          <Link className="button button-primary" to="/login">
-            用邀请码加入
+          <Link className="button button-primary" to="/">
+            返回首页
           </Link>
         </div>
       </div>

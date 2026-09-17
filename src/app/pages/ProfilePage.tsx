@@ -2,7 +2,7 @@ import { Link, Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { describeApiError } from "../../shared/api/client";
 import { AccountMenu } from "../../shared/auth/AccountMenu";
-import { useAuth } from "../../shared/auth";
+import { ROLE_LABELS, useAuth } from "../../shared/auth";
 import "./profile.css";
 
 export function ProfilePage() {
@@ -87,6 +87,10 @@ export function ProfilePage() {
               <div>
                 <dt>学号</dt>
                 <dd>{session.user.studentNo}</dd>
+              </div>
+              <div>
+                <dt>角色</dt>
+                <dd>{ROLE_LABELS[session.user.role]}</dd>
               </div>
               <div>
                 <dt>所在班级</dt>

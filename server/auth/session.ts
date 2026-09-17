@@ -4,10 +4,14 @@ import { newId } from "../db/client.ts";
 export const SESSION_COOKIE = "lab_session";
 const SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 
+/** Account-level role: admin ⊃ teacher ⊃ user. */
+export type AccountRole = "admin" | "teacher" | "user";
+
 export type SessionUser = {
   id: string;
   studentNo: string;
   name: string;
+  role: AccountRole;
 };
 
 export function createSession(db: DatabaseSync, userId: string): { id: string; expiresAt: Date } {
@@ -24,7 +28,7 @@ export function createSession(db: DatabaseSync, userId: string): { id: string; e
 export function findSessionUser(db: DatabaseSync, sessionId: string): SessionUser | null {
   const row = db
     .prepare(
-      `SELECT u.id, u.student_no AS studentNo, u.name
+      `SELECT u.id, u.student_no AS studentNo, u.name, u.role
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.id = ? AND s.expires_at > ?`,
     )

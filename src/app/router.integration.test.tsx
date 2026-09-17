@@ -61,7 +61,7 @@ describe("application router integration", () => {
     await renderAppAt("/", { auth: anonymousAuthState });
 
     expect(screen.getByRole("heading", { name: "计算实验室" })).toBeInTheDocument();
-    const entry = screen.getByRole("link", { name: /登录 \/ 加入班级/ });
+    const entry = screen.getByRole("link", { name: /^登录/ });
     expect(entry).toHaveAttribute("href", "/login");
 
     // No lab links are offered to an anonymous visitor.

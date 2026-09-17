@@ -1,3 +1,4 @@
+import { isStaffRole, type AccountRole } from "../../shared/auth";
 import type { LabDefinition } from "./types";
 
 /**
@@ -124,22 +125,22 @@ export function experimentalLabs(): LabDefinition[] {
 }
 
 /**
- * Which labs a viewer may navigate to. Teachers and the explicit escape hatch
- * see everything; students see only enabled labs.
+ * Which labs a viewer may navigate to. Staff (teachers and admins) and the
+ * explicit escape hatch see everything; students see only enabled labs.
  */
 export function visibleLabs(options: {
-  role?: "student" | "teacher" | null;
+  role?: AccountRole | null;
   showExperimental?: boolean;
 }): LabDefinition[] {
-  if (options.role === "teacher" || options.showExperimental) return labs;
+  if (isStaffRole(options.role) || options.showExperimental) return labs;
   return enabledLabs();
 }
 
 export function isLabAccessible(
   id: string,
-  options: { role?: "student" | "teacher" | null; showExperimental?: boolean },
+  options: { role?: AccountRole | null; showExperimental?: boolean },
 ): boolean {
   const lab = getLab(id);
   if (!lab) return false;
-  return lab.enabled || options.role === "teacher" || options.showExperimental === true;
+  return lab.enabled || isStaffRole(options.role) || options.showExperimental === true;
 }

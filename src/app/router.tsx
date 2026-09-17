@@ -29,6 +29,7 @@ import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageEncodingRedirectPage } from "./pages/ImageEncodingRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { AdminPage } from "./pages/AdminPage";
 
 function RootLayout() {
   return <Outlet />;
@@ -74,6 +75,11 @@ const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
   component: ProfilePage,
+});
+const adminRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin",
+  component: AdminPage,
 });
 
 /**
@@ -170,6 +176,7 @@ const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
   profileRoute,
+  adminRoute,
   calculatorEntryRoute,
   calculatorLabRoute,
   dashboardRoute,

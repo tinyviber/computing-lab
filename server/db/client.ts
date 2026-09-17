@@ -41,14 +41,26 @@ export function migrate(db: DatabaseSync): void {
   };
   if (version === 0) {
     db.exec(schemaSql);
-    db.exec("PRAGMA user_version = 2");
+    db.exec("PRAGMA user_version = 3");
     return;
   }
   // v1 -> v2: out-of-order stage passes replace the serial stage lock.
   if (version === 1) {
     db.exec("ALTER TABLE student_projects ADD COLUMN passed_stages TEXT NOT NULL DEFAULT '[]'");
-    db.exec("PRAGMA user_version = 2");
   }
+  // v2 -> v3: account-level roles (admin / teacher / user). Existing class
+  // teachers keep their permissions via a global 'teacher' role backfill.
+  if (version <= 2) {
+    db.exec(
+      "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' " +
+        "CHECK (role IN ('admin', 'teacher', 'user'))",
+    );
+    db.exec(
+      "UPDATE users SET role = 'teacher' " +
+        "WHERE id IN (SELECT user_id FROM class_members WHERE role = 'teacher')",
+    );
+  }
+  if (version !== 3) db.exec("PRAGMA user_version = 3");
 }
 
 export function newId(): string {

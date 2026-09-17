@@ -1,7 +1,7 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
-import { AccountMenu, useAuth } from "../../shared/auth";
+import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import "./dashboard.css";
 
@@ -86,11 +86,11 @@ export function TeacherDashboardPage() {
       </p>
     );
   }
-  if (status === "anonymous" || (role && role !== "teacher")) {
+  if (status === "anonymous" || (role && !isStaffRole(role))) {
     return (
       <div className="not-found" role="status">
         <p className="eyebrow">看板 / 无权访问</p>
-        <h1>只有教师可以查看班级看板</h1>
+        <h1>只有教师或管理员可以查看班级看板</h1>
         <div className="error-actions">
           <Link className="button button-primary" to="/">
             返回首页
