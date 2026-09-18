@@ -40,6 +40,7 @@ function CaseBusValue({
         <AnnotatedText text={bus.name} />
       </span>
       <code aria-label={`${bus.name} ${reading.text}`} className="case-bus-bits">
+        {bus.implicitSign ? <span className="case-sign-bit">{reading.signBit ?? "?"}</span> : null}
         {bus.pins.map((pin, i) => {
           const bit = reading.bits[i];
           const differs =
@@ -64,17 +65,21 @@ function CaseValues({
   buses,
   values,
   compareTo,
+  inputs,
 }: {
   buses: BusDef[];
   values: Record<string, Bit | null>;
   compareTo?: Record<string, Bit>;
+  /** Case inputs, merged in so implied sign bits can be derived. */
+  inputs?: Record<string, Bit>;
 }) {
   const covered = new Set(buses.flatMap((bus) => bus.pins));
   const bare = Object.keys(values).filter((pin) => !covered.has(pin));
+  const context = inputs ? { ...inputs, ...values } : values;
   return (
     <span className="case-values">
       {buses.map((bus) => (
-        <CaseBusValue bus={bus} compareTo={compareTo} key={bus.name} values={values} />
+        <CaseBusValue bus={bus} compareTo={compareTo} key={bus.name} values={context} />
       ))}
       {bare.length > 0 ? (
         <code className="case-pins">
@@ -124,7 +129,11 @@ function CounterexampleBlock({
         <div>
           <dt>期望</dt>
           <dd>
-            <CaseValues buses={outputBuses} values={counterexample.expected} />
+            <CaseValues
+              buses={outputBuses}
+              inputs={counterexample.inputs}
+              values={counterexample.expected}
+            />
           </dd>
         </div>
         <div>
@@ -133,6 +142,7 @@ function CounterexampleBlock({
             <CaseValues
               buses={outputBuses}
               compareTo={counterexample.expected}
+              inputs={counterexample.inputs}
               values={counterexample.actual}
             />
           </dd>
@@ -240,7 +250,7 @@ export function TestPanel({
               </th>
               <td>{result.passed ? "✓" : "×"}</td>
               <td>
-                <CaseValues buses={outputBuses} values={result.expected} />
+                <CaseValues buses={outputBuses} inputs={result.inputs} values={result.expected} />
               </td>
               <td>
                 {result.error ? (
@@ -249,6 +259,7 @@ export function TestPanel({
                   <CaseValues
                     buses={outputBuses}
                     compareTo={result.expected}
+                    inputs={result.inputs}
                     values={result.actual}
                   />
                 )}

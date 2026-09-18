@@ -20,9 +20,11 @@ describe("calculator stage pin order", () => {
     }
   });
 
-  it("states the fixed-width positive-input contract for negation", () => {
-    expect(getStage(4)?.description).toContain("4 位无符号正数");
+  it("states the 5-bit signed contract for negation and subtraction", () => {
+    expect(getStage(4)?.description).toContain("5 位二进制补码");
     expect(getStage(4)?.description).toContain("1≤A≤15");
-    expect(getStage(4)?.description).toContain("最高位之外的进位不保留");
+    expect(getStage(4)?.description).toContain("符号位");
+    expect(getStage(5)?.description).toContain("5 位二进制补码");
+    expect(getStage(5)?.description).toContain("A < B");
   });
 });

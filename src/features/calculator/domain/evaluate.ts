@@ -244,6 +244,8 @@ export type CaseResult = {
   name: string;
   category: string;
   passed: boolean;
+  /** The case's input assignment — kept so implied sign bits can be derived. */
+  inputs: Record<string, Bit>;
   expected: Record<string, Bit>;
   actual: Record<string, Bit | null>;
   error: EvalError | null;
@@ -267,6 +269,7 @@ export function runCase(
       name: testCase.name,
       category: testCase.category,
       passed: false,
+      inputs: testCase.inputs,
       expected: testCase.outputs,
       actual: {},
       error: result.error,
@@ -283,6 +286,7 @@ export function runCase(
     name: testCase.name,
     category: testCase.category,
     passed,
+    inputs: testCase.inputs,
     expected: testCase.outputs,
     actual,
     error: null,

@@ -18,32 +18,35 @@ describe("BusReadout", () => {
     expect(input).toBeInTheDocument();
     expect(screen.getByRole("listitem", { name: "A0，值 1" })).toBeInTheDocument();
 
-    // A = 0101 → 5; the bit cells sit MSB → LSB with a direction label.
+    // A = 0101 → 5; the bit cells sit MSB → LSB with a direction label,
+    // preceded by the implied sign bit (0 for a positive operand).
     const cardA = screen.getByText("A", { selector: ".bus-card-head strong" }).closest("article")!;
     expect(cardA).toHaveTextContent("高位 → 低位");
     expect(cardA.querySelector(".bus-bits")!.textContent).toBe(
-      "A3" + "0" + "A2" + "1" + "A1" + "0" + "A0" + "1",
+      "符号位" + "0" + "A3" + "0" + "A2" + "1" + "A1" + "0" + "A0" + "1",
     );
     expect(cardA).toHaveTextContent("无符号");
     expect(cardA).toHaveTextContent("5");
+    expect(cardA).toHaveTextContent("-16×0 + 8×0 + 4×1 + 2×0 + 1×1 = 5");
   });
 
   it("shows unsigned and two's-complement readings for a signed bus", () => {
     const stage = getStage(4)!;
     render(
       <BusReadout
-        pins={{ A3: 0, A2: 0, A1: 0, A0: 0, R3: 1, R2: 0, R1: 1, R0: 1 }}
+        pins={{ A3: 0, A2: 1, A1: 0, A0: 1, R3: 1, R2: 0, R1: 1, R0: 1 }}
         stage={stage}
       />,
     );
 
     const cardR = screen.getByText("R", { selector: ".bus-card-head strong" }).closest("article")!;
-    // R = 1011 → 无符号 11, 补码 -5, with the place-value expansion.
+    // A = 5 is nonzero so the implied sign is 1: R = 1011 → 无符号 11, 补码 -5.
     expect(cardR).toHaveTextContent("无符号");
     expect(cardR).toHaveTextContent("11");
     expect(cardR).toHaveTextContent("补码");
     expect(cardR).toHaveTextContent("-5");
-    expect(cardR).toHaveTextContent("-8×1 + 4×0 + 2×1 + 1×1 = -5");
+    expect(cardR).toHaveTextContent("-16×1 + 8×1 + 4×0 + 2×1 + 1×1 = -5");
+    expect(cardR.querySelector(".bus-bits")!.textContent).toContain("符号位1");
   });
 
   it("marks undriven pins with ? and the is-floating style", () => {

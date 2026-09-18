@@ -22,6 +22,20 @@ function BusCard({ reading }: { reading: BusReading }) {
         <span className="bus-direction">高位 → 低位</span>
       </header>
       <div className="bus-bits" role="list">
+        {bus.implicitSign ? (
+          <span
+            aria-label={`符号位，值 ${reading.signBit ?? "?"}`}
+            className={`bus-bit is-implied${reading.signBit === null ? " is-floating" : ""}`}
+            role="listitem"
+          >
+            <span aria-hidden="true" className="bus-bit-name">
+              <AnnotatedText text="符号位" />
+            </span>
+            <span aria-hidden="true" className="bus-bit-value">
+              {reading.signBit ?? "?"}
+            </span>
+          </span>
+        ) : null}
         {bus.pins.map((pin, i) => {
           const bit = reading.bits[i];
           return (

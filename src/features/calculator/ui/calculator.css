@@ -1137,6 +1137,12 @@
   border-color: #d9a13c;
 }
 
+/* Implied sign bit: derived from the stage's inputs, not a real pin. */
+.bus-bit.is-implied {
+  border-style: dashed;
+  background: transparent;
+}
+
 .bus-bit-name {
   color: var(--muted);
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -1198,6 +1204,13 @@
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 1px;
+}
+
+.case-bus-bits .case-sign-bit {
+  margin-right: 4px;
+  padding-right: 4px;
+  border-right: 1px dashed var(--border);
+  color: var(--muted);
 }
 
 .case-bus-bits mark {

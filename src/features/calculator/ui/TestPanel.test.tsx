@@ -14,6 +14,7 @@ function passResult(name: string): CaseResult {
     name,
     category: "basic",
     passed: true,
+    inputs: {},
     expected: { S3: 0, S2: 1, S1: 1, S0: 1, Cout: 0 },
     actual: { S3: 0, S2: 1, S1: 1, S0: 1, Cout: 0 },
     error: null,
@@ -26,6 +27,7 @@ describe("TestPanel", () => {
       name: "3 + 4 = 7",
       category: "basic",
       passed: false,
+      inputs: {},
       expected: { S3: 0, S2: 1, S1: 1, S0: 1, Cout: 0 },
       actual: { S3: 0, S2: 1, S1: 1, S0: 0, Cout: 0 },
       error: null,
@@ -56,6 +58,7 @@ describe("TestPanel", () => {
       name: "0 - 1 → 1111",
       category: "borrow",
       passed: true,
+      inputs: { A3: 0, A2: 0, A1: 0, A0: 0, B3: 0, B2: 0, B1: 0, B0: 1 },
       expected: { R3: 1, R2: 1, R1: 1, R0: 1 },
       actual: { R3: 1, R2: 1, R1: 1, R0: 1 },
       error: null,
@@ -77,6 +80,7 @@ describe("TestPanel", () => {
       name: "乘：3 × 5 → 1111",
       category: "op-mul",
       passed: true,
+      inputs: {},
       expected: { R3: 1, R2: 1, R1: 1, R0: 1 },
       actual: { R3: 1, R2: 1, R1: 1, R0: 1 },
       error: null,
@@ -119,10 +123,11 @@ describe("TestPanel", () => {
     expect(block).toHaveTextContent("0000（0）");
     expect(block).toHaveTextContent("0001（1）");
     // Expected 1111（15） vs actual 0110（6）, signed 补码 readings included.
+    // The implied sign is 1 whenever A < B, so actual 0110 reads as -10.
     expect(block).toHaveTextContent("1111（15）");
     expect(block).toHaveTextContent("（补码 -1）");
     expect(block).toHaveTextContent("0110（6）");
-    expect(block).toHaveTextContent("（补码 6）");
+    expect(block).toHaveTextContent("（补码 -10）");
     expect(block).toHaveTextContent("这一组输入下，你的电路给出 0110（6），应为 1111（15）。");
   });
 
@@ -131,6 +136,7 @@ describe("TestPanel", () => {
       name: "异或",
       category: "op-xor",
       passed: false,
+      inputs: {},
       expected: { R3: 1, R2: 1, R1: 0, R0: 0, Extra: 1 },
       actual: { R3: 1, R2: 1, R1: 0, R0: 0, Extra: 0 },
       error: null,

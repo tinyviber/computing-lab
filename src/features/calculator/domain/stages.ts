@@ -10,6 +10,15 @@
 
 import type { GateKind } from "./graph.ts";
 
+/** How the implied sign bit of a low-bits bus is derived from input pins. */
+export type ImplicitSign =
+  /** Always 0: the bus holds a non-negative operand. */
+  | { kind: "zero" }
+  /** 1 iff any listed pin is 1 — e.g. −A is negative whenever A ≠ 0. */
+  | { kind: "nonzero"; pins: string[] }
+  /** 1 iff the MSB-first number on `left` is less than the one on `right`. */
+  | { kind: "lt"; left: string[]; right: string[] };
+
 /** A group of pins read together as one binary number, MSB first. */
 export type BusDef = {
   /** Display label, e.g. "A" or "真实和（5 位）". */
@@ -19,6 +28,12 @@ export type BusDef = {
   role: "input" | "output";
   /** Also show the two's-complement reading next to the unsigned one. */
   signed: boolean;
+  /**
+   * Marks the bus as the low bits of a wider two's-complement value whose
+   * sign bit is implied by the inputs rather than driven by the circuit.
+   * Readings then prepend a virtual sign bit of weight −2^pins.length.
+   */
+  implicitSign?: ImplicitSign;
 };
 
 export type StageTrack = "core" | "challenge";
@@ -127,11 +142,23 @@ export const CALCULATOR_STAGES: StageDef[] = [
     title: "求补码",
     englishTitle: "Negation",
     description:
-      "已知 A 是 4 位无符号正数（1≤A≤15；A=0 仅作为零的边界用例），求 −A 的 4 位二进制补码 R。计算固定在 4 位内，按位取反再加 1，最高位之外的进位不保留。",
+      "把 A 看作一个 5 位二进制补码正数的低 4 位（1≤A≤15；A=0 仅作为零的边界用例）：最高位是符号位，恒为 0，不出现在引脚上。求 −A 的 5 位补码：−15≤−A≤0，在 5 位补码范围（−16～15）内不会溢出，其符号位恒为 1（A=0 时结果为全 0），已由题意确定，不需要用电路实现。你只需输出低 4 位 R3～R0：对 A 按位取反再加 1，计算固定在 4 位内，超出第 4 位的进位不保留。",
     track: "core",
     buses: [
-      { name: "A", pins: busNib("A"), role: "input", signed: false },
-      { name: "R", pins: busNib("R"), role: "output", signed: true },
+      {
+        name: "A",
+        pins: busNib("A"),
+        role: "input",
+        signed: false,
+        implicitSign: { kind: "zero" },
+      },
+      {
+        name: "R",
+        pins: busNib("R"),
+        role: "output",
+        signed: true,
+        implicitSign: { kind: "nonzero", pins: busNib("A") },
+      },
     ],
     inputs: nib("A"),
     outputs: nib("R"),
@@ -144,12 +171,31 @@ export const CALCULATOR_STAGES: StageDef[] = [
     id: "sub4",
     title: "4 位减法器",
     englishTitle: "Subtraction",
-    description: "计算 A − B（模 16 环绕）：A + (−B)。",
+    description:
+      "把 A、B 看作两个 5 位二进制补码正数的低 4 位（0≤A,B≤15）：最高位是符号位，恒为 0，不出现在引脚上。计算 A − B 的 5 位补码：−15≤A−B≤15，在 5 位补码范围（−16～15）内不会溢出；符号位为 1 当且仅当 A < B，由输入决定，不需要用电路实现。你只需输出低 4 位 R3～R0，即 A + (−B) 的低 4 位：先用 Neg4 求 −B，再用 Add4 相加，超出第 4 位的进位不保留。",
     track: "core",
     buses: [
-      { name: "A", pins: busNib("A"), role: "input", signed: false },
-      { name: "B", pins: busNib("B"), role: "input", signed: false },
-      { name: "R", pins: busNib("R"), role: "output", signed: true },
+      {
+        name: "A",
+        pins: busNib("A"),
+        role: "input",
+        signed: false,
+        implicitSign: { kind: "zero" },
+      },
+      {
+        name: "B",
+        pins: busNib("B"),
+        role: "input",
+        signed: false,
+        implicitSign: { kind: "zero" },
+      },
+      {
+        name: "R",
+        pins: busNib("R"),
+        role: "output",
+        signed: true,
+        implicitSign: { kind: "lt", left: busNib("A"), right: busNib("B") },
+      },
     ],
     inputs: [...nib("A"), ...nib("B")],
     outputs: nib("R"),

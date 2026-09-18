@@ -26,6 +26,7 @@ export const CALCULATOR_TERM_NOTES = {
   NOT: "非门：把 0 变成 1，把 1 变成 0。",
   BUF: "缓冲门：输出与输入相同，用来直接传递信号。",
   MUX: "多路选择器：根据选择位，从多个结果中挑一个输出。",
+  符号位: "符号位：二进制补码的最高位，0 表示非负，1 表示负。",
   borrow: "借位：减法中向更高位借来的 1。",
   carry: "进位用例：专门检查相加时是否正确产生进位。",
   "carry-in": "输入进位用例：专门检查来自更低位的 Cin。",
@@ -71,6 +72,7 @@ const GUIDE_TERMS: CalculatorTerm[] = [
   "XOR",
   "NOT",
   "MUX",
+  "符号位",
   "borrow",
   "overflow",
 ];
