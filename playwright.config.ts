@@ -13,6 +13,7 @@ const basePath = normalizeBasePath(process.env.VITE_BASE_PATH ?? process.env.BAS
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: /.*\.(spec|e2e)\.ts/,
+  workers: 2,
   timeout: 15_000,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
