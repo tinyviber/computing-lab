@@ -32,6 +32,8 @@ type CircuitCanvasProps = {
   selectedNodeId: string | null;
   pendingWire: PendingWire;
   dispatch: (action: CalculatorLessonAction) => void;
+  /** Coach spotlight: pulse these nodes, ports, or every wire. */
+  coachFocus?: { nodeIds: ReadonlySet<string>; portKeys: ReadonlySet<string>; wires: boolean };
 };
 
 function nodeLabel(node: CircuitNode): string {
@@ -61,6 +63,7 @@ export function CircuitCanvas({
   selectedNodeId,
   pendingWire,
   dispatch,
+  coachFocus,
 }: CircuitCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
@@ -274,7 +277,7 @@ export function CircuitCanvas({
             return (
               <path
                 aria-label={`连线 ${nodeLabel(fromNode)} → ${nodeLabel(toNode)}，删除`}
-                className={`wire${valueClass(value)}`}
+                className={`wire${valueClass(value)}${coachFocus?.wires ? " coach-focus" : ""}`}
                 d={wirePath(from, to)}
                 key={edge.id}
                 onClick={(event) => {
@@ -307,7 +310,7 @@ export function CircuitCanvas({
 
             return (
               <g
-                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}${node.collapsed ? " is-collapsed" : ""}`}
+                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}${node.collapsed ? " is-collapsed" : ""}${coachFocus?.nodeIds.has(node.id) ? " coach-focus" : ""}`}
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 transform={`translate(${node.x} ${node.y})`}
@@ -411,7 +414,7 @@ export function CircuitCanvas({
                     return (
                       <circle
                         aria-label={`${nodeLabel(node)} 输出 ${port}`}
-                        className={`port is-out${valueClass(portValues[`${node.id}#${port}`])}`}
+                        className={`port is-out${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#out`) ? " coach-focus" : ""}`}
                         cx={anchor.x - node.x}
                         cy={anchor.y - node.y}
                         key={`o-${port}`}
@@ -433,7 +436,7 @@ export function CircuitCanvas({
                     return (
                       <circle
                         aria-label={`${nodeLabel(node)} 输入 ${port}`}
-                        className={`port is-in${valueClass(portValues[`${node.id}#${port}`])}`}
+                        className={`port is-in${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#in`) ? " coach-focus" : ""}`}
                         cx={anchor.x - node.x}
                         cy={anchor.y - node.y}
                         key={`i-${port}`}

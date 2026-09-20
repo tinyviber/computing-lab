@@ -157,12 +157,20 @@ export function adminRoutes() {
 
   app.get("/users", (c) => {
     const db = c.get("db");
+    const rawPage = Number.parseInt(c.req.query("page") ?? "", 10);
+    const rawSize = Number.parseInt(c.req.query("pageSize") ?? "", 10);
+    const pageSize = Number.isFinite(rawSize) ? Math.min(Math.max(rawSize, 1), 200) : 50;
+    const { total } = db.prepare("SELECT COUNT(*) AS total FROM users").get() as {
+      total: number;
+    };
+    const pageCount = Math.max(1, Math.ceil(total / pageSize));
+    const page = Number.isFinite(rawPage) ? Math.min(Math.max(rawPage, 1), pageCount) : 1;
     const users = db
       .prepare(
         `SELECT id, student_no AS studentNo, name, role, created_at AS createdAt
-         FROM users ORDER BY created_at, student_no`,
+         FROM users ORDER BY created_at, student_no LIMIT ? OFFSET ?`,
       )
-      .all() as {
+      .all(pageSize, (page - 1) * pageSize) as {
       id: string;
       studentNo: string;
       name: string;
@@ -181,7 +189,12 @@ export function adminRoutes() {
       list.push({ classId: m.classId, className: m.className, role: m.role });
       classesByUser.set(m.userId, list);
     }
-    return c.json({ users: users.map((u) => ({ ...u, classes: classesByUser.get(u.id) ?? [] })) });
+    return c.json({
+      users: users.map((u) => ({ ...u, classes: classesByUser.get(u.id) ?? [] })),
+      total,
+      page,
+      pageSize,
+    });
   });
 
   // Create a single account. Self-registration is closed: this is the only
@@ -294,6 +307,71 @@ export function adminRoutes() {
     return c.json({ user: { id: targetId, role } });
   });
 
+  // Reset another account's password. All of the target's sessions are
+  // dropped so the old password cannot keep a live session going. Admins
+  // change their own password through /api/auth/change-password instead —
+  // resetting it here would delete the session they are calling from.
+  app.put("/users/:id/password", async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const password =
+      body && typeof body === "object" ? (body as Record<string, unknown>).password : undefined;
+    if (typeof password !== "string") return jsonError(c, 400, "invalid-body");
+    if (password.length < 4 || password.length > 128) return jsonError(c, 400, "weak-password");
+
+    const targetId = c.req.param("id");
+    const caller = c.get("user")!;
+    if (targetId === caller.id) return jsonError(c, 400, "cannot-edit-own-password");
+
+    const db = c.get("db");
+    const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
+    if (!target) return jsonError(c, 404, "user-not-found");
+
+    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
+      hashPassword(password),
+      targetId,
+    );
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+    return c.json({ ok: true });
+  });
+
+  // Delete an account and everything attached to it — submissions, project
+  // progress, memberships, sessions. Self-deletion is refused so an admin
+  // cannot lock themselves out mid-session.
+  app.delete("/users/:id", (c) => {
+    const targetId = c.req.param("id");
+    const caller = c.get("user")!;
+    if (targetId === caller.id) return jsonError(c, 400, "cannot-delete-self");
+
+    const db = c.get("db");
+    const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
+    if (!target) return jsonError(c, 404, "user-not-found");
+
+    db.prepare("DELETE FROM submissions WHERE user_id = ?").run(targetId);
+    db.prepare("DELETE FROM student_projects WHERE user_id = ?").run(targetId);
+    db.prepare("DELETE FROM class_members WHERE user_id = ?").run(targetId);
+    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+    db.prepare("DELETE FROM users WHERE id = ?").run(targetId);
+    return c.json({ deleted: targetId });
+  });
+
+  // Wipe one account's exercise records — every submission and lab project —
+  // while keeping the account, role, and class memberships. The student sees
+  // a fresh progress state on next login.
+  app.delete("/users/:id/records", (c) => {
+    const targetId = c.req.param("id");
+    const db = c.get("db");
+    const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
+    if (!target) return jsonError(c, 404, "user-not-found");
+
+    const { changes: submissions } = db
+      .prepare("DELETE FROM submissions WHERE user_id = ?")
+      .run(targetId);
+    const { changes: projects } = db
+      .prepare("DELETE FROM student_projects WHERE user_id = ?")
+      .run(targetId);
+    return c.json({ cleared: { submissions, projects } });
+  });
+
   app.get("/classes", (c) => {
     const classes = c
       .get("db")
@@ -343,6 +421,32 @@ export function adminRoutes() {
     if (count > 0) return jsonError(c, 409, "class-not-empty");
     db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
     return c.json({ deleted: classId });
+  });
+
+  // Add a user to a class. Member role follows the account role: students
+  // join as students, staff join as teachers.
+  app.put("/classes/:classId/members/:userId", (c) => {
+    const db = c.get("db");
+    const classId = c.req.param("classId");
+    const userId = c.req.param("userId");
+    const klass = db.prepare("SELECT id FROM classes WHERE id = ?").get(classId);
+    if (!klass) return jsonError(c, 404, "class-not-found");
+    const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(userId) as
+      { id: string; role: AccountRole } | undefined;
+    if (!target) return jsonError(c, 404, "user-not-found");
+    const existing = db
+      .prepare("SELECT id FROM class_members WHERE class_id = ? AND user_id = ?")
+      .get(classId, userId);
+    if (existing) return jsonError(c, 409, "already-member");
+
+    const memberRole = target.role === "user" ? "student" : "teacher";
+    db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
+      newId(),
+      classId,
+      userId,
+      memberRole,
+    );
+    return c.json({ membership: { classId, userId, role: memberRole } }, 201);
   });
 
   // Remove one user from a class. Users may belong to any number of classes,

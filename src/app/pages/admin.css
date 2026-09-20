@@ -141,6 +141,44 @@
   opacity: 0.55;
 }
 
+.admin-reset-form {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-reset-input {
+  width: 140px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.admin-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-danger:not(:disabled) {
+  color: var(--danger, #b42318);
+}
+
+.admin-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 10px;
+}
+
+.admin-pagination-info {
+  margin-right: auto;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .admin-class-chips {
   display: flex;
   flex-wrap: wrap;

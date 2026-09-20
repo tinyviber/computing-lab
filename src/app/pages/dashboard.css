@@ -115,6 +115,12 @@
   border-color: var(--danger);
 }
 
+.dashboard-note {
+  margin: 0 0 12px;
+  color: var(--success);
+  font-size: 13px;
+}
+
 /* Failure-detail drawer */
 .drawer-scrim {
   position: fixed;

@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     base,
     plugins: [react(), tailwindcss()],
     server: {
+      host: true,
       proxy: {
         "/api": {
           target: `http://localhost:${env.LAB_PORT ?? 8788}`,

@@ -24,6 +24,10 @@ type ImportRowResult = {
 
 type ImportSummary = { created: number; exists: number; failed: number; rows: ImportRowResult[] };
 
+type UsersPayload = { users: AdminUser[]; total: number; page: number; pageSize: number };
+
+const PAGE_SIZE = 50;
+
 const IMPORT_HINT =
   "每行一个账号：学号,姓名,密码[,角色][,班级邀请码]。角色可选 学生/教师/管理员，留空默认为学生；也支持粘贴 JSON 数组。";
 
@@ -308,6 +312,10 @@ export function AdminPage() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [resetTarget, setResetTarget] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
   const reload = useCallback(() => {
     void api
@@ -315,10 +323,18 @@ export function AdminPage() {
       .then((payload) => setClasses(payload.classes))
       .catch((caught) => setError(describeApiError(caught)));
     void api
-      .get<{ users: AdminUser[] }>("/api/admin/users")
-      .then((payload) => setUsers(payload.users))
+      .get<UsersPayload>(`/api/admin/users?page=${page}&pageSize=${PAGE_SIZE}`)
+      .then((payload) => {
+        if (payload.users.length === 0 && payload.page > 1) {
+          setPage(payload.page - 1);
+          return;
+        }
+        setUsers(payload.users);
+        setTotal(payload.total);
+        setPage(payload.page);
+      })
       .catch((caught) => setError(describeApiError(caught)));
-  }, []);
+  }, [page]);
 
   useEffect(() => {
     if (status === "authenticated" && role === "admin") reload();
@@ -338,6 +354,23 @@ export function AdminPage() {
       }
     },
     [reload],
+  );
+
+  const cancelReset = useCallback(() => {
+    setResetTarget(null);
+    setResetPassword("");
+  }, []);
+
+  const submitReset = useCallback(
+    (user: AdminUser) => {
+      const password = resetPassword;
+      void run(async () => {
+        await api.put(`/api/admin/users/${user.id}/password`, { password });
+        setResetTarget(null);
+        setResetPassword("");
+      });
+    },
+    [resetPassword, run],
   );
 
   if (status === "loading") {
@@ -468,6 +501,7 @@ export function AdminPage() {
                   <th scope="col">姓名</th>
                   <th scope="col">角色</th>
                   <th scope="col">班级</th>
+                  <th scope="col">操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -502,29 +536,129 @@ export function AdminPage() {
                       </select>
                     </td>
                     <td>
-                      {user.classes.length === 0 ? (
-                        "—"
+                      <span className="admin-class-chips">
+                        {user.classes.length === 0 ? "—" : null}
+                        {user.classes.map((m) => (
+                          <span className="admin-class-chip" key={m.classId}>
+                            {m.className}
+                            <button
+                              aria-label={`把 ${user.name} 移出 ${m.className}`}
+                              className="admin-chip-remove"
+                              disabled={busy}
+                              onClick={() =>
+                                void run(() =>
+                                  api.del(`/api/admin/classes/${m.classId}/members/${user.id}`),
+                                )
+                              }
+                              title="移出该班级"
+                              type="button"
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        {classes.filter(
+                          (klass) => !user.classes.some((m) => m.classId === klass.id),
+                        ).length > 0 ? (
+                          <select
+                            aria-label={`把 ${user.name} 加入班级`}
+                            className="admin-role-select"
+                            disabled={busy}
+                            onChange={(e) => {
+                              const classId = e.target.value;
+                              if (classId) {
+                                void run(() =>
+                                  api.put(`/api/admin/classes/${classId}/members/${user.id}`),
+                                );
+                              }
+                            }}
+                            value=""
+                          >
+                            <option value="">＋ 加入班级</option>
+                            {classes
+                              .filter((klass) => !user.classes.some((m) => m.classId === klass.id))
+                              .map((klass) => (
+                                <option key={klass.id} value={klass.id}>
+                                  {klass.name}
+                                </option>
+                              ))}
+                          </select>
+                        ) : null}
+                      </span>
+                    </td>
+                    <td>
+                      {resetTarget === user.id ? (
+                        <span className="admin-reset-form">
+                          <input
+                            aria-label={`${user.name} 的新密码`}
+                            autoComplete="new-password"
+                            className="admin-reset-input"
+                            disabled={busy}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && resetPassword.length >= 4) {
+                                submitReset(user);
+                              } else if (e.key === "Escape") {
+                                cancelReset();
+                              }
+                            }}
+                            placeholder="新密码（至少 4 位）"
+                            type="password"
+                            value={resetPassword}
+                          />
+                          <button
+                            className="button button-ghost admin-inline-button"
+                            disabled={busy || resetPassword.length < 4}
+                            onClick={() => submitReset(user)}
+                            type="button"
+                          >
+                            确定
+                          </button>
+                          <button
+                            className="button button-ghost admin-inline-button"
+                            disabled={busy}
+                            onClick={cancelReset}
+                            type="button"
+                          >
+                            取消
+                          </button>
+                        </span>
                       ) : (
-                        <span className="admin-class-chips">
-                          {user.classes.map((m) => (
-                            <span className="admin-class-chip" key={m.classId}>
-                              {m.className}
-                              <button
-                                aria-label={`把 ${user.name} 移出 ${m.className}`}
-                                className="admin-chip-remove"
-                                disabled={busy}
-                                onClick={() =>
-                                  void run(() =>
-                                    api.del(`/api/admin/classes/${m.classId}/members/${user.id}`),
-                                  )
-                                }
-                                title="移出该班级"
-                                type="button"
-                              >
-                                ×
-                              </button>
-                            </span>
-                          ))}
+                        <span className="admin-actions">
+                          <button
+                            className="button button-ghost admin-inline-button"
+                            disabled={busy || user.id === session?.user.id}
+                            onClick={() => setResetTarget(user.id)}
+                            title={
+                              user.id === session?.user.id
+                                ? "请在个人设置里修改自己的密码"
+                                : "重置该账号的密码，其登录会话将失效"
+                            }
+                            type="button"
+                          >
+                            重置密码
+                          </button>
+                          <button
+                            className="button button-ghost admin-inline-button admin-danger"
+                            disabled={busy || user.id === session?.user.id}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `确定删除账号「${user.name}」（${user.studentNo}）？其班级关系和做题记录会一并删除。`,
+                                )
+                              ) {
+                                void run(() => api.del(`/api/admin/users/${user.id}`));
+                              }
+                            }}
+                            title={
+                              user.id === session?.user.id
+                                ? "不能删除自己的账号"
+                                : "删除该账号及其全部数据"
+                            }
+                            type="button"
+                          >
+                            删除
+                          </button>
                         </span>
                       )}
                     </td>
@@ -532,11 +666,32 @@ export function AdminPage() {
                 ))}
                 {users.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>还没有账号。</td>
+                    <td colSpan={5}>还没有账号。</td>
                   </tr>
                 ) : null}
               </tbody>
             </table>
+            <div className="admin-pagination">
+              <span className="admin-pagination-info">
+                共 {total} 个账号 · 第 {page} / {Math.max(1, Math.ceil(total / PAGE_SIZE))} 页
+              </span>
+              <button
+                className="button button-ghost admin-inline-button"
+                disabled={busy || page <= 1}
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                type="button"
+              >
+                上一页
+              </button>
+              <button
+                className="button button-ghost admin-inline-button"
+                disabled={busy || page >= Math.ceil(total / PAGE_SIZE)}
+                onClick={() => setPage((p) => p + 1)}
+                type="button"
+              >
+                下一页
+              </button>
+            </div>
           </section>
         </div>
       </main>

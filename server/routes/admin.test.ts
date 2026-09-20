@@ -320,6 +320,350 @@ describe("role editing", () => {
   });
 });
 
+describe("password reset", () => {
+  it("resets the password, drops the target's sessions, and keeps the role", async () => {
+    const { db, app } = setup();
+    const adminCookie = await login(app, "admin", "admin-pass");
+    const studentCookie = await login(app, "20260101", "student-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+
+    const response = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${studentId}/password`,
+      { password: "new-pass-1" },
+      adminCookie,
+    );
+    expect(response.status).toBe(200);
+
+    const row = db
+      .prepare("SELECT role, password_hash AS passwordHash FROM users WHERE id = ?")
+      .get(studentId) as { role: string; passwordHash: string };
+    expect(row.role).toBe("user");
+    expect(verifyPassword("new-pass-1", row.passwordHash)).toBe(true);
+
+    const stale = await app.fetch(
+      new Request("http://lab.test/api/auth/me", { headers: { cookie: studentCookie } }),
+    );
+    expect(stale.status).toBe(401);
+
+    await login(app, "20260101", "new-pass-1");
+  });
+
+  it("rejects a weak or missing password", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+
+    const weak = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${studentId}/password`,
+      { password: "abc" },
+      cookie,
+    );
+    expect(weak.status).toBe(400);
+    expect(await weak.json()).toEqual({ error: "weak-password" });
+
+    const missing = await request(app, "PUT", `/api/admin/users/${studentId}/password`, {}, cookie);
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toEqual({ error: "invalid-body" });
+  });
+
+  it("returns 404 for an unknown user and refuses the caller's own password", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+
+    const missing = await request(
+      app,
+      "PUT",
+      "/api/admin/users/nobody/password",
+      { password: "new-pass-1" },
+      cookie,
+    );
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ error: "user-not-found" });
+
+    const adminId = (
+      db.prepare("SELECT id FROM users WHERE student_no = 'admin'").get() as { id: string }
+    ).id;
+    const own = await request(
+      app,
+      "PUT",
+      `/api/admin/users/${adminId}/password`,
+      { password: "new-pass-1" },
+      cookie,
+    );
+    expect(own.status).toBe(400);
+    expect(await own.json()).toEqual({ error: "cannot-edit-own-password" });
+  });
+});
+
+describe("user listing pagination", () => {
+  it("pages users with a default page size of 50 and clamps out-of-range pages", async () => {
+    const { app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+
+    const first = await request(
+      app,
+      "GET",
+      "/api/admin/users?pageSize=2&page=1",
+      undefined,
+      cookie,
+    );
+    const firstPayload = (await first.json()) as {
+      users: { studentNo: string; classes: unknown[] }[];
+      total: number;
+      page: number;
+      pageSize: number;
+    };
+    expect(firstPayload.total).toBe(3);
+    expect(firstPayload.pageSize).toBe(2);
+    expect(firstPayload.page).toBe(1);
+    expect(firstPayload.users).toHaveLength(2);
+    expect(firstPayload.users[0]).toHaveProperty("classes");
+
+    const second = await request(
+      app,
+      "GET",
+      "/api/admin/users?pageSize=2&page=2",
+      undefined,
+      cookie,
+    );
+    const secondPayload = (await second.json()) as { users: { studentNo: string }[] };
+    expect(secondPayload.users).toHaveLength(1);
+
+    const firstIds = firstPayload.users.map((u) => u.studentNo);
+    expect(secondPayload.users.map((u) => u.studentNo)).not.toContain(firstIds[0]);
+
+    const beyond = await request(
+      app,
+      "GET",
+      "/api/admin/users?pageSize=2&page=99",
+      undefined,
+      cookie,
+    );
+    const beyondPayload = (await beyond.json()) as { page: number; users: unknown[] };
+    expect(beyondPayload.page).toBe(2);
+
+    const unparam = await request(app, "GET", "/api/admin/users", undefined, cookie);
+    const unparamPayload = (await unparam.json()) as { pageSize: number; users: unknown[] };
+    expect(unparamPayload.pageSize).toBe(50);
+    expect(unparamPayload.users).toHaveLength(3);
+  });
+});
+
+describe("class assignment", () => {
+  it("adds a student and a teacher to a class with matching member roles", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const idOf = (studentNo: string) =>
+      (db.prepare("SELECT id FROM users WHERE student_no = ?").get(studentNo) as { id: string }).id;
+
+    const student = await request(
+      app,
+      "PUT",
+      `/api/admin/classes/c1/members/${idOf("20260101")}`,
+      undefined,
+      cookie,
+    );
+    expect(student.status).toBe(201);
+    expect(
+      db
+        .prepare("SELECT role FROM class_members WHERE class_id = 'c1' AND user_id = ?")
+        .get(idOf("20260101")),
+    ).toEqual({ role: "student" });
+
+    const teacher = await request(
+      app,
+      "PUT",
+      `/api/admin/classes/c1/members/${idOf("teacher")}`,
+      undefined,
+      cookie,
+    );
+    expect(teacher.status).toBe(201);
+    expect(
+      db
+        .prepare("SELECT role FROM class_members WHERE class_id = 'c1' AND user_id = ?")
+        .get(idOf("teacher")),
+    ).toEqual({ role: "teacher" });
+  });
+
+  it("rejects duplicates and missing class or user", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+
+    const duplicate = await request(
+      app,
+      "PUT",
+      `/api/admin/classes/c1/members/${studentId}`,
+      undefined,
+      cookie,
+    );
+    expect(duplicate.status).toBe(409);
+    expect(await duplicate.json()).toEqual({ error: "already-member" });
+
+    const noClass = await request(
+      app,
+      "PUT",
+      `/api/admin/classes/nope/members/${studentId}`,
+      undefined,
+      cookie,
+    );
+    expect(noClass.status).toBe(404);
+    expect(await noClass.json()).toEqual({ error: "class-not-found" });
+
+    const noUser = await request(
+      app,
+      "PUT",
+      "/api/admin/classes/c1/members/nobody",
+      undefined,
+      cookie,
+    );
+    expect(noUser.status).toBe(404);
+    expect(await noUser.json()).toEqual({ error: "user-not-found" });
+  });
+});
+
+describe("account deletion", () => {
+  it("deletes the account together with records, memberships, and sessions", async () => {
+    const { db, app } = setup();
+    const adminCookie = await login(app, "admin", "admin-pass");
+    const studentCookie = await login(app, "20260101", "student-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id) VALUES (?, ?, 'c1', 'calculator')",
+    ).run("p1", studentId);
+    db.prepare(
+      `INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph,
+         score, total, passed, test_summary)
+       VALUES ('s1', 'p1', ?, 'calculator', 1, '{}', 3, 3, 1, '{}')`,
+    ).run(studentId);
+
+    const response = await request(
+      app,
+      "DELETE",
+      `/api/admin/users/${studentId}`,
+      undefined,
+      adminCookie,
+    );
+    expect(response.status).toBe(200);
+    expect(db.prepare("SELECT id FROM users WHERE id = ?").get(studentId)).toBeUndefined();
+    expect(db.prepare("SELECT id FROM submissions WHERE user_id = ?").all(studentId)).toHaveLength(
+      0,
+    );
+    expect(
+      db.prepare("SELECT id FROM student_projects WHERE user_id = ?").all(studentId),
+    ).toHaveLength(0);
+    expect(
+      db.prepare("SELECT id FROM class_members WHERE user_id = ?").all(studentId),
+    ).toHaveLength(0);
+    expect(db.prepare("SELECT id FROM sessions WHERE user_id = ?").all(studentId)).toHaveLength(0);
+
+    const stale = await app.fetch(
+      new Request("http://lab.test/api/auth/me", { headers: { cookie: studentCookie } }),
+    );
+    expect(stale.status).toBe(401);
+  });
+
+  it("refuses self-deletion and returns 404 for unknown users", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const adminId = (
+      db.prepare("SELECT id FROM users WHERE student_no = 'admin'").get() as { id: string }
+    ).id;
+
+    const own = await request(app, "DELETE", `/api/admin/users/${adminId}`, undefined, cookie);
+    expect(own.status).toBe(400);
+    expect(await own.json()).toEqual({ error: "cannot-delete-self" });
+
+    const missing = await request(app, "DELETE", "/api/admin/users/nobody", undefined, cookie);
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual({ error: "user-not-found" });
+  });
+});
+
+describe("record clearing", () => {
+  it("clears submissions and projects while keeping the account and membership", async () => {
+    const { db, app } = setup();
+    const adminCookie = await login(app, "admin", "admin-pass");
+    const studentCookie = await login(app, "20260101", "student-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id) VALUES ('p1', ?, 'c1', 'calculator')",
+    ).run(studentId);
+    for (const [id, stage] of [
+      ["s1", 1],
+      ["s2", 2],
+    ]) {
+      db.prepare(
+        `INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph,
+           score, total, passed, test_summary)
+         VALUES (?, 'p1', ?, 'calculator', ?, '{}', 3, 3, 1, '{}')`,
+      ).run(id, studentId, stage);
+    }
+
+    const response = await request(
+      app,
+      "DELETE",
+      `/api/admin/users/${studentId}/records`,
+      undefined,
+      adminCookie,
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ cleared: { submissions: 2, projects: 1 } });
+    expect(db.prepare("SELECT id FROM submissions WHERE user_id = ?").all(studentId)).toHaveLength(
+      0,
+    );
+    expect(
+      db.prepare("SELECT id FROM student_projects WHERE user_id = ?").all(studentId),
+    ).toHaveLength(0);
+    expect(
+      db.prepare("SELECT id FROM class_members WHERE user_id = ?").all(studentId),
+    ).toHaveLength(1);
+
+    // The account stays valid — an active session is not kicked out.
+    const me = await app.fetch(
+      new Request("http://lab.test/api/auth/me", { headers: { cookie: studentCookie } }),
+    );
+    expect(me.status).toBe(200);
+  });
+
+  it("returns 404 for an unknown user", async () => {
+    const { app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const response = await request(
+      app,
+      "DELETE",
+      "/api/admin/users/nobody/records",
+      undefined,
+      cookie,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "user-not-found" });
+  });
+});
+
 describe("member removal", () => {
   it("removes a member while other memberships survive", async () => {
     const { db, app } = setup();

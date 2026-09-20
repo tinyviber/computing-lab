@@ -14,9 +14,9 @@ import type { JudgeOutcome, RunOutcome } from "../lesson/state";
 import { AnnotatedText } from "./CalculatorTerms";
 
 const ERROR_HINTS: Record<string, string> = {
-  cycle: "电路里存在环路（输出绕回了自己的输入），无法求值。",
-  unresolved: "有输出引脚没有被驱动。",
-  depth: "自定义组件嵌套层数过多。",
+  cycle: "这里形成了环：某个元件的输出绕回来成了自己的输入。沿着导线找回路，删掉其中一根。",
+  unresolved: "有输出引脚还没有信号来源：找到右侧对应的输出端口，看看有没有导线连过去。",
+  depth: "自定义组件嵌套层数过多——检查组件里是否套用了它自己或互相套用。",
 };
 
 function busesFor(stage: StageDef | undefined, role: BusDef["role"]): BusDef[] {

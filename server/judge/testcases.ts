@@ -23,6 +23,13 @@ function bitCase(
   return { name, category, inputs: ins, outputs: outs };
 }
 
+function wireCases(): JudgeCase[] {
+  return [
+    bitCase("A = 0", "basic", { A: 0 }, { Y: 0 }),
+    bitCase("A = 1", "basic", { A: 1 }, { Y: 1 }),
+  ];
+}
+
 function halfAdderCases(): JudgeCase[] {
   const cases: JudgeCase[] = [];
   for (const a of [0, 1] as const)
@@ -207,13 +214,14 @@ function calculatorCases(): JudgeCase[] {
 }
 
 export const HIDDEN_TESTS: Record<number, JudgeCase[]> = {
-  1: halfAdderCases(),
-  2: fullAdderCases(),
-  3: add4Cases(),
-  4: neg4Cases(),
-  5: sub4Cases(),
-  6: mul4Cases(),
-  7: calculatorCases(),
+  1: wireCases(),
+  2: halfAdderCases(),
+  3: fullAdderCases(),
+  4: add4Cases(),
+  5: neg4Cases(),
+  6: sub4Cases(),
+  7: mul4Cases(),
+  8: calculatorCases(),
 };
 
 export function hiddenTestsFor(stageIndex: number): JudgeCase[] {

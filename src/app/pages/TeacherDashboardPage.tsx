@@ -1,5 +1,5 @@
 import { Link, useParams } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
@@ -15,6 +15,7 @@ type MatrixCell = {
 };
 
 type MatrixRow = {
+  userId: string;
   studentNo: string;
   name: string;
   currentStage: number;
@@ -62,15 +63,41 @@ export function TeacherDashboardPage() {
   const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
+  const isAdmin = role === "admin";
 
-  useEffect(() => {
-    if (!classId || status !== "authenticated") return;
+  const load = useCallback(() => {
+    if (!classId) return;
     void api
       .get<MatrixPayload>(`/api/classes/${classId}/dashboard`)
       .then(setPayload)
       .catch((caught) => setError(describeApiError(caught)));
-  }, [classId, status]);
+  }, [classId]);
+
+  useEffect(() => {
+    if (status === "authenticated") load();
+  }, [status, load]);
+
+  const clearRecords = (row: MatrixRow) => {
+    if (
+      !window.confirm(
+        `确定清空 ${row.name}（${row.studentNo}）的全部做题记录？该学生的关卡进度会被重置。`,
+      )
+    ) {
+      return;
+    }
+    setNotice(null);
+    void api
+      .del<{ cleared: { submissions: number; projects: number } }>(
+        `/api/admin/users/${row.userId}/records`,
+      )
+      .then((result) => {
+        setNotice(`已清空 ${row.name} 的做题记录（${result.cleared.submissions} 条提交）。`);
+        load();
+      })
+      .catch((caught) => setError(describeApiError(caught)));
+  };
 
   const openDetail = (submissionId: string) => {
     void api
@@ -134,6 +161,11 @@ export function TeacherDashboardPage() {
             {error}
           </p>
         ) : null}
+        {notice ? (
+          <p className="dashboard-note" role="status">
+            {notice}
+          </p>
+        ) : null}
 
         <table className="matrix-table">
           <caption className="sr-only">按关卡显示每位学生的最新提交结果</caption>
@@ -147,6 +179,7 @@ export function TeacherDashboardPage() {
                 </th>
               ))}
               <th scope="col">最后活动</th>
+              {isAdmin ? <th scope="col">操作</th> : null}
             </tr>
           </thead>
           <tbody>
@@ -166,11 +199,25 @@ export function TeacherDashboardPage() {
                   </td>
                 ))}
                 <td>{timeOf(row.lastActiveAt)}</td>
+                {isAdmin ? (
+                  <td>
+                    <button
+                      className="cell-score"
+                      onClick={() => clearRecords(row)}
+                      title="删除该学生的全部提交和关卡进度"
+                      type="button"
+                    >
+                      清空记录
+                    </button>
+                  </td>
+                ) : null}
               </tr>
             ))}
             {payload && payload.rows.length === 0 ? (
               <tr>
-                <td colSpan={CALCULATOR_STAGES.length + 3}>还没有学生加入这个班级。</td>
+                <td colSpan={CALCULATOR_STAGES.length + (isAdmin ? 4 : 3)}>
+                  还没有学生加入这个班级。
+                </td>
               </tr>
             ) : null}
           </tbody>

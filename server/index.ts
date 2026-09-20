@@ -66,9 +66,10 @@ export function createServerApp(db: DatabaseSync) {
 const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(here, "index.ts");
 if (isMain) {
   const port = Number(process.env.LAB_PORT ?? 8788);
+  const host = process.env.LAB_HOST ?? "0.0.0.0";
   const db = getDb();
-  serve({ fetch: createServerApp(db).fetch, port }, (info) => {
-    console.log(`[lab-server] listening on http://localhost:${info.port}`);
+  serve({ fetch: createServerApp(db).fetch, port, hostname: host }, (info) => {
+    console.log(`[lab-server] listening on http://${host}:${info.port}`);
     console.log(`[lab-server] db: ${process.env.LAB_DB_PATH ?? "data/lab.db"}`);
   });
 }

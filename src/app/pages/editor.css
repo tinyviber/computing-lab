@@ -79,8 +79,7 @@
   font-size: 11px;
 }
 
-.editor-lesson-select,
-.editor-password-input {
+.editor-lesson-select {
   border: 1px solid var(--border);
   border-radius: var(--radius-control);
   background: var(--surface);
@@ -99,7 +98,6 @@
   padding: 7px 15px;
 }
 
-.editor-logout,
 .editor-refresh-button {
   border: 0;
   background: transparent;
@@ -108,7 +106,6 @@
   font-size: 12px;
 }
 
-.editor-logout:hover,
 .editor-refresh-button:hover {
   color: var(--accent);
 }
@@ -446,28 +443,9 @@
   line-height: 21px;
 }
 
-.editor-field-label {
-  margin-top: 8px;
-  color: var(--primary);
-  font-size: 12px;
-  font-weight: 650;
-}
-
-.editor-password-input {
-  min-height: 43px;
-  padding: 9px 12px;
-  font-size: 14px;
-}
-
 .editor-login-submit {
   width: 100%;
   margin-top: 4px;
-}
-
-.editor-form-error {
-  color: var(--danger);
-  font-size: 12px;
-  line-height: 17px;
 }
 
 .editor-start-hint code {

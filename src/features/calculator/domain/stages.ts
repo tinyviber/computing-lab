@@ -1,5 +1,5 @@
 /**
- * Stage contracts for the Calculator Lab (progression 1–7).
+ * Stage contracts for the Calculator Lab (progression 1–8).
  *
  * These are the PUBLIC contract of each stage: which named pins a correct
  * circuit must expose, which primitives are on the palette, and which
@@ -54,6 +54,12 @@ export type StageDef = {
   outputs: string[];
   /** Primitive gates on the palette for this stage. */
   primitives: GateKind[];
+  /** Gates kept available under “更多元件” — usable, but not suggested. */
+  extraPrimitives?: GateKind[];
+  /** Show 常量 0/1 chips. Introduced when carry chains first need them. */
+  constants?: boolean;
+  /** Deeper math/spec notes behind a “为什么？” disclosure. */
+  details?: string;
   /** Component name unlocked for later stages on full pass. */
   unlocks: string | null;
   hint: string;
@@ -81,20 +87,35 @@ const busByte = (prefix: string) => [...byte(prefix)].reverse();
 export const CALCULATOR_STAGES: StageDef[] = [
   {
     index: 1,
+    id: "wire",
+    title: "连接导线",
+    englishTitle: "First Wire",
+    description: "用一根导线把输入 A 连到输出 Y：接好后，Y 会实时跟着 A 变。",
+    track: "core",
+    buses: [],
+    inputs: ["A"],
+    outputs: ["Y"],
+    primitives: [],
+    unlocks: null,
+    hint: "点击 A 右边的输出圆点，再点击 Y 左边的输入圆点。",
+  },
+  {
+    index: 2,
     id: "half-adder",
     title: "半加器",
     englishTitle: "Half Adder",
-    description: "用逻辑门实现 1 位加法：Sum = A ⊕ B，Carry = A ∧ B。",
+    description: "用逻辑门实现 1 位加法：输入 A 和 B，输出和位 Sum 与进位 Carry。",
     track: "core",
     buses: [{ name: "结果（2 位）", pins: ["Carry", "Sum"], role: "output", signed: false }],
     inputs: ["A", "B"],
     outputs: ["Sum", "Carry"],
-    primitives: ALL_GATES,
+    primitives: ["xor", "and"],
+    extraPrimitives: ["or", "not", "nand", "nor", "buffer"],
     unlocks: "HalfAdder",
     hint: "Sum 只在两个输入不同时为 1；Carry 只在都为 1 时为 1。",
   },
   {
-    index: 2,
+    index: 3,
     id: "full-adder",
     title: "全加器",
     englishTitle: "Full Adder",
@@ -108,7 +129,7 @@ export const CALCULATOR_STAGES: StageDef[] = [
     hint: "可以用两个 HalfAdder 级联：先加 A+B，再加 Cin；两次进位取或。",
   },
   {
-    index: 3,
+    index: 4,
     id: "add4",
     title: "4 位加法器",
     englishTitle: "4-bit Addition",
@@ -133,16 +154,19 @@ export const CALCULATOR_STAGES: StageDef[] = [
     inputs: [...nib("A"), ...nib("B")],
     outputs: [...nib("S"), "Cout"],
     primitives: ALL_GATES,
+    constants: true,
     unlocks: "Add4",
     hint: "第 0 位的 Cin 接常量 0；进位像波浪一样从低位传到高位。",
   },
   {
-    index: 4,
+    index: 5,
     id: "negate4",
     title: "求补码",
     englishTitle: "Negation",
     description:
-      "把 A 看作一个 5 位二进制补码正数的低 4 位（1≤A≤15；A=0 仅作为零的边界用例）：最高位是符号位，恒为 0，不出现在引脚上。求 −A 的 5 位补码：−15≤−A≤0，在 5 位补码范围（−16～15）内不会溢出，其符号位恒为 1（A=0 时结果为全 0），已由题意确定，不需要用电路实现。你只需输出低 4 位 R3～R0：对 A 按位取反再加 1，计算固定在 4 位内，超出第 4 位的进位不保留。",
+      "让电路算出 −A，只需输出低 4 位 R3～R0。先观察几个例子：3 → −3（R = 1101）、5 → −5（R = 1011）。二进制补码里，「逐位取反再加 1」就能得到 −A。",
+    details:
+      "把 A 看作一个 5 位二进制补码正数的低 4 位（1≤A≤15；A=0 仅作为零的边界用例）：最高位是符号位，恒为 0，不出现在引脚上。求 −A 的 5 位补码：−15≤−A≤0，在 5 位补码范围（−16～15）内不会溢出，其符号位恒为 1（A=0 时结果为全 0），已由题意确定，不需要用电路实现。对 A 按位取反再加 1，计算固定在 4 位内，超出第 4 位的进位不保留。",
     track: "core",
     buses: [
       {
@@ -163,16 +187,19 @@ export const CALCULATOR_STAGES: StageDef[] = [
     inputs: nib("A"),
     outputs: nib("R"),
     primitives: ALL_GATES,
+    constants: true,
     unlocks: "Neg4",
     hint: "NOT 每个输入位，然后把结果当作加数送进 Add4，另一个加数是常量 1。",
   },
   {
-    index: 5,
+    index: 6,
     id: "sub4",
     title: "4 位减法器",
     englishTitle: "Subtraction",
     description:
-      "把 A、B 看作两个 5 位二进制补码正数的低 4 位（0≤A,B≤15）：最高位是符号位，恒为 0，不出现在引脚上。计算 A − B 的 5 位补码：−15≤A−B≤15，在 5 位补码范围（−16～15）内不会溢出；符号位为 1 当且仅当 A < B，由输入决定，不需要用电路实现。你只需输出低 4 位 R3～R0，即 A + (−B) 的低 4 位：先用 Neg4 求 −B，再用 Add4 相加，超出第 4 位的进位不保留。",
+      "计算 A − B，输出低 4 位 R3～R0。减法就是加上补码：先用 Neg4 求 −B，再用 Add4 相加，超出第 4 位的进位不保留。",
+    details:
+      "把 A、B 看作两个 5 位二进制补码正数的低 4 位（0≤A,B≤15）：最高位是符号位，恒为 0，不出现在引脚上。计算 A − B 的 5 位补码：−15≤A−B≤15，在 5 位补码范围（−16～15）内不会溢出；符号位为 1 当且仅当 A < B，由输入决定，不需要用电路实现。",
     track: "core",
     buses: [
       {
@@ -200,11 +227,12 @@ export const CALCULATOR_STAGES: StageDef[] = [
     inputs: [...nib("A"), ...nib("B")],
     outputs: nib("R"),
     primitives: ALL_GATES,
+    constants: true,
     unlocks: "Sub4",
     hint: "Neg4 求出 −B，再用 Add4 相加。减法就是加上补码。",
   },
   {
-    index: 6,
+    index: 7,
     id: "mul4",
     title: "4 位乘法器",
     englishTitle: "Multiplication",
@@ -219,11 +247,12 @@ export const CALCULATOR_STAGES: StageDef[] = [
     inputs: [...nib("A"), ...nib("B")],
     outputs: byte("P"),
     primitives: ALL_GATES,
+    constants: true,
     unlocks: "Mul4",
     hint: "每个 B 位与 A 做 AND 得到部分积，左移后用 FullAdder 逐位累加；Add4 没有进位输入，不能直接级联。",
   },
   {
-    index: 7,
+    index: 8,
     id: "calculator",
     title: "完整计算器",
     englishTitle: "Final Calculator",
@@ -240,6 +269,7 @@ export const CALCULATOR_STAGES: StageDef[] = [
     inputs: [...nib("A"), ...nib("B"), "Op0", "Op1"],
     outputs: nib("R"),
     primitives: ALL_GATES,
+    constants: true,
     unlocks: null,
     hint: "算出全部结果，再用 Op 位做选择器（MUX）逐位挑选输出。",
   },

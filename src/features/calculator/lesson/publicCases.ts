@@ -15,12 +15,16 @@ const byte = (prefix: string, value: number): Record<string, Bit> =>
 
 const CASES: Record<number, JudgeCase[]> = {
   1: [
+    { name: "A = 0", category: "basic", inputs: { A: 0 }, outputs: { Y: 0 } },
+    { name: "A = 1", category: "basic", inputs: { A: 1 }, outputs: { Y: 1 } },
+  ],
+  2: [
     { name: "0 + 0", category: "basic", inputs: { A: 0, B: 0 }, outputs: { Sum: 0, Carry: 0 } },
     { name: "0 + 1", category: "basic", inputs: { A: 0, B: 1 }, outputs: { Sum: 1, Carry: 0 } },
     { name: "1 + 0", category: "basic", inputs: { A: 1, B: 0 }, outputs: { Sum: 1, Carry: 0 } },
     { name: "1 + 1", category: "carry", inputs: { A: 1, B: 1 }, outputs: { Sum: 0, Carry: 1 } },
   ],
-  2: [
+  3: [
     {
       name: "0+0, Cin=0",
       category: "basic",
@@ -46,7 +50,7 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: { Sum: 1, Cout: 1 },
     },
   ],
-  3: [
+  4: [
     {
       name: "0 + 0",
       category: "zero",
@@ -72,13 +76,13 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: { ...nib("S", 0), Cout: 1 },
     },
   ],
-  4: [
+  5: [
     { name: "-0 = 0", category: "zero", inputs: nib("A", 0), outputs: nib("R", 0) },
     { name: "-1 = 1111", category: "basic", inputs: nib("A", 1), outputs: nib("R", 15) },
     { name: "-5 = 1011", category: "basic", inputs: nib("A", 5), outputs: nib("R", 11) },
     { name: "-8 = 1000", category: "sign-boundary", inputs: nib("A", 8), outputs: nib("R", 8) },
   ],
-  5: [
+  6: [
     {
       name: "5 - 3 = 2",
       category: "basic",
@@ -104,7 +108,7 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: nib("R", 12),
     },
   ],
-  6: [
+  7: [
     {
       name: "0 × 9 = 0",
       category: "zero",
@@ -130,7 +134,7 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: byte("P", 225),
     },
   ],
-  7: [
+  8: [
     {
       name: "加：3 + 4 = 7",
       category: "op-add",

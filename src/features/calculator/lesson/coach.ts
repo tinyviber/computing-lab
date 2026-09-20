@@ -1,0 +1,748 @@
+/**
+ * Coach: the guided first-run tutorial for the Calculator Lab.
+ *
+ * Stage definitions own the *knowledge* progression; this module owns the
+ * *interaction* progression — the order in which the editor's gestures are
+ * introduced, one at a time. It is a pure derivation: given the lesson view
+ * (graph, pins, outcomes), what the learner has already done (observed
+ * counters), and what they have already seen (persisted keys), compute the
+ * single coaching card to show, or null. Nothing here blocks the editor — a
+ * stuck learner can always skip a step or dismiss the whole guide.
+ */
+
+import type { Bit, CircuitGraph, ComponentDef, GateKind } from "../domain/graph";
+import { stageCount } from "../domain/stages";
+import type { JudgeOutcome, PendingWire, RunOutcome } from "./state";
+
+/** What the lesson reports to the coach — no React, no storage. */
+export type CoachLessonView = {
+  stageIndex: number;
+  graph: CircuitGraph;
+  pendingWire: PendingWire;
+  /** The drag snapshot while a node move is in flight. */
+  nodeMove: { nodeId: string; graph: CircuitGraph } | null;
+  /** Live preview pins: every input's value plus driven outputs. */
+  pins: Record<string, Bit | null>;
+  runOutcome: RunOutcome;
+  judgeOutcome: JudgeOutcome;
+  passedStages: number[];
+  unlockedSubmodules: ComponentDef[];
+  /** False until the saved project (and its drafts) has been fetched. */
+  projectLoaded: boolean;
+};
+
+/** Counters accumulated by watching successive lesson views. */
+export type CoachObserved = {
+  /** "AB" combos -> the Sum actually observed while Sum was driven. */
+  combos: Record<string, Bit>;
+  /** Cumulative input/const toggles. */
+  toggles: number;
+  /** Cumulative edge removals. */
+  edgeDeletions: number;
+  /** Cumulative finished node drags that moved a node. */
+  nodeDrags: number;
+};
+
+/** Snapshots taken when a goal step activates, for "restore it" goals. */
+export type CoachBaselines = {
+  /** Edge count when the delete-a-wire step activated. */
+  edgesAtDelete?: number;
+  /** Toggle count when the try-it-yourself step activated. */
+  togglesAtManualTest?: number;
+  /** Toggle count when the watch-Y-follow-A step activated. */
+  togglesAtWirePlay?: number;
+};
+
+export type CoachMachine = {
+  observed: CoachObserved;
+  baselines: CoachBaselines;
+  /** Persisted keys: completed steps, sequence flags, "coach-off". */
+  seen: Set<string>;
+};
+
+/** A spotlight target. `node`/`port`/`wires` light up the canvas; the rest are page chrome. */
+export type CoachFocus =
+  | { kind: "node"; nodeIds: string[] }
+  | { kind: "ports"; ports: { nodeId: string; port: string; direction: "in" | "out" }[] }
+  | { kind: "wires" }
+  | { kind: "palette-gate"; gate: GateKind }
+  | { kind: "palette-const"; value: Bit }
+  | { kind: "my-components" }
+  | { kind: "bus-readout" }
+  | { kind: "run-tests" }
+  | { kind: "submit" };
+
+export type CoachStep = {
+  /** Seen key marking this step as handled (auto-goal or dismissed). */
+  id: string;
+  /** "3 / 17" ordering label inside the stage-1 sequence. */
+  progress?: string;
+  title: string;
+  body: string;
+  /** Spotlight targets for this step. */
+  focus?: CoachFocus[];
+  /** Observed input->output rows for the explore step. */
+  rows?: { label: string; value: string }[];
+  /** Interactive mini truth-table for the full-adder stage. */
+  explorer?: "full-adder";
+  /** Manual beats advance through this primary button. */
+  manualLabel?: string;
+  /** Jump to this stage when the primary button is pressed. */
+  nextStage?: number;
+  /** Auto-goal beats offer a quiet way past when the gesture is stuck. */
+  skippable?: boolean;
+  /** Extra seen keys marked when the step is completed or dismissed. */
+  alsoMark?: string[];
+};
+
+export type CoachView = CoachLessonView & CoachMachine;
+
+type StepDef = {
+  id: string;
+  /** The stage-1 onboarding sequence gets a "k / n" progress label. */
+  group?: "s1";
+  ready: (v: CoachView) => boolean;
+  /** Goal met: derivation skips the step and the observer marks it seen. */
+  done?: (v: CoachView) => boolean;
+  card: (v: CoachView) => Omit<CoachStep, "id">;
+  alsoMark?: string[];
+};
+
+export function emptyCoachMachine(): CoachMachine {
+  return {
+    observed: { combos: {}, toggles: 0, edgeDeletions: 0, nodeDrags: 0 },
+    baselines: {},
+    seen: new Set(),
+  };
+}
+
+const isPin = (kind: string) => kind === "input" || kind === "output";
+
+const pinId = (v: CoachView, name: string, kind: "input" | "output") =>
+  v.graph.nodes.find((n) => n.kind === kind && n.name === name)?.id;
+
+const nodeOfKind = (v: CoachView, kind: string) => v.graph.nodes.find((n) => n.kind === kind);
+
+const edgesInto = (v: CoachView, nodeId: string | undefined) =>
+  nodeId ? v.graph.edges.filter((e) => e.to.node === nodeId) : [];
+
+const componentNode = (v: CoachView, name: string) =>
+  v.graph.nodes.find(
+    (n) => n.kind === "component" && n.name?.toLocaleLowerCase() === name.toLocaleLowerCase(),
+  );
+
+const submodule = (v: CoachView, name: string) =>
+  v.unlockedSubmodules.find((c) => c.name.toLocaleLowerCase() === name.toLocaleLowerCase());
+
+/** Scaffold pins only — the learner has not touched this stage's draft yet. */
+const freshDraft = (v: CoachView) =>
+  v.graph.edges.length === 0 && v.graph.nodes.every((n) => isPin(n.kind));
+
+const passed = (v: CoachView, stage: number) => v.passedStages.includes(stage);
+
+/**
+ * The onboarding sequence spans stages 1–2: stage 1 ("连接导线") teaches
+ * signals, ports and the very first wire; stage 2 ("半加器") continues with
+ * gates, deletion, testing and submission. It runs while the learner is on an
+ * unpassed stage 1 or 2 whose draft was untouched when the guide first saw it
+ * (or that already belongs to an in-progress tour). "s1" marks the sequence
+ * done; "s1-started" marks it begun, so a refresh resumes instead of
+ * restarting.
+ */
+const s1Active = (v: CoachView) =>
+  (v.stageIndex === 1 || v.stageIndex === 2) &&
+  !passed(v, v.stageIndex) &&
+  !v.seen.has("s1") &&
+  (v.seen.has("s1-started") || freshDraft(v));
+
+/** s1Active, narrowed to one stage. */
+const onStage = (v: CoachView, stage: number) => s1Active(v) && v.stageIndex === stage;
+
+/** First output pin on the canvas — "Y" on stage 1, "Sum" on stage 2. */
+const firstOutputId = (v: CoachView) => v.graph.nodes.find((n) => n.kind === "output")?.id;
+
+const hasFailure = (v: CoachView) =>
+  Boolean(v.runOutcome?.results.some((r) => !r.passed)) ||
+  Boolean(v.judgeOutcome && !v.judgeOutcome.passed);
+
+const STEP_DEFS: StepDef[] = [
+  {
+    id: "s1-signal",
+    group: "s1",
+    ready: s1Active,
+    done: (v) =>
+      v.observed.toggles >= 1 || v.graph.nodes.some((n) => n.kind === "input" && n.value === 1),
+    card: (v) => ({
+      title: "先认识信号",
+      body: "画布左边是输入，右边是输出。先点一下 A——它可以在 0 和 1 之间切换。",
+      focus: pinId(v, "A", "input") ? [{ kind: "node", nodeIds: [pinId(v, "A", "input")!] }] : [],
+    }),
+  },
+  {
+    id: "s1-signal-2",
+    group: "s1",
+    ready: s1Active,
+    card: () => ({
+      title: "0 和 1",
+      body: "亮起、变色表示这里现在传递的是 1；暗下去表示 0。以后随时可以点输入，自己给电路喂数据。",
+      manualLabel: "继续",
+    }),
+  },
+  {
+    id: "s1-ports",
+    group: "s1",
+    ready: s1Active,
+    card: (v) => ({
+      title: "端口",
+      body: "元件两侧的小圆点是端口：右边的是输出端口，信号从这里出来；左边的是输入端口，信号从这里进去。信号从输出流向输入。",
+      focus: [
+        {
+          kind: "ports",
+          ports: [
+            ...(pinId(v, "A", "input")
+              ? [{ nodeId: pinId(v, "A", "input")!, port: "out", direction: "out" as const }]
+              : []),
+            ...(firstOutputId(v)
+              ? [{ nodeId: firstOutputId(v)!, port: "in", direction: "in" as const }]
+              : []),
+          ],
+        },
+      ],
+      manualLabel: "继续",
+    }),
+  },
+  {
+    id: "s1-wire-start",
+    group: "s1",
+    ready: s1Active,
+    done: (v) => v.pendingWire != null || v.graph.edges.length >= 1,
+    card: (v) => {
+      // Stage 1 wires A straight into Y; stage 2 wires A into a pre-placed XOR.
+      const targetId = v.stageIndex === 1 ? pinId(v, "Y", "output") : nodeOfKind(v, "xor")?.id;
+      return {
+        title: "第一根导线",
+        body:
+          v.stageIndex === 1
+            ? "现在把 A 接到 Y：先点击 A 右边的输出圆点。"
+            : "现在把 A 接到 XOR：先点击 A 右边的输出圆点。",
+        focus: [
+          ...(pinId(v, "A", "input")
+            ? [
+                {
+                  kind: "ports" as const,
+                  ports: [
+                    { nodeId: pinId(v, "A", "input")!, port: "out", direction: "out" as const },
+                  ],
+                },
+              ]
+            : []),
+          ...(targetId ? [{ kind: "node" as const, nodeIds: [targetId] }] : []),
+        ],
+      };
+    },
+  },
+  {
+    id: "s1-wire-end",
+    group: "s1",
+    ready: s1Active,
+    done: (v) =>
+      v.stageIndex === 1
+        ? edgesInto(v, pinId(v, "Y", "output")).length >= 1
+        : edgesInto(v, nodeOfKind(v, "xor")?.id).length >= 1,
+    card: (v) => {
+      const targetId = v.stageIndex === 1 ? pinId(v, "Y", "output") : nodeOfKind(v, "xor")?.id;
+      return {
+        title: "完成连接",
+        body:
+          v.stageIndex === 1
+            ? "导线正在跟着光标。点击 Y 左边的输入圆点，完成连接。（点空了的话，重新点一次 A 的输出圆点。）"
+            : "导线正在跟着光标。点击 XOR 左边任意一个输入圆点，完成连接。（点空了的话，重新点一次 A 的输出圆点。）",
+        focus: targetId ? [{ kind: "node", nodeIds: [targetId] }] : [],
+      };
+    },
+  },
+  {
+    id: "s1-wire-play",
+    group: "s1",
+    ready: (v) => onStage(v, 1),
+    done: (v) =>
+      v.observed.toggles - (v.baselines.togglesAtWirePlay ?? Number.MAX_SAFE_INTEGER) >= 1,
+    card: () => ({
+      title: "电路是活的",
+      body: "导线接好了。再点几下 A，看右边的 Y 跟着变——导线会把信号实时送过去。",
+      focus: [{ kind: "wires" }],
+      skippable: true,
+    }),
+  },
+  {
+    id: "s1-wire-submit",
+    group: "s1",
+    ready: (v) => onStage(v, 1),
+    done: (v) => v.judgeOutcome != null,
+    card: () => ({
+      title: "正式提交",
+      body: "确认 Y 跟着 A 变以后，点「提交」——服务器会检查你的电路是不是真的做对了。",
+      focus: [{ kind: "submit" }],
+    }),
+  },
+  {
+    id: "wire-pass",
+    ready: (v) => v.stageIndex === 1 && Boolean(v.judgeOutcome?.passed),
+    card: () => ({
+      title: "第一根导线完成",
+      body: "你已经学会了编辑器最基本的操作：点输入、连导线、看输出。下一关开始用逻辑门做运算。",
+      manualLabel: "去第 2 关",
+      nextStage: 2,
+    }),
+  },
+  {
+    id: "s1-wire-b",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => edgesInto(v, nodeOfKind(v, "xor")?.id).length >= 2,
+    card: (v) => ({
+      title: "自己来一根",
+      body: "很好。现在试着自己把 B 接到 XOR 的另一个输入。",
+      focus: [
+        ...(pinId(v, "B", "input")
+          ? [
+              {
+                kind: "ports" as const,
+                ports: [
+                  { nodeId: pinId(v, "B", "input")!, port: "out", direction: "out" as const },
+                ],
+              },
+            ]
+          : []),
+        ...(nodeOfKind(v, "xor")
+          ? [{ kind: "node" as const, nodeIds: [nodeOfKind(v, "xor")!.id] }]
+          : []),
+      ],
+    }),
+  },
+  {
+    id: "s1-wire-sum",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => {
+      const xor = nodeOfKind(v, "xor");
+      const sum = pinId(v, "Sum", "output");
+      return Boolean(
+        xor && sum && v.graph.edges.some((e) => e.from.node === xor.id && e.to.node === sum),
+      );
+    },
+    card: (v) => ({
+      title: "送到输出",
+      body: "XOR 已经算出了结果，但还没有送到题目要求的 Sum。把 XOR 的输出圆点接到右边的 Sum。",
+      focus: [
+        ...(nodeOfKind(v, "xor")
+          ? [
+              {
+                kind: "ports" as const,
+                ports: [
+                  { nodeId: nodeOfKind(v, "xor")!.id, port: "out", direction: "out" as const },
+                ],
+              },
+            ]
+          : []),
+        ...(pinId(v, "Sum", "output")
+          ? [
+              {
+                kind: "ports" as const,
+                ports: [
+                  { nodeId: pinId(v, "Sum", "output")!, port: "in", direction: "in" as const },
+                ],
+              },
+            ]
+          : []),
+      ],
+    }),
+  },
+  {
+    id: "s1-explore",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    card: (v) => {
+      const combos = ["00", "01", "10", "11"].filter((k) => k in v.observed.combos);
+      const complete = combos.length === 4;
+      return {
+        title: "试一试，找规律",
+        body: complete
+          ? "这就是 XOR：两个输入不同的时候输出 1。半加器的 Sum 已经完成了。"
+          : "分别试试 A/B = 00、01、10、11，观察 Sum 什么时候是 1。",
+        rows: combos.map((k) => ({
+          label: `A=${k[0]} B=${k[1]}`,
+          value: `Sum=${v.observed.combos[k]}`,
+        })),
+        focus:
+          pinId(v, "A", "input") || pinId(v, "B", "input")
+            ? [
+                {
+                  kind: "node",
+                  nodeIds: [pinId(v, "A", "input"), pinId(v, "B", "input")].filter(
+                    (id): id is string => Boolean(id),
+                  ),
+                },
+              ]
+            : [],
+        manualLabel: complete ? "继续" : undefined,
+        skippable: !complete,
+      };
+    },
+  },
+  {
+    id: "s1-add-and",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => Boolean(nodeOfKind(v, "and")),
+    card: () => ({
+      title: "自己放一个元件",
+      body: "刚才的 XOR 是替你放好的。接下来由你添加一个 AND：点一下元件区的 AND，它会出现在画布里。",
+      focus: [{ kind: "palette-gate", gate: "and" }],
+    }),
+  },
+  {
+    id: "s1-drag",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => v.observed.nodeDrags >= 1,
+    card: (v) => ({
+      title: "摆个顺手的位置",
+      body: "元件可以拖动——把 AND 拖到你觉得舒服的位置。",
+      focus: nodeOfKind(v, "and") ? [{ kind: "node", nodeIds: [nodeOfKind(v, "and")!.id] }] : [],
+    }),
+  },
+  {
+    id: "s1-carry",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => edgesInto(v, pinId(v, "Carry", "output")).length >= 1,
+    card: (v) => ({
+      title: "完成 Carry",
+      body: "Carry 只有 A 和 B 都是 1 时才应该为 1。用刚加入的 AND 完成剩下的连接。",
+      focus: pinId(v, "Carry", "output")
+        ? [{ kind: "node", nodeIds: [pinId(v, "Carry", "output")!] }]
+        : [],
+    }),
+  },
+  {
+    id: "s1-delete",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) =>
+      v.observed.edgeDeletions >= 1 &&
+      v.graph.edges.length >= (v.baselines.edgesAtDelete ?? Number.MAX_SAFE_INTEGER),
+    card: () => ({
+      title: "接错了怎么办",
+      body: "直接点击一根导线就能删除它。试着删掉一根导线，再把它接回去。",
+      focus: [{ kind: "wires" }],
+    }),
+  },
+  {
+    id: "s1-undo",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    card: () => ({
+      title: "撤销",
+      body: "删错了也没关系：Ctrl/⌘+Z 可以撤销刚才的操作。",
+      manualLabel: "知道了",
+    }),
+  },
+  {
+    id: "s1-manual-test",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) =>
+      v.observed.toggles - (v.baselines.togglesAtManualTest ?? Number.MAX_SAFE_INTEGER) >= 2,
+    card: (v) => ({
+      title: "先自己试",
+      body: "电路已经连通。先别急着提交——点 A、B 再试几组输入，看看 Sum 和 Carry 怎么变。",
+      focus:
+        pinId(v, "A", "input") || pinId(v, "B", "input")
+          ? [
+              {
+                kind: "node",
+                nodeIds: [pinId(v, "A", "input"), pinId(v, "B", "input")].filter(
+                  (id): id is string => Boolean(id),
+                ),
+              },
+            ]
+          : [],
+    }),
+  },
+  {
+    id: "s1-public-test",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => v.runOutcome != null,
+    card: () => ({
+      title: "让系统帮你试",
+      body: "自己试只能检查一部分情况。点击「运行公开测试」，系统会替你检查多组输入。",
+      focus: [{ kind: "run-tests" }],
+    }),
+  },
+  {
+    id: "s1-read-results",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    card: (v) => ({
+      title: "看懂结果",
+      body: hasFailure(v)
+        ? "每一行就是一组输入：期望是题目要求的输出，实际是你的电路给出的结果。没过的行就是反例——先把画布输入拨成和它一样的一组，沿导线看信号走到哪里开始不对。"
+        : "每一行就是一组输入：期望是题目要求的输出，实际是你的电路给出的结果。",
+      manualLabel: "知道了",
+    }),
+  },
+  {
+    id: "s1-submit",
+    group: "s1",
+    ready: (v) => onStage(v, 2),
+    done: (v) => v.judgeOutcome != null,
+    card: () => ({
+      title: "正式提交",
+      body: "公开测试只是帮你调试。确认后点「提交」：服务器还会用你看不到的输入再检查一遍。",
+      focus: [{ kind: "submit" }],
+    }),
+    alsoMark: ["s1"],
+  },
+  {
+    id: "unlock",
+    ready: (v) =>
+      Boolean(
+        v.judgeOutcome?.passed &&
+        v.judgeOutcome.unlockedComponent &&
+        !v.seen.has(`unlock-${v.judgeOutcome.unlockedComponent}`),
+      ),
+    card: (v) => {
+      const component = v.judgeOutcome?.unlockedComponent ?? "";
+      const next = v.stageIndex + 1;
+      return {
+        title: "你获得了一个新元件",
+        body: `你刚才搭的电路已经变成了新元件 ${component}，就在左边「我的组件」里——以后不用重搭里面的门，直接用它。`,
+        focus: [{ kind: "my-components" }],
+        manualLabel: next <= stageCount() ? `去第 ${next} 关` : "知道了",
+        nextStage: next <= stageCount() ? next : undefined,
+      };
+    },
+  },
+  {
+    id: "s2-blackbox",
+    ready: (v) => v.stageIndex === 3 && !passed(v, 3) && Boolean(submodule(v, "HalfAdder")),
+    done: (v) => Boolean(componentNode(v, "HalfAdder")) || v.graph.edges.length >= 3,
+    card: () => ({
+      title: "黑盒",
+      body: "HalfAdder 里面仍然是你搭的 XOR 和 AND，但现在可以忘掉里面的细节，只关心它的 A、B、Sum、Carry。从左边「我的组件」放一个 HalfAdder 到画布上。",
+      focus: [{ kind: "my-components" }],
+    }),
+  },
+  {
+    id: "s2-explore",
+    ready: (v) => v.stageIndex === 3 && !passed(v, 3),
+    done: (v) => v.graph.edges.length >= 3,
+    card: () => ({
+      title: "先实验，再设计",
+      body: "动手之前先想清楚：拨动下面三个输入，观察 Sum 和 Cout 应该是什么。什么时候 Cout 会变成 1？",
+      explorer: "full-adder",
+      manualLabel: "想好了，开始搭",
+    }),
+  },
+  {
+    id: "s3-bits",
+    ready: (v) => v.stageIndex === 4 && !passed(v, 4),
+    done: (v) => v.graph.edges.length >= 4,
+    card: () => ({
+      title: "一次加 4 位",
+      body: "A0 是最低位：先算 A0+B0，它产生的 Cout 会作为下一位的 Cin，进位像波浪一样往高位传。上方「数值读数」会把每组 4 根 1-bit 导线直接读成一个二进制数。",
+      focus: [{ kind: "bus-readout" }],
+      manualLabel: "继续",
+    }),
+  },
+  {
+    id: "s3-cin0",
+    ready: (v) => v.stageIndex === 4 && !passed(v, 4),
+    done: (v) =>
+      v.graph.edges.some(
+        (e) =>
+          e.to.port === "Cin" && v.graph.nodes.find((n) => n.id === e.from.node)?.kind === "const",
+      ),
+    card: () => ({
+      title: "最低位的进位",
+      body: "最低位没有上一位传来的进位，所以它的 Cin 要接常量 0——元件区里现在能放「常量 0」了。",
+      focus: [{ kind: "palette-const", value: 0 }],
+    }),
+  },
+  {
+    id: "s6-componentize",
+    ready: (v) => v.stageIndex === 7,
+    card: () => ({
+      title: "会重复的电路，封一次就好",
+      body: "这一关会反复用到同一种小电路。在空白处拖动可以框选元件，把选中的部分「封装为自定义组件」，之后就能像 HalfAdder 一样反复使用。",
+      manualLabel: "知道了",
+    }),
+  },
+  {
+    id: "tip-collapse",
+    ready: (v) => v.unlockedSubmodules.some((c) => c.custom),
+    card: () => ({
+      title: "组件是个黑盒",
+      body: "你封装的组件可以当黑盒用：选中后「折叠组件」能把它的连线藏起来，让画布更清爽；想改里面的实现，就用「拆分回去」。",
+      manualLabel: "知道了",
+    }),
+  },
+  {
+    id: "tip-debug",
+    ready: hasFailure,
+    card: () => ({
+      title: "怎么看反例",
+      body: "不用从头猜哪里错了。先看失败的这一组：输入是什么、你的电路给出什么、应该是什么；然后把画布输入拨成同一组，沿着导线看信号从哪里开始不对。",
+      manualLabel: "知道了",
+    }),
+  },
+];
+
+const S1_TOTAL = STEP_DEFS.filter((def) => def.group === "s1").length;
+
+/**
+ * The single coaching card to show now: the first step that is relevant, not
+ * yet seen, and not already satisfied by the current circuit.
+ */
+export function coachStep(v: CoachView): CoachStep | null {
+  if (!v.projectLoaded || v.seen.has("coach-off")) return null;
+  let s1Index = 0;
+  for (const def of STEP_DEFS) {
+    if (def.group === "s1") s1Index += 1;
+    const key = def.id === "unlock" ? `unlock-${v.judgeOutcome?.unlockedComponent}` : def.id;
+    if (!def.ready(v) || v.seen.has(key)) continue;
+    if (def.done?.(v)) continue;
+    const card = def.card(v);
+    return {
+      ...card,
+      id: key,
+      progress: def.group === "s1" ? `${s1Index} / ${S1_TOTAL}` : undefined,
+      skippable: card.skippable ?? Boolean(def.done),
+      alsoMark: def.alsoMark,
+    };
+  }
+  return null;
+}
+
+/**
+ * Fold one lesson-view transition into the machine: count gestures, record
+ * explored input combos, capture step baselines, and mark goals the circuit
+ * already satisfies. Returns the same object when nothing changed.
+ */
+export function observeCoach(
+  machine: CoachMachine,
+  prev: CoachLessonView | null,
+  next: CoachLessonView,
+): CoachMachine {
+  const seen = new Set(machine.seen);
+  const observed: CoachObserved = {
+    ...machine.observed,
+    combos: { ...machine.observed.combos },
+  };
+  const baselines = { ...machine.baselines };
+  let dirty = false;
+
+  if (prev && prev.stageIndex === next.stageIndex) {
+    const prevValues = new Map(
+      prev.graph.nodes
+        .filter((n) => n.kind === "input" || n.kind === "const")
+        .map((n) => [n.id, n.value ?? 0]),
+    );
+    const toggles = next.graph.nodes.filter(
+      (n) =>
+        (n.kind === "input" || n.kind === "const") &&
+        prevValues.has(n.id) &&
+        prevValues.get(n.id) !== (n.value ?? 0),
+    ).length;
+    if (toggles > 0) {
+      observed.toggles += toggles;
+      dirty = true;
+    }
+
+    const removed = prev.graph.edges.length - next.graph.edges.length;
+    if (removed > 0) {
+      observed.edgeDeletions += removed;
+      dirty = true;
+    }
+
+    const move = prev.nodeMove;
+    if (move && !next.nodeMove) {
+      const before = move.graph.nodes.find((n) => n.id === move.nodeId);
+      const after = next.graph.nodes.find((n) => n.id === move.nodeId);
+      if (before && after && (before.x !== after.x || before.y !== after.y)) {
+        observed.nodeDrags += 1;
+        dirty = true;
+      }
+    }
+  }
+
+  if (
+    next.stageIndex === 2 &&
+    next.pins.A != null &&
+    next.pins.B != null &&
+    next.pins.Sum != null
+  ) {
+    const key = `${next.pins.A}${next.pins.B}`;
+    if (observed.combos[key] !== next.pins.Sum) {
+      observed.combos[key] = next.pins.Sum;
+      dirty = true;
+    }
+  }
+
+  const view: CoachView = { ...next, observed, baselines, seen };
+  const step = coachStep(view);
+
+  if (step?.id === "s1-delete" && baselines.edgesAtDelete == null) {
+    baselines.edgesAtDelete = next.graph.edges.length;
+    dirty = true;
+  }
+  if (step?.id === "s1-manual-test" && baselines.togglesAtManualTest == null) {
+    baselines.togglesAtManualTest = observed.toggles;
+    dirty = true;
+  }
+  if (step?.id === "s1-wire-play" && baselines.togglesAtWirePlay == null) {
+    baselines.togglesAtWirePlay = observed.toggles;
+    dirty = true;
+  }
+  if (step?.id.startsWith("s1-") && !seen.has("s1-started")) {
+    seen.add("s1-started");
+    dirty = true;
+  }
+  if (next.stageIndex === 2 && next.judgeOutcome && !seen.has("s1")) {
+    seen.add("s1");
+    dirty = true;
+  }
+
+  const marked: CoachView = { ...view, baselines };
+  for (const def of STEP_DEFS) {
+    const key = def.id === "unlock" ? `unlock-${next.judgeOutcome?.unlockedComponent}` : def.id;
+    if (!seen.has(key) && def.ready(marked) && def.done?.(marked)) {
+      seen.add(key);
+      for (const extra of def.alsoMark ?? []) seen.add(extra);
+      dirty = true;
+    }
+  }
+
+  return dirty ? { observed, baselines, seen } : machine;
+}
+
+/** Translate a step's spotlight list into what the SVG canvas can highlight. */
+export function canvasCoachFocus(focus: CoachFocus[] | undefined): {
+  nodeIds: Set<string>;
+  portKeys: Set<string>;
+  wires: boolean;
+} {
+  const nodeIds = new Set<string>();
+  const portKeys = new Set<string>();
+  let wires = false;
+  for (const item of focus ?? []) {
+    if (item.kind === "node") item.nodeIds.forEach((id) => nodeIds.add(id));
+    if (item.kind === "ports") {
+      item.ports.forEach((p) => portKeys.add(`${p.nodeId}#${p.port}#${p.direction}`));
+    }
+    if (item.kind === "wires") wires = true;
+  }
+  return { nodeIds, portKeys, wires };
+}

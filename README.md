@@ -36,25 +36,26 @@ bun run dev              # Vite 开发服 :5173，/api 代理到 :8788
 
 ## Online lesson editor
 
-Open `/editor` through the editor service. It provides a password-protected browser workspace
+Open `/editor` through the editor service. It provides a browser workspace
 with a Markdown/code editor on the left and a real Slidev hot-reload preview on the right. Saving
 a file writes it directly to `lessons/<lesson>/`, so there is no GitHub/Gitee promotion step in
-the editing loop.
+the editing loop. Access is limited to accounts with the `admin` role: the service verifies the
+lab's `lab_session` cookie against the SQLite account database (`LAB_DB_PATH`, default
+`data/lab.db`).
 
 For local development, run:
 
 ```sh
-EDITOR_PASSWORD='choose-a-password' bun run editor:dev
+bun run editor:dev
 ```
 
 Then open <http://localhost:8787/editor>. `editor:dev` starts the React/Vite app, the editor API,
 and Slidev preview processes as needed. In a server checkout that already has a built `dist/`,
-run `EDITOR_PASSWORD='choose-a-password' bun run editor:start` instead.
+run `bun run editor:start` instead.
 
 `EDITOR_ROOT` can point the service at another checkout, and `EDITOR_PORT` changes the editor
 HTTP port. Source files with `.md`, `.vue`, `.css`, `.js`, `.ts`, `.tsx`, `.json`, or `.html`
-extensions are editable; image assets are listed as read-only. Set `EDITOR_PASSWORD` in any
-non-local deployment—without it, the editor is intentionally open.
+extensions are editable; image assets are listed as read-only.
 
 ## 质量门槛
 
@@ -87,7 +88,8 @@ bun run build              # build:slides 需 Node ≥22（本机 bun 旧版跑�
 服务 dist，也可去掉静态托管）。
 
 The online editor is a separate long-running service: place a reverse proxy in front of its
-`EDITOR_PORT`, enable WebSocket upgrades for Slidev HMR, and keep `EDITOR_PASSWORD` set. It
+`EDITOR_PORT`, enable WebSocket upgrades for Slidev HMR, and point `LAB_DB_PATH` at the account
+database so admin sessions resolve. It
 writes the configured `EDITOR_ROOT/lessons` checkout directly and therefore does not use the
 static promotion loop.
 

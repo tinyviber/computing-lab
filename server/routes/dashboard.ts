@@ -11,6 +11,7 @@ type MatrixCell = {
 };
 
 export type MatrixRow = {
+  userId: string;
   studentNo: string;
   name: string;
   currentStage: number;
@@ -96,6 +97,7 @@ export function dashboardRoutes() {
     }
 
     const rows: MatrixRow[] = students.map((s) => ({
+      userId: s.userId,
       studentNo: s.studentNo,
       name: s.name,
       currentStage: stageByUser.get(s.userId) ?? 1,

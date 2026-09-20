@@ -27,7 +27,7 @@ export function calculatorRoutes() {
     if ("error" in auth) return jsonError(c, auth.status, auth.error);
     const body = await c.req.json().catch(() => null);
     const stageIndex = Number((body as { stageIndex?: unknown })?.stageIndex);
-    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 7) {
+    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 8) {
       return jsonError(c, 400, "invalid-stage");
     }
     const db = c.get("db");
@@ -48,7 +48,7 @@ export function calculatorRoutes() {
     if ("error" in auth) return jsonError(c, auth.status, auth.error);
     const body = await c.req.json().catch(() => null);
     const stageIndex = Number((body as { stageIndex?: unknown })?.stageIndex);
-    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 7) {
+    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 8) {
       return jsonError(c, 400, "invalid-stage");
     }
     const db = c.get("db");

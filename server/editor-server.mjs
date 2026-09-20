@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { createHash, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import {
   existsSync,
@@ -14,6 +13,7 @@ import {
 import { extname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer } from "node:http";
+import { DatabaseSync } from "node:sqlite";
 import httpProxy from "http-proxy";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -24,10 +24,7 @@ const port = Number(process.env.EDITOR_PORT ?? 8787);
 const host = process.env.EDITOR_HOST ?? "0.0.0.0";
 const vitePort = Number(process.env.EDITOR_VITE_PORT ?? 5173);
 const basePath = normalizeBasePath(process.env.VITE_BASE_PATH ?? process.env.BASE_PATH ?? "/");
-const editorPassword = process.env.EDITOR_PASSWORD?.trim() || null;
-const sessionValue = editorPassword
-  ? createHash("sha256").update(editorPassword).digest("hex")
-  : null;
+const labDbPath = resolve(process.env.LAB_DB_PATH ?? resolve(root, "data/lab.db"));
 const maxBodyBytes = 2 * 1024 * 1024;
 const editableExtensions = new Set([
   ".css",
@@ -157,12 +154,32 @@ function parseCookies(header) {
   );
 }
 
+let labDb = null;
+
+function labDatabase() {
+  if (!labDb && existsSync(labDbPath)) labDb = new DatabaseSync(labDbPath);
+  return labDb;
+}
+
+/** The lab account behind the request's lab_session cookie, or null. */
+function sessionUser(request) {
+  const sessionId = parseCookies(request.headers.cookie).lab_session;
+  const db = sessionId ? labDatabase() : null;
+  if (!db) return null;
+  return (
+    db
+      .prepare(
+        `SELECT u.id, u.student_no AS studentNo, u.name, u.role
+         FROM sessions s JOIN users u ON u.id = s.user_id
+         WHERE s.id = ? AND s.expires_at > ?`,
+      )
+      .get(sessionId, new Date().toISOString()) ?? null
+  );
+}
+
+// Courseware writes hit server files directly, so only lab admins may edit.
 function authenticated(request) {
-  if (!sessionValue) return true;
-  const candidate = parseCookies(request.headers.cookie).editor_session ?? "";
-  const expected = Buffer.from(sessionValue);
-  const received = Buffer.from(candidate);
-  return received.length === expected.length && timingSafeEqual(received, expected);
+  return sessionUser(request)?.role === "admin";
 }
 
 function sendJson(response, status, payload) {
@@ -182,7 +199,7 @@ function sendText(response, status, body) {
 
 function requireEditorAuth(request, response) {
   if (authenticated(request)) return true;
-  sendJson(response, 401, { error: "需要登录后才能编辑课件。" });
+  sendJson(response, 401, { error: "仅管理员可以编辑课件。" });
   return false;
 }
 
@@ -376,44 +393,7 @@ async function handleApi(request, response, route) {
       sendJson(response, 401, { authenticated: false, authRequired: true });
       return;
     }
-    sendJson(response, 200, { authenticated: true, authRequired: Boolean(sessionValue) });
-    return;
-  }
-
-  if (route === "/api/editor/login" && request.method === "POST") {
-    if (!sessionValue) {
-      sendJson(response, 200, { authenticated: true, authRequired: false });
-      return;
-    }
-    try {
-      const body = await parseJsonBody(request);
-      const candidate = typeof body?.password === "string" ? body.password : "";
-      const expected = Buffer.from(editorPassword);
-      const received = Buffer.from(candidate);
-      const valid = received.length === expected.length && timingSafeEqual(received, expected);
-      if (!valid) {
-        sendJson(response, 401, { error: "密码不正确。" });
-        return;
-      }
-      response.writeHead(200, {
-        "Cache-Control": "no-store",
-        "Content-Type": "application/json; charset=utf-8",
-        "Set-Cookie": `editor_session=${sessionValue}; HttpOnly; SameSite=Strict; Path=${basePath}`,
-      });
-      response.end(JSON.stringify({ authenticated: true, authRequired: true }));
-    } catch (error) {
-      sendJson(response, 400, { error: error.message });
-    }
-    return;
-  }
-
-  if (route === "/api/editor/logout" && request.method === "POST") {
-    response.writeHead(200, {
-      "Cache-Control": "no-store",
-      "Content-Type": "application/json; charset=utf-8",
-      "Set-Cookie": `editor_session=; Max-Age=0; HttpOnly; SameSite=Strict; Path=${basePath}`,
-    });
-    response.end(JSON.stringify({ authenticated: false }));
+    sendJson(response, 200, { authenticated: true, authRequired: true });
     return;
   }
 
@@ -594,8 +574,10 @@ process.on("SIGTERM", shutdown);
 mkdirSync(lessonsRoot, { recursive: true });
 startViteForDevelopment();
 server.listen(port, host, () => {
-  const authMessage = sessionValue ? "password protected" : "EDITOR_PASSWORD not set";
   const mode = process.env.EDITOR_DEV === "1" ? "development" : "production";
+  const authMessage = existsSync(labDbPath)
+    ? `admin session required, lab db: ${labDbPath}`
+    : `WARNING: lab db not found at ${labDbPath} — all editing requests will be rejected`;
   console.log(
     `Computing Lab editor: http://${host}:${port}${externalPath("/editor")} (${mode}, ${authMessage})`,
   );

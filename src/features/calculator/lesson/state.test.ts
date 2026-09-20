@@ -35,35 +35,35 @@ describe("calculator lesson state", () => {
 
   it("keeps every core stage selectable and gates challenge stages on core passes", () => {
     const state = createCalculatorLessonState();
-    for (const index of [1, 2, 3, 4, 5]) expect(isStageUnlocked(state, index)).toBe(true);
-    expect(isStageUnlocked(state, 6)).toBe(false);
+    for (const index of [1, 2, 3, 4, 5, 6]) expect(isStageUnlocked(state, index)).toBe(true);
     expect(isStageUnlocked(state, 7)).toBe(false);
+    expect(isStageUnlocked(state, 8)).toBe(false);
     // Selecting a core stage works even with no passes yet.
     expect(apply(state, { type: "select-stage", stageIndex: 4 }).stageIndex).toBe(4);
     // Selecting a locked challenge stage is a no-op.
-    expect(apply(state, { type: "select-stage", stageIndex: 6 }).stageIndex).toBe(1);
+    expect(apply(state, { type: "select-stage", stageIndex: 7 }).stageIndex).toBe(1);
   });
 
   it("unlocks challenge stages once every core stage is passed", () => {
-    const loaded = apply(createCalculatorLessonState(), {
+    const loaded = apply(createCalculatorLessonState(2), {
       type: "load-project",
-      currentStage: 6,
-      passedStages: [1, 2, 3, 4, 5],
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5, 6],
       unlockedSubmodules: [],
       drafts: {},
     });
-    expect(isStageUnlocked(loaded, 6)).toBe(true);
     expect(isStageUnlocked(loaded, 7)).toBe(true);
-    expect(apply(loaded, { type: "select-stage", stageIndex: 6 }).stageIndex).toBe(6);
+    expect(isStageUnlocked(loaded, 8)).toBe(true);
+    expect(apply(loaded, { type: "select-stage", stageIndex: 7 }).stageIndex).toBe(7);
 
     const partial = apply(createCalculatorLessonState(), {
       type: "load-project",
-      currentStage: 5,
+      currentStage: 6,
       passedStages: [1, 2, 3, 5],
       unlockedSubmodules: [],
       drafts: {},
     });
-    expect(isStageUnlocked(partial, 6)).toBe(false);
+    expect(isStageUnlocked(partial, 7)).toBe(false);
   });
 
   it("wires a gate and marks the draft dirty", () => {
@@ -108,7 +108,7 @@ describe("calculator lesson state", () => {
   });
 
   it("replaces a selected subgraph with a reusable custom component", () => {
-    const withGate = apply(createCalculatorLessonState(), {
+    const withGate = apply(createCalculatorLessonState(2), {
       type: "add-node",
       kind: "xor",
       x: 300,
@@ -173,7 +173,7 @@ describe("calculator lesson state", () => {
   });
 
   it("renames a custom component and rewrites every instance reference", () => {
-    const withGate = apply(createCalculatorLessonState(), {
+    const withGate = apply(createCalculatorLessonState(2), {
       type: "add-node",
       kind: "xor",
       x: 300,
@@ -235,7 +235,7 @@ describe("calculator lesson state", () => {
   });
 
   it("splits custom components back and protects components that are still in use", () => {
-    const withGate = apply(createCalculatorLessonState(), {
+    const withGate = apply(createCalculatorLessonState(2), {
       type: "add-node",
       kind: "xor",
       x: 300,
@@ -375,7 +375,7 @@ describe("calculator lesson state", () => {
 
   it("keeps a single driver per input port", () => {
     const state = apply(
-      createCalculatorLessonState(),
+      createCalculatorLessonState(2),
       { type: "add-node", kind: "xor", x: 300, y: 60 },
       { type: "start-wire", from: { node: "in-A", port: "out" } },
     );
@@ -416,12 +416,12 @@ describe("calculator lesson state", () => {
   });
 
   it("runs public tests locally and passes a correct half adder", () => {
-    const loaded = apply(createCalculatorLessonState(), {
+    const loaded = apply(createCalculatorLessonState(2), {
       type: "load-project",
-      currentStage: 1,
+      currentStage: 2,
       passedStages: [],
       unlockedSubmodules: [],
-      drafts: { 1: halfAdderGraph() },
+      drafts: { 2: halfAdderGraph() },
     });
     const run = apply(loaded, { type: "run-public-tests" });
     expect(run.runOutcome).not.toBeNull();
@@ -436,12 +436,12 @@ describe("calculator lesson state", () => {
 
   it("clears a stale verdict as soon as the circuit changes", () => {
     const run = apply(
-      apply(createCalculatorLessonState(), {
+      apply(createCalculatorLessonState(2), {
         type: "load-project",
-        currentStage: 1,
+        currentStage: 2,
         passedStages: [],
         unlockedSubmodules: [],
-        drafts: { 1: halfAdderGraph() },
+        drafts: { 2: halfAdderGraph() },
       }),
       { type: "run-public-tests" },
     );
@@ -452,12 +452,12 @@ describe("calculator lesson state", () => {
   });
 
   it("records an unlocked component and advances on a passing verdict", () => {
-    const loaded = apply(createCalculatorLessonState(), {
+    const loaded = apply(createCalculatorLessonState(2), {
       type: "load-project",
-      currentStage: 1,
+      currentStage: 2,
       passedStages: [],
       unlockedSubmodules: [],
-      drafts: { 1: halfAdderGraph() },
+      drafts: { 2: halfAdderGraph() },
     });
     const judged = apply(loaded, {
       type: "judge-result",
@@ -467,21 +467,21 @@ describe("calculator lesson state", () => {
         passed: true,
         categories: { basic: { passed: 3, total: 3 }, carry: { passed: 1, total: 1 } },
         counterexample: null,
-        passedStages: [1],
+        passedStages: [2],
         error: null,
         unlockedComponent: "HalfAdder",
       },
     });
-    expect(judged.currentStage).toBe(2);
-    expect(judged.passedStages).toEqual([1]);
+    expect(judged.currentStage).toBe(3);
+    expect(judged.passedStages).toEqual([2]);
     expect(judged.unlockedSubmodules.map((s) => s.name)).toEqual(["HalfAdder"]);
     expect(judged.message).toContain("HalfAdder");
-    expect(isStageUnlocked(judged, 2)).toBe(true);
+    expect(isStageUnlocked(judged, 3)).toBe(true);
 
     // The unlocked stage keeps its own draft, scaffolded on first visit.
-    const stage2 = apply(judged, { type: "select-stage", stageIndex: 2 });
-    expect(graphOf(stage2).nodes.map((n) => n.name)).toContain("Cin");
-    expect(graphOf(stage2, 1).nodes.length).toBeGreaterThan(0);
+    const stage3 = apply(judged, { type: "select-stage", stageIndex: 3 });
+    expect(graphOf(stage3).nodes.map((n) => n.name)).toContain("Cin");
+    expect(graphOf(stage3, 2).nodes.length).toBeGreaterThan(0);
   });
 
   it("restores missing contract pins when loading an older draft", () => {
@@ -495,20 +495,20 @@ describe("calculator lesson state", () => {
     const names = graphOf(loaded)
       .nodes.filter((n) => n.kind === "input" || n.kind === "output")
       .map((n) => n.name);
-    expect(names).toEqual(expect.arrayContaining(["A", "B", "Sum", "Carry"]));
+    expect(names).toEqual(expect.arrayContaining(["A", "Y"]));
   });
 
   it("re-sorts untouched scaffold pins to the current contract order", () => {
     // A draft saved when stage 7 listed Op1 above Op0.
-    const staleNodes = scaffoldGraph(7).nodes.map((node) =>
+    const staleNodes = scaffoldGraph(8).nodes.map((node) =>
       node.name === "Op0" ? { ...node, y: 454 } : node.name === "Op1" ? { ...node, y: 408 } : node,
     );
-    const loaded = apply(createCalculatorLessonState(7), {
+    const loaded = apply(createCalculatorLessonState(8), {
       type: "load-project",
-      currentStage: 7,
-      passedStages: [1, 2, 3, 4, 5],
+      currentStage: 8,
+      passedStages: [1, 2, 3, 4, 5, 6],
       unlockedSubmodules: [],
-      drafts: { 7: { nodes: staleNodes, edges: [] } },
+      drafts: { 8: { nodes: staleNodes, edges: [] } },
     });
     const pins = graphOf(loaded).nodes;
     expect(pins.find((node) => node.name === "Op0")?.y).toBe(408);
@@ -516,7 +516,7 @@ describe("calculator lesson state", () => {
   });
 
   it("leaves pin positions alone once the learner has moved one", () => {
-    const staleNodes = scaffoldGraph(7).nodes.map((node) =>
+    const staleNodes = scaffoldGraph(8).nodes.map((node) =>
       node.name === "Op0"
         ? { ...node, y: 454 }
         : node.name === "Op1"
@@ -525,12 +525,12 @@ describe("calculator lesson state", () => {
             ? { ...node, x: 90, y: 200 }
             : node,
     );
-    const loaded = apply(createCalculatorLessonState(7), {
+    const loaded = apply(createCalculatorLessonState(8), {
       type: "load-project",
-      currentStage: 7,
-      passedStages: [1, 2, 3, 4, 5],
+      currentStage: 8,
+      passedStages: [1, 2, 3, 4, 5, 6],
       unlockedSubmodules: [],
-      drafts: { 7: { nodes: staleNodes, edges: [] } },
+      drafts: { 8: { nodes: staleNodes, edges: [] } },
     });
     const pins = graphOf(loaded).nodes;
     expect(pins.find((node) => node.name === "Op0")?.y).toBe(454);

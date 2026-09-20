@@ -27,17 +27,57 @@ describe("CalculatorLabPage autosave", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await renderAppAt("/classes/c1/labs/calculator");
+    await screen.findByRole("button", { name: /02.*半加器/ });
     vi.useFakeTimers();
 
+    fireEvent.click(screen.getByRole("button", { name: /02.*半加器/ }));
     fireEvent.click(screen.getByRole("button", { name: "AND" }));
-    fireEvent.click(screen.getByRole("button", { name: /02.*全加器/ }));
+    fireEvent.click(screen.getByRole("button", { name: /03.*全加器/ }));
 
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
 
-    const stageOneSave = saves.find((save) => save.stageIndex === 1);
-    expect(stageOneSave).toBeDefined();
-    expect(stageOneSave?.graph.nodes.some((node) => node.kind === "and")).toBe(true);
+    const stageTwoSave = saves.find((save) => save.stageIndex === 2);
+    expect(stageTwoSave).toBeDefined();
+    expect(stageTwoSave?.graph.nodes.some((node) => node.kind === "and")).toBe(true);
+  });
+});
+
+describe("CalculatorLabPage coach", () => {
+  it("opens with the signal lesson and pre-places an XOR for the first wire", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 2,
+              passedStages: [1],
+              unlockedSubmodules: [],
+              draftGraph: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/calculator");
+
+    // The tour continues on stage 2 after the first-wire stage is passed.
+    fireEvent.click(await screen.findByRole("button", { name: /02.*半加器/ }));
+    expect(await screen.findByText("先认识信号")).toBeInTheDocument();
+
+    // Toggling A advances the tour to the "what 0/1 means" beat.
+    fireEvent.click(screen.getByRole("button", { name: "切换 A，当前 0" }));
+    expect(await screen.findByText("0 和 1")).toBeInTheDocument();
+
+    // Past the ports beat the tour asks for the first wire — and the XOR the
+    // learner needs is already on the canvas.
+    fireEvent.click(screen.getByRole("button", { name: "继续" }));
+    fireEvent.click(await screen.findByRole("button", { name: "继续" }));
+    expect(await screen.findByText("第一根导线")).toBeInTheDocument();
+    expect(await screen.findByText("XOR", { selector: ".node-label" })).toBeInTheDocument();
   });
 });

@@ -76,6 +76,14 @@ export function build(fn: (b: Builder) => void): CircuitGraph {
   return builder.graph();
 }
 
+/** Stage 1: a bare wire, A straight into Y. */
+export function wireGraph(): CircuitGraph {
+  return build((b) => {
+    const a = b.input("A");
+    b.output("Y", a);
+  });
+}
+
 export function halfAdderGraph(): CircuitGraph {
   return build((b) => {
     const a = b.input("A");
@@ -250,12 +258,13 @@ export function calculatorGraph(): CircuitGraph {
 /** Reference solutions keyed by stage index. */
 export function referenceSolutions(): Record<number, CircuitGraph> {
   return {
-    1: halfAdderGraph(),
-    2: fullAdderGraph(),
-    3: add4Graph(),
-    4: neg4Graph(),
-    5: sub4Graph(),
-    6: mul4Graph(),
-    7: calculatorGraph(),
+    1: wireGraph(),
+    2: halfAdderGraph(),
+    3: fullAdderGraph(),
+    4: add4Graph(),
+    5: neg4Graph(),
+    6: sub4Graph(),
+    7: mul4Graph(),
+    8: calculatorGraph(),
   };
 }

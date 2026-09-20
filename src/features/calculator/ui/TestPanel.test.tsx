@@ -5,9 +5,9 @@ import { getStage } from "../domain/stages";
 import type { CaseResult } from "../domain/evaluate";
 import type { JudgeOutcome } from "../lesson/state";
 
-const stage3 = getStage(3)!; // add4: buses A, B, 真实和（5 位）, 存进 4 位字的结果
-const stage5 = getStage(5)!; // sub4: signed R bus
-const stage7 = getStage(7)!; // final calculator: R is an unsigned 4-bit word
+const stage3 = getStage(4)!; // add4: buses A, B, 真实和（5 位）, 存进 4 位字的结果
+const stage5 = getStage(6)!; // sub4: signed R bus
+const stage7 = getStage(8)!; // final calculator: R is an unsigned 4-bit word
 
 function passResult(name: string): CaseResult {
   return {
@@ -145,7 +145,7 @@ describe("TestPanel", () => {
       <TestPanel
         judgeOutcome={null}
         runOutcome={{ results: [result], score: 0, total: 1 }}
-        stage={getStage(7)!}
+        stage={getStage(8)!}
       />,
     );
     const row = screen.getByRole("rowheader", { name: "异或" }).closest("tr")!;

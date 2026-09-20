@@ -6,7 +6,7 @@ import { getStage } from "../domain/stages";
 describe("BusReadout", () => {
   it("renders each bus as an MSB-first number with a decimal reading", () => {
     // Stage 4 (求补码): A input bus, R signed output bus.
-    const stage = getStage(4)!;
+    const stage = getStage(5)!;
     render(
       <BusReadout
         pins={{ A3: 0, A2: 1, A1: 0, A0: 1, R3: 1, R2: 0, R1: 1, R0: 0 }}
@@ -31,7 +31,7 @@ describe("BusReadout", () => {
   });
 
   it("shows unsigned and two's-complement readings for a signed bus", () => {
-    const stage = getStage(4)!;
+    const stage = getStage(5)!;
     render(
       <BusReadout
         pins={{ A3: 0, A2: 1, A1: 0, A0: 1, R3: 1, R2: 0, R1: 1, R0: 1 }}
@@ -50,7 +50,7 @@ describe("BusReadout", () => {
   });
 
   it("marks undriven pins with ? and the is-floating style", () => {
-    const stage = getStage(1)!;
+    const stage = getStage(2)!;
     render(<BusReadout pins={{ A: 1, B: 0, Sum: null, Carry: null }} stage={stage} />);
 
     const floating = screen.getByRole("listitem", { name: "Sum，值 ?" });

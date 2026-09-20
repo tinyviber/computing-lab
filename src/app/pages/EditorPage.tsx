@@ -6,7 +6,7 @@ import { javascript } from "@codemirror/lang-javascript";
 import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountMenu } from "../../shared/auth";
 import "./editor.css";
 
@@ -138,53 +138,23 @@ function SourceEditor({ filePath, value, onChange, onSave }: SourceEditorProps) 
   return <div className="editor-codemirror" ref={hostRef} />;
 }
 
-function LoginPanel({ onLogin }: { onLogin: (password: string) => Promise<string | null> }) {
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    const message = await onLogin(password);
-    if (message) setError(message);
-    else setPassword("");
-    setSubmitting(false);
-  };
-
+function LoginPanel() {
   return (
     <main className="editor-login-page">
-      <form className="editor-login-card" onSubmit={submit}>
+      <section className="editor-login-card">
         <Link className="editor-login-back" to="/">
           ← 返回计算实验室
         </Link>
         <p className="editor-kicker">COMPUTING LAB / EDITOR</p>
         <h1>在线课件编辑</h1>
         <p className="editor-login-copy">
-          这里会直接修改服务器上的 Markdown、Vue 组件和样式文件，并通过 Slidev 实时预览。
+          这里会直接修改服务器上的 Markdown、Vue 组件和样式文件，并通过 Slidev
+          实时预览，仅管理员可以使用。请先登录管理员账号，再回到本页。
         </p>
-        <label className="editor-field-label" htmlFor="editor-password">
-          编辑密码
-        </label>
-        <input
-          autoFocus
-          className="editor-password-input"
-          id="editor-password"
-          onChange={(event) => setPassword(event.target.value)}
-          placeholder="输入密码"
-          type="password"
-          value={password}
-        />
-        {error ? <p className="editor-form-error">{error}</p> : null}
-        <button
-          className="button button-primary editor-login-submit"
-          disabled={submitting}
-          type="submit"
-        >
-          {submitting ? "验证中…" : "进入编辑器"}
-        </button>
-      </form>
+        <Link className="button button-primary editor-login-submit" to="/login">
+          前往登录
+        </Link>
+      </section>
     </main>
   );
 }
@@ -252,22 +222,6 @@ export function EditorPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  const login = useCallback(async (password: string): Promise<string | null> => {
-    try {
-      const response = await fetch(appUrl("/api/editor/login"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!response.ok) return (await responseError(response)).message;
-      setAuthRequired(false);
-      setAuthenticated(true);
-      return null;
-    } catch (error) {
-      return `登录失败：${(error as Error).message}`;
-    }
   }, []);
 
   useEffect(() => {
@@ -421,12 +375,6 @@ export function EditorPage() {
     setSavedContent("");
   };
 
-  const logout = async () => {
-    await fetch(appUrl("/api/editor/logout"), { method: "POST" });
-    setAuthenticated(false);
-    setAuthRequired(true);
-  };
-
   if (pageError) {
     return (
       <main className="editor-login-page">
@@ -447,11 +395,7 @@ export function EditorPage() {
   }
 
   if (authRequired === null || !authenticated) {
-    return authRequired ? (
-      <LoginPanel onLogin={login} />
-    ) : (
-      <div className="editor-loading">连接编辑服务…</div>
-    );
+    return authRequired ? <LoginPanel /> : <div className="editor-loading">连接编辑服务…</div>;
   }
 
   const previewUrl = selectedSlug ? appUrl(`/__preview/${encodeURIComponent(selectedSlug)}/`) : "";
@@ -500,9 +444,6 @@ export function EditorPage() {
             type="button"
           >
             {saveState === "saving" ? "保存中…" : "保存"}
-          </button>
-          <button className="editor-logout" onClick={() => void logout()} type="button">
-            退出
           </button>
           <AccountMenu />
         </div>

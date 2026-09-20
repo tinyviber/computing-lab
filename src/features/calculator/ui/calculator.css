@@ -1291,6 +1291,197 @@
   line-height: 16px;
 }
 
+/* Coach: the first-run guided tour */
+.coach-card {
+  padding: 14px 16px;
+  border: 1px solid #bfc2ff;
+  border-radius: var(--radius-panel);
+  background: var(--accent-soft);
+}
+
+.coach-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.coach-skip-all {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  text-decoration: underline;
+}
+
+.coach-skip-all:hover {
+  color: var(--primary);
+}
+
+.coach-title {
+  margin-top: 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.coach-body {
+  margin-top: 6px;
+  color: var(--secondary);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.coach-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.coach-rows li {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  font-size: 11px;
+}
+
+.coach-rows code {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+}
+
+.coach-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.coach-explorer {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+}
+
+.coach-bit {
+  padding: 5px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.coach-bit.is-high {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.coach-explorer-out {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Spotlight: pulse whichever element the current step points at. */
+@keyframes coach-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px var(--accent-soft),
+      0 0 0 4px rgb(79 70 229 / 55%);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px var(--accent-soft),
+      0 0 0 7px rgb(79 70 229 / 75%);
+  }
+}
+
+.coach-focus {
+  animation: coach-pulse 1.6s ease-in-out infinite;
+  border-radius: var(--radius-control);
+}
+
+g.circuit-node.coach-focus {
+  animation: none;
+  filter: drop-shadow(0 0 6px rgb(79 70 229 / 55%));
+}
+
+g.circuit-node.coach-focus .node-body,
+g.circuit-node.coach-focus .pin-body {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+circle.port.coach-focus {
+  animation: none;
+  fill: var(--accent);
+  stroke: var(--accent);
+  stroke-width: 3;
+}
+
+path.wire.coach-focus {
+  animation: none;
+  stroke: var(--accent);
+  stroke-width: 3.5;
+}
+
+/* “更多元件” disclosure inside the palette row */
+.palette-more {
+  display: contents;
+}
+
+.palette-more > summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-control);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.palette-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.palette-more > summary:hover {
+  border-color: var(--focus);
+  color: var(--primary);
+}
+
+.palette-more[open] {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.palette-more[open] > .palette-items {
+  flex-basis: 100%;
+  margin-top: 6px;
+}
+
 @media (max-width: 900px) {
   .calculator-layout {
     grid-template-columns: 1fr;

@@ -12,6 +12,7 @@ import {
   mul4Graph,
   neg4Graph,
   sub4Graph,
+  wireGraph,
 } from "../../src/features/calculator/domain/fixtures.ts";
 import {
   CALCULATOR_STAGES,
@@ -33,22 +34,23 @@ describe("hidden tests accept the reference solutions", () => {
   const mul4 = mul4Graph();
 
   // Components accumulate exactly like the unlock progression does.
-  const afterStage1 = { HalfAdder: halfAdder };
-  const afterStage2 = { ...afterStage1, FullAdder: fullAdder };
-  const afterStage3 = { ...afterStage2, Add4: add4 };
-  const afterStage4 = { ...afterStage3, Neg4: neg4 };
-  const afterStage5 = { ...afterStage4, Sub4: sub4 };
-  const afterStage6 = { ...afterStage5, Mul4: mul4 };
+  const afterStage2 = { HalfAdder: halfAdder };
+  const afterStage3 = { ...afterStage2, FullAdder: fullAdder };
+  const afterStage4 = { ...afterStage3, Add4: add4 };
+  const afterStage5 = { ...afterStage4, Neg4: neg4 };
+  const afterStage6 = { ...afterStage5, Sub4: sub4 };
+  const afterStage7 = { ...afterStage6, Mul4: mul4 };
 
   it.each([
-    [1, halfAdder, {}],
-    [2, fullAdder, afterStage1],
-    [2, fullAdderPrimitiveGraph(), {}],
-    [3, add4, afterStage2],
-    [4, neg4, afterStage3],
-    [5, sub4, afterStage4],
-    [6, mul4, afterStage5],
-    [7, calculatorGraph(), afterStage6],
+    [1, wireGraph(), {}],
+    [2, halfAdder, {}],
+    [3, fullAdder, afterStage2],
+    [3, fullAdderPrimitiveGraph(), {}],
+    [4, add4, afterStage3],
+    [5, neg4, afterStage4],
+    [6, sub4, afterStage5],
+    [7, mul4, afterStage6],
+    [8, calculatorGraph(), afterStage7],
   ])(
     "stage %i reference solution passes every hidden case",
     (stageIndex, graph, components: Record<string, CircuitGraph>) => {
@@ -89,7 +91,7 @@ describe("hidden tests accept the reference solutions", () => {
         { id: "6", from: { node: "o", port: "out" }, to: { node: "c", port: "in" } },
       ],
     };
-    const { score, total } = runCases(broken, hiddenTestsFor(1), {});
+    const { score, total } = runCases(broken, hiddenTestsFor(2), {});
     expect(score).toBeLessThan(total);
   });
 
@@ -103,7 +105,7 @@ describe("hidden tests accept the reference solutions", () => {
       ],
       edges: [],
     };
-    const { results } = runCases(dangling, hiddenTestsFor(1), {});
+    const { results } = runCases(dangling, hiddenTestsFor(2), {});
     // 0+0 happens to expect Sum=0/Carry=0, but null must not equal 0.
     expect(results.every((r) => !r.passed)).toBe(true);
   });
@@ -119,15 +121,15 @@ describe("hidden tests accept the reference solutions", () => {
         { id: "2", from: { node: "n1", port: "out" }, to: { node: "o", port: "in" } },
       ],
     };
-    const { results } = runCases(looped, hiddenTestsFor(1), {});
+    const { results } = runCases(looped, hiddenTestsFor(2), {});
     expect(results[0].error?.kind).toBe("cycle");
   });
 });
 
 describe("stage contracts", () => {
   it("declares unique ids and consecutive indices", () => {
-    expect(CALCULATOR_STAGES.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(new Set(CALCULATOR_STAGES.map((s) => s.id)).size).toBe(7);
+    expect(CALCULATOR_STAGES.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(new Set(CALCULATOR_STAGES.map((s) => s.id)).size).toBe(8);
     for (const stage of CALCULATOR_STAGES) {
       expect(stage.inputs.length).toBeGreaterThan(0);
       expect(stage.outputs.length).toBeGreaterThan(0);
@@ -146,6 +148,7 @@ describe("stage contracts", () => {
 
   it("declares non-empty buses whose pins match the stage contract", () => {
     for (const stage of CALCULATOR_STAGES) {
+      if (stage.buses.length === 0) continue;
       expect(stage.buses.length).toBeGreaterThan(0);
       for (const bus of stage.buses) {
         const declared = bus.role === "input" ? stage.inputs : stage.outputs;
@@ -156,9 +159,9 @@ describe("stage contracts", () => {
     }
   });
 
-  it("splits stages into core 1-5 and challenge 6-7", () => {
-    expect(coreStages().map((s) => s.index)).toEqual([1, 2, 3, 4, 5]);
-    expect(challengeStages().map((s) => s.index)).toEqual([6, 7]);
+  it("splits stages into core 1-6 and challenge 7-8", () => {
+    expect(coreStages().map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(challengeStages().map((s) => s.index)).toEqual([7, 8]);
   });
 });
 
@@ -189,25 +192,25 @@ describe("judge persistence and unlocking", () => {
     const project = getOrCreateProject(db, userId, classId, "calculator");
     expect(project.currentStage).toBe(1);
 
-    const outcome = judgeSubmission(db, project, 1, halfAdderGraph());
+    const outcome = judgeSubmission(db, project, 2, halfAdderGraph());
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(true);
     expect(outcome.score).toBe(outcome.total);
-    expect(outcome.currentStage).toBe(2);
-    expect(outcome.passedStages).toEqual([1]);
+    expect(outcome.currentStage).toBe(3);
+    expect(outcome.passedStages).toEqual([2]);
     expect(outcome.testSummary.counterexample).toBeNull();
     expect(outcome.unlockedComponent).toBe("HalfAdder");
 
     const reloaded = getOrCreateProject(db, userId, classId, "calculator");
-    expect(reloaded.currentStage).toBe(2);
-    expect(reloaded.passedStages).toEqual([1]);
+    expect(reloaded.currentStage).toBe(3);
+    expect(reloaded.passedStages).toEqual([2]);
     expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(["HalfAdder"]);
 
     // The unlocked component is usable by the next stage.
-    const stage2 = judgeSubmission(db, reloaded, 2, fullAdderGraph());
+    const stage2 = judgeSubmission(db, reloaded, 3, fullAdderGraph());
     if ("error" in stage2) throw new Error(stage2.error);
     expect(stage2.passed).toBe(true);
-    expect(stage2.currentStage).toBe(3);
+    expect(stage2.currentStage).toBe(4);
   });
 
   it("judges with a learner-made component and persists it", () => {
@@ -246,7 +249,7 @@ describe("judge persistence and unlocking", () => {
       ],
     };
 
-    const outcome = judgeSubmission(db, project, 1, graph, [custom]);
+    const outcome = judgeSubmission(db, project, 2, graph, [custom]);
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(true);
     const reloaded = getOrCreateProject(db, userId, classId, "calculator");
@@ -260,7 +263,7 @@ describe("judge persistence and unlocking", () => {
   it("does not advance on a partial pass but records the score", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");
-    const outcome = judgeSubmission(db, project, 1, { nodes: [], edges: [] });
+    const outcome = judgeSubmission(db, project, 2, { nodes: [], edges: [] });
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(false);
     expect(outcome.currentStage).toBe(1);
@@ -281,7 +284,7 @@ describe("judge persistence and unlocking", () => {
   it("refuses a challenge stage while any core stage is unpassed", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");
-    const outcome = judgeSubmission(db, project, 6, mul4Graph());
+    const outcome = judgeSubmission(db, project, 7, mul4Graph());
     expect(outcome).toMatchObject({ error: "stage-locked", status: 409 });
   });
 
@@ -289,8 +292,8 @@ describe("judge persistence and unlocking", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");
     // neg4Graph needs the Add4 component, so it cannot pass yet — the point
-    // is that judging stage 4 is allowed rather than stage-locked.
-    const outcome = judgeSubmission(db, project, 4, neg4Graph());
+    // is that judging stage 5 is allowed rather than stage-locked.
+    const outcome = judgeSubmission(db, project, 5, neg4Graph());
     expect("error" in outcome ? outcome.error : null).not.toBe("stage-locked");
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(false);
@@ -300,24 +303,24 @@ describe("judge persistence and unlocking", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");
 
-    // Stage 2 first (the primitive-only full adder needs no components).
-    const stage2 = judgeSubmission(db, project, 2, fullAdderPrimitiveGraph());
+    // Stage 3 first (the primitive-only full adder needs no components).
+    const stage2 = judgeSubmission(db, project, 3, fullAdderPrimitiveGraph());
     if ("error" in stage2) throw new Error(stage2.error);
     expect(stage2.passed).toBe(true);
-    expect(stage2.passedStages).toEqual([2]);
-    expect(stage2.currentStage).toBe(3);
+    expect(stage2.passedStages).toEqual([3]);
+    expect(stage2.currentStage).toBe(4);
     expect(stage2.unlockedComponent).toBe("FullAdder");
 
-    // Stage 1 afterwards still counts.
+    // Stage 2 afterwards still counts.
     const after2 = getOrCreateProject(db, userId, classId, "calculator");
-    const stage1 = judgeSubmission(db, after2, 1, halfAdderGraph());
+    const stage1 = judgeSubmission(db, after2, 2, halfAdderGraph());
     if ("error" in stage1) throw new Error(stage1.error);
     expect(stage1.passed).toBe(true);
-    expect(stage1.passedStages).toEqual([1, 2]);
+    expect(stage1.passedStages).toEqual([2, 3]);
 
     const reloaded = getOrCreateProject(db, userId, classId, "calculator");
-    expect(reloaded.passedStages).toEqual([1, 2]);
-    expect(reloaded.currentStage).toBe(3);
+    expect(reloaded.passedStages).toEqual([2, 3]);
+    expect(reloaded.currentStage).toBe(4);
     expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(
       expect.arrayContaining(["HalfAdder", "FullAdder"]),
     );

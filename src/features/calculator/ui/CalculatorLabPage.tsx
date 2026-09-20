@@ -21,6 +21,7 @@ import {
 } from "../lesson/state";
 import { BusReadout } from "./BusReadout";
 import { CircuitCanvas } from "./CircuitCanvas";
+import { CoachCard, useCalculatorCoach } from "./CoachCard";
 import { HintDisclosure } from "./HintDisclosure";
 import { StageRail } from "./StageRail";
 import { TestPanel } from "./TestPanel";
@@ -79,6 +80,7 @@ export function CalculatorLabPage() {
     createCalculatorLessonState(1),
   );
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [projectLoaded, setProjectLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [editingComponentName, setEditingComponentName] = useState<string | null>(null);
   const saveTimers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
@@ -110,12 +112,13 @@ export function CalculatorLabPage() {
 
   // Live preview: evaluate with the pins' current toggle values.
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
+  const coach = useCalculatorCoach(state, preview.pins, projectLoaded, dispatch);
 
   useEffect(() => {
     if (!classId || status !== "authenticated") return;
     void api
       .get<ProjectPayload>(`/api/classes/${classId}/labs/calculator/project`)
-      .then((project) =>
+      .then((project) => {
         dispatch({
           type: "load-project",
           currentStage: project.currentStage,
@@ -124,9 +127,13 @@ export function CalculatorLabPage() {
           drafts: Object.fromEntries(
             Object.entries(project.draftGraph).map(([key, value]) => [Number(key), value]),
           ),
-        }),
-      )
-      .catch((error) => setLoadError(describeApiError(error)));
+        });
+        setProjectLoaded(true);
+      })
+      .catch((error) => {
+        setLoadError(describeApiError(error));
+        setProjectLoaded(true);
+      });
   }, [classId, status]);
 
   // Silent debounced autosave. Timers are keyed by stage so switching stages
@@ -259,6 +266,7 @@ export function CalculatorLabPage() {
 
       <div className="calculator-layout">
         <StageRail
+          coachHighlight={coach.focusesOn("my-components")}
           passedStages={state.passedStages}
           onPlaceComponent={(name) =>
             dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
@@ -273,6 +281,14 @@ export function CalculatorLabPage() {
         <main aria-label="计算器实验区" className="calculator-workspace">
           <section className="stage-brief">
             <p>{stage ? <AnnotatedText text={stage.description} /> : null}</p>
+            {stage?.details ? (
+              <details className="stage-details">
+                <summary>为什么？</summary>
+                <p>
+                  <AnnotatedText text={stage.details} />
+                </p>
+              </details>
+            ) : null}
             {stage ? <HintDisclosure hint={stage.hint} key={stage.id} /> : null}
             <CalculatorTermGuide />
           </section>
@@ -299,7 +315,7 @@ export function CalculatorLabPage() {
             <div className="palette-items">
               {paletteGates(state).map((kind) => (
                 <button
-                  className="palette-chip"
+                  className={`palette-chip${coach.focusesOn("palette-gate", kind) ? " coach-focus" : ""}`}
                   key={kind}
                   onClick={() => addGate(kind)}
                   type="button"
@@ -307,30 +323,63 @@ export function CalculatorLabPage() {
                   <AnnotatedText text={GATE_LABEL[kind]} />
                 </button>
               ))}
-              <button
-                className="palette-chip is-const"
-                onClick={() =>
-                  dispatch({ type: "add-node", kind: "const", value: 1, x: 120, y: 300 })
-                }
-                type="button"
-              >
-                常量 1
-              </button>
-              <button
-                className="palette-chip is-const"
-                onClick={() =>
-                  dispatch({ type: "add-node", kind: "const", value: 0, x: 120, y: 340 })
-                }
-                type="button"
-              >
-                常量 0
-              </button>
+              {stage?.extraPrimitives?.length ? (
+                <details className="palette-more">
+                  <summary>更多元件</summary>
+                  <div className="palette-items">
+                    {stage.extraPrimitives.map((kind) => (
+                      <button
+                        className="palette-chip"
+                        key={kind}
+                        onClick={() => addGate(kind)}
+                        type="button"
+                      >
+                        <AnnotatedText text={GATE_LABEL[kind]} />
+                      </button>
+                    ))}
+                  </div>
+                </details>
+              ) : null}
+              {stage?.constants ? (
+                <>
+                  <button
+                    className="palette-chip is-const"
+                    onClick={() =>
+                      dispatch({ type: "add-node", kind: "const", value: 1, x: 120, y: 300 })
+                    }
+                    type="button"
+                  >
+                    常量 1
+                  </button>
+                  <button
+                    className={`palette-chip is-const${coach.focusesOn("palette-const", 0) ? " coach-focus" : ""}`}
+                    onClick={() =>
+                      dispatch({ type: "add-node", kind: "const", value: 0, x: 120, y: 340 })
+                    }
+                    type="button"
+                  >
+                    常量 0
+                  </button>
+                </>
+              ) : null}
             </div>
           </section>
 
-          {stage ? <BusReadout pins={preview.pins} stage={stage} /> : null}
+          {stage ? (
+            <div className={coach.focusesOn("bus-readout") ? "coach-focus" : undefined}>
+              <BusReadout pins={preview.pins} stage={stage} />
+            </div>
+          ) : null}
+
+          <CoachCard
+            onAdvance={coach.advance}
+            onSkip={coach.skip}
+            onSkipAll={coach.skipAll}
+            step={coach.step}
+          />
 
           <CircuitCanvas
+            coachFocus={coach.canvasFocus}
             components={componentDefinitions}
             dispatch={dispatch}
             graph={graph}
@@ -354,7 +403,7 @@ export function CalculatorLabPage() {
 
           <div className="calculator-actions">
             <button
-              className="button button-secondary"
+              className={`button button-secondary${coach.focusesOn("run-tests") ? " coach-focus" : ""}`}
               onClick={() => dispatch({ type: "run-public-tests" })}
               type="button"
             >
@@ -369,7 +418,7 @@ export function CalculatorLabPage() {
               撤销
             </button>
             <button
-              className="button button-primary"
+              className={`button button-primary${coach.focusesOn("submit") ? " coach-focus" : ""}`}
               disabled={submitting}
               onClick={() => void onSubmit()}
               type="button"
