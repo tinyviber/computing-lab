@@ -30,9 +30,9 @@ export function LabUnavailable({ title }: { title: string }) {
 }
 
 /**
- * Renders a lab only when its feature flag is on, the viewer is a teacher, or
+ * Renders a lab only when its feature flag is on, the viewer is an admin, or
  * the URL carries the experimental override. Disabled labs keep their route and
- * their code; they simply refuse to render for students.
+ * their code; they simply refuse to render for teachers and students.
  */
 export function LabGate({
   labId,

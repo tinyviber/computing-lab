@@ -1,4 +1,4 @@
-import { isStaffRole, type AccountRole } from "../../shared/auth";
+import { isAdminRole, type AccountRole } from "../../shared/auth";
 import type { LabDefinition } from "./types";
 
 /**
@@ -6,8 +6,7 @@ import type { LabDefinition } from "./types";
  *
  * Only `enabled` labs appear in navigation and open for students. The earlier
  * exploratory labs stay in the codebase and keep their routes; they are hidden,
- * not deleted, and remain reachable for teachers or with
- * `?showExperimentalLabs=1`.
+ * not deleted, and remain reachable for admins or with `?showExperimentalLabs=1`.
  */
 export const labs: LabDefinition[] = [
   {
@@ -125,14 +124,14 @@ export function experimentalLabs(): LabDefinition[] {
 }
 
 /**
- * Which labs a viewer may navigate to. Staff (teachers and admins) and the
- * explicit escape hatch see everything; students see only enabled labs.
+ * Which labs a viewer may navigate to. Admins and the explicit escape hatch
+ * see everything; teachers and students see only enabled labs.
  */
 export function visibleLabs(options: {
   role?: AccountRole | null;
   showExperimental?: boolean;
 }): LabDefinition[] {
-  if (isStaffRole(options.role) || options.showExperimental) return labs;
+  if (isAdminRole(options.role) || options.showExperimental) return labs;
   return enabledLabs();
 }
 
@@ -142,5 +141,5 @@ export function isLabAccessible(
 ): boolean {
   const lab = getLab(id);
   if (!lab) return false;
-  return lab.enabled || isStaffRole(options.role) || options.showExperimental === true;
+  return lab.enabled || isAdminRole(options.role) || options.showExperimental === true;
 }

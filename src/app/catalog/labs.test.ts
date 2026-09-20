@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getLab, labs } from "./labs";
+import { getLab, isLabAccessible, labs, visibleLabs } from "./labs";
 
 describe("lab catalog", () => {
   it("keeps ids and routes unique and metadata complete", () => {
@@ -30,5 +30,15 @@ describe("lab catalog", () => {
   it("resolves known cards and rejects unknown ids", () => {
     expect(getLab("image-encoding")).toMatchObject({ route: "/labs/image-encoding" });
     expect(getLab("missing-lab")).toBeUndefined();
+  });
+
+  it("keeps hidden labs admin-only unless the explicit preview flag is used", () => {
+    expect(visibleLabs({ role: "teacher" })).toEqual(labs.filter((lab) => lab.enabled));
+    expect(visibleLabs({ role: "admin" })).toEqual(labs);
+    expect(isLabAccessible("image-encoding", { role: "teacher" })).toBe(false);
+    expect(isLabAccessible("image-encoding", { role: "admin" })).toBe(true);
+    expect(isLabAccessible("image-encoding", { role: "teacher", showExperimental: true })).toBe(
+      true,
+    );
   });
 });

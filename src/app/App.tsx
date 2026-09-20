@@ -6,9 +6,10 @@ import { visibleLabs } from "./catalog/labs";
 import { router } from "./router";
 
 /**
- * Navigation reflects the feature flags: students see enabled labs only,
- * teachers and the `?showExperimentalLabs=1` escape hatch see all of them.
- * The flag is read from the router so it reacts to client-side navigation.
+ * Navigation reflects the feature flags: teachers and students see enabled
+ * labs only, while admins and the `?showExperimentalLabs=1` escape hatch see
+ * all of them. The flag is read from the router so it reacts to client-side
+ * navigation.
  */
 function VisibleLabNavigation({ children }: { children: ReactNode }) {
   const { role } = useAuth();

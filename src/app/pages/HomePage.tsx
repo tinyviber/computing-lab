@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
-import { isStaffRole, useAuth } from "../../shared/auth";
+import { isAdminRole, isStaffRole, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { enabledLabs, experimentalLabs } from "../catalog/labs";
 import { coreStages } from "../../features/calculator";
@@ -11,17 +11,7 @@ type ProjectSummary = { currentStage: number };
 
 function AnonymousLanding() {
   return (
-    <AppPageLayout
-      className="home-page"
-      topbarProps={{
-        nav: (
-          <nav aria-label="主导航" className="home-nav">
-            <Link to="/editor">课件编辑</Link>
-          </nav>
-        ),
-        showAccount: false,
-      }}
-    >
+    <AppPageLayout className="home-page" topbarProps={{ showAccount: false }}>
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -69,6 +59,7 @@ function ClassroomHome() {
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
+  const isAdmin = isAdminRole(role);
 
   useEffect(() => {
     if (!classId || isStaff) return;
@@ -81,7 +72,16 @@ function ClassroomHome() {
   const experimental = experimentalLabs();
 
   return (
-    <AppPageLayout className="home-page">
+    <AppPageLayout
+      className="home-page"
+      topbarProps={{
+        nav: isAdmin ? (
+          <nav aria-label="主导航" className="home-nav">
+            <Link to="/editor">课件编辑</Link>
+          </nav>
+        ) : undefined,
+      }}
+    >
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -153,11 +153,11 @@ function ClassroomHome() {
           </div>
         </section>
 
-        {isStaff && experimental.length > 0 ? (
+        {isAdmin && experimental.length > 0 ? (
           <section className="catalog-section" aria-labelledby="experimental-title">
             <div className="section-heading">
               <div>
-                <p className="eyebrow">仅教师可见</p>
+                <p className="eyebrow">仅管理员可见</p>
                 <h2 id="experimental-title">未开放的实验</h2>
               </div>
               <span className="summary-note">{experimental.length} 个</span>

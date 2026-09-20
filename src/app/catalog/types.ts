@@ -17,8 +17,8 @@ export type LabDefinition = {
   status: "available" | "preview";
   /**
    * Feature flag. A disabled lab keeps all of its code and route but is hidden
-   * from navigation and refuses to render for students. Teachers, and anyone
-   * passing `?showExperimentalLabs=1`, may still open it.
+   * from navigation and refuses to render for teachers and students. Admins,
+   * and anyone passing `?showExperimentalLabs=1`, may still open it.
    */
   enabled: boolean;
 };

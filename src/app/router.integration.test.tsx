@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   anonymousAuthState,
+  adminAuthState,
   navigateApp,
   renderAppAt,
   studentAuthState,
@@ -15,7 +16,7 @@ afterEach(() => {
 
 describe("application router integration", () => {
   it("shows the signed-in name only inside the account dropdown trigger", async () => {
-    await renderAppAt("/");
+    await renderAppAt("/", { auth: teacherAuthState });
 
     const topbar = screen.getByRole("banner");
     expect(within(topbar).getAllByText("教师", { exact: true })).toHaveLength(1);
@@ -23,8 +24,8 @@ describe("application router integration", () => {
     expect(within(topbar).queryByText("teacher", { exact: true })).not.toBeInTheDocument();
   });
 
-  it("shows a teacher the classroom home with the enabled lab and flagged experiments", async () => {
-    await renderAppAt("/");
+  it("shows a teacher the classroom home without hidden labs", async () => {
+    await renderAppAt("/", { auth: teacherAuthState });
 
     // Enabled labs link to their catalog route; the entry page forwards
     // members to their own class-scoped route.
@@ -33,10 +34,9 @@ describe("application router integration", () => {
       .map((link) => link.getAttribute("href"));
     expect(startHrefs).toEqual(expect.arrayContaining(["/labs/calculator"]));
 
-    // The image lab is hidden for now: it shows up only as a teacher-only
-    // preview card like the other unfinished labs.
-    expect(screen.getByRole("heading", { name: "图像编码" })).toBeInTheDocument();
-    expect(screen.getAllByText("未开放").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: "图像编码" })).not.toBeInTheDocument();
+    expect(screen.queryByText("仅管理员可见")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "课件编辑" })).not.toBeInTheDocument();
 
     // The teacher dashboard card is present.
     expect(screen.getByRole("link", { name: /打开看板/ })).toHaveAttribute(
@@ -66,12 +66,23 @@ describe("application router integration", () => {
     // No lab links are offered to an anonymous visitor.
     expect(screen.queryByRole("link", { name: /进入实验/ })).not.toBeInTheDocument();
     expect(screen.queryByText("交互式计算实验")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "课件编辑" })).not.toBeInTheDocument();
     for (const legacyPhrase of [/不先背结论/, /把一个系统拆开/, /可直接开始/]) {
       expect(screen.queryByText(legacyPhrase)).not.toBeInTheDocument();
     }
   });
 
-  it("hides a disabled lab from students and opens it with the override or as teacher", async () => {
+  it("shows the editor and hidden labs only to admins", async () => {
+    await renderAppAt("/", { auth: adminAuthState });
+    expect(screen.getByRole("link", { name: "课件编辑" })).toHaveAttribute("href", "/editor");
+    expect(screen.getByRole("heading", { name: "图像编码" })).toBeInTheDocument();
+    expect(screen.getByText("仅管理员可见")).toBeInTheDocument();
+
+    await renderAppAt("/editor", { auth: teacherAuthState });
+    expect(screen.getByRole("heading", { name: "课件编辑仅限管理员" })).toBeInTheDocument();
+  });
+
+  it("hides a disabled lab from students and teachers, with admin or override access", async () => {
     // A student is refused on a lab that is still flagged experimental.
     const refused = await renderAppAt("/labs/audio-encoding", { auth: studentAuthState });
     expect(screen.getByRole("heading", { name: /声音编码暂未开放/ })).toBeInTheDocument();
@@ -85,12 +96,15 @@ describe("application router integration", () => {
     expect(screen.getByRole("main", { name: /声音编码实验区/ })).toBeInTheDocument();
     override.unmount();
 
-    // A teacher can always open it.
+    // Teachers no longer bypass the hidden-lab flag.
     await renderAppAt("/labs/audio-encoding", { auth: teacherAuthState });
+    expect(screen.getByRole("heading", { name: /声音编码暂未开放/ })).toBeInTheDocument();
+
+    await renderAppAt("/labs/audio-encoding", { auth: adminAuthState });
     expect(screen.getByRole("main", { name: /声音编码实验区/ })).toBeInTheDocument();
   });
 
-  it("hides the image lab from students and opens it with the override or as teacher", async () => {
+  it("hides the image lab from students and teachers", async () => {
     const refused = await renderAppAt("/labs/image-encoding", { auth: studentAuthState });
     expect(screen.getByRole("heading", { name: /图像编码暂未开放/ })).toBeInTheDocument();
     expect(screen.queryByRole("main", { name: /AI 修复老照片实验区/ })).not.toBeInTheDocument();
@@ -103,12 +117,17 @@ describe("application router integration", () => {
     override.unmount();
 
     await renderAppAt("/labs/image-encoding", { auth: teacherAuthState });
+    expect(screen.getByRole("heading", { name: /图像编码暂未开放/ })).toBeInTheDocument();
+
+    await renderAppAt("/labs/image-encoding", { auth: adminAuthState });
     expect(screen.getByRole("main", { name: /AI 修复老照片实验区/ })).toBeInTheDocument();
   });
 
   it("hydrates the photo source through the canonical image query", async () => {
     // `view=compare` maps to Core 2; sample=25 snaps to the 25% resolution stop.
-    await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare");
+    await renderAppAt("/labs/image-encoding?image=photo&sample=25&bits=8&view=compare", {
+      auth: adminAuthState,
+    });
 
     expect(screen.getByRole("heading", { name: /用八分之一的 bit 保存照片/ })).toBeInTheDocument();
     expect(screen.getByRole("img", { name: "原始照片" })).toHaveAttribute("width", "240");
@@ -175,7 +194,7 @@ describe("application router integration", () => {
       /应用编辑|字节编辑样例/,
     ],
   ])("hydrates %s from a direct query URL", async (_name, entry, landmark, expected) => {
-    await renderAppAt(entry);
+    await renderAppAt(entry, { auth: adminAuthState });
     expect(document.querySelector("main")).toHaveAccessibleName(landmark);
     if (_name === "image lesson") {
       expect(screen.getByRole("heading", { level: 2, name: expected })).toBeInTheDocument();
@@ -214,16 +233,16 @@ describe("application router integration", () => {
   });
 
   it("hydrates a base-prefixed deep link with the test router history", async () => {
-    await renderAppAt(
-      "/computing-lab/labs/image-encoding?image=checkerboard&sample=25",
-      "/computing-lab",
-    );
+    await renderAppAt("/computing-lab/labs/image-encoding?image=checkerboard&sample=25", {
+      auth: adminAuthState,
+      basepath: "/computing-lab",
+    });
     expect(document.querySelector("h1")).toHaveTextContent("AI 修复老照片");
     expect(screen.getByRole("img", { name: /同一串 bit 按约定 A · 灰阶解码/ })).toBeInTheDocument();
   });
 
   it("changes image lesson state when the same route receives a new search", async () => {
-    const { router } = await renderAppAt("/labs/image-encoding");
+    const { router } = await renderAppAt("/labs/image-encoding", { auth: adminAuthState });
     expect(screen.getByRole("heading", { name: /约定决定 bit 的意义/ })).toBeInTheDocument();
     await navigateApp(router, "/labs/image-encoding?image=gradient&sample=25&bits=2&view=error");
     expect(
@@ -233,7 +252,9 @@ describe("application router integration", () => {
   });
 
   it("changes Sound lesson state when the same route receives a new canonical search", async () => {
-    const { router } = await renderAppAt("/labs/audio-encoding?source=pure440");
+    const { router } = await renderAppAt("/labs/audio-encoding?source=pure440", {
+      auth: adminAuthState,
+    });
     expect(document.body).toHaveTextContent("纯 440 Hz 音调");
     await navigateApp(
       router,
@@ -244,7 +265,7 @@ describe("application router integration", () => {
   });
 
   it("changes network lesson state when the same route receives a new search", async () => {
-    const { router } = await renderAppAt("/labs/home-network");
+    const { router } = await renderAppAt("/labs/home-network", { auth: adminAuthState });
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
     await navigateApp(router, "/labs/home-network?scenario=wrong-gateway");
     expect(screen.getByRole("heading", { level: 1, name: "家庭网络探针" })).toBeInTheDocument();
@@ -255,7 +276,7 @@ describe("application router integration", () => {
   });
 
   it("refreshes the UTF-8 reset baseline when the same route receives a new search", async () => {
-    const { router } = await renderAppAt("/labs/utf8?scenario=emoji");
+    const { router } = await renderAppAt("/labs/utf8?scenario=emoji", { auth: adminAuthState });
     await userEvent.setup().click(screen.getByRole("button", { name: "运行到结束" }));
     await navigateApp(router, "/labs/utf8?scenario=ascii");
     expect(screen.getByRole("combobox", { name: /UTF-8 样例/ })).toHaveValue("ascii");
@@ -265,7 +286,7 @@ describe("application router integration", () => {
 
   it("navigates between lessons through real router links without a document reload", async () => {
     const user = userEvent.setup();
-    const { router } = await renderAppAt("/labs/image-encoding");
+    const { router } = await renderAppAt("/labs/image-encoding", { auth: adminAuthState });
     await user.click(document.querySelector('a.lab-link[href="/labs/audio-encoding"]')!);
     await router.load();
     expect(document.querySelector("h1")).toHaveTextContent("声音编码");
@@ -285,7 +306,7 @@ describe("application router integration", () => {
     async (_name, entry) => {
       const originalPushState = window.history.pushState;
       const originalReplaceState = window.history.replaceState;
-      const { unmount } = await renderAppAt(entry);
+      const { unmount } = await renderAppAt(entry, { auth: adminAuthState });
       expect(window.history.pushState).toBe(originalPushState);
       expect(window.history.replaceState).toBe(originalReplaceState);
       unmount();

@@ -1,4 +1,4 @@
-export { AuthProvider, isStaffRole, ROLE_LABELS, useAuth } from "./AuthProvider";
+export { AuthProvider, isAdminRole, isStaffRole, ROLE_LABELS, useAuth } from "./AuthProvider";
 export { AccountMenu } from "./AccountMenu";
 export type {
   AccountRole,

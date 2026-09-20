@@ -41,6 +41,10 @@ export function isStaffRole(role: AccountRole | null | undefined): boolean {
   return role === "teacher" || role === "admin";
 }
 
+export function isAdminRole(role: AccountRole | null | undefined): boolean {
+  return role === "admin";
+}
+
 export const ROLE_LABELS: Record<AccountRole, string> = {
   admin: "管理员",
   teacher: "教师",

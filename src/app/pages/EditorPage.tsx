@@ -7,6 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useAuth } from "../../shared/auth";
 import { AppTopbar } from "../../shared/layout/AppTopbar";
 import "./editor.css";
 
@@ -159,7 +160,27 @@ function LoginPanel() {
   );
 }
 
+function EditorAccessDenied() {
+  return (
+    <main className="editor-login-page">
+      <section className="editor-login-card">
+        <Link className="editor-login-back" to="/">
+          ← 返回计算实验室
+        </Link>
+        <p className="editor-kicker">COMPUTING LAB / EDITOR</p>
+        <h1>课件编辑仅限管理员</h1>
+        <p className="editor-login-copy">当前账号没有课件编辑权限。请使用管理员账号访问此页面。</p>
+        <Link className="button button-primary editor-login-submit" to="/">
+          返回首页
+        </Link>
+      </section>
+    </main>
+  );
+}
+
 export function EditorPage() {
+  const { role, status } = useAuth();
+  const canEdit = status === "authenticated" && role === "admin";
   const [authRequired, setAuthRequired] = useState<boolean | null>(null);
   const [authenticated, setAuthenticated] = useState(false);
   const [lessons, setLessons] = useState<Lesson[]>([]);
@@ -200,6 +221,7 @@ export function EditorPage() {
   }, []);
 
   useEffect(() => {
+    if (!canEdit) return;
     let cancelled = false;
     fetch(appUrl("/api/editor/session"))
       .then(async (response) => {
@@ -222,7 +244,7 @@ export function EditorPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [canEdit]);
 
   useEffect(() => {
     if (!authenticated) return;
@@ -374,6 +396,14 @@ export function EditorPage() {
     setContent("");
     setSavedContent("");
   };
+
+  if (status === "loading") {
+    return <div className="editor-loading">正在载入账户…</div>;
+  }
+
+  if (!canEdit) {
+    return <EditorAccessDenied />;
+  }
 
   if (pageError) {
     return (

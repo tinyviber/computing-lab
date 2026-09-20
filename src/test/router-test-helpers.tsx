@@ -7,9 +7,9 @@ import { createAppRouter } from "../app/router";
 import { visibleLabs } from "../app/catalog/labs";
 
 /**
- * Default harness identity: a signed-in teacher. Lesson tests assert lesson
- * mechanics, and a teacher may open every lab regardless of its feature flag,
- * so gating never interferes. Pass `auth` explicitly to test the gate itself.
+ * Default harness identity: a signed-in admin so feature tests can open any
+ * registered lab. Gate tests should always name the role they intend to
+ * exercise.
  */
 export const teacherAuthState: AuthState = {
   status: "authenticated",
@@ -46,7 +46,7 @@ export async function renderAppAt(
   const options: RenderAppOptions =
     typeof basepathOrOptions === "string" ? { basepath: basepathOrOptions } : basepathOrOptions;
   const basepath = options.basepath ?? "/";
-  const auth = options.auth ?? teacherAuthState;
+  const auth = options.auth ?? adminAuthState;
   const role = auth.session?.user.role ?? null;
   const showExperimental = /[?&]showExperimentalLabs=1(?:&|$)/.test(initialEntry);
 
