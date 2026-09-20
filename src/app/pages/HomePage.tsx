@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
 import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
 import { enabledLabs, experimentalLabs } from "../catalog/labs";
-import { CALCULATOR_STAGES } from "../../features/calculator";
+import { coreStages } from "../../features/calculator";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -41,7 +41,7 @@ function AnonymousLanding() {
 }
 
 function StageProgress({ currentStage }: { currentStage: number }) {
-  const total = CALCULATOR_STAGES.length;
+  const total = coreStages().length;
   const done = Math.max(0, Math.min(currentStage - 1, total));
   return (
     <div className="progress-block">

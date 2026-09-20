@@ -27,12 +27,12 @@ describe("CalculatorLabPage autosave", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     await renderAppAt("/classes/c1/labs/calculator");
-    await screen.findByRole("button", { name: /02.*半加器/ });
+    await screen.findByRole("button", { name: /半加器/ });
     vi.useFakeTimers();
 
-    fireEvent.click(screen.getByRole("button", { name: /02.*半加器/ }));
+    fireEvent.click(screen.getByRole("button", { name: /半加器/ }));
     fireEvent.click(screen.getByRole("button", { name: "AND" }));
-    fireEvent.click(screen.getByRole("button", { name: /03.*全加器/ }));
+    fireEvent.click(screen.getByRole("button", { name: /全加器/ }));
 
     await act(async () => {
       vi.advanceTimersByTime(1500);
@@ -66,7 +66,7 @@ describe("CalculatorLabPage coach", () => {
     await renderAppAt("/classes/c1/labs/calculator");
 
     // The tour continues on stage 2 after the first-wire stage is passed.
-    fireEvent.click(await screen.findByRole("button", { name: /02.*半加器/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /半加器/ }));
     expect(await screen.findByText("先认识信号")).toBeInTheDocument();
 
     // Toggling A advances the tour to the "what 0/1 means" beat.

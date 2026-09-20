@@ -13,6 +13,24 @@ const nib = (prefix: string, value: number): Record<string, Bit> =>
 const byte = (prefix: string, value: number): Record<string, Bit> =>
   intToPins(prefix, value & 0xff, 8);
 
+const threeInputCases = (
+  outputFor: (a: Bit, b: Bit, c: Bit) => Bit,
+  category = "truth-table",
+): JudgeCase[] => {
+  const cases: JudgeCase[] = [];
+  for (const a of [0, 1] as const)
+    for (const b of [0, 1] as const)
+      for (const c of [0, 1] as const) {
+        cases.push({
+          name: `${a}${b}${c}`,
+          category,
+          inputs: { A: a, B: b, C: c },
+          outputs: { Y: outputFor(a, b, c) },
+        });
+      }
+  return cases;
+};
+
 const CASES: Record<number, JudgeCase[]> = {
   1: [
     { name: "A = 0", category: "basic", inputs: { A: 0 }, outputs: { Y: 0 } },
@@ -166,6 +184,14 @@ const CASES: Record<number, JudgeCase[]> = {
       outputs: nib("R", 0b1100),
     },
   ],
+  9: [
+    { name: "00", category: "truth-table", inputs: { A: 0, B: 0 }, outputs: { Y: 0 } },
+    { name: "01", category: "target-row", inputs: { A: 0, B: 1 }, outputs: { Y: 1 } },
+    { name: "10", category: "truth-table", inputs: { A: 1, B: 0 }, outputs: { Y: 0 } },
+    { name: "11", category: "truth-table", inputs: { A: 1, B: 1 }, outputs: { Y: 0 } },
+  ],
+  10: threeInputCases((a, b, c) => ((a + b + c) % 2) as Bit),
+  11: threeInputCases((a, b, c) => (a + b + c >= 2 ? 1 : 0)),
 };
 
 export function publicCasesFor(stageIndex: number): JudgeCase[] {

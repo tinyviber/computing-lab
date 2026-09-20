@@ -84,6 +84,38 @@ export function wireGraph(): CircuitGraph {
   });
 }
 
+/** Optional side challenge: Y is 1 only when A=0 and B=1. */
+export function secondTickGraph(): CircuitGraph {
+  return build((b) => {
+    const a = b.input("A");
+    const bb = b.input("B");
+    b.output("Y", b.gate("and", [b.gate("not", [a]), bb]));
+  });
+}
+
+/** Optional side challenge: odd parity of three inputs. */
+export function odd3Graph(): CircuitGraph {
+  return build((b) => {
+    const a = b.input("A");
+    const bb = b.input("B");
+    const c = b.input("C");
+    b.output("Y", b.gate("xor", [b.gate("xor", [a, bb]), c]));
+  });
+}
+
+/** Optional side challenge: at least two of three inputs are 1. */
+export function majority3Graph(): CircuitGraph {
+  return build((b) => {
+    const a = b.input("A");
+    const bb = b.input("B");
+    const c = b.input("C");
+    const ab = b.gate("and", [a, bb]);
+    const ac = b.gate("and", [a, c]);
+    const bc = b.gate("and", [bb, c]);
+    b.output("Y", b.gate("or", [b.gate("or", [ab, ac]), bc]));
+  });
+}
+
 export function halfAdderGraph(): CircuitGraph {
   return build((b) => {
     const a = b.input("A");
@@ -266,5 +298,8 @@ export function referenceSolutions(): Record<number, CircuitGraph> {
     6: sub4Graph(),
     7: mul4Graph(),
     8: calculatorGraph(),
+    9: secondTickGraph(),
+    10: odd3Graph(),
+    11: majority3Graph(),
   };
 }

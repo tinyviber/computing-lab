@@ -129,11 +129,43 @@
   background: var(--accent-soft);
 }
 
-.stage-index {
+.stage-link.is-optional {
+  margin-left: 12px;
+  border-style: dashed;
+}
+
+.stage-branch-item {
+  list-style: none;
+}
+
+.stage-branch {
+  margin: 2px 0;
+}
+
+.stage-branch-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 6px 22px;
   color: var(--muted);
-  font-family: "SFMono-Regular", Consolas, monospace;
+  cursor: pointer;
   font-size: 10px;
+  list-style-position: inside;
+}
+
+.stage-branch-summary:hover {
+  color: var(--primary);
+}
+
+.stage-branch-summary span:last-child {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
   font-weight: 700;
+}
+
+.stage-branch-list {
+  margin-bottom: 4px;
 }
 
 .stage-titles {

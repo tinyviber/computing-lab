@@ -23,7 +23,7 @@ import {
   type NodeKind,
   type PortRef,
 } from "../domain/graph";
-import { coreStages, getStage, stageCount, type StageDef } from "../domain/stages";
+import { getStage, nextMainlineStage, stagePrerequisites, type StageDef } from "../domain/stages";
 import { publicCasesFor } from "./publicCases";
 
 export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
@@ -58,7 +58,7 @@ export type JudgeOutcome = {
 
 export type CalculatorLessonState = {
   stageIndex: number;
-  /** max(passedStages) + 1, capped at 7 — kept for the home progress bar. */
+  /** Next mainline stage; optional side challenges never advance this value. */
   currentStage: number;
   /** Stages fully passed, ascending, deduplicated. */
   passedStages: number[];
@@ -141,13 +141,7 @@ export function stageOf(state: CalculatorLessonState): StageDef | undefined {
 export function isStageUnlocked(state: CalculatorLessonState, stageIndex: number): boolean {
   const stage = getStage(stageIndex);
   if (!stage) return false;
-  if (stage.track === "core") return true;
-  return coreStages().every((s) => state.passedStages.includes(s.index));
-}
-
-/** First unpassed stage number — the "current" one for progress display. */
-function nextCurrentStage(passedStages: number[]): number {
-  return Math.min(passedStages.length === 0 ? 1 : Math.max(...passedStages) + 1, stageCount());
+  return stagePrerequisites(stage).every((index) => state.passedStages.includes(index));
 }
 
 export function componentMap(state: CalculatorLessonState): Record<string, CircuitGraph> {
@@ -874,7 +868,7 @@ export function transitionCalculatorLesson(
         ...state,
         judgeOutcome: action.outcome,
         passedStages,
-        currentStage: nextCurrentStage(passedStages),
+        currentStage: nextMainlineStage(passedStages),
         unlockedSubmodules: submodules,
         message: action.outcome.passed
           ? unlocked

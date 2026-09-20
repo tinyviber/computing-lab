@@ -16,8 +16,20 @@ describe("calculator stage pin order", () => {
 
     for (const stage of CALCULATOR_STAGES.filter((candidate) => candidate.index >= 5)) {
       const operandBus = stage.buses.find((bus) => bus.name === "A");
-      expect(operandBus?.pins).toEqual(["A3", "A2", "A1", "A0"]);
+      if (operandBus) expect(operandBus.pins).toEqual(["A3", "A2", "A1", "A0"]);
     }
+  });
+
+  it("keeps optional logic challenges beside, rather than inside, the mainline", () => {
+    expect(CALCULATOR_STAGES.map((stage) => stage.index)).toEqual(
+      Array.from({ length: 11 }, (_, index) => index + 1),
+    );
+    expect(getStage(9)?.railAfter).toBe(1);
+    expect(getStage(10)?.railAfter).toBe(2);
+    expect(getStage(11)?.railAfter).toBe(2);
+    expect(getStage(9)?.unlockAfter).toEqual([1]);
+    expect(getStage(10)?.unlockAfter).toEqual([2]);
+    expect(getStage(11)?.unlockAfter).toEqual([2]);
   });
 
   it("states the 5-bit signed contract for negation and subtraction", () => {

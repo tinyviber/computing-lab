@@ -23,10 +23,33 @@ function bitCase(
   return { name, category, inputs: ins, outputs: outs };
 }
 
+function threeInputCases(
+  outputFor: (a: Bit, b: Bit, c: Bit) => Bit,
+  category = "truth-table",
+): JudgeCase[] {
+  const cases: JudgeCase[] = [];
+  for (const a of [0, 1] as const)
+    for (const b of [0, 1] as const)
+      for (const c of [0, 1] as const)
+        cases.push(
+          bitCase(`${a}${b}${c}`, category, { A: a, B: b, C: c }, { Y: outputFor(a, b, c) }),
+        );
+  return cases;
+}
+
 function wireCases(): JudgeCase[] {
   return [
     bitCase("A = 0", "basic", { A: 0 }, { Y: 0 }),
     bitCase("A = 1", "basic", { A: 1 }, { Y: 1 }),
+  ];
+}
+
+function secondTickCases(): JudgeCase[] {
+  return [
+    bitCase("00", "truth-table", { A: 0, B: 0 }, { Y: 0 }),
+    bitCase("01", "target-row", { A: 0, B: 1 }, { Y: 1 }),
+    bitCase("10", "truth-table", { A: 1, B: 0 }, { Y: 0 }),
+    bitCase("11", "truth-table", { A: 1, B: 1 }, { Y: 0 }),
   ];
 }
 
@@ -222,6 +245,9 @@ export const HIDDEN_TESTS: Record<number, JudgeCase[]> = {
   6: sub4Cases(),
   7: mul4Cases(),
   8: calculatorCases(),
+  9: secondTickCases(),
+  10: threeInputCases((a, b, c) => ((a + b + c) % 2) as Bit),
+  11: threeInputCases((a, b, c) => (a + b + c >= 2 ? 1 : 0)),
 };
 
 export function hiddenTestsFor(stageIndex: number): JudgeCase[] {

@@ -9,9 +9,12 @@ import {
   fullAdderGraph,
   fullAdderPrimitiveGraph,
   halfAdderGraph,
+  majority3Graph,
   mul4Graph,
   neg4Graph,
+  odd3Graph,
   sub4Graph,
+  secondTickGraph,
   wireGraph,
 } from "../../src/features/calculator/domain/fixtures.ts";
 import {
@@ -51,6 +54,9 @@ describe("hidden tests accept the reference solutions", () => {
     [6, sub4, afterStage5],
     [7, mul4, afterStage6],
     [8, calculatorGraph(), afterStage7],
+    [9, secondTickGraph(), {}],
+    [10, odd3Graph(), {}],
+    [11, majority3Graph(), {}],
   ])(
     "stage %i reference solution passes every hidden case",
     (stageIndex, graph, components: Record<string, CircuitGraph>) => {
@@ -128,8 +134,10 @@ describe("hidden tests accept the reference solutions", () => {
 
 describe("stage contracts", () => {
   it("declares unique ids and consecutive indices", () => {
-    expect(CALCULATOR_STAGES.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6, 7, 8]);
-    expect(new Set(CALCULATOR_STAGES.map((s) => s.id)).size).toBe(8);
+    expect(CALCULATOR_STAGES.map((s) => s.index)).toEqual(
+      Array.from({ length: 11 }, (_, index) => index + 1),
+    );
+    expect(new Set(CALCULATOR_STAGES.map((s) => s.id)).size).toBe(11);
     for (const stage of CALCULATOR_STAGES) {
       expect(stage.inputs.length).toBeGreaterThan(0);
       expect(stage.outputs.length).toBeGreaterThan(0);
@@ -159,9 +167,14 @@ describe("stage contracts", () => {
     }
   });
 
-  it("splits stages into core 1-6 and challenge 7-8", () => {
+  it("splits stages into core, anchored side challenges, and late challenges", () => {
     expect(coreStages().map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(challengeStages().map((s) => s.index)).toEqual([7, 8]);
+    expect(challengeStages().map((s) => s.index)).toEqual([7, 8, 9, 10, 11]);
+    expect(
+      challengeStages()
+        .filter((s) => s.railAfter !== undefined)
+        .map((s) => s.index),
+    ).toEqual([9, 10, 11]);
   });
 });
 
@@ -286,6 +299,25 @@ describe("judge persistence and unlocking", () => {
     const project = getOrCreateProject(db, userId, classId, "calculator");
     const outcome = judgeSubmission(db, project, 7, mul4Graph());
     expect(outcome).toMatchObject({ error: "stage-locked", status: 409 });
+  });
+
+  it("opens an anchored side challenge without advancing the mainline", () => {
+    const { db, userId, classId } = setup();
+    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const locked = judgeSubmission(db, project, 9, secondTickGraph());
+    expect(locked).toMatchObject({ error: "stage-locked", status: 409 });
+
+    const wire = judgeSubmission(db, project, 1, wireGraph());
+    if ("error" in wire) throw new Error(wire.error);
+    expect(wire.passed).toBe(true);
+    expect(wire.currentStage).toBe(2);
+
+    const afterWire = getOrCreateProject(db, userId, classId, "calculator");
+    const side = judgeSubmission(db, afterWire, 9, secondTickGraph());
+    if ("error" in side) throw new Error(side.error);
+    expect(side.passed).toBe(true);
+    expect(side.passedStages).toEqual([1, 9]);
+    expect(side.currentStage).toBe(2);
   });
 
   it("accepts a core stage submission in any order", () => {

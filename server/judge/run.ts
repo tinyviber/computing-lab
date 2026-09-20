@@ -13,7 +13,11 @@ import {
   type CircuitGraph,
   type ComponentDef,
 } from "../../src/features/calculator/domain/graph.ts";
-import { coreStages, getStage } from "../../src/features/calculator/domain/stages.ts";
+import {
+  getStage,
+  nextMainlineStage,
+  stagePrerequisites,
+} from "../../src/features/calculator/domain/stages.ts";
 import { newId } from "../db/client.ts";
 import { hiddenTestsFor } from "./testcases.ts";
 
@@ -182,11 +186,12 @@ export function judgeSubmission(
 ): JudgeOutcome | { error: string; status: number } {
   const stage = getStage(stageIndex);
   if (!stage) return { error: "unknown-stage", status: 400 };
-  // Core stages are always judgeable in any order; challenge stages open
-  // only after every core stage has been passed.
-  if (stage.track === "challenge") {
-    const corePassed = coreStages().every((s) => project.passedStages.includes(s.index));
-    if (!corePassed) return { error: "stage-locked", status: 409 };
+  // Core stages are always judgeable in any order; optional stages declare
+  // their own local prerequisite, with legacy challenges defaulting to all
+  // core stages.
+  const prerequisites = stagePrerequisites(stage);
+  if (!prerequisites.every((index) => project.passedStages.includes(index))) {
+    return { error: "stage-locked", status: 409 };
   }
 
   const graph = sanitizeGraph(rawGraph);
@@ -243,7 +248,7 @@ export function judgeSubmission(
   if (passed) {
     // Passes may arrive out of order; keep the set sorted and deduplicated.
     passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
-    currentStage = Math.min(Math.max(...passedStages) + 1, 7);
+    currentStage = nextMainlineStage(passedStages);
     if (stage.unlocks) {
       unlockedComponent = stage.unlocks;
       const unlockName = stage.unlocks.toLocaleLowerCase();

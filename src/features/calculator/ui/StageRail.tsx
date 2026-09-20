@@ -1,4 +1,9 @@
-import { CALCULATOR_STAGES, challengeStages, coreStages } from "../domain/stages";
+import {
+  CALCULATOR_STAGES,
+  challengeStages,
+  coreStages,
+  stagePrerequisites,
+} from "../domain/stages";
 import type { ComponentDef } from "../domain/graph";
 import { AnnotatedText } from "./CalculatorTerms";
 
@@ -24,22 +29,36 @@ export function StageRail({
   onDeleteCustomComponent,
   coachHighlight,
 }: StageRailProps) {
-  const challengeUnlocked = coreStages().every((s) => passedStages.includes(s.index));
+  const optionalByAnchor = new Map<number, (typeof CALCULATOR_STAGES)[number][]>();
+  for (const challenge of challengeStages()) {
+    if (challenge.railAfter === undefined) continue;
+    const stages = optionalByAnchor.get(challenge.railAfter) ?? [];
+    stages.push(challenge);
+    optionalByAnchor.set(challenge.railAfter, stages);
+  }
+  const lateChallenges = challengeStages().filter((stage) => stage.railAfter === undefined);
+  const lateChallengesUnlocked = lateChallenges.every((stage) =>
+    stagePrerequisites(stage).every((index) => passedStages.includes(index)),
+  );
+  const lateChallengesPassed = lateChallenges.filter((stage) =>
+    passedStages.includes(stage.index),
+  ).length;
+  const lateChallengeActive = lateChallenges.some((stage) => stage.index === stageIndex);
+  const mainlinePassed = coreStages().filter((stage) => passedStages.includes(stage.index)).length;
 
-  const renderStage = (stage: (typeof CALCULATOR_STAGES)[number]) => {
-    const unlocked = stage.track === "core" || challengeUnlocked;
+  const renderStage = (stage: (typeof CALCULATOR_STAGES)[number], optional = false) => {
+    const unlocked = stagePrerequisites(stage).every((index) => passedStages.includes(index));
     const passed = passedStages.includes(stage.index);
     const active = stage.index === stageIndex;
     return (
       <li key={stage.id}>
         <button
           aria-current={active ? "step" : undefined}
-          className={`stage-link${active ? " is-active" : ""}${passed ? " is-passed" : ""}`}
+          className={`stage-link${optional ? " is-optional" : ""}${active ? " is-active" : ""}${passed ? " is-passed" : ""}`}
           disabled={!unlocked}
           onClick={() => onSelectStage(stage.index)}
           type="button"
         >
-          <span className="stage-index">{String(stage.index).padStart(2, "0")}</span>
           <span className="stage-titles">
             <strong>{stage.title}</strong>
             <span>
@@ -54,26 +73,57 @@ export function StageRail({
     );
   };
 
+  const renderOptionalBranch = (anchor: number) => {
+    const stages = optionalByAnchor.get(anchor) ?? [];
+    if (stages.length === 0) return null;
+    const passed = stages.filter((stage) => passedStages.includes(stage.index)).length;
+    const active = stages.some((stage) => stage.index === stageIndex);
+    return (
+      <li className="stage-branch-item" key={`branch-${anchor}`}>
+        <details className="stage-branch" open={active}>
+          <summary className="stage-branch-summary">
+            <span>支线练习 · 第 {anchor} 关后</span>
+            <span>
+              {passed} / {stages.length}
+            </span>
+          </summary>
+          <ol className="stage-list stage-branch-list">
+            {stages.map((stage) => renderStage(stage, true))}
+          </ol>
+        </details>
+      </li>
+    );
+  };
+
   return (
     <aside className="stage-rail" aria-label="关卡进度">
       <div className="stage-rail-heading">
         <p className="eyebrow">关卡</p>
         <span className="stage-count">
-          {passedStages.length} / {CALCULATOR_STAGES.length}
+          {mainlinePassed} / {coreStages().length} 主线
         </span>
       </div>
 
       <div className="stage-group">
         <p className="stage-group-title">课堂主线</p>
-        <ol className="stage-list">{coreStages().map(renderStage)}</ol>
+        <ol className="stage-list">
+          {coreStages().flatMap((stage) => [renderStage(stage), renderOptionalBranch(stage.index)])}
+        </ol>
       </div>
 
       <div className="stage-group">
-        <p className="stage-group-title">选做挑战</p>
-        {challengeUnlocked ? null : (
-          <p className="stage-group-note">通过全部主线关卡（1–5）后解锁。</p>
-        )}
-        <ol className="stage-list">{challengeStages().map(renderStage)}</ol>
+        <details className="stage-branch stage-branch-late" open={lateChallengeActive}>
+          <summary className="stage-group-title stage-branch-summary">
+            <span>选做挑战</span>
+            <span>
+              {lateChallengesPassed} / {lateChallenges.length}
+            </span>
+          </summary>
+          {lateChallengesUnlocked ? null : (
+            <p className="stage-group-note">通过全部主线关卡（1–6）后解锁。</p>
+          )}
+          <ol className="stage-list">{lateChallenges.map((stage) => renderStage(stage))}</ol>
+        </details>
       </div>
 
       <div className={`my-components${coachHighlight ? " coach-focus" : ""}`}>

@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { getOrCreateProject, judgeSubmission, saveDraft } from "../judge/run.ts";
 import { jsonError, requireMembership, type AppVariables } from "../http/context.ts";
+import { stageCount } from "../../src/features/calculator/domain/stages.ts";
 
 const LAB_ID = "calculator";
 
@@ -27,7 +28,7 @@ export function calculatorRoutes() {
     if ("error" in auth) return jsonError(c, auth.status, auth.error);
     const body = await c.req.json().catch(() => null);
     const stageIndex = Number((body as { stageIndex?: unknown })?.stageIndex);
-    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 8) {
+    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > stageCount()) {
       return jsonError(c, 400, "invalid-stage");
     }
     const db = c.get("db");
@@ -48,7 +49,7 @@ export function calculatorRoutes() {
     if ("error" in auth) return jsonError(c, auth.status, auth.error);
     const body = await c.req.json().catch(() => null);
     const stageIndex = Number((body as { stageIndex?: unknown })?.stageIndex);
-    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > 8) {
+    if (!Number.isInteger(stageIndex) || stageIndex < 1 || stageIndex > stageCount()) {
       return jsonError(c, 400, "invalid-stage");
     }
     const db = c.get("db");

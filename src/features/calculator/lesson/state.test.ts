@@ -33,18 +33,31 @@ describe("calculator lesson state", () => {
     }
   });
 
-  it("keeps every core stage selectable and gates challenge stages on core passes", () => {
+  it("keeps the mainline open and gates side challenges on local passes", () => {
     const state = createCalculatorLessonState();
     for (const index of [1, 2, 3, 4, 5, 6]) expect(isStageUnlocked(state, index)).toBe(true);
     expect(isStageUnlocked(state, 7)).toBe(false);
     expect(isStageUnlocked(state, 8)).toBe(false);
+    for (const index of [9, 10, 11]) expect(isStageUnlocked(state, index)).toBe(false);
     // Selecting a core stage works even with no passes yet.
     expect(apply(state, { type: "select-stage", stageIndex: 4 }).stageIndex).toBe(4);
-    // Selecting a locked challenge stage is a no-op.
+    // Selecting a locked optional stage is a no-op.
     expect(apply(state, { type: "select-stage", stageIndex: 7 }).stageIndex).toBe(1);
   });
 
-  it("unlocks challenge stages once every core stage is passed", () => {
+  it("unlocks side challenges after their anchor and late challenges after core", () => {
+    const afterWire = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      unlockedSubmodules: [],
+      drafts: {},
+    });
+    expect(isStageUnlocked(afterWire, 9)).toBe(true);
+    expect(isStageUnlocked(afterWire, 10)).toBe(false);
+    expect(isStageUnlocked(afterWire, 11)).toBe(false);
+    expect(isStageUnlocked(afterWire, 7)).toBe(false);
+
     const loaded = apply(createCalculatorLessonState(2), {
       type: "load-project",
       currentStage: 7,
@@ -54,6 +67,7 @@ describe("calculator lesson state", () => {
     });
     expect(isStageUnlocked(loaded, 7)).toBe(true);
     expect(isStageUnlocked(loaded, 8)).toBe(true);
+    for (const index of [9, 10, 11]) expect(isStageUnlocked(loaded, index)).toBe(true);
     expect(apply(loaded, { type: "select-stage", stageIndex: 7 }).stageIndex).toBe(7);
 
     const partial = apply(createCalculatorLessonState(), {
@@ -64,6 +78,35 @@ describe("calculator lesson state", () => {
       drafts: {},
     });
     expect(isStageUnlocked(partial, 7)).toBe(false);
+  });
+
+  it("does not advance the mainline when an optional challenge passes", () => {
+    const loaded = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      unlockedSubmodules: [],
+      drafts: {},
+    });
+    const judged = apply(loaded, {
+      type: "select-stage",
+      stageIndex: 9,
+    });
+    const completed = apply(judged, {
+      type: "judge-result",
+      outcome: {
+        score: 4,
+        total: 4,
+        passed: true,
+        categories: { "truth-table": { passed: 4, total: 4 } },
+        counterexample: null,
+        passedStages: [1, 9],
+        error: null,
+        unlockedComponent: null,
+      },
+    });
+    expect(completed.passedStages).toEqual([1, 9]);
+    expect(completed.currentStage).toBe(2);
   });
 
   it("wires a gate and marks the draft dirty", () => {

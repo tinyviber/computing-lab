@@ -1,5 +1,6 @@
 /**
- * Stage contracts for the Calculator Lab (progression 1–8).
+ * Stage contracts for the Calculator Lab (progression 1–8 plus optional
+ * combinational-logic side challenges 9–10).
  *
  * These are the PUBLIC contract of each stage: which named pins a correct
  * circuit must expose, which primitives are on the palette, and which
@@ -46,6 +47,10 @@ export type StageDef = {
   description: string;
   /** "core" stages are the in-class main line; "challenge" is optional. */
   track: StageTrack;
+  /** Optional side challenges are shown after this mainline stage in the rail. */
+  railAfter?: number;
+  /** Explicit pass prerequisites for optional side challenges. */
+  unlockAfter?: number[];
   /** Pin groups shown as whole binary numbers in the UI. */
   buses: BusDef[];
   /** Required named input pins (order = display order). */
@@ -273,20 +278,93 @@ export const CALCULATOR_STAGES: StageDef[] = [
     unlocks: null,
     hint: "算出全部结果，再用 Op 位做选择器（MUX）逐位挑选输出。",
   },
+  {
+    index: 9,
+    id: "second-tick",
+    title: "只有一行亮",
+    englishTitle: "One Exact Case",
+    description:
+      "四种输入里，只有 A=0、B=1 时 Y=1；其他三种组合都为 0。把这个条件拆成可以逐段检查的小块。",
+    track: "challenge",
+    railAfter: 1,
+    unlockAfter: [1],
+    buses: [],
+    inputs: ["A", "B"],
+    outputs: ["Y"],
+    primitives: ["not", "and"],
+    unlocks: null,
+    hint: "先让 A 变成“不是 A”，再让两个条件同时成立。",
+  },
+  {
+    index: 10,
+    id: "odd3",
+    title: "三个输入的奇偶",
+    englishTitle: "Odd Signals",
+    description:
+      "当 A、B、C 中有奇数个 1 时输出 Y=1，有偶数个 1 时输出 Y=0。这个行为会在全加器的和位再次出现。",
+    track: "challenge",
+    railAfter: 2,
+    unlockAfter: [2],
+    buses: [],
+    inputs: ["A", "B", "C"],
+    outputs: ["Y"],
+    primitives: ["xor"],
+    unlocks: null,
+    hint: "先对 A、B 做 XOR，再把中间结果和 C 做 XOR。",
+  },
+  {
+    index: 11,
+    id: "majority3",
+    title: "至少两个为 1",
+    englishTitle: "Double Trouble",
+    description:
+      "当 A、B、C 中至少两个为 1 时输出 Y=1。先找出所有能让结果为 1 的成对条件，再把它们合起来。",
+    track: "challenge",
+    railAfter: 2,
+    unlockAfter: [2],
+    buses: [],
+    inputs: ["A", "B", "C"],
+    outputs: ["Y"],
+    primitives: ["and", "or"],
+    unlocks: null,
+    hint: "分别判断 A&B、A&C、B&C，三个条件只要有一个成立就输出 1。",
+  },
 ];
 
 export function getStage(index: number): StageDef | undefined {
   return CALCULATOR_STAGES.find((s) => s.index === index);
 }
 
-/** In-class main line: stages 1–5. */
+/** In-class main line: stages 1–6. */
 export function coreStages(): StageDef[] {
   return CALCULATOR_STAGES.filter((s) => s.track === "core");
 }
 
-/** Optional challenges: unlock once every core stage is passed. */
+/** Optional challenges, including side challenges placed beside the main line. */
 export function challengeStages(): StageDef[] {
   return CALCULATOR_STAGES.filter((s) => s.track === "challenge");
+}
+
+/**
+ * Return the passes needed to open a stage. Core stages are always selectable;
+ * legacy challenges default to the full core track while side challenges can
+ * name a smaller local prerequisite.
+ */
+export function stagePrerequisites(stage: StageDef): number[] {
+  if (stage.track === "core") return [];
+  return stage.unlockAfter ?? coreStages().map((core) => core.index);
+}
+
+/**
+ * Preserve the old currentStage meaning: it tracks the mainline only and is
+ * capped just after the last core stage, so optional passes never jump it.
+ */
+export function nextMainlineStage(passedStages: readonly number[]): number {
+  const highestPassedCore = coreStages().reduce(
+    (highest, stage) => (passedStages.includes(stage.index) ? stage.index : highest),
+    0,
+  );
+  return Math.min(highestPassedCore + 1, coreStages().length + 1);
 }
 
 export function stageCount(): number {
