@@ -1,8 +1,8 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { describeApiError } from "../../shared/api/client";
-import { AccountMenu } from "../../shared/auth/AccountMenu";
 import { ROLE_LABELS, useAuth } from "../../shared/auth";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./profile.css";
 
 export function ProfilePage() {
@@ -50,20 +50,14 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="profile-page">
-      <header className="profile-topbar">
-        <Link className="profile-brand" to="/">
-          <span className="profile-brand-mark">⌁</span>
-          <span>计算实验室</span>
+    <AppPageLayout
+      className="profile-page"
+      topbar={
+        <Link className="profile-back" to="/">
+          返回首页
         </Link>
-        <div className="profile-topbar-actions">
-          <Link className="profile-back" to="/">
-            返回首页
-          </Link>
-          <AccountMenu />
-        </div>
-      </header>
-
+      }
+    >
       <main className="profile-main" aria-labelledby="profile-title">
         <section className="profile-intro">
           <p className="eyebrow">账户 / PROFILE</p>
@@ -160,6 +154,6 @@ export function ProfilePage() {
           </section>
         </div>
       </main>
-    </div>
+    </AppPageLayout>
   );
 }

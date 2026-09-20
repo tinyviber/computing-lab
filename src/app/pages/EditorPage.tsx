@@ -7,7 +7,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { EditorState } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AccountMenu } from "../../shared/auth";
+import { AppTopbar } from "../../shared/layout/AppTopbar";
 import "./editor.css";
 
 type LessonFile = {
@@ -410,17 +410,7 @@ export function EditorPage() {
 
   return (
     <div className="editor-page">
-      <header className="editor-topbar">
-        <div className="editor-heading">
-          <Link className="editor-back" to="/">
-            ← 计算实验室
-          </Link>
-          <span className="editor-heading-divider" aria-hidden="true" />
-          <div>
-            <p className="editor-kicker">ONLINE AUTHORING</p>
-            <h1>课件编辑器</h1>
-          </div>
-        </div>
+      <AppTopbar subtitle="ONLINE AUTHORING" title="课件编辑器">
         <div className="editor-toolbar">
           <label className="editor-lesson-select-label" htmlFor="lesson-select">
             当前课件
@@ -445,9 +435,8 @@ export function EditorPage() {
           >
             {saveState === "saving" ? "保存中…" : "保存"}
           </button>
-          <AccountMenu />
         </div>
-      </header>
+      </AppTopbar>
 
       <main className="editor-workspace">
         <aside className="editor-file-panel" aria-label="课件文件">

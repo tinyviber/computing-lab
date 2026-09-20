@@ -1,7 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
-import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
+import { isStaffRole, useAuth } from "../../shared/auth";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { enabledLabs, experimentalLabs } from "../catalog/labs";
 import { coreStages } from "../../features/calculator";
 import "./home.css";
@@ -10,16 +11,17 @@ type ProjectSummary = { currentStage: number };
 
 function AnonymousLanding() {
   return (
-    <div className="home-page">
-      <header className="home-topbar">
-        <span className="home-brand">
-          <span className="home-brand-mark">⌁</span>
-          <span>计算实验室</span>
-        </span>
-        <nav aria-label="主导航" className="home-nav">
-          <Link to="/editor">课件编辑</Link>
-        </nav>
-      </header>
+    <AppPageLayout
+      className="home-page"
+      topbarProps={{
+        nav: (
+          <nav aria-label="主导航" className="home-nav">
+            <Link to="/editor">课件编辑</Link>
+          </nav>
+        ),
+        showAccount: false,
+      }}
+    >
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -36,7 +38,7 @@ function AnonymousLanding() {
           </div>
         </section>
       </main>
-    </div>
+    </AppPageLayout>
   );
 }
 
@@ -79,15 +81,7 @@ function ClassroomHome() {
   const experimental = experimentalLabs();
 
   return (
-    <div className="home-page">
-      <header className="home-topbar">
-        <span className="home-brand">
-          <span className="home-brand-mark">⌁</span>
-          <span>计算实验室</span>
-        </span>
-        <AccountMenu />
-      </header>
-
+    <AppPageLayout className="home-page">
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -182,7 +176,7 @@ function ClassroomHome() {
           </section>
         ) : null}
       </main>
-    </div>
+    </AppPageLayout>
   );
 }
 
@@ -190,13 +184,13 @@ export function HomePage() {
   const { status } = useAuth();
   if (status === "loading") {
     return (
-      <div className="home-page">
+      <AppPageLayout className="home-page">
         <main>
           <p className="home-loading" role="status">
             正在载入…
           </p>
         </main>
-      </div>
+      </AppPageLayout>
     );
   }
   return status === "authenticated" ? <ClassroomHome /> : <AnonymousLanding />;

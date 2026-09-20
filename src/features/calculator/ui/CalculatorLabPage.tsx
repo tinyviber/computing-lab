@@ -1,7 +1,8 @@
 import { Link, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
-import { AccountMenu, useAuth } from "../../../shared/auth";
+import { useAuth } from "../../../shared/auth";
+import { AppTopbar } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
 import {
   GATE_LABEL,
@@ -246,23 +247,16 @@ export function CalculatorLabPage() {
 
   return (
     <div className="calculator-lab">
-      <header className="calculator-topbar">
-        <div className="calculator-identity">
-          <Link className="brand-mark" to="/" aria-label="返回首页">
-            <span className="brand-mark-symbol">⌁</span>
-          </Link>
-          <div>
-            <h1>{stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU"}</h1>
-            <p>{stage ? <AnnotatedText text={stage.englishTitle} /> : null}</p>
-          </div>
-        </div>
+      <AppTopbar
+        subtitle={stage ? <AnnotatedText text={stage.englishTitle} /> : undefined}
+        title={stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU"}
+      >
         <div className="calculator-status">
           <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
             {SAVE_LABEL[state.saveStatus]}
           </span>
-          <AccountMenu />
         </div>
-      </header>
+      </AppTopbar>
 
       <div className="calculator-layout">
         <StageRail

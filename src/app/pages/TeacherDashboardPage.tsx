@@ -1,8 +1,10 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
-import { AccountMenu, isStaffRole, useAuth } from "../../shared/auth";
+import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
+import { enabledLabs } from "../catalog/labs";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./dashboard.css";
 
 type MatrixCell = {
@@ -60,12 +62,19 @@ function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () =
 
 export function TeacherDashboardPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
+  const navigate = useNavigate();
   const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
   const isAdmin = role === "admin";
+  const labs = enabledLabs();
+  const selectedLabId =
+    typeof search.lab === "string" && labs.some((lab) => lab.id === search.lab)
+      ? search.lab
+      : (labs[0]?.id ?? "");
 
   const load = useCallback(() => {
     if (!classId) return;
@@ -106,6 +115,22 @@ export function TeacherDashboardPage() {
       .catch((caught) => setError(describeApiError(caught)));
   };
 
+  const selectClass = (nextClassId: string) => {
+    void navigate({
+      params: { classId: nextClassId },
+      to: "/classes/$classId/dashboard",
+    });
+  };
+
+  const selectLab = (nextLabId: string) => {
+    if (!classId || nextLabId === selectedLabId) return;
+    void navigate({
+      params: { classId },
+      search: { lab: nextLabId },
+      to: "/classes/$classId/dashboard",
+    });
+  };
+
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -128,34 +153,49 @@ export function TeacherDashboardPage() {
   }
 
   return (
-    <div className="dashboard-page">
-      <header className="dashboard-topbar">
-        <div>
-          <h1>学生进度</h1>
-        </div>
-        <div className="dashboard-actions">
-          {session?.memberships && session.memberships.length > 1 ? (
-            <nav aria-label="班级切换" className="dashboard-class-switcher">
-              {session.memberships.map((membership) => (
-                <Link
-                  className={`dashboard-class-link${membership.classId === classId ? " is-active" : ""}`}
-                  key={membership.classId}
-                  params={{ classId: membership.classId }}
-                  to="/classes/$classId/dashboard"
-                >
-                  {membership.className}
-                </Link>
+    <AppPageLayout
+      className="dashboard-page"
+      topbar={
+        <div className="dashboard-switchers" role="group" aria-label="看板筛选">
+          <label className="app-topbar-select" htmlFor="dashboard-lab-select">
+            <span>实验</span>
+            <select
+              aria-label="选择实验"
+              id="dashboard-lab-select"
+              onChange={(event) => selectLab(event.target.value)}
+              value={selectedLabId}
+            >
+              {labs.map((lab) => (
+                <option key={lab.id} value={lab.id}>
+                  {lab.title}
+                </option>
               ))}
-            </nav>
-          ) : null}
-          <Link className="button button-secondary" to="/">
-            返回首页
-          </Link>
-          <AccountMenu />
+            </select>
+          </label>
+          <label className="app-topbar-select" htmlFor="dashboard-class-select">
+            <span>班级</span>
+            <select
+              aria-label="选择班级"
+              id="dashboard-class-select"
+              onChange={(event) => selectClass(event.target.value)}
+              value={classId ?? ""}
+            >
+              {(session?.memberships ?? []).map((membership) => (
+                <option key={membership.classId} value={membership.classId}>
+                  {membership.className}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      </header>
-
+      }
+    >
       <main aria-label="学生进度矩阵">
+        <div className="dashboard-heading">
+          <p className="eyebrow">班级看板</p>
+          <h1>学生进度</h1>
+          <p>按关卡查看当前班级每位学生的最新提交结果。</p>
+        </div>
         {error ? (
           <p className="test-error" role="alert">
             {error}
@@ -167,61 +207,63 @@ export function TeacherDashboardPage() {
           </p>
         ) : null}
 
-        <table className="matrix-table">
-          <caption className="sr-only">按关卡显示每位学生的最新提交结果</caption>
-          <thead>
-            <tr>
-              <th scope="col">学号</th>
-              <th scope="col">姓名</th>
-              {CALCULATOR_STAGES.map((stage) => (
-                <th key={stage.id} scope="col" title={stage.title}>
-                  {stage.englishTitle}
-                </th>
-              ))}
-              <th scope="col">最后活动</th>
-              {isAdmin ? <th scope="col">操作</th> : null}
-            </tr>
-          </thead>
-          <tbody>
-            {(payload?.rows ?? []).map((row) => (
-              <tr key={row.studentNo}>
-                <th scope="row">{row.studentNo}</th>
-                <td>{row.name}</td>
-                {CALCULATOR_STAGES.map((stage) => (
-                  <td key={stage.id}>
-                    <CellView
-                      cell={row.cells[String(stage.index)]}
-                      onOpen={() => {
-                        const cell = row.cells[String(stage.index)];
-                        if (cell) openDetail(cell.submissionId);
-                      }}
-                    />
-                  </td>
-                ))}
-                <td>{timeOf(row.lastActiveAt)}</td>
-                {isAdmin ? (
-                  <td>
-                    <button
-                      className="cell-score"
-                      onClick={() => clearRecords(row)}
-                      title="删除该学生的全部提交和关卡进度"
-                      type="button"
-                    >
-                      清空记录
-                    </button>
-                  </td>
-                ) : null}
-              </tr>
-            ))}
-            {payload && payload.rows.length === 0 ? (
+        <div aria-label="学生进度横向滚动区" className="matrix-scroll" tabIndex={0}>
+          <table className="matrix-table">
+            <caption className="sr-only">按关卡显示每位学生的最新提交结果</caption>
+            <thead>
               <tr>
-                <td colSpan={CALCULATOR_STAGES.length + (isAdmin ? 4 : 3)}>
-                  还没有学生加入这个班级。
-                </td>
+                <th scope="col">学号</th>
+                <th scope="col">姓名</th>
+                {CALCULATOR_STAGES.map((stage) => (
+                  <th key={stage.id} scope="col" title={stage.title}>
+                    {stage.englishTitle}
+                  </th>
+                ))}
+                <th scope="col">最后活动</th>
+                {isAdmin ? <th scope="col">操作</th> : null}
               </tr>
-            ) : null}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {(payload?.rows ?? []).map((row) => (
+                <tr key={row.studentNo}>
+                  <th scope="row">{row.studentNo}</th>
+                  <td>{row.name}</td>
+                  {CALCULATOR_STAGES.map((stage) => (
+                    <td key={stage.id}>
+                      <CellView
+                        cell={row.cells[String(stage.index)]}
+                        onOpen={() => {
+                          const cell = row.cells[String(stage.index)];
+                          if (cell) openDetail(cell.submissionId);
+                        }}
+                      />
+                    </td>
+                  ))}
+                  <td>{timeOf(row.lastActiveAt)}</td>
+                  {isAdmin ? (
+                    <td>
+                      <button
+                        className="cell-score"
+                        onClick={() => clearRecords(row)}
+                        title="删除该学生的全部提交和关卡进度"
+                        type="button"
+                      >
+                        清空记录
+                      </button>
+                    </td>
+                  ) : null}
+                </tr>
+              ))}
+              {payload && payload.rows.length === 0 ? (
+                <tr>
+                  <td colSpan={CALCULATOR_STAGES.length + (isAdmin ? 4 : 3)}>
+                    还没有学生加入这个班级。
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </main>
 
       {detail ? (
@@ -270,6 +312,6 @@ export function TeacherDashboardPage() {
           </aside>
         </div>
       ) : null}
-    </div>
+    </AppPageLayout>
   );
 }

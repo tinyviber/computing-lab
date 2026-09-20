@@ -27,18 +27,12 @@ describe("TeacherDashboardPage", () => {
     );
 
     const { history } = await renderAppAt("/classes/c11/dashboard", { auth: multiClassTeacher });
-    expect(screen.getByRole("navigation", { name: "班级切换" })).toBeInTheDocument();
-    expect(
-      screen.queryByText("2026-高二信息技术-11", {
-        selector: ".dashboard-topbar > div:first-child .eyebrow",
-      }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "2026-高二信息技术-12" })).toHaveAttribute(
-      "href",
-      "/classes/c12/dashboard",
-    );
+    expect(screen.getByRole("combobox", { name: "选择实验" })).toHaveValue("calculator");
+    expect(screen.getByRole("combobox", { name: "选择班级" })).toHaveValue("c11");
+    expect(screen.getByRole("option", { name: "2026-高二信息技术-12" })).toBeInTheDocument();
+    expect(screen.getByLabelText("学生进度横向滚动区")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("link", { name: "2026-高二信息技术-12" }));
+    await userEvent.selectOptions(screen.getByRole("combobox", { name: "选择班级" }), "c12");
     await waitFor(() => expect(history.location.pathname).toBe("/classes/c12/dashboard"));
   });
 });

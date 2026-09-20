@@ -1,6 +1,7 @@
 import { Link, useSearch } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useAuth } from "../../shared/auth";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { isLabAccessible } from "../catalog/labs";
 import "./home.css";
 
@@ -13,16 +14,18 @@ export function isExperimentalOverride(search: Record<string, unknown>): boolean
 
 export function LabUnavailable({ title }: { title: string }) {
   return (
-    <div className="not-found" role="status">
-      <p className="eyebrow">实验 / 暂未开放</p>
-      <h1>{title}暂未开放</h1>
-      <p>这堂课这学期没有安排。请回到首页继续当前的实验。</p>
-      <div className="error-actions">
-        <Link className="button button-primary" to="/">
-          返回首页
-        </Link>
-      </div>
-    </div>
+    <AppPageLayout>
+      <main className="not-found" role="status">
+        <p className="eyebrow">实验 / 暂未开放</p>
+        <h1>{title}暂未开放</h1>
+        <p>这堂课这学期没有安排。请回到首页继续当前的实验。</p>
+        <div className="error-actions">
+          <Link className="button button-primary" to="/">
+            返回首页
+          </Link>
+        </div>
+      </main>
+    </AppPageLayout>
   );
 }
 

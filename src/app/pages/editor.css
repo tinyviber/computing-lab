@@ -5,11 +5,7 @@
   color: var(--primary);
 }
 
-.editor-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
+.editor-page > .app-topbar {
   min-height: 76px;
   padding: 13px 22px;
   border-bottom: 1px solid #cdd7e4;
@@ -465,12 +461,6 @@
 }
 
 @media (max-width: 1050px) {
-  .editor-topbar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 12px;
-  }
-
   .editor-toolbar {
     width: 100%;
     justify-content: flex-start;
@@ -487,7 +477,7 @@
 }
 
 @media (max-width: 680px) {
-  .editor-topbar {
+  .editor-page > .app-topbar {
     padding: 12px 14px;
   }
 

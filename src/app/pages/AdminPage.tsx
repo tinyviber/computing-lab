@@ -1,7 +1,8 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { API_ERROR_MESSAGES, api, describeApiError } from "../../shared/api/client";
-import { AccountMenu, useAuth, type AccountRole } from "../../shared/auth";
+import { useAuth, type AccountRole } from "../../shared/auth";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./admin.css";
 
 type AdminClass = { id: string; name: string; inviteCode: string; memberCount: number };
@@ -420,20 +421,14 @@ export function AdminPage() {
   }
 
   return (
-    <div className="admin-page">
-      <header className="profile-topbar">
-        <Link className="profile-brand" to="/">
-          <span className="profile-brand-mark">⌁</span>
-          <span>计算实验室</span>
+    <AppPageLayout
+      className="admin-page"
+      topbar={
+        <Link className="profile-back" to="/">
+          返回首页
         </Link>
-        <div className="profile-topbar-actions">
-          <Link className="profile-back" to="/">
-            返回首页
-          </Link>
-          <AccountMenu />
-        </div>
-      </header>
-
+      }
+    >
       <main className="profile-main" aria-labelledby="admin-title">
         <section className="profile-intro">
           <p className="eyebrow">管理 / ADMIN</p>
@@ -793,6 +788,6 @@ export function AdminPage() {
           </div>
         ) : null}
       </main>
-    </div>
+    </AppPageLayout>
   );
 }

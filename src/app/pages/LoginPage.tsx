@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useAuth } from "../../shared/auth";
 import { describeApiError } from "../../shared/api/client";
+import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./auth.css";
 
 export function LoginPage() {
@@ -31,7 +32,7 @@ export function LoginPage() {
   };
 
   return (
-    <div className="auth-page">
+    <AppPageLayout className="auth-page" topbarProps={{ showAccount: false }}>
       <main className="auth-card" aria-labelledby="auth-title">
         <p className="eyebrow">校内信息技术实验</p>
         <h1 id="auth-title">登录</h1>
@@ -73,6 +74,6 @@ export function LoginPage() {
 
         <p className="auth-note">账号由管理员统一开通，请使用下发的学号和初始密码登录。</p>
       </main>
-    </div>
+    </AppPageLayout>
   );
 }

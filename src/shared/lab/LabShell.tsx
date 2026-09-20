@@ -1,7 +1,7 @@
 import { Link, useLocation, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useLabNavigationItems } from "./LabNavigationProvider";
-import { AccountMenu } from "../auth";
+import { AppTopbar } from "../layout/AppTopbar";
 import "./lab.css";
 
 type LabShellProps = {
@@ -119,8 +119,14 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
 
   return (
     <div className="app-shell">
-      <header className="topbar">
-        <div className="brand-lockup">
+      <AppTopbar
+        context={
+          <div className="topbar-context">
+            <span className="context-label">实验</span>
+            <span className="context-value">{eyebrow}</span>
+          </div>
+        }
+        leading={
           <button
             aria-controls="lab-navigation"
             aria-expanded={railOpen}
@@ -132,24 +138,14 @@ export function LabShell({ eyebrow, title, subtitle, children }: LabShellProps) 
           >
             {railOpen ? "×" : "☰"}
           </button>
-          <Link className="brand-mark" to="/" aria-label="计算实验室首页">
-            <span className="brand-mark-symbol">⌁</span>
-          </Link>
-          <div>
-            <h1>{title}</h1>
-            <p>
-              计算实验室 <span aria-hidden="true">/</span> {subtitle}
-            </p>
-          </div>
-        </div>
-        <div className="topbar-actions">
-          <div className="topbar-context">
-            <span className="context-label">实验</span>
-            <span className="context-value">{eyebrow}</span>
-          </div>
-          <AccountMenu />
-        </div>
-      </header>
+        }
+        subtitle={
+          <>
+            计算实验室 <span aria-hidden="true">/</span> {subtitle}
+          </>
+        }
+        title={title}
+      />
 
       {isMobile && railOpen ? (
         <button
