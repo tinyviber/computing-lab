@@ -1,0 +1,90 @@
+import { screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { adminAuthState, renderAppAt } from "../../test/router-test-helpers";
+
+const classes = [{ id: "c1", name: "测试班级", inviteCode: "CLASS1", memberCount: 0 }];
+const users = [
+  {
+    id: "u1",
+    studentNo: "20260101",
+    name: "张三",
+    role: "user",
+    createdAt: "2026-09-20T00:00:00.000Z",
+    classes: [],
+  },
+];
+
+function jsonResponse(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function mockAdminApi() {
+  return vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+    const path = String(input);
+    const method = init?.method ?? "GET";
+    if (method === "DELETE") return jsonResponse({ ok: true });
+    if (path.includes("/api/admin/classes")) return jsonResponse({ classes });
+    if (path.includes("/api/admin/users")) {
+      return jsonResponse({ users, total: users.length, page: 1, pageSize: 50 });
+    }
+    return jsonResponse({});
+  });
+}
+
+describe("AdminPage", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("splits account and class management into tabs", async () => {
+    mockAdminApi();
+    const user = userEvent.setup();
+
+    await renderAppAt("/admin", { auth: adminAuthState });
+
+    expect(screen.getByRole("tab", { name: /账号管理/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: /全部账号/ })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "班级管理" })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: /班级管理/ }));
+
+    expect(screen.getByRole("tabpanel", { name: /班级管理/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "班级管理" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: /全部账号/ })).not.toBeInTheDocument();
+  });
+
+  it("keeps account controls aligned and confirms deletion", async () => {
+    const fetchMock = mockAdminApi();
+    const user = userEvent.setup();
+
+    await renderAppAt("/admin", { auth: adminAuthState });
+
+    const roleSelect = screen.getByLabelText("张三 的角色");
+    const classSelect = screen.getByLabelText("把 张三 加入班级");
+    expect(roleSelect).toHaveClass("admin-table-select");
+    expect(classSelect).toHaveClass("admin-table-select");
+    expect(roleSelect).toHaveClass("admin-role-select");
+    expect(classSelect).toHaveClass("admin-role-select");
+
+    await user.click(screen.getByRole("button", { name: "删除" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("确定删除账号「张三」");
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/admin/users/u1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+
+    await user.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "删除" }));
+    await user.click(screen.getByRole("button", { name: "确认删除" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/users/u1",
+        expect.objectContaining({ method: "DELETE" }),
+      ),
+    );
+  });
+});

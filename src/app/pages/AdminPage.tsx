@@ -28,6 +28,14 @@ type UsersPayload = { users: AdminUser[]; total: number; page: number; pageSize:
 
 const PAGE_SIZE = 50;
 
+type AdminTab = "accounts" | "classes";
+
+type DeleteTarget = {
+  label: string;
+  description: string;
+  endpoint: string;
+};
+
 const IMPORT_HINT =
   "每行一个账号：学号,姓名,密码[,角色][,班级邀请码]。角色可选 学生/教师/管理员，留空默认为学生；也支持粘贴 JSON 数组。";
 
@@ -120,7 +128,12 @@ function CreateAccountForm({
       </label>
       <label>
         分配班级（可选）
-        <select name="classId" onChange={(e) => setClassId(e.target.value)} value={classId}>
+        <select
+          className="admin-form-select"
+          name="classId"
+          onChange={(e) => setClassId(e.target.value)}
+          value={classId}
+        >
           <option value="">不分配</option>
           {classes.map((klass) => (
             <option key={klass.id} value={klass.id}>
@@ -316,6 +329,8 @@ export function AdminPage() {
   const [resetPassword, setResetPassword] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [activeTab, setActiveTab] = useState<AdminTab>("accounts");
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const reload = useCallback(() => {
     void api
@@ -373,6 +388,15 @@ export function AdminPage() {
     [resetPassword, run],
   );
 
+  const confirmDelete = useCallback(() => {
+    if (!deleteTarget) return;
+    const target = deleteTarget;
+    void run(async () => {
+      await api.del(target.endpoint);
+      setDeleteTarget(null);
+    });
+  }, [deleteTarget, run]);
+
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -423,7 +447,40 @@ export function AdminPage() {
           </p>
         ) : null}
 
-        <div className="admin-grid">
+        <div aria-label="管理模块" className="admin-tabs" role="tablist">
+          <button
+            aria-controls="admin-accounts-panel"
+            aria-selected={activeTab === "accounts"}
+            className={`admin-tab${activeTab === "accounts" ? " is-active" : ""}`}
+            id="admin-accounts-tab"
+            onClick={() => setActiveTab("accounts")}
+            role="tab"
+            type="button"
+          >
+            账号管理
+            <span>创建、导入、角色和密码</span>
+          </button>
+          <button
+            aria-controls="admin-classes-panel"
+            aria-selected={activeTab === "classes"}
+            className={`admin-tab${activeTab === "classes" ? " is-active" : ""}`}
+            id="admin-classes-tab"
+            onClick={() => setActiveTab("classes")}
+            role="tab"
+            type="button"
+          >
+            班级管理
+            <span>班级、邀请码和成员数</span>
+          </button>
+        </div>
+
+        <div
+          aria-labelledby="admin-accounts-tab"
+          className={`admin-grid${activeTab === "accounts" ? "" : " is-hidden"}`}
+          hidden={activeTab !== "accounts"}
+          id="admin-accounts-panel"
+          role="tabpanel"
+        >
           <section className="profile-card" aria-labelledby="create-account-title">
             <div className="profile-card-heading">
               <p className="eyebrow">ACCOUNT</p>
@@ -440,56 +497,7 @@ export function AdminPage() {
             <ImportPanel onImported={reload} />
           </section>
 
-          <section className="profile-card" aria-labelledby="classes-title">
-            <div className="profile-card-heading">
-              <p className="eyebrow">CLASSES</p>
-              <h2 id="classes-title">班级管理</h2>
-            </div>
-            <CreateClassForm onCreated={reload} />
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th scope="col">班级</th>
-                  <th scope="col">邀请码</th>
-                  <th scope="col">成员数</th>
-                  <th scope="col">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {classes.map((klass) => (
-                  <tr key={klass.id}>
-                    <td>{klass.name}</td>
-                    <td>
-                      <code>{klass.inviteCode}</code>
-                    </td>
-                    <td>{klass.memberCount}</td>
-                    <td>
-                      <button
-                        className="button button-ghost admin-inline-button"
-                        disabled={busy || klass.memberCount > 0}
-                        onClick={() => {
-                          if (window.confirm(`确定删除班级「${klass.name}」？`)) {
-                            void run(() => api.del(`/api/admin/classes/${klass.id}`));
-                          }
-                        }}
-                        title={klass.memberCount > 0 ? "先移除全部成员才能删除" : "删除班级"}
-                        type="button"
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {classes.length === 0 ? (
-                  <tr>
-                    <td colSpan={4}>还没有班级。</td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </section>
-
-          <section className="profile-card" aria-labelledby="users-title">
+          <section className="profile-card admin-users-card" aria-labelledby="users-title">
             <div className="profile-card-heading">
               <p className="eyebrow">USERS</p>
               <h2 id="users-title">全部账号（{users.length}）</h2>
@@ -512,7 +520,7 @@ export function AdminPage() {
                     <td>
                       <select
                         aria-label={`${user.name} 的角色`}
-                        className="admin-role-select"
+                        className="admin-role-select admin-table-select"
                         disabled={busy || user.id === session?.user.id}
                         onChange={(e) =>
                           void run(() =>
@@ -562,7 +570,7 @@ export function AdminPage() {
                         ).length > 0 ? (
                           <select
                             aria-label={`把 ${user.name} 加入班级`}
-                            className="admin-role-select"
+                            className="admin-role-select admin-table-select"
                             disabled={busy}
                             onChange={(e) => {
                               const classId = e.target.value;
@@ -641,15 +649,13 @@ export function AdminPage() {
                           <button
                             className="button button-ghost admin-inline-button admin-danger"
                             disabled={busy || user.id === session?.user.id}
-                            onClick={() => {
-                              if (
-                                window.confirm(
-                                  `确定删除账号「${user.name}」（${user.studentNo}）？其班级关系和做题记录会一并删除。`,
-                                )
-                              ) {
-                                void run(() => api.del(`/api/admin/users/${user.id}`));
-                              }
-                            }}
+                            onClick={() =>
+                              setDeleteTarget({
+                                label: `账号「${user.name}」`,
+                                description: `删除后，${user.studentNo} 的班级关系、登录会话和做题记录都会被一并删除。`,
+                                endpoint: `/api/admin/users/${user.id}`,
+                              })
+                            }
                             title={
                               user.id === session?.user.id
                                 ? "不能删除自己的账号"
@@ -694,6 +700,98 @@ export function AdminPage() {
             </div>
           </section>
         </div>
+
+        <div
+          aria-labelledby="admin-classes-tab"
+          className={`admin-grid admin-grid-single${activeTab === "classes" ? "" : " is-hidden"}`}
+          hidden={activeTab !== "classes"}
+          id="admin-classes-panel"
+          role="tabpanel"
+        >
+          <section className="profile-card" aria-labelledby="classes-title">
+            <div className="profile-card-heading">
+              <p className="eyebrow">CLASSES</p>
+              <h2 id="classes-title">班级管理</h2>
+            </div>
+            <CreateClassForm onCreated={reload} />
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th scope="col">班级</th>
+                  <th scope="col">邀请码</th>
+                  <th scope="col">成员数</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {classes.map((klass) => (
+                  <tr key={klass.id}>
+                    <td>{klass.name}</td>
+                    <td>
+                      <code>{klass.inviteCode}</code>
+                    </td>
+                    <td>{klass.memberCount}</td>
+                    <td>
+                      <button
+                        className="button button-ghost admin-inline-button"
+                        disabled={busy || klass.memberCount > 0}
+                        onClick={() =>
+                          setDeleteTarget({
+                            label: `班级「${klass.name}」`,
+                            description: "删除后，这个班级和邀请码将不再可用。",
+                            endpoint: `/api/admin/classes/${klass.id}`,
+                          })
+                        }
+                        title={klass.memberCount > 0 ? "先移除全部成员才能删除" : "删除班级"}
+                        type="button"
+                      >
+                        删除
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {classes.length === 0 ? (
+                  <tr>
+                    <td colSpan={4}>还没有班级。</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        {deleteTarget ? (
+          <div className="admin-modal-backdrop" role="presentation">
+            <section
+              aria-labelledby="admin-delete-title"
+              aria-modal="true"
+              className="admin-modal"
+              role="dialog"
+            >
+              <p className="eyebrow">确认操作</p>
+              <h2 id="admin-delete-title">确定删除{deleteTarget.label}？</h2>
+              <p>{deleteTarget.description}</p>
+              <div className="admin-modal-actions">
+                <button
+                  className="button button-secondary"
+                  disabled={busy}
+                  onClick={() => setDeleteTarget(null)}
+                  type="button"
+                >
+                  取消
+                </button>
+                <button
+                  className="button button-danger"
+                  disabled={busy}
+                  onClick={confirmDelete}
+                  type="button"
+                >
+                  {busy ? "删除中…" : "确认删除"}
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
       </main>
     </div>
   );
