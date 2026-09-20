@@ -1,5 +1,6 @@
 /**
- * Coach: the guided first-run tutorial for the Calculator Lab.
+ * Coach: the guided first-run tutorial and stage-specific concept cards for
+ * the Calculator Lab.
  *
  * Stage definitions own the *knowledge* progression; this module owns the
  * *interaction* progression — the order in which the editor's gestures are
@@ -572,12 +573,108 @@ const STEP_DEFS: StepDef[] = [
     }),
   },
   {
+    id: "s4-negation",
+    ready: (v) => v.stageIndex === 5 && !passed(v, 5),
+    card: () => ({
+      title: "逐位取反，再加 1",
+      body: "求 −A 的核心公式是「按位取反 + 1」：先用 NOT 得到 ~A，再用 Add4 加上常量 1。只保留 4 位，最高位溢出的进位不保留。",
+      focus: [
+        { kind: "palette-gate", gate: "not" },
+        { kind: "palette-const", value: 1 },
+        { kind: "my-components" },
+      ],
+      manualLabel: "开始搭建",
+    }),
+  },
+  {
+    id: "s5-subtraction",
+    ready: (v) => v.stageIndex === 6 && !passed(v, 6),
+    card: () => ({
+      title: "把减法改写成加法",
+      body: "A − B = A + (−B)。先把 B 接进 Neg4 得到 −B，再把 A 和 −B 的 4 位结果接进 Add4；最后只保留低 4 位。",
+      focus: [{ kind: "my-components" }, { kind: "bus-readout" }],
+      manualLabel: "开始搭建",
+    }),
+  },
+  {
+    id: "s6-partial-products",
+    ready: (v) => v.stageIndex === 7 && !passed(v, 7),
+    card: () => ({
+      title: "先做部分积",
+      body: "乘法可以拆成几行部分积：每个 B 位分别和 A 的 4 位做 AND，B 位为 1 时保留 A，B 位为 0 时整行归零；第 j 行向左移 j 位，再用 FullAdder 累加。",
+      focus: [
+        { kind: "palette-gate", gate: "and" },
+        { kind: "my-components" },
+        { kind: "bus-readout" },
+      ],
+      manualLabel: "开始拆分",
+    }),
+  },
+  {
     id: "s6-componentize",
     ready: (v) => v.stageIndex === 7,
     card: () => ({
       title: "会重复的电路，封一次就好",
       body: "这一关会反复用到同一种小电路。在空白处拖动可以框选元件，把选中的部分「封装为自定义组件」，之后就能像 HalfAdder 一样反复使用。",
       manualLabel: "知道了",
+    }),
+  },
+  {
+    id: "s7-operation-select",
+    ready: (v) => v.stageIndex === 8 && !passed(v, 8),
+    card: () => ({
+      title: "先看懂操作选择位",
+      body: "Op1、Op0 是两位选择码：00 选加法，01 选减法，10 选乘法，11 选按位 XOR。先分别算出四种结果，再让每一位的选择信号只放行其中一路，这就是 MUX 的思路。",
+      rows: [
+        { label: "Op1 Op0 = 00", value: "A + B" },
+        { label: "Op1 Op0 = 01", value: "A − B" },
+        { label: "Op1 Op0 = 10", value: "A × B" },
+        { label: "Op1 Op0 = 11", value: "A XOR B" },
+      ],
+      focus: [{ kind: "my-components" }, { kind: "bus-readout" }],
+      manualLabel: "开始选择",
+    }),
+  },
+  {
+    id: "s8-bitwise",
+    ready: (v) => v.stageIndex === 9 && !passed(v, 9),
+    card: () => ({
+      title: "先读懂位运算",
+      body: "这一关可以写成按位公式 Y = (~A) & B：~A 把每一位取反，& 要求对应的两位都为 1。这里每个输入只有 1 位，所以它正好对应 NOT 接 AND。",
+      rows: [
+        { label: "A=0，B=0", value: "~A=1，Y=0" },
+        { label: "A=0，B=1", value: "~A=1，Y=1" },
+        { label: "A=1，B=0", value: "~A=0，Y=0" },
+        { label: "A=1，B=1", value: "~A=0，Y=0" },
+      ],
+      focus: [
+        { kind: "palette-gate", gate: "not" },
+        { kind: "palette-gate", gate: "and" },
+      ],
+      manualLabel: "开始搭建",
+    }),
+  },
+  {
+    id: "s9-parity",
+    ready: (v) => v.stageIndex === 10 && !passed(v, 10),
+    card: () => ({
+      title: "奇偶性就是 XOR 链",
+      body: "三个输入中有奇数个 1 时，Y = 1。按位写成 Y = (A ^ B) ^ C：先把 A、B 做 XOR，再把中间结果和 C 做 XOR。",
+      focus: [{ kind: "palette-gate", gate: "xor" }],
+      manualLabel: "开始搭建",
+    }),
+  },
+  {
+    id: "s10-majority",
+    ready: (v) => v.stageIndex === 11 && !passed(v, 11),
+    card: () => ({
+      title: "至少两个为 1",
+      body: "把“至少两个为 1”拆成三个成对条件：Y = (A & B) | (A & C) | (B & C)。先用三个 AND 找出成对同时为 1 的情况，再用 OR 合并。",
+      focus: [
+        { kind: "palette-gate", gate: "and" },
+        { kind: "palette-gate", gate: "or" },
+      ],
+      manualLabel: "开始搭建",
     }),
   },
   {

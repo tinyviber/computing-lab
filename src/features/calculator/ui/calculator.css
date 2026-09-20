@@ -388,6 +388,23 @@
   padding: 0;
 }
 
+.stage-guide-trigger {
+  display: block;
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.stage-guide-trigger:hover {
+  color: var(--focus-ring);
+  text-decoration: underline;
+}
+
 .hint-disclosure-trigger:hover,
 .hint-disclosure-action:hover {
   color: var(--focus-ring);

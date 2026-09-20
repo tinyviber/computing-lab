@@ -288,6 +288,30 @@ describe("calculator coach", () => {
     expect(tour.next(lesson({ stageIndex: 4, graph: grounded }))).toBeNull();
   });
 
+  it.each([
+    [5, "s4-negation", "按位取反"],
+    [6, "s5-subtraction", "A − B"],
+    [7, "s6-partial-products", "部分积"],
+    [8, "s7-operation-select", "操作选择位"],
+    [10, "s9-parity", "XOR 链"],
+    [11, "s10-majority", "至少两个为 1"],
+  ] as const)("adds a concept guide for stage %s", (stageIndex, id, phrase) => {
+    const tour = makeTour(["s1"]);
+    const step = tour.next(lesson({ stageIndex, graph: scaffoldGraph(stageIndex) }));
+
+    expect(step?.id).toBe(id);
+    expect(`${step?.title} ${step?.body}`).toContain(phrase);
+  });
+
+  it("explains the bitwise formula for the exact-case challenge", () => {
+    const tour = makeTour(["s1"]);
+    const step = tour.next(lesson({ stageIndex: 9, graph: scaffoldGraph(9) }));
+
+    expect(step?.id).toBe("s8-bitwise");
+    expect(step?.body).toContain("(~A) & B");
+    expect(step?.rows).toHaveLength(4);
+  });
+
   it("turns a first failure into a debugging tip", () => {
     const tour = makeTour(["s1"]);
     const runOutcome = {

@@ -7,6 +7,11 @@ afterEach(() => {
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  try {
+    window.localStorage.clear?.();
+  } catch {
+    // Bun's test runtime may expose a read-only localStorage stub.
+  }
 });
 
 describe("CalculatorLabPage autosave", () => {
@@ -79,5 +84,32 @@ describe("CalculatorLabPage coach", () => {
     fireEvent.click(await screen.findByRole("button", { name: "继续" }));
     expect(await screen.findByText("第一根导线")).toBeInTheDocument();
     expect(await screen.findByText("XOR", { selector: ".node-label" })).toBeInTheDocument();
+  });
+
+  it("can reopen the guide after the learner skips it", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 1,
+              passedStages: [],
+              unlockedSubmodules: [],
+              draftGraph: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/calculator");
+
+    expect(await screen.findByText("先认识信号")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "跳过引导" }));
+    fireEvent.click(await screen.findByRole("button", { name: "查看引导" }));
+
+    expect(await screen.findByText("先认识信号")).toBeInTheDocument();
   });
 });

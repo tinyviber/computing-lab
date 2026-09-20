@@ -284,6 +284,11 @@ export function CalculatorLabPage() {
               </details>
             ) : null}
             {stage ? <HintDisclosure hint={stage.hint} key={stage.id} /> : null}
+            {projectLoaded && !coach.step ? (
+              <button className="stage-guide-trigger" onClick={coach.restart} type="button">
+                查看引导
+              </button>
+            ) : null}
             <CalculatorTermGuide />
           </section>
 

@@ -54,6 +54,8 @@ export type CalculatorCoach = {
   skip: (step: CoachStep) => void;
   /** Turn the whole guide off. */
   skipAll: () => void;
+  /** Clear guide progress so the current stage's guide can be viewed again. */
+  restart: () => void;
 };
 
 export function useCalculatorCoach(
@@ -111,6 +113,17 @@ export function useCalculatorCoach(
       return { ...current, seen };
     });
 
+  const restart = () => {
+    const restarted = emptyCoachMachine();
+    // Stages 1–2 share one tour, and a non-empty draft should still be able
+    // to re-enter that tour when the learner explicitly asks to see it again.
+    if (lesson.stageIndex === 1 || lesson.stageIndex === 2) {
+      restarted.seen.add("s1-started");
+    }
+    prevRef.current = lesson;
+    setMachine(restarted);
+  };
+
   return {
     step,
     canvasFocus: canvasCoachFocus(step?.focus),
@@ -128,6 +141,7 @@ export function useCalculatorCoach(
     },
     skip: (s) => mark([s.id, ...(s.alsoMark ?? [])]),
     skipAll: () => mark(["coach-off"]),
+    restart,
   };
 }
 
