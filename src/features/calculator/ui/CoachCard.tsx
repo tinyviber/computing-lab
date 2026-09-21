@@ -2,9 +2,10 @@
  * Coaching card + the hook that feeds it.
  *
  * `useCalculatorCoach` watches the lesson state, folds every transition into
- * the pure coach machine (`lesson/coach.ts`), and persists seen-keys to
- * localStorage so a refresh resumes the tour instead of restarting it. The
- * coach never blocks the editor; it only spotlights and suggests.
+ * the pure coach machine (`lesson/coach.ts`), and persists each stage's
+ * seen-keys separately so switching stages cannot carry tutorial progress
+ * across levels. The coach never blocks the editor; it only spotlights and
+ * suggests.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -22,21 +23,38 @@ import {
 import { graphOf, type CalculatorLessonAction, type CalculatorLessonState } from "../lesson/state";
 import { AnnotatedText } from "./CalculatorTerms";
 
-const STORAGE_KEY = "computing-lab:calculator-coach:v1";
+const STORAGE_KEY = "computing-lab:calculator-coach:v2";
 
-function loadSeen(): Set<string> {
+type StageCoachMachines = Record<number, CoachMachine>;
+
+function loadMachines(): StageCoachMachines {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    const parsed: unknown = raw ? JSON.parse(raw) : [];
-    return new Set(Array.isArray(parsed) ? parsed.filter((k) => typeof k === "string") : []);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) return {};
+
+    const machines: StageCoachMachines = {};
+    for (const [stage, value] of Object.entries(parsed)) {
+      if (!/^\d+$/.test(stage) || !Array.isArray(value)) continue;
+      const seen = value.filter((key): key is string => typeof key === "string");
+      machines[Number(stage)] = { ...emptyCoachMachine(), seen: new Set(seen) };
+    }
+    return machines;
   } catch {
-    return new Set();
+    return {};
   }
 }
 
-function saveSeen(seen: ReadonlySet<string>) {
+function saveMachines(machines: StageCoachMachines) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify([...seen]));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(
+        Object.fromEntries(
+          Object.entries(machines).map(([stage, machine]) => [stage, [...machine.seen]]),
+        ),
+      ),
+    );
   } catch {
     // Private browsing or quota: the tour simply restarts next visit.
   }
@@ -52,7 +70,7 @@ export type CalculatorCoach = {
   advance: (step: CoachStep) => void;
   /** Quietly bypass one stuck auto-goal. */
   skip: (step: CoachStep) => void;
-  /** Turn the whole guide off. */
+  /** Turn the current stage's guide off. */
   skipAll: () => void;
   /** Clear guide progress so the current stage's guide can be viewed again. */
   restart: () => void;
@@ -64,10 +82,7 @@ export function useCalculatorCoach(
   projectLoaded: boolean,
   dispatch: (action: CalculatorLessonAction) => void,
 ): CalculatorCoach {
-  const [machine, setMachine] = useState<CoachMachine>(() => ({
-    ...emptyCoachMachine(),
-    seen: loadSeen(),
-  }));
+  const [machines, setMachines] = useState<StageCoachMachines>(loadMachines);
   const prevRef = useRef<CoachLessonView | null>(null);
 
   const lesson = useMemo<CoachLessonView>(
@@ -89,11 +104,18 @@ export function useCalculatorCoach(
   useEffect(() => {
     const prev = prevRef.current;
     prevRef.current = lesson;
-    setMachine((current) => observeCoach(current, prev, lesson));
+    setMachines((current) => {
+      const currentMachine = current[lesson.stageIndex] ?? emptyCoachMachine();
+      const previousLesson = prev?.stageIndex === lesson.stageIndex ? prev : null;
+      const nextMachine = observeCoach(currentMachine, previousLesson, lesson);
+      if (current[lesson.stageIndex] === nextMachine) return current;
+      return { ...current, [lesson.stageIndex]: nextMachine };
+    });
   }, [lesson]);
 
-  useEffect(() => saveSeen(machine.seen), [machine.seen]);
+  useEffect(() => saveMachines(machines), [machines]);
 
+  const machine = machines[lesson.stageIndex] ?? emptyCoachMachine();
   const view = useMemo(() => ({ ...lesson, ...machine }), [lesson, machine]);
   const step = useMemo(() => coachStep(view), [view]);
 
@@ -107,21 +129,23 @@ export function useCalculatorCoach(
   }, [step?.id, lesson.stageIndex, hasXor, dispatch]);
 
   const mark = (keys: string[]) =>
-    setMachine((current) => {
-      const seen = new Set(current.seen);
+    setMachines((current) => {
+      const currentMachine = current[lesson.stageIndex] ?? emptyCoachMachine();
+      const seen = new Set(currentMachine.seen);
       keys.forEach((key) => seen.add(key));
-      return { ...current, seen };
+      return { ...current, [lesson.stageIndex]: { ...currentMachine, seen } };
     });
 
   const restart = () => {
     const restarted = emptyCoachMachine();
-    // Stages 1–2 share one tour, and a non-empty draft should still be able
-    // to re-enter that tour when the learner explicitly asks to see it again.
+    // A non-empty draft should still be able to re-enter this stage's guide
+    // when the learner explicitly asks to see it again.
+    restarted.seen.add(`stage-${lesson.stageIndex}-started`);
     if (lesson.stageIndex === 1 || lesson.stageIndex === 2) {
       restarted.seen.add("s1-started");
     }
     prevRef.current = lesson;
-    setMachine(restarted);
+    setMachines((current) => ({ ...current, [lesson.stageIndex]: restarted }));
   };
 
   return {

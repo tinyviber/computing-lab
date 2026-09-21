@@ -112,4 +112,32 @@ describe("CalculatorLabPage coach", () => {
 
     expect(await screen.findByText("先认识信号")).toBeInTheDocument();
   });
+
+  it("keeps tutorial progress isolated between stages", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 2,
+              passedStages: [1],
+              unlockedSubmodules: [],
+              draftGraph: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/calculator");
+
+    expect(await screen.findByText("先认识信号")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "跳过引导" }));
+    fireEvent.click(await screen.findByRole("button", { name: /半加器/ }));
+
+    // Skipping stage 1 must not turn off the independent stage-2 guide.
+    expect(await screen.findByText("先认识信号")).toBeInTheDocument();
+  });
 });

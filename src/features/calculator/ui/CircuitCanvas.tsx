@@ -36,6 +36,8 @@ type CircuitCanvasProps = {
   coachFocus?: { nodeIds: ReadonlySet<string>; portKeys: ReadonlySet<string>; wires: boolean };
 };
 
+const NODE_DRAG_THRESHOLD = 4;
+
 function nodeLabel(node: CircuitNode): string {
   if (node.kind === "input" || node.kind === "output") return node.name ?? "?";
   if (node.kind === "const") return String(node.value ?? 0);
@@ -66,7 +68,15 @@ export function CircuitCanvas({
   coachFocus,
 }: CircuitCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
-  const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const dragRef = useRef<{
+    id: string;
+    dx: number;
+    dy: number;
+    startX: number;
+    startY: number;
+    moved: boolean;
+  } | null>(null);
+  const suppressClickRef = useRef(false);
   const [marquee, setMarquee] = useState<{
     start: { x: number; y: number };
     current: { x: number; y: number };
@@ -97,8 +107,16 @@ export function CircuitCanvas({
 
   const onNodePointerDown = (event: ReactPointerEvent, node: CircuitNode) => {
     event.stopPropagation();
+    suppressClickRef.current = false;
     const point = toCanvas(event);
-    dragRef.current = { id: node.id, dx: point.x - node.x, dy: point.y - node.y };
+    dragRef.current = {
+      id: node.id,
+      dx: point.x - node.x,
+      dy: point.y - node.y,
+      startX: point.x,
+      startY: point.y,
+      moved: false,
+    };
     setSelectedNodeIds([node.id]);
     dispatch({ type: "start-node-move", id: node.id });
     dispatch({ type: "select-node", id: node.id });
@@ -106,6 +124,7 @@ export function CircuitCanvas({
   };
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
+    suppressClickRef.current = false;
     if ((event.target as Element).closest(".wire")) return;
     if (pendingWire) {
       dispatch({ type: "cancel-wire" });
@@ -137,6 +156,14 @@ export function CircuitCanvas({
     if (pendingWire) setCursor(point);
     const drag = dragRef.current;
     if (!drag) return;
+    if (
+      !drag.moved &&
+      Math.max(Math.abs(point.x - drag.startX), Math.abs(point.y - drag.startY)) <
+        NODE_DRAG_THRESHOLD
+    ) {
+      return;
+    }
+    drag.moved = true;
     dispatch({
       type: "move-node",
       id: drag.id,
@@ -146,7 +173,9 @@ export function CircuitCanvas({
   };
 
   const endPointerInteraction = (event?: ReactPointerEvent) => {
-    const hadNodeDrag = Boolean(dragRef.current);
+    const nodeDrag = dragRef.current;
+    const hadNodeDrag = Boolean(nodeDrag);
+    if (nodeDrag?.moved) suppressClickRef.current = true;
     if (marquee) {
       const point = event ? toCanvas(event) : marquee.current;
       const rectangle = {
@@ -236,7 +265,12 @@ export function CircuitCanvas({
         onPointerMove={onPointerMove}
         onPointerDown={onCanvasPointerDown}
         onPointerUp={(event) => endPointerInteraction(event)}
-        onClick={() => {
+        onClick={(event) => {
+          if (suppressClickRef.current) {
+            suppressClickRef.current = false;
+            event.preventDefault();
+            return;
+          }
           if (pendingWire) dispatch({ type: "cancel-wire" });
         }}
         ref={svgRef}
@@ -459,6 +493,12 @@ export function CircuitCanvas({
                     className="pin-hit"
                     height={size.height}
                     onClick={(event) => {
+                      if (suppressClickRef.current) {
+                        suppressClickRef.current = false;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                      }
                       event.stopPropagation();
                       dispatch({ type: "toggle-input", id: node.id });
                     }}

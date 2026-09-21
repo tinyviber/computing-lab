@@ -137,6 +137,60 @@ describe("CircuitCanvas", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "delete-nodes", ids: ["gate"] });
   });
 
+  it("does not toggle an input after dragging its node", () => {
+    const dispatch = vi.fn();
+    const graph: CircuitGraph = {
+      nodes: [
+        { id: "input", kind: "input", name: "A", value: 0, x: 40, y: 40 },
+        { id: "output", kind: "output", name: "Y", x: 420, y: 40 },
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      <CircuitCanvas
+        components={{}}
+        dispatch={dispatch}
+        graph={graph}
+        pendingWire={null}
+        portValues={{}}
+        selectedNodeId={null}
+      />,
+    );
+
+    const input = screen.getByRole("button", { name: "切换 A，当前 0" });
+    const canvas = screen.getByRole("application", { name: "电路画布" });
+    fireEvent.pointerDown(input, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 120, clientY: 90, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 120, clientY: 90, pointerId: 1 });
+    fireEvent.click(input);
+
+    expect(dispatch).toHaveBeenCalledWith({ type: "move-node", id: "input", x: 110, y: 80 });
+    expect(dispatch).toHaveBeenCalledWith({ type: "finish-node-move" });
+    expect(dispatch).not.toHaveBeenCalledWith({ type: "toggle-input", id: "input" });
+    expect(container.querySelector('[aria-label="切换 A，当前 0"]')).toBeInTheDocument();
+  });
+
+  it("toggles an input when it is clicked without moving", () => {
+    const dispatch = vi.fn();
+    render(
+      <CircuitCanvas
+        components={{}}
+        dispatch={dispatch}
+        graph={{
+          nodes: [{ id: "input", kind: "input", name: "A", value: 0, x: 40, y: 40 }],
+          edges: [],
+        }}
+        pendingWire={null}
+        portValues={{}}
+        selectedNodeId={null}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "切换 A，当前 0" }));
+
+    expect(dispatch).toHaveBeenCalledWith({ type: "toggle-input", id: "input" });
+  });
+
   it("offers dynamic component ports after a marquee selection", () => {
     const graph: CircuitGraph = {
       nodes: [

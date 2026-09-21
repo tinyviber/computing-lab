@@ -76,7 +76,7 @@ export type CoachFocus =
 export type CoachStep = {
   /** Seen key marking this step as handled (auto-goal or dismissed). */
   id: string;
-  /** "3 / 17" ordering label inside the stage-1 sequence. */
+  /** Ordering label inside the active stage's onboarding sequence. */
   progress?: string;
   title: string;
   body: string;
@@ -100,8 +100,10 @@ export type CoachView = CoachLessonView & CoachMachine;
 
 type StepDef = {
   id: string;
-  /** The stage-1 onboarding sequence gets a "k / n" progress label. */
-  group?: "s1";
+  /** Onboarding cards are counted within the stage that owns them. */
+  group?: "onboarding";
+  /** A card may be shared by the first two stages, but its state is not. */
+  stage?: number | number[];
   ready: (v: CoachView) => boolean;
   /** Goal met: derivation skips the step and the observer marks it seen. */
   done?: (v: CoachView) => boolean;
@@ -139,22 +141,26 @@ const submodule = (v: CoachView, name: string) =>
 const freshDraft = (v: CoachView) =>
   v.graph.edges.length === 0 && v.graph.nodes.every((n) => isPin(n.kind));
 
-const passed = (v: CoachView, stage: number) => v.passedStages.includes(stage);
+const stageMatches = (stage: StepDef["stage"], stageIndex: number) =>
+  stage === undefined || (Array.isArray(stage) ? stage.includes(stageIndex) : stage === stageIndex);
+
+const stageStartedKey = (stage: number) => `stage-${stage}-started`;
 
 /**
- * The onboarding sequence spans stages 1–2: stage 1 ("连接导线") teaches
- * signals, ports and the very first wire; stage 2 ("半加器") continues with
- * gates, deletion, testing and submission. It runs while the learner is on an
- * unpassed stage 1 or 2 whose draft was untouched when the guide first saw it
- * (or that already belongs to an in-progress tour). "s1" marks the sequence
- * done; "s1-started" marks it begun, so a refresh resumes instead of
- * restarting.
+ * The onboarding sequence spans the first two stages, but each stage owns its
+ * own copy of the sequence and its own persisted progress. The first few
+ * cards are shared because both stages use the same editor gestures. A stage
+ * can be revisited independently; passedStages only controls which stages are
+ * unlocked, never which tutorial is shown.
  */
 const s1Active = (v: CoachView) =>
   (v.stageIndex === 1 || v.stageIndex === 2) &&
-  !passed(v, v.stageIndex) &&
   !v.seen.has("s1") &&
-  (v.seen.has("s1-started") || freshDraft(v));
+  (v.seen.has(stageStartedKey(v.stageIndex)) ||
+    // Keep old in-memory callers working while persisted state migrates to
+    // stage-scoped keys.
+    v.seen.has("s1-started") ||
+    freshDraft(v));
 
 /** s1Active, narrowed to one stage. */
 const onStage = (v: CoachView, stage: number) => s1Active(v) && v.stageIndex === stage;
@@ -169,7 +175,8 @@ const hasFailure = (v: CoachView) =>
 const STEP_DEFS: StepDef[] = [
   {
     id: "s1-signal",
-    group: "s1",
+    group: "onboarding",
+    stage: [1, 2],
     ready: s1Active,
     done: (v) =>
       v.observed.toggles >= 1 || v.graph.nodes.some((n) => n.kind === "input" && n.value === 1),
@@ -181,7 +188,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-signal-2",
-    group: "s1",
+    group: "onboarding",
+    stage: [1, 2],
     ready: s1Active,
     card: () => ({
       title: "0 和 1",
@@ -191,7 +199,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-ports",
-    group: "s1",
+    group: "onboarding",
+    stage: [1, 2],
     ready: s1Active,
     card: (v) => ({
       title: "端口",
@@ -214,7 +223,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-start",
-    group: "s1",
+    group: "onboarding",
+    stage: [1, 2],
     ready: s1Active,
     done: (v) => v.pendingWire != null || v.graph.edges.length >= 1,
     card: (v) => {
@@ -244,7 +254,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-end",
-    group: "s1",
+    group: "onboarding",
+    stage: [1, 2],
     ready: s1Active,
     done: (v) =>
       v.stageIndex === 1
@@ -264,7 +275,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-play",
-    group: "s1",
+    group: "onboarding",
+    stage: 1,
     ready: (v) => onStage(v, 1),
     done: (v) =>
       v.observed.toggles - (v.baselines.togglesAtWirePlay ?? Number.MAX_SAFE_INTEGER) >= 1,
@@ -277,7 +289,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-submit",
-    group: "s1",
+    group: "onboarding",
+    stage: 1,
     ready: (v) => onStage(v, 1),
     done: (v) => v.judgeOutcome != null,
     card: () => ({
@@ -288,6 +301,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "wire-pass",
+    group: "onboarding",
+    stage: 1,
     ready: (v) => v.stageIndex === 1 && Boolean(v.judgeOutcome?.passed),
     card: () => ({
       title: "第一根导线完成",
@@ -298,7 +313,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-b",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => edgesInto(v, nodeOfKind(v, "xor")?.id).length >= 2,
     card: (v) => ({
@@ -323,7 +339,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-wire-sum",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => {
       const xor = nodeOfKind(v, "xor");
@@ -361,7 +378,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-explore",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     card: (v) => {
       const combos = ["00", "01", "10", "11"].filter((k) => k in v.observed.combos);
@@ -393,7 +411,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-add-and",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => Boolean(nodeOfKind(v, "and")),
     card: () => ({
@@ -404,7 +423,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-drag",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => v.observed.nodeDrags >= 1,
     card: (v) => ({
@@ -415,7 +435,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-carry",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => edgesInto(v, pinId(v, "Carry", "output")).length >= 1,
     card: (v) => ({
@@ -428,7 +449,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-delete",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) =>
       v.observed.edgeDeletions >= 1 &&
@@ -441,7 +463,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-undo",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     card: () => ({
       title: "撤销",
@@ -451,7 +474,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-manual-test",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) =>
       v.observed.toggles - (v.baselines.togglesAtManualTest ?? Number.MAX_SAFE_INTEGER) >= 2,
@@ -473,7 +497,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-public-test",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => v.runOutcome != null,
     card: () => ({
@@ -484,7 +509,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-read-results",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     card: (v) => ({
       title: "看懂结果",
@@ -496,7 +522,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s1-submit",
-    group: "s1",
+    group: "onboarding",
+    stage: 2,
     ready: (v) => onStage(v, 2),
     done: (v) => v.judgeOutcome != null,
     card: () => ({
@@ -528,7 +555,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s2-blackbox",
-    ready: (v) => v.stageIndex === 3 && !passed(v, 3) && Boolean(submodule(v, "HalfAdder")),
+    stage: 3,
+    ready: (v) => v.stageIndex === 3 && Boolean(submodule(v, "HalfAdder")),
     done: (v) => Boolean(componentNode(v, "HalfAdder")) || v.graph.edges.length >= 3,
     card: () => ({
       title: "黑盒",
@@ -538,7 +566,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s2-explore",
-    ready: (v) => v.stageIndex === 3 && !passed(v, 3),
+    stage: 3,
+    ready: (v) => v.stageIndex === 3,
     done: (v) => v.graph.edges.length >= 3,
     card: () => ({
       title: "先实验，再设计",
@@ -549,7 +578,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s3-bits",
-    ready: (v) => v.stageIndex === 4 && !passed(v, 4),
+    stage: 4,
+    ready: (v) => v.stageIndex === 4,
     done: (v) => v.graph.edges.length >= 4,
     card: () => ({
       title: "一次加 4 位",
@@ -560,7 +590,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s3-cin0",
-    ready: (v) => v.stageIndex === 4 && !passed(v, 4),
+    stage: 4,
+    ready: (v) => v.stageIndex === 4,
     done: (v) =>
       v.graph.edges.some(
         (e) =>
@@ -574,7 +605,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s4-negation",
-    ready: (v) => v.stageIndex === 5 && !passed(v, 5),
+    stage: 5,
+    ready: (v) => v.stageIndex === 5,
     card: () => ({
       title: "逐位取反，再加 1",
       body: "求 −A 的核心公式是「按位取反 + 1」：先用 NOT 得到 ~A，再用 Add4 加上常量 1。只保留 4 位，最高位溢出的进位不保留。",
@@ -588,7 +620,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s5-subtraction",
-    ready: (v) => v.stageIndex === 6 && !passed(v, 6),
+    stage: 6,
+    ready: (v) => v.stageIndex === 6,
     card: () => ({
       title: "把减法改写成加法",
       body: "A − B = A + (−B)。先把 B 接进 Neg4 得到 −B，再把 A 和 −B 的 4 位结果接进 Add4；最后只保留低 4 位。",
@@ -598,7 +631,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s6-partial-products",
-    ready: (v) => v.stageIndex === 7 && !passed(v, 7),
+    stage: 7,
+    ready: (v) => v.stageIndex === 7,
     card: () => ({
       title: "先做部分积",
       body: "乘法可以拆成几行部分积：每个 B 位分别和 A 的 4 位做 AND，B 位为 1 时保留 A，B 位为 0 时整行归零；第 j 行向左移 j 位，再用 FullAdder 累加。",
@@ -612,6 +646,7 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s6-componentize",
+    stage: 7,
     ready: (v) => v.stageIndex === 7,
     card: () => ({
       title: "会重复的电路，封一次就好",
@@ -621,7 +656,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s7-operation-select",
-    ready: (v) => v.stageIndex === 8 && !passed(v, 8),
+    stage: 8,
+    ready: (v) => v.stageIndex === 8,
     card: () => ({
       title: "先看懂操作选择位",
       body: "Op1、Op0 是两位选择码：00 选加法，01 选减法，10 选乘法，11 选按位 XOR。先分别算出四种结果，再让每一位的选择信号只放行其中一路，这就是 MUX 的思路。",
@@ -637,7 +673,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s8-bitwise",
-    ready: (v) => v.stageIndex === 9 && !passed(v, 9),
+    stage: 9,
+    ready: (v) => v.stageIndex === 9,
     card: () => ({
       title: "先读懂位运算",
       body: "这一关可以写成按位公式 Y = (~A) & B：~A 把每一位取反，& 要求对应的两位都为 1。这里每个输入只有 1 位，所以它正好对应 NOT 接 AND。",
@@ -656,7 +693,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s9-parity",
-    ready: (v) => v.stageIndex === 10 && !passed(v, 10),
+    stage: 10,
+    ready: (v) => v.stageIndex === 10,
     card: () => ({
       title: "奇偶性就是 XOR 链",
       body: "三个输入中有奇数个 1 时，Y = 1。按位写成 Y = (A ^ B) ^ C：先把 A、B 做 XOR，再把中间结果和 C 做 XOR。",
@@ -666,7 +704,8 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "s10-majority",
-    ready: (v) => v.stageIndex === 11 && !passed(v, 11),
+    stage: 11,
+    ready: (v) => v.stageIndex === 11,
     card: () => ({
       title: "至少两个为 1",
       body: "把“至少两个为 1”拆成三个成对条件：Y = (A & B) | (A & C) | (B & C)。先用三个 AND 找出成对同时为 1 的情况，再用 OR 合并。",
@@ -697,7 +736,12 @@ const STEP_DEFS: StepDef[] = [
   },
 ];
 
-const S1_TOTAL = STEP_DEFS.filter((def) => def.group === "s1").length;
+function onboardingProgress(stageIndex: number): Map<string, string> {
+  const steps = STEP_DEFS.filter(
+    (def) => def.group === "onboarding" && stageMatches(def.stage, stageIndex),
+  );
+  return new Map(steps.map((def, index) => [def.id, `${index + 1} / ${steps.length}`]));
+}
 
 /**
  * The single coaching card to show now: the first step that is relevant, not
@@ -705,9 +749,9 @@ const S1_TOTAL = STEP_DEFS.filter((def) => def.group === "s1").length;
  */
 export function coachStep(v: CoachView): CoachStep | null {
   if (!v.projectLoaded || v.seen.has("coach-off")) return null;
-  let s1Index = 0;
+  const progress = onboardingProgress(v.stageIndex);
   for (const def of STEP_DEFS) {
-    if (def.group === "s1") s1Index += 1;
+    if (!stageMatches(def.stage, v.stageIndex)) continue;
     const key = def.id === "unlock" ? `unlock-${v.judgeOutcome?.unlockedComponent}` : def.id;
     if (!def.ready(v) || v.seen.has(key)) continue;
     if (def.done?.(v)) continue;
@@ -715,7 +759,7 @@ export function coachStep(v: CoachView): CoachStep | null {
     return {
       ...card,
       id: key,
-      progress: def.group === "s1" ? `${s1Index} / ${S1_TOTAL}` : undefined,
+      progress: def.group === "onboarding" ? progress.get(def.id) : undefined,
       skippable: card.skippable ?? Boolean(def.done),
       alsoMark: def.alsoMark,
     };
@@ -803,12 +847,14 @@ export function observeCoach(
     baselines.togglesAtWirePlay = observed.toggles;
     dirty = true;
   }
-  if (step?.id.startsWith("s1-") && !seen.has("s1-started")) {
-    seen.add("s1-started");
-    dirty = true;
-  }
-  if (next.stageIndex === 2 && next.judgeOutcome && !seen.has("s1")) {
-    seen.add("s1");
+  const onboardingStarted =
+    next.stageIndex === 1 || next.stageIndex === 2 ? stageStartedKey(next.stageIndex) : null;
+  if (step?.id.startsWith("s1-") && onboardingStarted && !seen.has(onboardingStarted)) {
+    seen.add(onboardingStarted);
+    // Keep the old marker as an in-memory compatibility alias. The React
+    // hook stores this machine under the current stage, so it cannot leak to
+    // another stage anymore.
+    if (!seen.has("s1-started")) seen.add("s1-started");
     dirty = true;
   }
 
