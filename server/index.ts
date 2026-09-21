@@ -4,8 +4,9 @@
  *   node server/index.ts            # API on :8788, serves dist/ when built
  *   LAB_PORT=9000 LAB_DB_PATH=…     # env overrides
  *
- * The same process serves the built SPA (dist/) with history-API fallback,
- * so production is a single Node ≥22.13 process — no framework, no workers.
+ * The same process can serve the built SPA (dist/) with history-API fallback
+ * for single-process deployments and E2E; production currently uses Caddy for
+ * static dist files and this as a separate Node ≥22.13 API service.
  */
 
 import { Hono } from "hono";
