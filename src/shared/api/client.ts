@@ -42,6 +42,11 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "membership-not-found": "该用户不在这个班级里。",
   "stage-locked": "这一关还没有解锁。",
   "invalid-stage": "关卡编号无效。",
+  "unknown-stage": "关卡不存在。",
+  "invalid-resolution": "分辨率无效（宽和高需在 2～64 之间）。",
+  "square-resolution-required": "这一关要求正方形分辨率（宽 = 高）。",
+  "tall-resolution-required": "这一关要求高度大于宽度（高 > 宽）。",
+  "lab-not-available": "这个实验暂未开放。",
   "internal-error": "服务器出错了，请稍后再试。",
   offline: "网络连接失败，请检查网络。",
 };

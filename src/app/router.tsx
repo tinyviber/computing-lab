@@ -7,11 +7,13 @@ import {
   type RouterHistory,
 } from "@tanstack/react-router";
 import { CalculatorLabPage } from "../features/calculator";
+import { ImageSamplingLabPage } from "../features/image-sampling";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
+import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -78,6 +80,22 @@ const calculatorLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+/** Admin preview: the page itself turns teachers away. */
+const imageSamplingEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/image-sampling",
+  component: ImageSamplingRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const imageSamplingLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/image-sampling",
+  validateSearch: passThroughSearch,
+  component: ImageSamplingLabPage,
+  errorComponent: LabErrorPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/dashboard",
@@ -93,6 +111,8 @@ const routeTree = rootRoute.addChildren([
   adminRoute,
   calculatorEntryRoute,
   calculatorLabRoute,
+  imageSamplingEntryRoute,
+  imageSamplingLabRoute,
   dashboardRoute,
 ]);
 

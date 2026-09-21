@@ -5,7 +5,15 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["dist", "node_modules", "coverage", "**/*.test.{ts,tsx}", "src/test/**"],
+    ignores: [
+      "dist",
+      "node_modules",
+      "coverage",
+      "**/*.test.{ts,tsx}",
+      "src/test/**",
+      // Vendored runtime assets (e.g. public/vendor/pyodide) — not our code.
+      "public/vendor/**",
+    ],
   },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],

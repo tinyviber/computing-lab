@@ -122,6 +122,21 @@ function ClassroomHome() {
             {role === "admin" ? (
               <article className="lab-card">
                 <div className="lab-card-topline">
+                  <span className="category-label">Lab 02 · 预览</span>
+                </div>
+                <h4>图像的空间采样</h4>
+                <p>二值剪影 + 分辨率收缩：找到仍能区分整组图片的最小格子数。</p>
+                {classId ? (
+                  <Link className="button button-secondary" to="/labs/image-sampling">
+                    打开预览
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
+
+            {role === "admin" ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
                   <span className="category-label">管理</span>
                 </div>
                 <h4>账号与班级管理</h4>

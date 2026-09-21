@@ -23,6 +23,7 @@ import { authRoutes } from "./routes/auth.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { calculatorRoutes } from "./routes/calculator.ts";
 import { dashboardRoutes } from "./routes/dashboard.ts";
+import { imageSamplingRoutes } from "./routes/imageSampling.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const distRoot = resolve(here, "../dist");
@@ -50,6 +51,7 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/auth", authRoutes());
   app.route("/api/admin", adminRoutes());
   app.route("/api/classes/:classId/labs/calculator", calculatorRoutes());
+  app.route("/api/classes/:classId/labs/image-sampling", imageSamplingRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
 
   app.notFound((c) => c.json({ error: "not-found" }, 404));

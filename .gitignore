@@ -17,3 +17,6 @@ data/
 
 # Local-only ops material (deploy scripts, host notes) — never committed
 local/
+
+# Pyodide runtime vendored from node_modules by scripts/sync-pyodide.mjs
+public/vendor/pyodide/
