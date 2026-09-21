@@ -329,17 +329,22 @@ export function AdminPage() {
   const [resetTarget, setResetTarget] = useState<string | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [jumpPage, setJumpPage] = useState("1");
   const [total, setTotal] = useState(0);
   const [activeTab, setActiveTab] = useState<AdminTab>("accounts");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const reload = useCallback(() => {
+    const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (search) query.set("search", search);
     void api
       .get<{ classes: AdminClass[] }>("/api/admin/classes")
       .then((payload) => setClasses(payload.classes))
       .catch((caught) => setError(describeApiError(caught)));
     void api
-      .get<UsersPayload>(`/api/admin/users?page=${page}&pageSize=${PAGE_SIZE}`)
+      .get<UsersPayload>(`/api/admin/users?${query.toString()}`)
       .then((payload) => {
         if (payload.users.length === 0 && payload.page > 1) {
           setPage(payload.page - 1);
@@ -348,9 +353,10 @@ export function AdminPage() {
         setUsers(payload.users);
         setTotal(payload.total);
         setPage(payload.page);
+        setJumpPage(String(payload.page));
       })
       .catch((caught) => setError(describeApiError(caught)));
-  }, [page]);
+  }, [page, search]);
 
   useEffect(() => {
     if (status === "authenticated" && role === "admin") reload();
@@ -397,6 +403,38 @@ export function AdminPage() {
       setDeleteTarget(null);
     });
   }, [deleteTarget, run]);
+
+  const submitSearch = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setError(null);
+      setPage(1);
+      setSearch(searchInput.trim());
+    },
+    [searchInput],
+  );
+
+  const clearSearch = useCallback(() => {
+    setError(null);
+    setSearchInput("");
+    setSearch("");
+    setPage(1);
+  }, []);
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const submitPageJump = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const target = Number(jumpPage);
+      if (!Number.isInteger(target) || target < 1 || target > pageCount) {
+        setError(`请输入 1 到 ${pageCount} 之间的页码。`);
+        return;
+      }
+      setError(null);
+      setPage(target);
+    },
+    [jumpPage, pageCount],
+  );
 
   if (status === "loading") {
     return (
@@ -496,6 +534,33 @@ export function AdminPage() {
             <div className="profile-card-heading">
               <p className="eyebrow">USERS</p>
               <h2 id="users-title">全部账号（{users.length}）</h2>
+            </div>
+            <div className="admin-users-toolbar">
+              <form aria-label="搜索账号" className="admin-search-form" onSubmit={submitSearch}>
+                <label className="admin-search-field">
+                  搜索学号或姓名
+                  <input
+                    aria-label="搜索学号或姓名"
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    placeholder="输入学号或姓名"
+                    type="search"
+                    value={searchInput}
+                  />
+                </label>
+                <span className="admin-search-actions">
+                  <button className="button button-primary admin-inline-button" type="submit">
+                    搜索
+                  </button>
+                  <button
+                    className="button button-ghost admin-inline-button"
+                    disabled={!search && !searchInput}
+                    onClick={clearSearch}
+                    type="button"
+                  >
+                    清除
+                  </button>
+                </span>
+              </form>
             </div>
             <table className="admin-table">
               <thead>
@@ -674,7 +739,7 @@ export function AdminPage() {
             </table>
             <div className="admin-pagination">
               <span className="admin-pagination-info">
-                共 {total} 个账号 · 第 {page} / {Math.max(1, Math.ceil(total / PAGE_SIZE))} 页
+                共 {total} 个账号 · 第 {page} / {pageCount} 页
               </span>
               <button
                 className="button button-ghost admin-inline-button"
@@ -686,12 +751,37 @@ export function AdminPage() {
               </button>
               <button
                 className="button button-ghost admin-inline-button"
-                disabled={busy || page >= Math.ceil(total / PAGE_SIZE)}
+                disabled={busy || page >= pageCount}
                 onClick={() => setPage((p) => p + 1)}
                 type="button"
               >
                 下一页
               </button>
+              <form
+                aria-label="跳转页码"
+                className="admin-pagination-jump"
+                onSubmit={submitPageJump}
+              >
+                <label htmlFor="admin-page-jump">跳到</label>
+                <input
+                  aria-label="跳转页码"
+                  className="admin-page-jump-input"
+                  id="admin-page-jump"
+                  inputMode="numeric"
+                  min={1}
+                  max={pageCount}
+                  onChange={(e) => setJumpPage(e.target.value)}
+                  type="number"
+                  value={jumpPage}
+                />
+                <button
+                  className="button button-ghost admin-inline-button"
+                  disabled={busy || pageCount <= 1}
+                  type="submit"
+                >
+                  跳转
+                </button>
+              </form>
             </div>
           </section>
         </div>

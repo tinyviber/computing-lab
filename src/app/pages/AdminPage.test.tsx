@@ -29,7 +29,13 @@ function mockAdminApi() {
     if (method === "DELETE") return jsonResponse({ ok: true });
     if (path.includes("/api/admin/classes")) return jsonResponse({ classes });
     if (path.includes("/api/admin/users")) {
-      return jsonResponse({ users, total: users.length, page: 1, pageSize: 50 });
+      const url = new URL(path, "http://admin.test");
+      return jsonResponse({
+        users,
+        total: users.length,
+        page: Number(url.searchParams.get("page") ?? "1"),
+        pageSize: 50,
+      });
     }
     return jsonResponse({});
   });
@@ -86,5 +92,48 @@ describe("AdminPage", () => {
         expect.objectContaining({ method: "DELETE" }),
       ),
     );
+  });
+
+  it("searches accounts and jumps to a page", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const path = String(input);
+      const method = init?.method ?? "GET";
+      if (method === "DELETE") return jsonResponse({ ok: true });
+      if (path.includes("/api/admin/classes")) return jsonResponse({ classes });
+      if (path.includes("/api/admin/users")) {
+        const url = new URL(path, "http://admin.test");
+        return jsonResponse({
+          users,
+          total: 101,
+          page: Number(url.searchParams.get("page") ?? "1"),
+          pageSize: 50,
+        });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    await renderAppAt("/admin", { auth: adminAuthState });
+
+    await user.type(screen.getByRole("searchbox", { name: "搜索学号或姓名" }), "张三");
+    await user.click(screen.getByRole("button", { name: "搜索" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input).includes("search=%E5%BC%A0%E4%B8%89")),
+      ).toBe(true),
+    );
+
+    await user.clear(screen.getByRole("spinbutton", { name: "跳转页码" }));
+    await user.type(screen.getByRole("spinbutton", { name: "跳转页码" }), "2");
+    await user.click(screen.getByRole("button", { name: "跳转" }));
+    await waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(
+          ([input]) =>
+            String(input).includes("page=2") && String(input).includes("search=%E5%BC%A0%E4%B8%89"),
+        ),
+      ).toBe(true),
+    );
+    expect(screen.getByText(/第 2 \/ 3 页/)).toBeInTheDocument();
   });
 });

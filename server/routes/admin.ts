@@ -159,8 +159,15 @@ export function adminRoutes() {
     const db = c.get("db");
     const rawPage = Number.parseInt(c.req.query("page") ?? "", 10);
     const rawSize = Number.parseInt(c.req.query("pageSize") ?? "", 10);
+    const search = (c.req.query("search") ?? "").trim().slice(0, 64);
     const pageSize = Number.isFinite(rawSize) ? Math.min(Math.max(rawSize, 1), 200) : 50;
-    const { total } = db.prepare("SELECT COUNT(*) AS total FROM users").get() as {
+    const filter = search
+      ? "WHERE instr(lower(student_no), lower(?)) > 0 OR instr(lower(name), lower(?)) > 0"
+      : "";
+    const filterArgs = search ? [search, search] : [];
+    const { total } = db
+      .prepare(`SELECT COUNT(*) AS total FROM users ${filter}`)
+      .get(...filterArgs) as {
       total: number;
     };
     const pageCount = Math.max(1, Math.ceil(total / pageSize));
@@ -168,9 +175,9 @@ export function adminRoutes() {
     const users = db
       .prepare(
         `SELECT id, student_no AS studentNo, name, role, created_at AS createdAt
-         FROM users ORDER BY created_at, student_no LIMIT ? OFFSET ?`,
+         FROM users ${filter} ORDER BY created_at, student_no LIMIT ? OFFSET ?`,
       )
-      .all(pageSize, (page - 1) * pageSize) as {
+      .all(...filterArgs, pageSize, (page - 1) * pageSize) as {
       id: string;
       studentNo: string;
       name: string;
@@ -194,6 +201,7 @@ export function adminRoutes() {
       total,
       page,
       pageSize,
+      search,
     });
   });
 

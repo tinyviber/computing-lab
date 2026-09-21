@@ -455,6 +455,35 @@ describe("user listing pagination", () => {
     expect(unparamPayload.pageSize).toBe(50);
     expect(unparamPayload.users).toHaveLength(3);
   });
+
+  it("searches users by student number or name", async () => {
+    const { app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+
+    const byStudentNo = await request(
+      app,
+      "GET",
+      "/api/admin/users?pageSize=2&page=1&search=202601",
+      undefined,
+      cookie,
+    );
+    const studentPayload = (await byStudentNo.json()) as {
+      users: { studentNo: string }[];
+      total: number;
+      search: string;
+    };
+    expect(studentPayload.search).toBe("202601");
+    expect(studentPayload.total).toBe(1);
+    expect(studentPayload.users.map((user) => user.studentNo)).toEqual(["20260101"]);
+
+    const byName = await request(app, "GET", "/api/admin/users?search=张", undefined, cookie);
+    const namePayload = (await byName.json()) as {
+      users: { name: string }[];
+      total: number;
+    };
+    expect(namePayload.total).toBe(1);
+    expect(namePayload.users.map((user) => user.name)).toEqual(["张三"]);
+  });
 });
 
 describe("class assignment", () => {
