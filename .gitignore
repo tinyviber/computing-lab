@@ -20,3 +20,6 @@ local/
 
 # Pyodide runtime vendored from node_modules by scripts/sync-pyodide.mjs
 public/vendor/pyodide/
+
+# Playwright MCP scratch artifacts
+.playwright-mcp/
