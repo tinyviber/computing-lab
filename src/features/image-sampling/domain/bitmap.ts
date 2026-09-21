@@ -112,6 +112,18 @@ export function imageToLists(image: BinaryImage): number[][] {
   return rows;
 }
 
+export function imageFromLists(rows: number[][]): BinaryImage {
+  const height = rows.length;
+  const width = rows[0]?.length ?? 0;
+  const image = makeImage(width, height);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      image.cells[y * width + x] = rows[y][x] ? 1 : 0;
+    }
+  }
+  return image;
+}
+
 export function imageFromRows(rows: string[]): BinaryImage {
   const height = rows.length;
   const width = rows[0]?.length ?? 0;

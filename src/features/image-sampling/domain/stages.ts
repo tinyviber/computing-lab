@@ -39,6 +39,8 @@ export type SamplingStageDef = {
   guided: boolean;
   description: string;
   hint: string;
+  /** One-line concept recap shown when the stage passes. */
+  takeaway: string;
   /** Resolutions offered as one-click probes in the sweep view. */
   probes: Resolution[];
 };
@@ -59,6 +61,8 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     description:
       "这组异星剪影长得几乎一样。给整组图片选一个统一的 n×n，让缩小之后每一张仍然独一无二——小了会撞车，大了会浪费格子。",
     hint: "先完成上面的格子实验理解多数覆盖，再从扫掠表里找刚好够用的 n。",
+    takeaway:
+      "采样把连续的图像变成离散的格子：每个格子代表原图的一整块区域，区域里图形过半才算 1。特征小于半个格子时，它就保不住了。",
     probes: squareProbes([4, 6, 8, 10, 12, 14, 16, 20, 24, 32]),
   },
   {
@@ -74,6 +78,8 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     description:
       "这组机器人只在触角、眼睛、嘴巴、腿部有细小差别。差别越小，就需要越多的格子才能保住它们。",
     hint: "留意眼睛间距和头顶小球的尺寸——这些局部特征最先消失。",
+    takeaway:
+      "需要的分辨率取决于图库里最细小的差异特征：差异越小，格子就要越密才能保住它。没有脱离任务的“正确分辨率”。",
     probes: squareProbes([8, 12, 16, 20, 22, 24, 26, 28, 32]),
   },
   {
@@ -88,6 +94,8 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     guided: false,
     description: "这组金属牌只在打孔位置和缺口上有区别。孔洞是最容易被格子平均掉的特征。",
     hint: "孔洞只有半个格子大小时就会被“磨平”——数一数孔洞占几个格子。",
+    takeaway:
+      "孔洞、缺口这类“空的部分”也是信息：它们和凸起一样会被多数覆盖磨平。信息丢失不区分特征的形状。",
     probes: squareProbes([8, 12, 16, 20, 22, 24, 26, 28, 32]),
   },
   {
@@ -103,6 +111,7 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     description:
       "这组山脊图的区别全部在水平方向：凸起的左右位置。现在可以分别选宽和高——同样的格子总数，横着放和竖着放结果可能完全不同。",
     hint: "比较一下 16×8 和 8×16：格子数一样，但只有一个方向采得够密。",
+    takeaway: "格子总数相同不等于保留的信息相同：差异在哪一个方向，采样密度就该花在哪个方向。",
     probes: [
       { width: 16, height: 8 },
       { width: 8, height: 16 },
@@ -110,6 +119,9 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
       { width: 24, height: 8 },
       { width: 8, height: 24 },
       { width: 20, height: 8 },
+      { width: 8, height: 20 },
+      { width: 12, height: 16 },
+      { width: 16, height: 12 },
       { width: 12, height: 12 },
       { width: 20, height: 12 },
       { width: 12, height: 20 },
@@ -128,6 +140,8 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     description:
       "这组立柱的区别全部在垂直方向：成对细缝的上下位置。本关要求高度大于宽度——两个方向上的采样密度不再相同，找出预算内刚好够用的细长比。",
     hint: "细缝是成对出现的：行数太少时两条缝会糊成一团。先把高度推到能分开它们，再压宽度。",
+    takeaway:
+      "采样密度可以按方向分配：这一关差异在垂直方向，所以行数比列数更值钱。分辨率是两个数字，不是一个。",
     probes: [
       { width: 10, height: 16 },
       { width: 8, height: 16 },

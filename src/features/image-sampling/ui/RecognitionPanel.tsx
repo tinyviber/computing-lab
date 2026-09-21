@@ -6,6 +6,7 @@
 
 import { imageFromBase64 } from "../domain/bitmap.ts";
 import type { PackedImage, SamplingJudgeResult } from "../domain/protocol.ts";
+import type { SamplingStageDef } from "../domain/stages.ts";
 import { BitmapCanvas } from "./BitmapCanvas.tsx";
 
 function PackedFigure({ packed, caption }: { packed: PackedImage; caption: string }) {
@@ -18,9 +19,14 @@ function PackedFigure({ packed, caption }: { packed: PackedImage; caption: strin
   );
 }
 
-export function RecognitionPanel({ outcome }: { outcome: SamplingJudgeResult }) {
-  const percent = Math.round(outcome.accuracy * 100);
-  const need = Math.round(outcome.requiredAccuracy * 100);
+export function RecognitionPanel({
+  outcome,
+  stage,
+}: {
+  outcome: SamplingJudgeResult;
+  stage: SamplingStageDef;
+}) {
+  const required = Math.ceil(outcome.requiredAccuracy * outcome.total);
   return (
     <section
       aria-labelledby="judge-result-title"
@@ -29,25 +35,38 @@ export function RecognitionPanel({ outcome }: { outcome: SamplingJudgeResult }) 
       <h3 id="judge-result-title">判定结果：{outcome.passed ? "通过 ✓" : "未通过"}</h3>
       <dl className="verdict-stats">
         <div>
+          <dt>仍能唯一认出</dt>
+          <dd>
+            {outcome.identified} / {outcome.total} 张
+            <span className="verdict-sub">（要求 ≥ {required} 张）</span>
+          </dd>
+        </div>
+        <div>
+          <dt>你用了</dt>
+          <dd className={outcome.withinBudget ? "" : "over-budget"}>
+            {outcome.resolution.cells} 个格子
+            <span className="verdict-sub">
+              （预算 {outcome.cellBudget}
+              {outcome.withinBudget ? "" : "，已超支"}）
+            </span>
+          </dd>
+        </div>
+        <div>
           <dt>分辨率</dt>
           <dd>
             {outcome.resolution.width}×{outcome.resolution.height}
           </dd>
         </div>
-        <div>
-          <dt>格子数</dt>
-          <dd className={outcome.withinBudget ? "" : "over-budget"}>
-            {outcome.resolution.cells} / {outcome.cellBudget}
-            {outcome.withinBudget ? "" : "（超预算）"}
-          </dd>
-        </div>
-        <div>
-          <dt>可区分</dt>
-          <dd>
-            {outcome.identified} / {outcome.total}（{percent}% · 要求 ≥{need}%）
-          </dd>
-        </div>
       </dl>
+
+      {outcome.passed ? (
+        <p className="stage-takeaway">
+          这一关验证了：{stage.takeaway}
+          {outcome.resolution.cells > Math.ceil(outcome.cellBudget * 0.6)
+            ? " 还能再少用一些格子吗？"
+            : ""}
+        </p>
+      ) : null}
 
       {!outcome.passed && outcome.counterexample ? (
         <div className="counterexample">
@@ -83,7 +102,10 @@ export function RecognitionPanel({ outcome }: { outcome: SamplingJudgeResult }) 
             ) : null}
           </div>
           <table className="ranking-table">
-            <caption>最接近的候选（按轮廓距离排序）</caption>
+            <caption>
+              最接近的候选（按轮廓距离排序）——这个排序只是帮你看谁最容易混淆，
+              不参与判定：判定只看压缩后是否仍然唯一，不会去“猜”答案。
+            </caption>
             <thead>
               <tr>
                 <th>候选</th>

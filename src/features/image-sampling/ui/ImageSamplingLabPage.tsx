@@ -88,8 +88,9 @@ function StageBrief({ stage }: { stage: SamplingStageDef }) {
     <section className="stage-brief">
       <p>{stage.description}</p>
       <p className="submit-note">
-        判题方式：把图库中每一张都缩到你选的分辨率，要求缩小后仍然是唯一的—— 需要 ≥
-        {Math.round(stage.requiredAccuracy * 100)}% 可区分，且格子数 ≤ {stage.cellBudget}。
+        判题方式：把本类的每一张图（包括你没见过的隐藏成员）都缩到你选的分辨率，
+        要求缩小后仍然各不相同——需要 ≥{Math.round(stage.requiredAccuracy * 100)}% 可区分， 且格子数
+        ≤ {stage.cellBudget}。
         {stage.mode === "square"
           ? "本关只允许正方形（宽=高）。"
           : stage.mode === "tall"
@@ -337,7 +338,9 @@ export function ImageSamplingLabPage() {
                 </span>
               </div>
 
-              {state.judgeOutcome ? <RecognitionPanel outcome={state.judgeOutcome} /> : null}
+              {state.judgeOutcome ? (
+                <RecognitionPanel outcome={state.judgeOutcome} stage={stage} />
+              ) : null}
             </>
           ) : null}
         </main>

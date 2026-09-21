@@ -6,8 +6,10 @@
  */
 
 import { useMemo, useState } from "react";
+import { imageFromLists } from "../domain/bitmap.ts";
 import { cellRegion, cellStats } from "../domain/downsample.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
+import { BitmapCanvas } from "./BitmapCanvas.tsx";
 import { runCellValue } from "./pyodideRunner.ts";
 
 const STARTER_CODE = `def cell_value(region):
@@ -51,6 +53,7 @@ export function GuidedCellTask({
   onCodeChange: (code: string) => void;
 }) {
   const { regions, expected } = useMemo(buildRegions, []);
+  const [guesses, setGuesses] = useState<(0 | 1 | null)[]>(() => regions.map(() => null));
   const [rows, setRows] = useState<CheckRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -88,8 +91,50 @@ export function GuidedCellTask({
       <p>
         缩小图片时，每个目标格子对应原图的一小块区域。规则只有一条：
         <strong>这块区域里至少一半的像素是图形（1），这个格子才是 1。</strong>
-        补全下面的函数，让它在所有测试区域上都给出正确结果。
       </p>
+      <p>
+        先别看代码——下面是 6 块真实待判定的区域。数一数每块里有多少个图形像素， 给它点上你判断的 0
+        或 1，再写代码让机器做同样的判断。
+      </p>
+      <div className="region-strip">
+        {regions.map((region, index) => (
+          <figure className="region-card" key={index}>
+            <BitmapCanvas
+              ariaLabel={`测试区域 ${index + 1}`}
+              image={imageFromLists(region)}
+              pixelSize={6}
+            />
+            <figcaption>区域 {index + 1}</figcaption>
+            <div aria-label={`区域 ${index + 1} 你的判断`} className="guess-buttons" role="group">
+              {([0, 1] as const).map((value) => (
+                <button
+                  aria-pressed={guesses[index] === value}
+                  className={`guess-button${guesses[index] === value ? " is-active" : ""}`}
+                  key={value}
+                  onClick={() =>
+                    setGuesses((prev) => {
+                      const next = [...prev];
+                      next[index] = next[index] === value ? null : value;
+                      return next;
+                    })
+                  }
+                  type="button"
+                >
+                  {value}
+                </button>
+              ))}
+            </div>
+            {guesses[index] !== null ? (
+              <span
+                className={`guess-verdict${guesses[index] === expected[index] ? " is-ok" : " is-bad"}`}
+              >
+                {guesses[index] === expected[index] ? "和规则一致" : `规则给 ${expected[index]}`}
+              </span>
+            ) : null}
+          </figure>
+        ))}
+      </div>
+      <p>然后补全函数，让它在所有这些区域上都给出和规则一致的结果。</p>
       <textarea
         aria-label="cell_value 代码"
         className="code-editor"
@@ -120,14 +165,16 @@ export function GuidedCellTask({
           <thead>
             <tr>
               <th>区域</th>
+              <th>你的判断</th>
               <th>规则答案</th>
-              <th>你的输出</th>
+              <th>代码输出</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr className={row.got === row.expected ? "is-ok" : "is-bad"} key={row.index}>
                 <td>#{row.index + 1}</td>
+                <td>{guesses[row.index] ?? "—"}</td>
                 <td>{row.expected}</td>
                 <td>{row.got ?? "不是 0/1"}</td>
               </tr>

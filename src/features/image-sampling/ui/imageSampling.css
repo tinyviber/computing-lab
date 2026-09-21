@@ -263,6 +263,59 @@
   color: #991b1b;
 }
 
+.region-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 12px 0;
+}
+
+.region-card {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.region-card figcaption {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.guess-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.guess-button {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  min-width: 32px;
+  padding: 2px 10px;
+}
+
+.guess-button.is-active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #3730a3;
+}
+
+.guess-verdict {
+  font-size: 12px;
+}
+
+.guess-verdict.is-ok {
+  color: #15803d;
+}
+
+.guess-verdict.is-bad {
+  color: #b91c1c;
+}
+
 .python-error {
   background: #450a0a;
   border-radius: 8px;
@@ -308,6 +361,20 @@
 
 .verdict-stats .over-budget {
   color: #b91c1c;
+}
+
+.verdict-sub {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.stage-takeaway {
+  background: #f0fdf4;
+  border: 1px solid #86efac66;
+  border-radius: 8px;
+  font-size: 13px;
+  padding: 10px 12px;
 }
 
 .counterexample-triptych {
