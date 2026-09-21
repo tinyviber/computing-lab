@@ -1,11 +1,11 @@
 # 04-interaction-primitives：Lab Primitive 交互基础设施聚类
 
-> **Superseded as an extraction recommendation.** This is a prospective hypothesis registry derived from a future-course roadmap, not an approved implementation backlog. After Sound, Home Network, and Image became real reference courses, `docs/primitive-extraction-review.md` found no new lesson primitive that passes the present two-consumer invariant and cost gates. Retain this file only to reopen a narrowly defined hypothesis when future feature-local implementations supply real compatible consumers.
+> **Superseded as an extraction recommendation.** This is a prospective hypothesis registry derived from a future-course roadmap, not an approved implementation backlog. The current single-feature architecture found no need to retain a shared lesson primitive. Retain this file only to reopen a narrowly defined hypothesis when future feature-local implementations supply real compatible consumers.
 
 - **日期**：2026-08-17
 - **目的**：回答"如果未来 computing-lab 有 30 个实验，应优先开发哪些通用 Lab Primitive，让后面的实验快速组合出来"。
 - **方法**：① 把 14 个 S/A 级实验（02-candidate-evaluation.md）逐一拆解为原子交互操作；② 跨实验聚类出交互范式簇（**不从教材章节组织**）；③ 每簇映射为一个无语义 Lab Primitive（职责边界、服务实验、先例背书）；④ 给出需求矩阵与建设顺序；⑤ 以 30 个实验视角验证组合性。
-- **上游事实**：03-precedent-research.md 的 11 个被验证 pattern（P-A～P-K）与 15 个应避免项；阶段二工程工作底稿（未版本化）.md 的 5 个原语建议；docs/course-model-reset.md 冻结方向（shared 只允许无语义原语）。
+- **上游事实**：03-precedent-research.md 的 11 个被验证 pattern（P-A～P-K）与 15 个应避免项；阶段二工程工作底稿（未版本化）.md 的 5 个原语建议；此前的 shared 无语义原语迁移方向。
 
 ---
 

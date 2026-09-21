@@ -1,29 +1,15 @@
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { render, waitFor } from "@testing-library/react";
 import { expect } from "vitest";
-import { LabNavigationProvider } from "../shared/lab/LabNavigationProvider";
 import { AuthProvider, type AuthState } from "../shared/auth";
 import { createAppRouter } from "../app/router";
-import { visibleLabs } from "../app/catalog/labs";
 
-/**
- * Default harness identity: a signed-in admin so feature tests can open any
- * registered lab. Gate tests should always name the role they intend to
- * exercise.
- */
+/** Default harness identity for authenticated page tests. */
 export const teacherAuthState: AuthState = {
   status: "authenticated",
   session: {
     user: { id: "u-teacher", studentNo: "teacher", name: "教师", role: "teacher" },
     memberships: [{ classId: "c1", className: "测试班级", role: "teacher" }],
-  },
-};
-
-export const studentAuthState: AuthState = {
-  status: "authenticated",
-  session: {
-    user: { id: "u-student", studentNo: "20260101", name: "张三", role: "user" },
-    memberships: [{ classId: "c1", className: "测试班级", role: "student" }],
   },
 };
 
@@ -37,26 +23,16 @@ export const adminAuthState: AuthState = {
 
 export const anonymousAuthState: AuthState = { status: "anonymous", session: null };
 
-export type RenderAppOptions = { basepath?: string; auth?: AuthState };
+export type RenderAppOptions = { auth?: AuthState };
 
-export async function renderAppAt(
-  initialEntry: string,
-  basepathOrOptions: string | RenderAppOptions = "/",
-) {
-  const options: RenderAppOptions =
-    typeof basepathOrOptions === "string" ? { basepath: basepathOrOptions } : basepathOrOptions;
-  const basepath = options.basepath ?? "/";
+export async function renderAppAt(initialEntry: string, options: RenderAppOptions = {}) {
   const auth = options.auth ?? adminAuthState;
-  const role = auth.session?.user.role ?? null;
-  const showExperimental = /[?&]showExperimentalLabs=1(?:&|$)/.test(initialEntry);
 
   const history = createMemoryHistory({ initialEntries: [initialEntry] });
-  const router = createAppRouter({ history, basepath });
+  const router = createAppRouter({ history });
   const rendered = render(
     <AuthProvider initialState={auth}>
-      <LabNavigationProvider labs={visibleLabs({ role, showExperimental })}>
-        <RouterProvider router={router} />
-      </LabNavigationProvider>
+      <RouterProvider router={router} />
     </AuthProvider>,
   );
 
@@ -64,20 +40,4 @@ export async function renderAppAt(
   await waitFor(() => expect(router.state.status).toBe("idle"));
 
   return { ...rendered, history, router };
-}
-
-export async function navigateApp(router: ReturnType<typeof createAppRouter>, href: string) {
-  await router.navigate({ to: href as never });
-  await router.load();
-  await waitFor(() => expect(router.state.status).toBe("idle"));
-}
-
-export async function navigateAppWithSearch(
-  router: ReturnType<typeof createAppRouter>,
-  to: string,
-  search: Record<string, unknown>,
-) {
-  await router.navigate({ to: to as never, search: search as never });
-  await router.load();
-  await waitFor(() => expect(router.state.status).toBe("idle"));
 }

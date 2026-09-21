@@ -27,7 +27,6 @@ describe("TeacherDashboardPage", () => {
     );
 
     const { history } = await renderAppAt("/classes/c11/dashboard", { auth: multiClassTeacher });
-    expect(screen.getByRole("combobox", { name: "选择实验" })).toHaveValue("calculator");
     expect(screen.getByRole("combobox", { name: "选择班级" })).toHaveValue("c11");
     expect(screen.getByRole("option", { name: "2026-高二信息技术-12" })).toBeInTheDocument();
     expect(screen.getByLabelText("学生进度横向滚动区")).toBeInTheDocument();

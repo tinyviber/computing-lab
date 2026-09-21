@@ -13,10 +13,11 @@
 
 ## Boundaries
 
-- `src/app` owns routing and registry only.
+- `src/app` owns routing and page composition.
 - `src/features/<lab>/domain` owns lesson calculations and fixtures.
 - `src/features/<lab>/ui` owns lab-specific composition.
-- `src/shared/lab` owns layout and interaction primitives, not lesson semantics.
+- `src/shared/{auth,api,layout}` owns only infrastructure with a live consumer; lesson
+  semantics do not belong in shared code.
 - Do not import from `talk-polish-ai`; this repository stays independently deployable.
 
 ## Teaching model

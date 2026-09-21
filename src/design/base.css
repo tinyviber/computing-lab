@@ -63,12 +63,7 @@ p {
 .eyebrow,
 .context-label,
 .context-value,
-.summary-note,
-.profile-code,
-.rail-count,
-.sample-count,
-.category-label,
-.lab-card-action {
+.category-label {
   font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -76,12 +71,7 @@ p {
 
 .eyebrow,
 .context-label,
-.summary-note,
-.profile-code,
-.rail-count,
-.sample-count,
-.category-label,
-.lab-card-action {
+.category-label {
   color: var(--muted);
   font-size: 10px;
   font-weight: 600;
@@ -105,19 +95,9 @@ p {
   line-height: 30px;
 }
 
-.section-description,
-.control-description,
-.action-hint,
-.metric-note,
 .not-found p:not(.eyebrow) {
   color: var(--secondary);
   line-height: 20px;
-}
-
-.section-description {
-  margin-top: 8px;
-  max-width: 640px;
-  font-size: 13px;
 }
 
 .button {
@@ -189,39 +169,6 @@ p {
   border: 0;
   clip-path: inset(50%);
   white-space: nowrap;
-}
-
-.local-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--success);
-}
-
-.phase-badge {
-  align-items: center;
-  display: inline-flex;
-  gap: 6px;
-  color: var(--secondary);
-  font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 10px;
-  text-transform: uppercase;
-}
-
-.phase-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-}
-
-.phase-success .phase-dot {
-  background: var(--success);
-}
-
-.phase-failure .phase-dot {
-  background: var(--danger);
 }
 
 @media (prefers-reduced-motion: reduce) {

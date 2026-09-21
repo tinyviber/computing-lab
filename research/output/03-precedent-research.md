@@ -1,6 +1,6 @@
 # 03-precedent-research：S/A 级候选实验的外部先例研究汇总
 
-> **Historical external-source index.** The cited interaction observations remain research input, not an instruction to build a shared primitive or adopt a workflow. Pair any future use with the current feature evidence and `docs/primitive-extraction-review.md`.
+> **Historical external-source index.** The cited interaction observations remain research input, not an instruction to build a shared primitive or adopt a workflow. Pair any future use with the current feature evidence and `docs/architecture.md`.
 
 - **日期**：2026-08-17
 - **方法**：对 14 个 S/A 级候选实验（E1–E14）分三组并行外部研究（算法组 / 数据处理组 / 多媒体-AI 组），全部先例经 **web_search 实际检索**核实（未凭记忆编造），关键页面经抓取/curl 实测存活；每个实验只保留 2–4 个**真正相关**的先例。

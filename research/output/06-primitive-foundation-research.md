@@ -51,10 +51,8 @@ The investigation read:
   - `twos-complement`;
 - domain, lesson, UI, unit, integration, and end-to-end tests;
 - `docs/architecture.md`;
-- `docs/course-model-reset.md`;
-- `docs/primitive-extraction-review.md`;
-- `docs/design-qa.md`;
-- `docs/twos-complement-course-design.md`;
+- `docs/architecture.md`;
+- `docs/retired-labs.md`;
 - the historical research inventory, candidate pool, precedent research, and interaction-primitive registry.
 
 The working tree was clean at the start of the research. The previous extraction review reports that lint, typecheck, unit tests, and production build passed; its E2E run was blocked only by a missing local Playwright Chromium cache. This report does not treat those historical verification results as proof that a new abstraction exists.

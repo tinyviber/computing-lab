@@ -11,14 +11,6 @@
   border-bottom: 1px solid var(--border);
 }
 
-.app-shell > .app-topbar {
-  height: 76px;
-  padding: 0 32px;
-  background: rgb(255 255 255 / 92%);
-  box-shadow: 0 2px 12px rgb(23 40 61 / 3%);
-  backdrop-filter: blur(14px);
-}
-
 .app-topbar-left,
 .app-topbar-actions {
   display: flex;
@@ -98,17 +90,6 @@
   border-color: var(--focus);
 }
 
-.mobile-menu-button {
-  display: none;
-  width: 32px;
-  height: 32px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: transparent;
-  cursor: pointer;
-}
-
 .app-topbar-select {
   display: grid;
   gap: 3px;
@@ -132,10 +113,5 @@
     width: 100%;
     justify-content: space-between;
     flex-wrap: wrap;
-  }
-
-  .app-shell > .app-topbar {
-    height: auto;
-    padding: 14px 18px;
   }
 }

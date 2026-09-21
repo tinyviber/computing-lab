@@ -1,9 +1,8 @@
-import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
-import { enabledLabs } from "../catalog/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./dashboard.css";
 
@@ -62,7 +61,6 @@ function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () =
 
 export function TeacherDashboardPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
-  const search = useSearch({ strict: false }) as Record<string, unknown>;
   const navigate = useNavigate();
   const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
@@ -70,11 +68,6 @@ export function TeacherDashboardPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
   const isAdmin = role === "admin";
-  const labs = enabledLabs();
-  const selectedLabId =
-    typeof search.lab === "string" && labs.some((lab) => lab.id === search.lab)
-      ? search.lab
-      : (labs[0]?.id ?? "");
 
   const load = useCallback(() => {
     if (!classId) return;
@@ -122,15 +115,6 @@ export function TeacherDashboardPage() {
     });
   };
 
-  const selectLab = (nextLabId: string) => {
-    if (!classId || nextLabId === selectedLabId) return;
-    void navigate({
-      params: { classId },
-      search: { lab: nextLabId },
-      to: "/classes/$classId/dashboard",
-    });
-  };
-
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -156,38 +140,21 @@ export function TeacherDashboardPage() {
     <AppPageLayout
       className="dashboard-page"
       topbar={
-        <div className="dashboard-switchers" role="group" aria-label="看板筛选">
-          <label className="app-topbar-select" htmlFor="dashboard-lab-select">
-            <span>实验</span>
-            <select
-              aria-label="选择实验"
-              id="dashboard-lab-select"
-              onChange={(event) => selectLab(event.target.value)}
-              value={selectedLabId}
-            >
-              {labs.map((lab) => (
-                <option key={lab.id} value={lab.id}>
-                  {lab.title}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="app-topbar-select" htmlFor="dashboard-class-select">
-            <span>班级</span>
-            <select
-              aria-label="选择班级"
-              id="dashboard-class-select"
-              onChange={(event) => selectClass(event.target.value)}
-              value={classId ?? ""}
-            >
-              {(session?.memberships ?? []).map((membership) => (
-                <option key={membership.classId} value={membership.classId}>
-                  {membership.className}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <label className="app-topbar-select" htmlFor="dashboard-class-select">
+          <span>班级</span>
+          <select
+            aria-label="选择班级"
+            id="dashboard-class-select"
+            onChange={(event) => selectClass(event.target.value)}
+            value={classId ?? ""}
+          >
+            {(session?.memberships ?? []).map((membership) => (
+              <option key={membership.classId} value={membership.classId}>
+                {membership.className}
+              </option>
+            ))}
+          </select>
+        </label>
       }
     >
       <main aria-label="学生进度矩阵">

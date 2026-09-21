@@ -47,24 +47,11 @@ function safeFilePath(route) {
   }
 }
 
-function slideRoute(route) {
-  return route?.match(/^\/slides\/([A-Za-z0-9][A-Za-z0-9_-]*)(\/.*)?$/);
-}
-
 function fileForRoute(route) {
   if (route === null) return null;
 
   const filePath = safeFilePath(route);
   if (filePath && existsSync(filePath) && statSync(filePath).isFile()) return filePath;
-
-  const slide = slideRoute(route);
-  if (slide) {
-    if (extname(route) !== "") return null;
-    const slideIndex = safeFilePath(`/slides/${slide[1]}/index.html`);
-    return slideIndex && existsSync(slideIndex) && statSync(slideIndex).isFile()
-      ? slideIndex
-      : null;
-  }
 
   return extname(route) === "" ? join(root, "index.html") : null;
 }
@@ -86,7 +73,7 @@ createServer((request, response) => {
     return;
   }
 
-  const hasFileExtension = route === null || slideRoute(route) || extname(route) !== "";
+  const hasFileExtension = route === null || extname(route) !== "";
   if (hasFileExtension) {
     response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
     response.end("Not found");
