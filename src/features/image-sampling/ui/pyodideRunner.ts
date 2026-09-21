@@ -80,11 +80,14 @@ export async function runCellValue(
   return run({ kind: "cell", code, regions }, timeoutMs);
 }
 
-/** Run choose_size(category); returns the raw pair (validated by the caller). */
+/**
+ * Run choose_size(images) — images is the public gallery as 0/1 nested lists.
+ * Returns the raw pair (validated by the caller).
+ */
 export async function runChooseSize(
   code: string,
-  category: string,
+  images: number[][][],
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<unknown[]> {
-  return run({ kind: "size", code, category }, timeoutMs);
+  return run({ kind: "size", code, images }, timeoutMs);
 }

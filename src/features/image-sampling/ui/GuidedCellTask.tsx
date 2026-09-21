@@ -12,12 +12,14 @@ import { runCellValue } from "./pyodideRunner.ts";
 
 const STARTER_CODE = `def cell_value(region):
     # region 是一个二维列表: 1 = 有图形, 0 = 背景
-    count = 0
+    total = 0
+    ink = 0
     for row in region:
         for v in row:
-            count += v
+            total += 1
+            # TODO 1: 如果这个位置是图形, 把 ink 加 1
 
-    # TODO: 当 1 的个数达到总数的一半时返回 1, 否则返回 0
+    # TODO 2: ink 达到 total 的一半时返回 1, 否则返回 0
     return 0
 `;
 

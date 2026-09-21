@@ -3,7 +3,9 @@
  * student-facing functions of this lab:
  *
  *   kind "cell":  cell_value(region) over a batch of test regions
- *   kind "size":  choose_size(category) → (width, height)
+ *   kind "size":  choose_size(images) → (width, height); images is the
+ *                 public gallery as 0/1 nested lists, so the resolution is
+ *                 computed from data rather than hand-picked.
  *
  * Student code runs only here, in the browser. The server never sees or
  * executes it. Each run gets a fresh globals dict so runs can't leak state.
@@ -15,7 +17,7 @@ import type { PyodideInterface } from "pyodide";
 
 type RunRequest =
   | { id: number; kind: "cell"; code: string; regions: number[][][] }
-  | { id: number; kind: "size"; code: string; category: string };
+  | { id: number; kind: "size"; code: string; images: number[][][] };
 
 type RunResponse =
   { id: number; ok: true; results: unknown[] } | { id: number; ok: false; error: string };
@@ -67,17 +69,17 @@ async function runCell(
 async function runSize(
   pyodide: PyodideInterface,
   code: string,
-  category: string,
+  images: number[][][],
 ): Promise<unknown[]> {
   const globals = pyodide.toPy({});
   try {
     pyodide.runPython(code, { globals });
-    globals.set("category", category);
+    globals.set("images", pyodide.toPy(images));
     const fn = globals.get("choose_size");
     if (fn === undefined || typeof fn.callKwargs !== "function") {
-      throw new Error("需要一个函数 choose_size(category)，返回 (宽, 高)。");
+      throw new Error("需要一个函数 choose_size(images)，返回 (宽, 高)。");
     }
-    const out = pyodide.runPython("choose_size(category)", { globals });
+    const out = pyodide.runPython("choose_size(images)", { globals });
     try {
       return out.toJs() as unknown[];
     } finally {
@@ -95,7 +97,7 @@ self.onmessage = (event: MessageEvent<RunRequest>) => {
     const results =
       request.kind === "cell"
         ? await runCell(pyodide, request.code, request.regions)
-        : await runSize(pyodide, request.code, request.category);
+        : await runSize(pyodide, request.code, request.images);
     return { id: request.id, ok: true, results };
   })()
     .then((response) => self.postMessage(response))

@@ -9,6 +9,7 @@ import { cellBounds, cellRegion, cellStats, type Resolution } from "../domain/do
 import { downsample } from "../domain/downsample.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
 import { confusionPairs, judgeResolution } from "../domain/recognize.ts";
+import { SOURCE_SIZE } from "../domain/sprites.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
 import type { CellPick } from "../lesson/state.ts";
 import { BitmapCanvas } from "./BitmapCanvas.tsx";
@@ -75,7 +76,10 @@ function ResolutionInputs({
           </label>
         </>
       )}
-      <span className="cell-count">{width * height} 个格子</span>
+      <span className="cell-count">
+        {SOURCE_SIZE * SOURCE_SIZE} 个位置 → {width * height} 个格子（保留{" "}
+        {((width * height * 100) / (SOURCE_SIZE * SOURCE_SIZE)).toFixed(1)}%）
+      </span>
     </div>
   );
 }

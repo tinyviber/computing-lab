@@ -99,6 +99,19 @@ export function imageToRows(image: BinaryImage): string[] {
   return rows;
 }
 
+/** Row-major 0/1 grid as plain nested lists — the shape student Python sees. */
+export function imageToLists(image: BinaryImage): number[][] {
+  const rows: number[][] = [];
+  for (let y = 0; y < image.height; y += 1) {
+    const row: number[] = [];
+    for (let x = 0; x < image.width; x += 1) {
+      row.push(image.cells[y * image.width + x]);
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
 export function imageFromRows(rows: string[]): BinaryImage {
   const height = rows.length;
   const width = rows[0]?.length ?? 0;

@@ -1,23 +1,32 @@
 /**
- * choose_size(category) — the student-written strategy, run in the Pyodide
- * worker. Its return value fills the (width, height) draft; the submission
- * itself is still just the two numbers, so the server never executes code.
+ * choose_size(images) — the student-written encoder decision, run in the
+ * Pyodide worker. It receives the public gallery as 0/1 nested lists, so
+ * the resolution is computed from the data instead of being a guessed
+ * constant. Its return value fills the (width, height) draft; the
+ * submission itself is still just the two numbers, so the server never
+ * executes code.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { imageToLists } from "../domain/bitmap.ts";
+import { publicGalleryFor } from "../domain/fixtures.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
 import { runChooseSize } from "./pyodideRunner.ts";
 
 const STARTER = (stage: SamplingStageDef) =>
   stage.mode === "square"
-    ? `def choose_size(category):
-    # category 是这一类图的名字, 本关是 "${stage.category}"
-    # 返回一个整数 n, 表示 n × n
+    ? `def choose_size(images):
+    # images: 这一类所有图片的列表, 每张是 64×64 的二维列表
+    #   images[0][y][x] -> 0 (背景) 或 1 (图形)
+    # 任务: 分析这些图, 算出一个 n, 让它们缩到 n×n 后仍能区分开
+    # 提示: 图与图的差异出现在多小的尺度上?
     return 16
 `
-    : `def choose_size(category):
-    # category 是这一类图的名字, 本关是 "${stage.category}"
-    # 返回 (宽, 高) 两个整数
+    : `def choose_size(images):
+    # images: 这一类所有图片的列表, 每张是 64×64 的二维列表
+    #   images[0][y][x] -> 0 (背景) 或 1 (图形)
+    # 任务: 分析这些图, 算出 (宽, 高) —— 两者可以不同
+    # 提示: 这一类图的差异主要发生在水平方向还是垂直方向?
     return (16, 16)
 `;
 
@@ -37,13 +46,17 @@ export function ChooseSizePanel({
   const [running, setRunning] = useState(false);
 
   const source = code.trim() ? code : STARTER(stage);
+  const images = useMemo(
+    () => publicGalleryFor(stage.category).map((entry) => imageToLists(entry.image)),
+    [stage.category],
+  );
 
   const run = async () => {
     setRunning(true);
     setError(null);
     setApplied(null);
     try {
-      const result = await runChooseSize(source, stage.category);
+      const result = await runChooseSize(source, images);
       // `return 16` → scalar; `return (w, h)` → array. A lone n means n×n.
       const values = Array.isArray(result) ? result : [result];
       const [rw, rh] =
@@ -60,7 +73,7 @@ export function ChooseSizePanel({
         throw new Error("这一关要求正方形分辨率：宽和高必须相同。");
       }
       onResolution(rw, rh);
-      setApplied(`choose_size("${stage.category}") → ${rw} × ${rh}`);
+      setApplied(`choose_size(images) → ${rw} × ${rh}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -72,8 +85,9 @@ export function ChooseSizePanel({
     <section aria-labelledby="choose-size-title" className="choose-size-panel">
       <h3 id="choose-size-title">把策略写成代码（可选）</h3>
       <p>
-        也可以写一个 <code>choose_size(category)</code> 函数。运行后它的返回值会填入上面的分辨率——
-        注意它对整个 category 只返回一个尺寸。
+        写一个 <code>choose_size(images)</code> 函数：它会拿到上面公开图库的全部 {images.length}{" "}
+        张图（每张 64×64 的 0/1 列表），由你的代码算出分辨率并填入上方—— 注意它对整个 category
+        只返回一个尺寸。
       </p>
       <textarea
         aria-label="choose_size 代码"
