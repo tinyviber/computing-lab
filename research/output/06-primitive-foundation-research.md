@@ -51,7 +51,6 @@ The investigation read:
   - `twos-complement`;
 - domain, lesson, UI, unit, integration, and end-to-end tests;
 - `docs/architecture.md`;
-- `docs/architecture.md`;
 - `docs/retired-labs.md`;
 - the historical research inventory, candidate pool, precedent research, and interaction-primitive registry.
 

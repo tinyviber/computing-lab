@@ -362,7 +362,9 @@ static deployment.
 
 The Node API (`server/index.ts`, Hono + `node:sqlite`) runs as
 `computing-lab-api.service` from a plain checkout at `$API_ROOT/source`
-(default `/srv/computing-lab-api/source`, owned by `computing-lab-editor`).
+(default `/srv/computing-lab-api/source`, owned by the deployment identity).
+Some older hosts may still use the legacy account name `computing-lab-editor`;
+that name does not imply an editor service is required.
 `local/deploy/api-deploy.sh` is the deterministic, no-agent entry point. The
 script lives in the gitignored `local/` directory (host-specific ops material
 is never committed); the reviewed copy is installed at

@@ -20,7 +20,7 @@
     "deploy:rollback": "bash deploy/reconcile.sh rollback",
     "deploy:status": "bash deploy/reconcile.sh status",
     "lint": "bun run eslint .",
-    "typecheck": "bun run tsc --noEmit",
+    "typecheck": "bun run typecheck:app && bun run typecheck:server && bun run tsc -p tsconfig.node.json --noEmit",
     "typecheck:server": "bun run tsc -p tsconfig.server.json --noEmit",
     "typecheck:app": "bun run tsc -p tsconfig.app.json --noEmit",
     "format:check": "bun run prettier --check .",

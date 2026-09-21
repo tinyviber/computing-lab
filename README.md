@@ -35,6 +35,9 @@ bun run build
 bun run test:e2e
 ```
 
+`typecheck` 会分别检查前端、Node API 和构建/测试配置；不要用根目录的空
+project-reference 配置替代这三个检查。
+
 `test:e2e` 需要本机或 CI 已安装 Playwright 浏览器。部署相关检查按需运行：
 
 ```sh

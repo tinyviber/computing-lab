@@ -26,6 +26,20 @@ import { dashboardRoutes } from "./routes/dashboard.ts";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const distRoot = resolve(here, "../dist");
 
+function normalizeBasePath(value: string | undefined): string {
+  const raw = value?.trim() || "/";
+  if (raw === "/") return "/";
+  return `/${raw.replace(/^\/+|\/+$/g, "")}`;
+}
+
+const basePath = normalizeBasePath(process.env.VITE_BASE_PATH ?? process.env.BASE_PATH);
+
+function stripBasePath(path: string): string {
+  if (basePath === "/") return path;
+  if (path === basePath) return "/";
+  return path.startsWith(`${basePath}/`) ? path.slice(basePath.length) || "/" : path;
+}
+
 export function createApp(db: DatabaseSync) {
   const app = new Hono<{ Variables: AppVariables }>();
 
@@ -49,10 +63,10 @@ export function createServerApp(db: DatabaseSync) {
   const app = createApp(db);
 
   if (existsSync(distRoot)) {
-    app.use("/*", serveStatic({ root: distRoot }));
+    app.use("/*", serveStatic({ root: distRoot, rewriteRequestPath: stripBasePath }));
     // SPA history fallback for extensionless paths.
     app.get("/*", async (c, next) => {
-      const path = new URL(c.req.url).pathname;
+      const path = stripBasePath(new URL(c.req.url).pathname);
       if (path.includes(".")) return next();
       const html = await readFile(resolve(distRoot, "index.html"), "utf8");
       return c.html(html);
