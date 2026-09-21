@@ -718,6 +718,10 @@ const STEP_DEFS: StepDef[] = [
   },
   {
     id: "tip-collapse",
+    // Component folding is introduced by the multiplication/componentization
+    // challenge. A previously created custom component must not leak this tip
+    // into earlier stages such as Full Adder.
+    stage: 7,
     ready: (v) => v.unlockedSubmodules.some((c) => c.custom),
     card: () => ({
       title: "组件是个黑盒",

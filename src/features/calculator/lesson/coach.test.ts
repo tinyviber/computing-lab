@@ -335,10 +335,27 @@ describe("calculator coach", () => {
   });
 
   it("explains collapse the first time a custom component exists", () => {
-    const tour = makeTour(["s1"]);
+    const tour = makeTour(["s1", "s6-partial-products", "s6-componentize"]);
     const custom = { name: "MyGate", graph: scaffoldGraph(1), custom: true };
-    const step = tour.next(lesson({ unlockedSubmodules: [custom] }));
+    const step = tour.next(
+      lesson({ stageIndex: 7, graph: scaffoldGraph(7), unlockedSubmodules: [custom] }),
+    );
     expect(step?.id).toBe("tip-collapse");
+  });
+
+  it("does not leak the collapse tip into the full-adder stage", () => {
+    const tour = makeTour(["s1", "s2-explore"]);
+    const custom = { name: "MyGate", graph: scaffoldGraph(1), custom: true };
+
+    expect(
+      tour.next(
+        lesson({
+          stageIndex: 3,
+          graph: scaffoldGraph(3),
+          unlockedSubmodules: [custom],
+        }),
+      ),
+    ).toBeNull();
   });
 
   it("goes silent once the guide is turned off", () => {
