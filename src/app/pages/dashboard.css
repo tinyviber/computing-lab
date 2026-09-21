@@ -8,13 +8,6 @@
   padding-top: 24px;
 }
 
-.dashboard-switchers {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
 .dashboard-heading {
   display: grid;
   gap: 7px;
@@ -201,18 +194,5 @@
   .dashboard-page {
     padding-right: 16px;
     padding-left: 16px;
-  }
-
-  .dashboard-switchers {
-    width: 100%;
-    justify-content: flex-start;
-  }
-
-  .dashboard-switchers .app-topbar-select {
-    flex: 1 1 150px;
-  }
-
-  .dashboard-switchers select {
-    width: 100%;
   }
 }

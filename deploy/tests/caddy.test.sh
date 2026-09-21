@@ -19,11 +19,9 @@ version="$("$CADDY_BIN" version 2>/dev/null | sed -n 's/^v\([0-9][0-9.]*\).*/\1/
   || fail "Caddy version must be $CADDY_TEST_VERSION, got ${version:-unknown}"
 
 DIST="$TMP/current/dist"
-mkdir -p "$DIST/assets" "$DIST/slides/excel-01/assets"
+mkdir -p "$DIST/assets"
 printf '<!doctype html><script type="module" src="/assets/app.js"></script>\n' >"$DIST/index.html"
 printf 'console.log("fixture")\n' >"$DIST/assets/app.js"
-printf '<!doctype html><meta name="slidev:version" content="fixture">\n' >"$DIST/slides/excel-01/index.html"
-printf 'console.log("slide fixture")\n' >"$DIST/slides/excel-01/assets/app.js"
 
 PORT="$(python3 - <<'PY'
 import socket
@@ -69,7 +67,7 @@ request_status /
 [[ "$HTTP_STATUS" == 200 ]] || fail "root returned $HTTP_STATUS"
 grep -Fq 'assets/app.js' "$BODY_FILE" || fail 'root did not serve index.html'
 
-request_status /labs/image-encoding
+request_status /labs/calculator
 [[ "$HTTP_STATUS" == 200 ]] || fail "SPA deep route returned $HTTP_STATUS"
 grep -Fq 'assets/app.js' "$BODY_FILE" || fail 'SPA deep route did not fall back to index.html'
 
@@ -86,24 +84,4 @@ fi
 request_status /computing-lab/assets/app.js
 [[ "$HTTP_STATUS" == 404 ]] || fail "subpath asset returned $HTTP_STATUS"
 
-request_status /slides/excel-01/
-[[ "$HTTP_STATUS" == 200 ]] || fail "Slidev deck root returned $HTTP_STATUS"
-grep -Fq 'slidev:version' "$BODY_FILE" || fail 'Slidev deck root did not serve its own index.html'
-
-request_status /slides/excel-01/2
-[[ "$HTTP_STATUS" == 200 ]] || fail "Slidev deep route returned $HTTP_STATUS"
-grep -Fq 'slidev:version' "$BODY_FILE" || fail 'Slidev deep route did not fall back to deck index.html'
-
-request_status /slides/excel-01/assets/app.js
-[[ "$HTTP_STATUS" == 200 ]] || fail "Slidev asset returned $HTTP_STATUS"
-grep -Fq 'slide fixture' "$BODY_FILE" || fail 'Slidev asset body was not served'
-
-request_status /slides/excel-01/assets/missing.js
-[[ "$HTTP_STATUS" == 404 ]] || fail "missing Slidev asset returned $HTTP_STATUS"
-if grep -Fq 'slidev:version' "$BODY_FILE"; then
-  fail 'missing Slidev asset was rewritten to deck index.html'
-fi
-
-request_status /slides/unknown/
-[[ "$HTTP_STATUS" == 404 ]] || fail "unknown Slidev deck returned $HTTP_STATUS"
-pass 'Caddy serves root SPA and Slidev fallbacks with static 404 semantics'
+pass 'Caddy serves the root SPA with static 404 semantics'

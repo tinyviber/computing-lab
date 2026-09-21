@@ -4,10 +4,7 @@ import { useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./home.css";
 
-/**
- * The catalog lists a static `/labs/calculator` route, but the lab itself is
- * class-scoped. This forwards a signed-in member to their own class.
- */
+/** The public calculator entry forwards a signed-in member to their own class. */
 export function CalculatorRedirectPage() {
   const { status, primaryMembership } = useAuth();
   const navigate = useNavigate();

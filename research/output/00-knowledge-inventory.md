@@ -1,6 +1,6 @@
 # 教材知识点 → computing-lab 实验覆盖情况 Inventory
 
-> **Historical snapshot — not current architecture authority.** This inventory predates the completed Sound, Home Network, and Image reference implementations. Keep it for curriculum-coverage and candidate provenance only. Its descriptions of the implementation, shared components, and future reset plan are historical; current authority is `docs/architecture.md`, `docs/course-model-reset.md`, and `docs/primitive-extraction-review.md`.
+> **Historical snapshot — not current architecture authority.** This inventory predates the completed Sound, Home Network, and Image reference implementations. Keep it for curriculum-coverage and candidate provenance only. Its descriptions of the implementation, shared components, and future reset plan are historical; current authority is `docs/architecture.md` and `docs/retired-labs.md`.
 
 - 教材：沪科教版《信息技术 必修1：数据与计算》（2022 年 7 月第 1 版；见 `research/source/README.md` 的书目信息）
 - 项目代码：当时的 `computing-lab` 快照（Vite + React + TypeScript + TanStack Router，纯静态本地优先应用）
@@ -50,7 +50,7 @@
 - 技术栈：Vite + React 19 + TypeScript + TanStack Router + Vitest + Playwright，Bun 包管理（React 版本已按 package.json `^19.1.1` 核实）。
 - 路由：`/`（实验注册首页）+ 3 条实验路由；每条路由带独立 `LabErrorPage` 错误边界。
 - 教学模型（AGENTS.md）："Prefer explicit formulas and observable state"——显式公式 + 可观察状态；场景可编码进 URL 便于教师分享复现；用户输入在 domain 边界校验与钳制。
-- ⚠️ 重要背景：`docs/course-model-reset.md` 是**已冻结的迁移设计文档**（代码尚未实施）。它裁定：当前 shared 层的 `phase/step/submit` 等概念是"过早抽象"，三门课没有共同的 lesson workflow；未来将把 `LabShell` 收敛为仅 app chrome + opaque `children`，把 `FormulaPanel/ParameterControl/VisualizationPanel/ExperimentStatus` 降级为 feature-local，并按"声音 → 网络 → 图像"顺序重做。**因此本文 §4 所列"可复用范式"应理解为"当前代码事实"而非"项目认定的长期架构方向"。**
+- ⚠️ 重要背景：本文记录的迁移设计已经被当前清理结果取代。它曾裁定：shared 层的 `phase/step/submit` 等概念是"过早抽象"，三门课没有共同的 lesson workflow；**因此本文 §4 所列"可复用范式"只能理解为历史代码事实，不是当前架构方向**。当前边界见 `docs/architecture.md`，退役实验的 idea 见 `docs/retired-labs.md`。
 
 ### 2.2 三个实验逐一解剖
 
@@ -253,9 +253,9 @@
 5. 配套测试：domain/lesson/ui 各层 Vitest + Playwright e2e（routes.e2e.ts 逐路由用例）
 6. 现有 `LabShell` 插槽与 shared 组件可直接复用，无需改动 shared 层
 
-### 4.4 项目自身对"共享层"的裁决（docs/course-model-reset.md，已冻结）
+### 4.4 项目自身对"共享层"的历史裁决（当前已由 docs/architecture.md 取代）
 
-该文档（417 行，代码尚未实施）是盘点"可复用性"时必须并列的事实：
+该历史文档（代码尚未实施）是盘点"可复用性"时的背景事实：
 
 - **对现状的批评**：`LabShell`、`VisualizationPanel`、`ParameterControl`、`FormulaPanel`、`ExperimentStatus` 及 `ready/editing/success/failure`、`step`、`submit` 等概念先于课程存在，把三门课压成了同一个 inspector dashboard；"三课没有共同的 lesson workflow，没有共同的 phase、step、submit、clock、status、formula、panel 或 action union"。
 - **对每门课的自然模型的描述**（可作为"已有实验帮助理解什么抽象"的对照）：
@@ -298,5 +298,5 @@
 ## 附：事实来源清单
 
 - 教材：沪科教版《信息技术 必修1：数据与计算》（2022 年 7 月第 1 版；见 `research/source/README.md`）
-- 项目文档：README.md、AGENTS.md、docs/architecture.md、docs/design-qa.md、**docs/course-model-reset.md（已冻结迁移设计，全文通读）**、vercel_design.md
+- 项目文档：README.md、AGENTS.md、docs/architecture.md、docs/retired-labs.md、vercel_design.md
 - 代码：`src/app/catalog/{labs,types}.ts`、`src/app/router.tsx`、`src/app/pages/HomePage.tsx`、三个 feature 的 `domain/model.ts`、`lesson/{scenario,state}.ts`、`ui/*Page.tsx`、`src/shared/lab/*`（LabShell、LabNavigationProvider、ParameterControl、VisualizationPanel、FormulaPanel、ExperimentStatus、number.ts）、`src/design/tokens.css`、测试文件（单元与 e2e）

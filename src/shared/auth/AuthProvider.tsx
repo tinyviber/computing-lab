@@ -13,9 +13,7 @@ import { api } from "../api/client";
 export type AccountRole = "admin" | "teacher" | "user";
 
 /** Per-class membership role, assigned by an admin when provisioning accounts. */
-export type LabRole = "student" | "teacher";
-
-export type Membership = { classId: string; className: string; role: LabRole };
+export type Membership = { classId: string; className: string; role: "student" | "teacher" };
 
 export type AuthUser = { id: string; studentNo: string; name: string; role: AccountRole };
 
@@ -39,10 +37,6 @@ export type AuthContextValue = AuthState & {
 
 export function isStaffRole(role: AccountRole | null | undefined): boolean {
   return role === "teacher" || role === "admin";
-}
-
-export function isAdminRole(role: AccountRole | null | undefined): boolean {
-  return role === "admin";
 }
 
 export const ROLE_LABELS: Record<AccountRole, string> = {

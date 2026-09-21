@@ -1,6 +1,8 @@
 import { defineConfig } from "@playwright/test";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const port = 4175;
+const port = 8788;
 
 function normalizeBasePath(value: string | undefined): string {
   const raw = value?.trim() || "/";
@@ -22,8 +24,14 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: `bun run scripts/serve-preview.mjs`,
-    url: `http://127.0.0.1:${port}${basePath}/`,
+    command: "node server/db/seed.ts && node server/index.ts",
+    url: `http://127.0.0.1:${port}/api/health`,
+    env: {
+      ...process.env,
+      LAB_HOST: "127.0.0.1",
+      LAB_PORT: String(port),
+      LAB_DB_PATH: join(tmpdir(), `computing-lab-e2e-${process.pid}.db`),
+    },
     reuseExistingServer: false,
     timeout: 30_000,
   },

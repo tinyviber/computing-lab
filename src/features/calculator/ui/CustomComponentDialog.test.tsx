@@ -28,7 +28,7 @@ describe("CustomComponentDialog editing", () => {
 
     const dataTransfer = { effectAllowed: "", setData: vi.fn() };
     const firstRow = screen.getByLabelText("拖动入口 1").parentElement;
-    expect(firstRow).not.toBeNull();
+    if (!firstRow) throw new Error("first drag row not found");
     fireEvent.dragStart(screen.getByLabelText("拖动入口 2"), { dataTransfer });
     fireEvent.drop(firstRow, { dataTransfer });
     fireEvent.click(screen.getByRole("button", { name: "保存修改" }));

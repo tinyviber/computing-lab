@@ -1,9 +1,8 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
-import { isAdminRole, isStaffRole, useAuth } from "../../shared/auth";
+import { isStaffRole, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
-import { enabledLabs, experimentalLabs } from "../catalog/labs";
 import { coreStages } from "../../features/calculator";
 import "./home.css";
 
@@ -59,7 +58,6 @@ function ClassroomHome() {
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
-  const isAdmin = isAdminRole(role);
 
   useEffect(() => {
     if (!classId || isStaff) return;
@@ -69,19 +67,8 @@ function ClassroomHome() {
       .catch(() => setProject(null));
   }, [classId, isStaff]);
 
-  const experimental = experimentalLabs();
-
   return (
-    <AppPageLayout
-      className="home-page"
-      topbarProps={{
-        nav: isAdmin ? (
-          <nav aria-label="主导航" className="home-nav">
-            <Link to="/editor">课件编辑</Link>
-          </nav>
-        ) : undefined,
-      }}
-    >
+    <AppPageLayout className="home-page">
       <main>
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -92,7 +79,7 @@ function ClassroomHome() {
           </div>
         </section>
 
-        <section className="catalog-section" aria-labelledby="current-title">
+        <section className="current-lab-section" aria-labelledby="current-title">
           <div className="section-heading">
             <div>
               <p className="eyebrow">正在进行</p>
@@ -101,25 +88,19 @@ function ClassroomHome() {
           </div>
 
           <div className="lab-card-grid">
-            {enabledLabs().map((lab) => (
-              <article className="lab-card is-primary" key={lab.id}>
-                <div className="lab-card-topline">
-                  <span className="category-label">Lab 01</span>
-                </div>
-                <h4>{lab.title}</h4>
-                <p>{lab.description}</p>
-                {!isStaff && project && lab.id === "calculator" ? (
-                  <StageProgress currentStage={project.currentStage} />
-                ) : null}
-                {classId ? (
-                  <Link className="button button-primary" to={lab.route}>
-                    {lab.id === "calculator" && project && project.currentStage > 1
-                      ? "继续"
-                      : "开始"}
-                  </Link>
-                ) : null}
-              </article>
-            ))}
+            <article className="lab-card is-primary">
+              <div className="lab-card-topline">
+                <span className="category-label">Lab 01</span>
+              </div>
+              <h4>实现ALU</h4>
+              <p>从半加器到完整计算器：用逻辑门逐关搭出运算电路。</p>
+              {!isStaff && project ? <StageProgress currentStage={project.currentStage} /> : null}
+              {classId ? (
+                <Link className="button button-primary" to="/labs/calculator">
+                  {project && project.currentStage > 1 ? "继续" : "开始"}
+                </Link>
+              ) : null}
+            </article>
 
             {isStaff && classId ? (
               <article className="lab-card">
@@ -152,29 +133,6 @@ function ClassroomHome() {
             ) : null}
           </div>
         </section>
-
-        {isAdmin && experimental.length > 0 ? (
-          <section className="catalog-section" aria-labelledby="experimental-title">
-            <div className="section-heading">
-              <div>
-                <p className="eyebrow">仅管理员可见</p>
-                <h2 id="experimental-title">未开放的实验</h2>
-              </div>
-              <span className="summary-note">{experimental.length} 个</span>
-            </div>
-            <div className="lab-card-grid">
-              {experimental.map((lab) => (
-                <Link className="lab-card is-muted" key={lab.id} to={lab.route}>
-                  <div className="lab-card-topline">
-                    <span className="category-label">未开放</span>
-                  </div>
-                  <h4>{lab.title}</h4>
-                  <p>{lab.description}</p>
-                </Link>
-              ))}
-            </div>
-          </section>
-        ) : null}
       </main>
     </AppPageLayout>
   );

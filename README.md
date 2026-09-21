@@ -1,100 +1,58 @@
 # computing-lab
 
-校内信息技术实验运行时。Vite + React SPA 加一个极简 Node API（认证 / 草稿 / 判题 / 看板）。
-仓库还包含一个在线课程编辑器服务，用于在浏览器里直接编辑 Slidev 课程源文件。
+校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API，当前只提供
+「实现ALU」（`calculator`）这一堂可运行的实验。
 
 ## 本地开发
 
 ```sh
-bun install
-node server/db/seed.ts   # 建一个班级 + 教师账号（见 .env.example）
-node server/index.ts     # API 服务 :8788（也会服务构建出的 dist/）
-bun run dev              # Vite 开发服 :5173，/api 代理到 :8788
+bun install --frozen-lockfile
+node server/db/seed.ts
+node server/index.ts
+bun run dev
 ```
 
-默认种子：班级 `2026-高一信息技术-01`，邀请码 `CLASS26`；管理员学号 `admin`，
-密码 `admin-dev-password`（`LAB_ADMIN_PASSWORD` 覆盖）；教师学号 `teacher`，
-密码 `teacher-dev-password`（用 `LAB_TEACHER_PASSWORD` 覆盖）。
+默认种子会创建班级 `2026-高一信息技术-01`、邀请码 `CLASS26`、管理员账号
+`admin` 和教师账号 `teacher`。密码可分别用 `LAB_ADMIN_PASSWORD`、
+`LAB_TEACHER_PASSWORD` 覆盖。
 
-角色分三级：`admin`（管理员）拥有全部教师权限，并在 `/admin` 管理账号与班级；
-`teacher` 可查看所教班级的看板和未开放实验；`user` 是学生。自助注册已关闭，
-账号只能由管理员在 `/admin` 单个创建或批量导入（CSV 或 JSON，格式
-`学号,姓名,密码[,角色][,班级邀请码]`）。
+学生流程是：管理员创建账号并分配班级 → `/login` 登录 → 首页进入
+`/classes/:classId/labs/calculator` → 用逻辑门连接电路 → 运行公开测试 → 提交，
+由服务端隐藏用例判定并解锁后续关卡。教师和管理员可在
+`/classes/:classId/dashboard` 查看班级进度，管理员可在 `/admin` 管理账号与班级。
 
-学生流程：管理员导入账号并把学生分配进班级 → `/login` 登录 → 首页进入
-`/classes/:classId/labs/calculator` → 画布连线 → 公开测试 → 提交（服务端隐藏
-用例判定，全过才解锁下一关并把成果封装成可复用组件）。教师入口
-`/classes/:classId/dashboard`。
-
-图像编码实验（`图像编码` / “AI 修复老照片”）：`/classes/:classId/labs/image-encoding`
-按 `stage=1..5` 组织——约定表编码、预算内保存、many-to-one 信息损失三个核心关
-由服务端复核；AI 修复与抓幻觉为选做挑战。Challenge 1 已展示
-`public/labs/image-encoding/restored/` 下预生成的 Real-ESRGAN 输出
-（生成管线见 `scripts/restoration/`）；Challenge 2 在双人复核幻觉热点前
-保持占位（`HALLUCINATION_CASES` 为空）。匿名访客仍可在
-`/labs/image-encoding` 本地体验，离线无 API 依赖。
-
-## Online lesson editor
-
-Open `/editor` through the editor service. It provides a browser workspace
-with a Markdown/code editor on the left and a real Slidev hot-reload preview on the right. Saving
-a file writes it directly to `lessons/<lesson>/`, so there is no GitHub/Gitee promotion step in
-the editing loop. Access is limited to accounts with the `admin` role: the service verifies the
-lab's `lab_session` cookie against the SQLite account database (`LAB_DB_PATH`, default
-`data/lab.db`).
-
-For local development, run:
-
-```sh
-bun run editor:dev
-```
-
-Then open <http://localhost:8787/editor>. `editor:dev` starts the React/Vite app, the editor API,
-and Slidev preview processes as needed. In a server checkout that already has a built `dist/`,
-run `bun run editor:start` instead.
-
-`EDITOR_ROOT` can point the service at another checkout, and `EDITOR_PORT` changes the editor
-HTTP port. Source files with `.md`, `.vue`, `.css`, `.js`, `.ts`, `.tsx`, `.json`, or `.html`
-extensions are editable; image assets are listed as read-only.
+旧实验和 Slidev 在线课件已经从运行时、构建链路和测试中移除；它们的教学 idea 集中
+记录在 [docs/retired-labs.md](docs/retired-labs.md)。
 
 ## 质量门槛
 
 ```sh
 bun run format:check
 bun run lint
-bun run typecheck          # 注：根 tsconfig 是 references-only，历史上是空转
-bun run typecheck:app      # 前端真实类型检查（存量代码尚有遗留错误）
-bun run typecheck:server   # server/ 与共享 domain 的真实类型检查
+bun run typecheck
 bun run test:run
+bun run build
 bun run test:e2e
-bun run build              # build:slides 需 Node ≥22（本机 bun 旧版跑不动 slidev）
+```
+
+`typecheck` 会分别检查前端、Node API 和构建/测试配置；不要用根目录的空
+project-reference 配置替代这三个检查。
+
+`test:e2e` 需要本机或 CI 已安装 Playwright 浏览器。部署相关检查按需运行：
+
+```sh
+bun run test:deploy
+bun run test:caddy
 ```
 
 ## 架构边界
 
-- `src/app` 路由与 catalog；`src/features/<lab>/{domain,lesson,ui}` 分层；
-  `src/shared/{lab,auth,api}` 跨特性原语。`architecture-boundaries.test.ts` 强制约束。
-- `server/` 是 Node ≥22.13 单进程：Hono + `node:sqlite`，`data/lab.db` 单文件库。
-  判题器复用 `src/features/calculator/domain` 的纯求值器；隐藏用例只在 `server/`。
-- `server/editor-server.mjs` 是独立的在线编辑器服务（见上节），与实验 API 互不依赖。
-- 旧实验通过 `src/app/catalog/labs.ts` 的 `enabled` 标志隐藏而非删除；
-  教师或 `?showExperimentalLabs=1` 仍可访问。
+- `src/app` 只负责路由和页面编排；calculator 的课程语义在
+  `src/features/calculator/{domain,lesson,ui}` 内闭合。
+- `server/` 是 Node ≥22.13 单进程，负责认证、草稿、判题和班级看板；隐藏用例只在
+  `server/`，纯电路求值器由前端与服务端共享。
+- `src/shared/{auth,api,layout}` 只保留认证、请求和应用顶栏等仍有真实消费者的基础设施。
+- 数据库中的旧 `lab_id` 记录不会被迁移脚本主动删除；它们已没有对应路由或服务端处理器，
+  不影响当前 calculator 流程。
 
-## 部署（暂沿静态管线，待接入 API 进程）
-
-现状：GitHub `main` → CI 镜像 Gitee → 服务器 pull + reconcile → Caddy 静态托管 `dist/`。
-见 [docs/deployment.md](docs/deployment.md)。接实验 API 时需新增：`node server/index.ts`
-的 systemd unit + Caddy `reverse_proxy /api/*` → `127.0.0.1:8788`（同进程已能直接
-服务 dist，也可去掉静态托管）。
-
-The online editor is a separate long-running service: place a reverse proxy in front of its
-`EDITOR_PORT`, enable WebSocket upgrades for Slidev HMR, and point `LAB_DB_PATH` at the account
-database so admin sessions resolve. It
-writes the configured `EDITOR_ROOT/lessons` checkout directly and therefore does not use the
-static promotion loop.
-
-Run deterministic deployment checks with:
-
-```sh
-bun run test:deploy
-```
+部署说明见 [docs/deployment.md](docs/deployment.md)。
