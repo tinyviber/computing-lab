@@ -1,0 +1,556 @@
+/* Color-quantization lab — feature-local styles (all quant-* prefixed). */
+
+.quant-layout {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 240px minmax(0, 1fr);
+  padding: 0 24px 48px;
+}
+
+.quant-rail {
+  border-right: 1px solid #e2e8f0;
+  padding-right: 16px;
+}
+
+.quant-rail ol {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quant-stage-link {
+  align-items: center;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.quant-stage-link.is-active {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.quant-stage-link.is-passed .quant-stage-mark {
+  color: #15803d;
+}
+
+.quant-stage-link:disabled {
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.quant-stage-titles {
+  display: flex;
+  flex-direction: column;
+}
+
+.quant-stage-titles > span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.quant-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 960px;
+}
+
+.quant-canvas {
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  display: block;
+}
+
+.quant-explorer,
+.quant-guided,
+.quant-panel,
+.quant-result,
+.quant-brief {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 16px 20px;
+}
+
+.quant-details {
+  font-size: 13px;
+}
+
+.quant-details summary {
+  color: #4338ca;
+  cursor: pointer;
+}
+
+/* ---- swatches ------------------------------------------------------- */
+
+.quant-swatch {
+  align-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: 4px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 10px;
+  font-weight: 700;
+  height: 22px;
+  justify-content: center;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+  width: 22px;
+}
+
+.quant-swatch.is-source {
+  border-radius: 6px;
+  height: 30px;
+  width: 30px;
+}
+
+/* ---- toner rack ------------------------------------------------------ */
+
+.quant-rack-block {
+  margin: 8px 0 16px;
+}
+
+.quant-rack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.quant-toner {
+  align-items: center;
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 2px;
+  padding: 6px;
+}
+
+.quant-toner.is-active {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 2px #6366f1;
+}
+
+.quant-toner-name {
+  color: #475569;
+}
+
+.quant-slot-note {
+  color: #475569;
+  font-size: 13px;
+  margin: 8px 0;
+}
+
+.quant-slot-note.is-over {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.quant-probes {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.quant-probe {
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: 999px;
+  color: #3730a3;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+/* ---- explorer columns ------------------------------------------------ */
+
+.quant-columns {
+  display: grid;
+  gap: 24px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+}
+
+.quant-member-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quant-member {
+  align-items: center;
+  background: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  gap: 2px;
+  padding: 4px;
+}
+
+.quant-member.is-active {
+  border-color: #6366f1;
+  box-shadow: 0 0 0 1px #6366f1;
+}
+
+.quant-member.is-collided {
+  border-color: #f59e0b;
+}
+
+.quant-verdict-line {
+  font-size: 14px;
+  margin: 6px 0;
+}
+
+.quant-verdict-line.is-ok {
+  color: #15803d;
+}
+
+.quant-collisions {
+  background: #fef3c7;
+  border: 1px solid #f59e0b55;
+  border-radius: 8px;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.quant-collisions ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.quant-clear {
+  color: #15803d;
+  font-size: 13px;
+}
+
+.quant-preview-pair,
+.quant-triptych {
+  align-items: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.quant-preview-pair figure,
+.quant-triptych figure {
+  margin: 0;
+  text-align: center;
+}
+
+.quant-preview-pair figcaption,
+.quant-triptych figcaption {
+  color: #64748b;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.quant-arrow {
+  align-self: center;
+  color: #94a3b8;
+  font-size: 22px;
+}
+
+/* ---- mapping table (free mode) --------------------------------------- */
+
+.quant-map-table {
+  border-collapse: collapse;
+  font-size: 13px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.quant-map-table th,
+.quant-map-table td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 3px 8px;
+  text-align: left;
+}
+
+.quant-map-table caption {
+  caption-side: top;
+  color: #64748b;
+  font-size: 12px;
+  padding-bottom: 4px;
+  text-align: left;
+}
+
+.quant-map-table tr.is-overridden {
+  background: #fffbeb;
+}
+
+.quant-map-target {
+  align-items: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  gap: 6px;
+  padding: 0;
+}
+
+/* ---- guided task ----------------------------------------------------- */
+
+.quant-color-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 12px 0;
+}
+
+.quant-color-card {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.quant-color-card figcaption {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.quant-guess-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: center;
+  max-width: 150px;
+}
+
+.quant-mini-swatch {
+  align-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.25);
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+  display: inline-flex;
+  font-size: 9px;
+  font-weight: 700;
+  height: 20px;
+  justify-content: center;
+  padding: 0;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.6);
+  width: 20px;
+}
+
+.quant-mini-swatch.is-active {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+.quant-guess-verdict {
+  font-size: 12px;
+}
+
+.quant-guess-verdict.is-ok {
+  color: #15803d;
+}
+
+.quant-guess-verdict.is-bad {
+  color: #b91c1c;
+}
+
+.quant-map-outcome {
+  align-items: center;
+  display: inline-flex;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.quant-map-outcome.is-ok .quant-swatch {
+  box-shadow: 0 0 0 2px #22c55e;
+}
+
+.quant-map-outcome.is-bad .quant-swatch {
+  box-shadow: 0 0 0 2px #ef4444;
+}
+
+/* ---- code editor / blanks -------------------------------------------- */
+
+.quant-editor {
+  border: 1px solid #334155;
+  border-radius: 8px;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+.quant-editor .cm-editor {
+  background: #0f172a;
+}
+
+.quant-editor .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  line-height: 1.5;
+}
+
+.quant-helper-note {
+  color: #475569;
+  font-size: 13px;
+}
+
+.quant-code-fill {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.quant-code-fill pre {
+  color: #e2e8f0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  margin: 0;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.quant-blank {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #64748b;
+  color: #fbbf24;
+  font: inherit;
+  padding: 0 2px;
+}
+
+.quant-blank:focus {
+  border-bottom-color: #fbbf24;
+  outline: none;
+}
+
+.quant-blank::placeholder {
+  color: #64748b;
+}
+
+/* ---- actions / verdict ----------------------------------------------- */
+
+.quant-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  margin: 10px 0;
+}
+
+.quant-badge {
+  border-radius: 999px;
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+.quant-badge.is-pass {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.quant-badge.is-fail {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.quant-error {
+  background: #450a0a;
+  border-radius: 8px;
+  color: #fecaca;
+  font-size: 12px;
+  overflow-x: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+}
+
+.quant-result.is-passed {
+  border-color: #86efac;
+}
+
+.quant-result.is-failed {
+  border-color: #fca5a5;
+}
+
+.quant-verdict-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+  margin: 8px 0;
+}
+
+.quant-verdict-stats dt {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.quant-verdict-stats dd {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.quant-verdict-stats dd.is-over {
+  color: #b91c1c;
+}
+
+.quant-verdict-sub {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.quant-takeaway {
+  background: #f0fdf4;
+  border: 1px solid #86efac66;
+  border-radius: 8px;
+  font-size: 13px;
+  padding: 10px 12px;
+}
+
+.quant-counterexample-lede {
+  font-size: 14px;
+}
+
+.quant-collisions-line {
+  color: #92400e;
+  font-size: 13px;
+}
+
+.quant-submit-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+
+.quant-submit-note {
+  color: #64748b;
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .quant-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .quant-rail {
+    border-right: none;
+  }
+
+  .quant-columns {
+    grid-template-columns: 1fr;
+  }
+}

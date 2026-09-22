@@ -14,6 +14,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
+import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
@@ -93,9 +94,26 @@ const imageSamplingLabRoute = createRoute({
   path: "/classes/$classId/labs/image-sampling",
   validateSearch: passThroughSearch,
   // Lazy: keeps the CodeMirror editor + lab UI out of the main bundle.
+  component: lazyRouteComponent(() => import("../features/image-sampling"), "ImageSamplingLabPage"),
+  errorComponent: LabErrorPage,
+});
+
+/** Admin preview: the page itself turns teachers away. */
+const colorQuantizationEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/color-quantization",
+  component: ColorQuantizationRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const colorQuantizationLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/color-quantization",
+  validateSearch: passThroughSearch,
+  // Lazy: keeps the CodeMirror editor + lab UI out of the main bundle.
   component: lazyRouteComponent(
-    () => import("../features/image-sampling"),
-    "ImageSamplingLabPage",
+    () => import("../features/color-quantization"),
+    "ColorQuantizationLabPage",
   ),
   errorComponent: LabErrorPage,
 });
@@ -117,6 +135,8 @@ const routeTree = rootRoute.addChildren([
   calculatorLabRoute,
   imageSamplingEntryRoute,
   imageSamplingLabRoute,
+  colorQuantizationEntryRoute,
+  colorQuantizationLabRoute,
   dashboardRoute,
 ]);
 

@@ -137,6 +137,23 @@ function ClassroomHome() {
             {role === "admin" ? (
               <article className="lab-card">
                 <div className="lab-card-topline">
+                  <span className="category-label">Lab 03 · 预览</span>
+                </div>
+                <h4>颜色量化与墨粉</h4>
+                <p>
+                  打印机只有几种粉：选装哪些墨粉、或改写映射规则，让整组机器人印出来仍然分得开。
+                </p>
+                {classId ? (
+                  <Link className="button button-secondary" to="/labs/color-quantization">
+                    打开预览
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
+
+            {role === "admin" ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
                   <span className="category-label">管理</span>
                 </div>
                 <h4>账号与班级管理</h4>

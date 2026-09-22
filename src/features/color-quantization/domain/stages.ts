@@ -1,0 +1,180 @@
+/**
+ * Stage contracts for the color-quantization lab.
+ *
+ * The printer can hold only a few toner cartridges; the rack has eight. A
+ * submission is judged by printing the whole gallery (public + hidden
+ * members) through the student's choice and checking that every print stays
+ * unique. Two modes:
+ *
+ *   "pick": choose which toners to load (<= tonerSlots). The printer maps
+ *           each source color to its nearest loaded toner — fixed rule.
+ *   "free": the loadout is fixed; submit a mapping table that may differ
+ *           from the printer's default nearest-toner table in at most
+ *           overrideBudget entries.
+ *
+ * Both budgets are hard caps shown in the UI; only the hidden gallery seeds
+ * are private. Thresholds come from scripts/calibrate-quantization.ts.
+ */
+
+import type { CategoryId } from "./sprites.ts";
+
+export type QuantMode = "pick" | "free";
+
+export type QuantStageDef = {
+  index: number;
+  id: string;
+  title: string;
+  englishTitle: string;
+  category: CategoryId;
+  mode: QuantMode;
+  /** Fraction of the gallery that must stay uniquely identifiable (0–1). */
+  requiredAccuracy: number;
+  /** pick mode: max number of toner cartridges that may be loaded. */
+  tonerSlots: number | null;
+  /** free mode: the fixed set of loaded toner indices. */
+  fixedLoadout: number[] | null;
+  /** free mode: max entries differing from the default nearest-toner table. */
+  overrideBudget: number | null;
+  /** Stage 1 shows the guided nearest_toner coding exercise first. */
+  guided: boolean;
+  description: string;
+  hint: string;
+  /** One-line concept recap shown when the stage passes. */
+  takeaway: string;
+  /**
+   * pick mode: one-click loadouts in the explorer — pedagogically chosen to
+   * surface failure modes (naive picks, trap toners), never the answer.
+   */
+  probes: { label: string; toners: number[] }[];
+};
+
+export const COLOR_QUANT_STAGES: QuantStageDef[] = [
+  {
+    index: 1,
+    id: "first-print",
+    title: "一种颜色去哪",
+    englishTitle: "Where a Color Goes",
+    category: "cadet",
+    mode: "pick",
+    requiredAccuracy: 1,
+    tonerSlots: 8,
+    fixedLoadout: null,
+    overrideBudget: null,
+    guided: true,
+    description:
+      "这台墨粉打印机有 8 个粉槽，粉架上正好 8 种粉。先弄懂打印机的映射规则——每种原色落到最近的粉上——再把粉装满，看打印结果。",
+    hint: "先完成上面的映射实验理解最近色规则，再把 8 种粉全部装上提交。",
+    takeaway:
+      "量化把许多颜色压进少数几个槽位：每种源色落到最近的墨粉。两个不同的源色如果落到同一种粉，打印出来就再也分不开。",
+    probes: [{ label: "装满 8 种粉", toners: [0, 1, 2, 3, 4, 5, 6, 7] }],
+  },
+  {
+    index: 2,
+    id: "four-slots",
+    title: "只有四个粉槽",
+    englishTitle: "Four Slots",
+    category: "patrol",
+    mode: "pick",
+    requiredAccuracy: 1,
+    tonerSlots: 4,
+    fixedLoadout: null,
+    overrideBudget: null,
+    guided: false,
+    description:
+      "巡逻机器人小队只靠配色区分。打印机只能装 4 种粉——装上哪 4 种，决定了哪些颜色差异能活下来。",
+    hint: "直觉的“红黄蓝黑”并不好用：看看每个部件上实际出现过哪些颜色，哪些颜色对必须分开。",
+    takeaway: "选哪些粉等于选保住哪些差异：槽位不够时，要拆开的颜色对决定了必须装的粉。",
+    probes: [
+      { label: "三原色+黑", toners: [0, 1, 3, 6] },
+      { label: "印刷四色", toners: [0, 3, 5, 7] },
+      { label: "暖色系", toners: [0, 1, 2, 3] },
+    ],
+  },
+  {
+    index: 3,
+    id: "cant-fit-all",
+    title: "装不下所有粉",
+    englishTitle: "Cannot Fit Them All",
+    category: "cargo",
+    mode: "pick",
+    requiredAccuracy: 0.75,
+    tonerSlots: 4,
+    fixedLoadout: null,
+    overrideBudget: null,
+    guided: false,
+    description:
+      "货运机器人的配色分散在整个色环上——4 个粉槽无论如何都保不住全部差异。目标不是满分，而是选清楚牺牲哪几对。",
+    hint: "找出哪一对成员的区分最“贵”（需要两种冷门粉同时在线），考虑放弃它去保全其余。",
+    takeaway: "编码预算不够时，问题从“怎么保住一切”变成“放弃哪一部分损失最小”——牺牲是可以选择的。",
+    probes: [
+      { label: "三原色+黑", toners: [0, 1, 3, 6] },
+      { label: "暖色系", toners: [0, 1, 2, 3] },
+      { label: "印刷四色", toners: [0, 3, 5, 7] },
+    ],
+  },
+  {
+    index: 4,
+    id: "magenta-trap",
+    title: "多装一种反而更糟",
+    englishTitle: "The Magenta Trap",
+    category: "recon",
+    mode: "pick",
+    requiredAccuracy: 1,
+    tonerSlots: 4,
+    fixedLoadout: null,
+    overrideBudget: null,
+    guided: false,
+    description:
+      "侦察机器人的耳部配色只有紫罗兰和酒红两种。粉架上的洋红看起来是为它们准备的——但装上它，两种颜色都会落进洋红里。",
+    hint: "不装洋红时，紫罗兰只能去蓝色、酒红只能去红色——反而被分开了。有些粉是诱饵。",
+    takeaway:
+      "更多的粉不总是更好：一个新粉可能把原本被迫分开的颜色重新合并。量化看的是结果是否可区分，不是颜色是否“更接近”。",
+    probes: [
+      { label: "装上洋红", toners: [0, 1, 6, 7] },
+      { label: "洋红+冷色", toners: [3, 5, 6, 7] },
+      { label: "洋红+暖色", toners: [1, 2, 4, 7] },
+    ],
+  },
+  {
+    index: 5,
+    id: "beyond-nearest",
+    title: "超越最近色",
+    englishTitle: "Beyond Nearest",
+    category: "cargo",
+    mode: "free",
+    requiredAccuracy: 1,
+    tonerSlots: null,
+    fixedLoadout: [1, 2, 4, 6],
+    overrideBudget: 4,
+    guided: false,
+    description:
+      "还是货运机器人，但这台打印机的粉盒焊死了：红、橙、绿、蓝。默认按最近色映射只有三成能认出——你可以改写映射表，但最多只能改 4 条。",
+    hint: "先跑一遍看默认映射把谁撞在一起，再挑最少的改动拆开它们——有时候把一个颜色“发配”到不最近的粉反而救了全局。",
+    takeaway:
+      "最接近的颜色不一定是正确的选择：映射规则服务于任务。当“像不像”和“分不分得开”冲突时，保真度由任务定义。",
+    probes: [],
+  },
+];
+
+export function getQuantStage(index: number): QuantStageDef | undefined {
+  return COLOR_QUANT_STAGES.find((s) => s.index === index);
+}
+
+export function quantStageCount(): number {
+  return COLOR_QUANT_STAGES.length;
+}
+
+/** Stages unlock in order: stage 1 is open, each later stage needs the previous pass. */
+export function quantStageUnlocked(passedStages: readonly number[], index: number): boolean {
+  const stage = getQuantStage(index);
+  if (!stage) return false;
+  return index === 1 || passedStages.includes(index - 1);
+}
+
+/** Next stage to work on: first unpassed index, capped past the last stage. */
+export function nextQuantStage(passedStages: readonly number[]): number {
+  for (const stage of COLOR_QUANT_STAGES) {
+    if (!passedStages.includes(stage.index)) return stage.index;
+  }
+  return COLOR_QUANT_STAGES.length;
+}
