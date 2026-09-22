@@ -228,16 +228,24 @@
 }
 
 .code-editor {
-  background: #0f172a;
   border: 1px solid #334155;
   border-radius: 8px;
-  color: #e2e8f0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
+  overflow: hidden;
+}
+
+.code-editor .cm-editor {
+  background: #0f172a;
+}
+
+.code-editor .cm-scroller {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   line-height: 1.5;
-  padding: 12px;
-  tab-size: 4;
-  width: 100%;
+}
+
+.helper-note {
+  color: #475569;
+  font-size: 13px;
 }
 
 .guided-actions {

@@ -5,9 +5,18 @@
  * constant. Its return value fills the (width, height) draft; the
  * submission itself is still just the two numbers, so the server never
  * executes code.
+ *
+ * Earlier-stage functions stay callable: the student's own cell_value
+ * from stage 1 is injected, and a reference downsample(image, w, h) is
+ * always available — it calls whatever cell_value is defined.
  */
 
 import { useMemo, useState } from "react";
+import CodeMirror from "@uiw/react-codemirror";
+import { python } from "@codemirror/lang-python";
+import { indentUnit } from "@codemirror/language";
+import { keymap } from "@codemirror/view";
+import { indentWithTab } from "@codemirror/commands";
 import { imageToLists } from "../domain/bitmap.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
@@ -16,28 +25,37 @@ import { runChooseSize } from "./pyodideRunner.ts";
 const STARTER = (stage: SamplingStageDef) =>
   stage.mode === "square"
     ? `def choose_size(images):
-    # images: 这一类所有图片的列表, 每张是 64×64 的二维列表
+    # images: 这一类所有图片, 每张是 64×64 的二维列表
     #   images[0][y][x] -> 0 (背景) 或 1 (图形)
+    # 还可以直接调用:
+    #   cell_value(region)      —— 你在第 1 关写的判定规则
+    #   downsample(image, w, h) —— 把一张图缩成 w×h 的 0/1 列表
     # 任务: 分析这些图, 算出一个 n, 让它们缩到 n×n 后仍能区分开
-    # 提示: 图与图的差异出现在多小的尺度上?
     return 16
 `
     : `def choose_size(images):
-    # images: 这一类所有图片的列表, 每张是 64×64 的二维列表
+    # images: 这一类所有图片, 每张是 64×64 的二维列表
     #   images[0][y][x] -> 0 (背景) 或 1 (图形)
+    # 还可以直接调用:
+    #   cell_value(region)      —— 你在第 1 关写的判定规则
+    #   downsample(image, w, h) —— 把一张图缩成 w×h 的 0/1 列表
     # 任务: 分析这些图, 算出 (宽, 高) —— 两者可以不同
-    # 提示: 这一类图的差异主要发生在水平方向还是垂直方向?
     return (16, 16)
 `;
+
+const EDITOR_EXTENSIONS = [python(), indentUnit.of("    "), keymap.of([indentWithTab])];
 
 export function ChooseSizePanel({
   stage,
   code,
+  helperCode,
   onCodeChange,
   onResolution,
 }: {
   stage: SamplingStageDef;
   code: string;
+  /** The student's stage-1 cell_value source; injected before each run. */
+  helperCode: string;
   onCodeChange: (code: string) => void;
   onResolution: (width: number, height: number) => void;
 }) {
@@ -56,7 +74,7 @@ export function ChooseSizePanel({
     setError(null);
     setApplied(null);
     try {
-      const result = await runChooseSize(source, images);
+      const result = await runChooseSize(source, images, helperCode);
       // `return 16` → scalar; `return (w, h)` → array. A lone n means n×n.
       const values = Array.isArray(result) ? result : [result];
       const [rw, rh] =
@@ -71,6 +89,9 @@ export function ChooseSizePanel({
       }
       if (stage.mode === "square" && rw !== rh) {
         throw new Error("这一关要求正方形分辨率：宽和高必须相同。");
+      }
+      if (stage.mode === "tall" && rh <= rw) {
+        throw new Error("这一关要求高度大于宽度（高 > 宽）。");
       }
       onResolution(rw, rh);
       setApplied(`choose_size(images) → ${rw} × ${rh}`);
@@ -89,12 +110,24 @@ export function ChooseSizePanel({
         张图（每张 64×64 的 0/1 列表），由你的代码算出分辨率并填入上方—— 注意它对整个 category
         只返回一个尺寸。
       </p>
-      <textarea
+      <p className="helper-note">
+        前面关卡写的函数可以直接用：<code>cell_value(region)</code>（第 1 关你的判定规则）和{" "}
+        <code>downsample(image, w, h)</code>（内部就是逐格调用 cell_value）。
+      </p>
+      <CodeMirror
         aria-label="choose_size 代码"
+        basicSetup={{
+          lineNumbers: false,
+          foldGutter: false,
+          highlightActiveLine: false,
+          highlightActiveLineGutter: false,
+          autocompletion: false,
+        }}
         className="code-editor"
-        onChange={(event) => onCodeChange(event.target.value)}
-        rows={7}
-        spellCheck={false}
+        extensions={EDITOR_EXTENSIONS}
+        height="200px"
+        onChange={(value) => onCodeChange(value)}
+        theme="dark"
         value={source}
       />
       <div className="guided-actions">

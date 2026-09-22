@@ -82,12 +82,14 @@ export async function runCellValue(
 
 /**
  * Run choose_size(images) — images is the public gallery as 0/1 nested lists.
- * Returns the raw pair (validated by the caller).
+ * `helpers` is the student's earlier-stage code (their cell_value), injected
+ * so later stages can call it. Returns the raw pair (validated by the caller).
  */
 export async function runChooseSize(
   code: string,
   images: number[][][],
+  helpers?: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<unknown[]> {
-  return run({ kind: "size", code, images }, timeoutMs);
+  return run({ kind: "size", code, images, helpers }, timeoutMs);
 }

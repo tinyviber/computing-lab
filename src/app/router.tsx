@@ -4,10 +4,10 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
   type RouterHistory,
 } from "@tanstack/react-router";
 import { CalculatorLabPage } from "../features/calculator";
-import { ImageSamplingLabPage } from "../features/image-sampling";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
 import { LoginPage } from "./pages/LoginPage";
@@ -92,7 +92,11 @@ const imageSamplingLabRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/labs/image-sampling",
   validateSearch: passThroughSearch,
-  component: ImageSamplingLabPage,
+  // Lazy: keeps the CodeMirror editor + lab UI out of the main bundle.
+  component: lazyRouteComponent(
+    () => import("../features/image-sampling"),
+    "ImageSamplingLabPage",
+  ),
   errorComponent: LabErrorPage,
 });
 

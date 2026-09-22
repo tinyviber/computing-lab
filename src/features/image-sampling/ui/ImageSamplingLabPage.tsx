@@ -316,6 +316,7 @@ export function ImageSamplingLabPage() {
               {!stage.guided ? (
                 <ChooseSizePanel
                   code={draft.code}
+                  helperCode={draftOf(state, 1).code}
                   onCodeChange={(code) => dispatch({ type: "set-code", code })}
                   onResolution={(w, h) => dispatch({ type: "set-resolution", width: w, height: h })}
                   stage={stage}
