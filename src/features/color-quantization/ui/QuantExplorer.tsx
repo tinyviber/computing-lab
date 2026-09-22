@@ -162,8 +162,10 @@ export function QuantExplorer({
             ))}
           </div>
           <p className={`quant-slot-note${overSlots ? " is-over" : ""}`}>
-            已装 {draft.toners.length} / {stage.tonerSlots} 槽
-            {overSlots ? "（超出槽位，判定会失败）" : ""}· 纸白永远免费
+            {overSlots ? "⚠ " : ""}已装 {draft.toners.length} / {stage.tonerSlots} 槽
+            {overSlots
+              ? `——打印机只有 ${stage.tonerSlots} 个槽，超出的 ${draft.toners.length - stage.tonerSlots!} 种装不进去，这样提交必定失败`
+              : " · 纸白永远免费"}
           </p>
           {stage.probes.length ? (
             <div className="quant-probes">

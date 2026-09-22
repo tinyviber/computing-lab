@@ -13,8 +13,9 @@
  *
  * Pick and mapall runs get `helpers` — the student's earlier code — plus a
  * fixed preamble with a reference nearest_toner and nn_table/quantize
- * utilities, so earlier work stays callable. A broken helper file simply
- * leaves the reference implementation in place.
+ * utilities, so earlier work stays callable. If the helper file fails to
+ * run, the reference implementation stays in place and the response
+ * carries `helperFailed: true` so the UI can say whose code is running.
  *
  * Student code runs only here, in the browser. The server never sees or
  * executes it. Each run gets a fresh globals dict so runs can't leak state.
@@ -47,7 +48,8 @@ type RunRequest =
     };
 
 type RunResponse =
-  { id: number; ok: true; results: unknown[] } | { id: number; ok: false; error: string };
+  | { id: number; ok: true; results: unknown[]; helperFailed?: boolean }
+  | { id: number; ok: false; error: string };
 
 type PyodideModule = {
   loadPyodide: (options: { indexURL: string }) => Promise<PyodideInterface>;
@@ -134,6 +136,12 @@ def quantize(image, table):
     return [[0 if px == 0 else table[px - 1] + 1 for px in row] for row in image]
 `;
 
+/**
+ * Inject shared constants, the reference helpers, then the student's
+ * earlier-stage code (which may redefine nearest_toner). Returns whether the
+ * student helper file failed — in that case the reference rule is what
+ * actually runs, and the caller must surface that instead of hiding it.
+ */
 function injectShared(
   pyodide: PyodideInterface,
   globals: ReturnType<PyodideInterface["toPy"]>,
@@ -141,19 +149,19 @@ function injectShared(
   toners: number[][],
   palette: number[][],
   paper: number[],
-): void {
+): boolean {
   // Shared names first: nn_table resolves TONERS/PALETTE/PAPER at call time,
   // and student code may legitimately call helpers at module top level.
   globals.set("TONERS", pyodide.toPy(toners));
   globals.set("PALETTE", pyodide.toPy(palette));
   globals.set("PAPER", pyodide.toPy(paper));
   pyodide.runPython(HELPERS_PREAMBLE, { globals });
-  if (helpers?.trim()) {
-    try {
-      pyodide.runPython(helpers, { globals });
-    } catch {
-      /* keep reference impl */
-    }
+  if (!helpers?.trim()) return false;
+  try {
+    pyodide.runPython(helpers, { globals });
+    return false;
+  } catch {
+    return true;
   }
 }
 
@@ -165,10 +173,10 @@ async function runPick(
   images: number[][][],
   k: number,
   helpers: string | undefined,
-): Promise<unknown[]> {
+): Promise<{ results: unknown[]; helperFailed: boolean }> {
   const globals = pyodide.toPy({});
   try {
-    injectShared(pyodide, globals, helpers, toners, palette, [245, 245, 240]);
+    const helperFailed = injectShared(pyodide, globals, helpers, toners, palette, [245, 245, 240]);
     pyodide.runPython(code, { globals });
     globals.set("images", pyodide.toPy(images));
     globals.set("k", pyodide.toPy(k));
@@ -179,7 +187,7 @@ async function runPick(
     );
     const out = pyodide.runPython("choose_toners(TONERS, PALETTE, images, k)", { globals });
     try {
-      return out.toJs() as unknown[];
+      return { results: out.toJs() as unknown[], helperFailed };
     } finally {
       out.destroy();
     }
@@ -195,16 +203,16 @@ async function runMapAll(
   toners: number[][],
   palette: number[][],
   helpers: string | undefined,
-): Promise<unknown[]> {
+): Promise<{ results: unknown[]; helperFailed: boolean }> {
   const globals = pyodide.toPy({});
   try {
-    injectShared(pyodide, globals, helpers, toners, palette, [245, 245, 240]);
+    const helperFailed = injectShared(pyodide, globals, helpers, toners, palette, [245, 245, 240]);
     pyodide.runPython(code, { globals });
     globals.set("colors", pyodide.toPy(colors));
     mustFn(globals, "map_color", "map_color(r, g, b)，返回墨粉编号（-1 表示留白/纸色）。");
     const out = pyodide.runPython("[map_color(c[0], c[1], c[2]) for c in colors]", { globals });
     try {
-      return out.toJs() as unknown[];
+      return { results: out.toJs() as unknown[], helperFailed };
     } finally {
       out.destroy();
     }
@@ -217,9 +225,9 @@ self.onmessage = (event: MessageEvent<RunRequest>) => {
   const request = event.data;
   void (async (): Promise<RunResponse> => {
     const pyodide = await getPyodide();
-    const results =
+    const outcome =
       request.kind === "toner"
-        ? await runToner(pyodide, request.code, request.colors, request.toners)
+        ? { results: await runToner(pyodide, request.code, request.colors, request.toners) }
         : request.kind === "pick"
           ? await runPick(
               pyodide,
@@ -238,7 +246,7 @@ self.onmessage = (event: MessageEvent<RunRequest>) => {
               request.palette,
               request.helpers,
             );
-    return { id: request.id, ok: true, results };
+    return { id: request.id, ok: true, ...outcome };
   })()
     .then((response) => self.postMessage(response))
     .catch((error: unknown) => {

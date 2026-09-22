@@ -91,6 +91,26 @@
   cursor: pointer;
 }
 
+.quant-hidden-note {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  color: #1e3a8a;
+  font-size: 13px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+}
+
+.quant-helper-warn {
+  background: #fef3c7;
+  border: 1px solid #f59e0b55;
+  border-radius: 8px;
+  color: #92400e;
+  font-size: 13px;
+  margin: 8px 0 0;
+  padding: 10px 12px;
+}
+
 /* ---- swatches ------------------------------------------------------- */
 
 .quant-swatch {

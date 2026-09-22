@@ -84,12 +84,17 @@ function StageBrief({ stage }: { stage: QuantStageDef }) {
     <section className="quant-brief">
       <p>{stage.description}</p>
       <p className="quant-submit-note">
-        判题方式：把本类的每一台机器人（包括你没见过的隐藏成员）都按你的选择打印，
-        要求打印后仍然各不相同——需要 ≥{Math.round(stage.requiredAccuracy * 100)}% 可区分
+        判题方式：把本类的每一台机器人都按你的选择打印，要求打印后仍然各不相同—— 需要 ≥
+        {Math.round(stage.requiredAccuracy * 100)}% 可区分
         {stage.mode === "pick"
           ? `，且最多装 ${stage.tonerSlots} 种粉（纸白不计）`
           : `，粉盒固定，映射最多改 ${stage.overrideBudget} 条默认值`}
         。
+      </p>
+      <p className="quant-hidden-note">
+        注意：提交时除了你看到的这些，还会混入<strong>没见过的同类机器人</strong>一起判定。
+        这是为了检查你的方法是真的理解了规则，而不只是记住了这几张图的答案——
+        在公开图库上全对，不代表隐藏成员也能分开。
       </p>
       <details className="quant-details">
         <summary>提示</summary>
@@ -107,6 +112,7 @@ export function ColorQuantizationLabPage() {
     createQuantLessonState(1),
   );
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [projectLoaded, setProjectLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const scenarioApplied = useRef(false);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,13 +138,15 @@ export function ColorQuantizationLabPage() {
             ]),
           ),
         });
+        setProjectLoaded(true);
       })
       .catch((error) => setLoadError(describeApiError(error)));
   }, [classId, status]);
 
-  // Apply a shared scenario (?stage=&toners=/&table=) once, after the project loads.
+  // Apply a shared scenario (?stage=&toners=/&table=) once — but only after
+  // the project loads, or unlocked stages would look locked at mount.
   useEffect(() => {
-    if (scenarioApplied.current || state.passedStages === undefined) return;
+    if (scenarioApplied.current || !projectLoaded) return;
     scenarioApplied.current = true;
     const scenario = parseQuantScenario(search);
     if (scenario.stageIndex != null && isStageUnlocked(state, scenario.stageIndex)) {
@@ -146,9 +154,9 @@ export function ColorQuantizationLabPage() {
     }
     if (scenario.toners) dispatch({ type: "set-toners", toners: scenario.toners });
     if (scenario.table) dispatch({ type: "set-table", table: scenario.table });
-    // Runs once on mount: a shared scenario link is a starting point, not a
-    // live binding to the URL.
-  }, []);
+    // A shared scenario link is a starting point, not a live binding to the URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectLoaded]);
 
   // Debounced autosave of the per-stage draft.
   useEffect(() => {

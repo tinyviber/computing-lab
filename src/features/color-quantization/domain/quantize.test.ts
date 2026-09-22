@@ -125,6 +125,6 @@ describe("judgeMapping", () => {
     const gallery = galleryFor("patrol", 0x9e3779, 9);
     const blank = new Array(SOURCE_COLORS.length).fill(-1);
     const pairs = confusionPairs(gallery, blank);
-    expect(pairs.length).toBe(9 * 4); // C(9,2)
+    expect(pairs.length).toBe(36); // C(9,2)
   });
 });

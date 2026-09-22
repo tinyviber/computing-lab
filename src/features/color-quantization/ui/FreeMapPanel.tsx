@@ -54,6 +54,7 @@ export function FreeMapPanel({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
+  const [helperFailed, setHelperFailed] = useState(false);
   const [running, setRunning] = useState(false);
 
   const source = code.trim() ? code : STARTER;
@@ -65,13 +66,14 @@ export function FreeMapPanel({
     setError(null);
     setApplied(null);
     try {
-      const results = await runMapAll(
+      const { results, helperFailed: helperErr } = await runMapAll(
         source,
         SOURCE_COLORS.map((c) => [...c.rgb]),
         TONER_RACK.map((t) => [...t.rgb]),
         SOURCE_COLORS.map((c) => [...c.rgb]),
         helperCode,
       );
+      setHelperFailed(helperErr);
       if (results.length !== SOURCE_COLORS.length) {
         throw new Error(`map_color 需要对 ${SOURCE_COLORS.length} 个源色各返回一个值。`);
       }
@@ -137,6 +139,12 @@ export function FreeMapPanel({
           </span>
         ) : null}
       </div>
+      {helperFailed ? (
+        <p className="quant-helper-warn" role="note">
+          ⚠ 你在第 1 关写的 <code>nearest_toner</code> 有错误，这次运行用的是内置参考版本——
+          回去修好它，这里才会真正调用你的规则。
+        </p>
+      ) : null}
       {error ? (
         <pre className="quant-error" role="alert">
           {error}

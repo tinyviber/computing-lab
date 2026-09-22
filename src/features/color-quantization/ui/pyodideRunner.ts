@@ -5,8 +5,10 @@
  * so the whole runtime is discarded and will cold-load on the next run).
  */
 
+type RunPayload = { results: unknown[]; helperFailed?: boolean };
+
 type Pending = {
-  resolve: (results: unknown[]) => void;
+  resolve: (payload: RunPayload) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 };
@@ -31,24 +33,25 @@ function ensureWorker(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL("./pyodide.worker.ts", import.meta.url), { type: "module" });
   worker.onmessage = (event: MessageEvent) => {
-    const { id, ok, results, error } = event.data as {
+    const { id, ok, results, error, helperFailed } = event.data as {
       id: number;
       ok: boolean;
       results?: unknown[];
       error?: string;
+      helperFailed?: boolean;
     };
     const entry = pending.get(id);
     if (!entry) return;
     pending.delete(id);
     clearTimeout(entry.timer);
-    if (ok) entry.resolve(results ?? []);
+    if (ok) entry.resolve({ results: results ?? [], helperFailed });
     else entry.reject(new Error(error ?? "运行失败"));
   };
   worker.onerror = () => killWorker();
   return worker;
 }
 
-function run(message: Record<string, unknown>, timeoutMs: number): Promise<unknown[]> {
+function run(message: Record<string, unknown>, timeoutMs: number): Promise<RunPayload> {
   const w = ensureWorker();
   const id = (seq += 1);
   return new Promise((resolve, reject) => {
@@ -81,8 +84,17 @@ export async function runNearestToner(
   toners: number[][],
   timeoutMs = DEFAULT_TIMEOUT_MS,
 ): Promise<unknown[]> {
-  return run({ kind: "toner", code, colors, toners }, timeoutMs);
+  const payload = await run({ kind: "toner", code, colors, toners }, timeoutMs);
+  return payload.results;
 }
+
+export type HelperRunResult = {
+  results: unknown[];
+  /** True when the injected earlier-stage code failed and the built-in
+   *  reference helpers ran instead — the UI must tell the student whose
+   *  code actually executed. */
+  helperFailed: boolean;
+};
 
 /**
  * Run choose_toners(toners, palette, images, k) — images is the public
@@ -97,8 +109,9 @@ export async function runChooseToners(
   k: number,
   helpers?: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<unknown[]> {
-  return run({ kind: "pick", code, toners, palette, images, k, helpers }, timeoutMs);
+): Promise<HelperRunResult> {
+  const payload = await run({ kind: "pick", code, toners, palette, images, k, helpers }, timeoutMs);
+  return { results: payload.results, helperFailed: payload.helperFailed ?? false };
 }
 
 /**
@@ -112,6 +125,7 @@ export async function runMapAll(
   palette: number[][],
   helpers?: string,
   timeoutMs = DEFAULT_TIMEOUT_MS,
-): Promise<unknown[]> {
-  return run({ kind: "mapall", code, colors, toners, palette, helpers }, timeoutMs);
+): Promise<HelperRunResult> {
+  const payload = await run({ kind: "mapall", code, colors, toners, palette, helpers }, timeoutMs);
+  return { results: payload.results, helperFailed: payload.helperFailed ?? false };
 }

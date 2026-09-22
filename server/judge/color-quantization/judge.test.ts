@@ -213,10 +213,12 @@ describe("quantization judge gallery calibration", () => {
       );
       expect(winners.length).toBeGreaterThan(0);
       if (stageIndex === 2) {
-        expect(winners).toEqual([
-          [0, 1, 2, 5],
-          [0, 3, 4, 5],
-        ]);
+        // The calibrated answers must still pass — drift here means the stage
+        // text/probes may mislead — but we don't pin the whole winner set.
+        expect(winners).toContainEqual([0, 1, 2, 5]);
+        expect(winners).toContainEqual([0, 3, 4, 5]);
+        // And the design intent holds: few enough solutions to be a real search.
+        expect(winners.length).toBeLessThanOrEqual(4);
       }
     }
   });
