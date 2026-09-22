@@ -101,6 +101,9 @@
 }
 
 .quant-helper-warn {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
   background: #fef3c7;
   border: 1px solid #f59e0b55;
   border-radius: 8px;
@@ -108,6 +111,10 @@
   font-size: 13px;
   margin: 8px 0 0;
   padding: 10px 12px;
+}
+
+.quant-helper-warn .ui-icon {
+  margin-top: 1px;
 }
 
 /* ---- swatches ------------------------------------------------------- */
@@ -167,9 +174,16 @@
 }
 
 .quant-slot-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
   color: #475569;
   font-size: 13px;
   margin: 8px 0;
+}
+
+.quant-slot-note .ui-icon {
+  margin-top: 2px;
 }
 
 .quant-slot-note.is-over {
@@ -233,6 +247,9 @@
 }
 
 .quant-verdict-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   font-size: 14px;
   margin: 6px 0;
 }
@@ -281,9 +298,9 @@
 }
 
 .quant-arrow {
+  display: inline-flex;
   align-self: center;
-  color: #94a3b8;
-  font-size: 22px;
+  color: var(--muted);
 }
 
 /* ---- mapping table (free mode) --------------------------------------- */
@@ -471,6 +488,9 @@
 }
 
 .quant-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border-radius: 999px;
   font-size: 12px;
   padding: 3px 10px;

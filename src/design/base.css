@@ -60,6 +60,39 @@ p {
   margin: 0;
 }
 
+.ui-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  vertical-align: -0.15em;
+}
+
+.field-select {
+  display: inline-grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.field-select > span {
+  padding-left: 2px;
+}
+
+.field-select select {
+  min-height: 36px;
+  padding: 6px 30px 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.field-select select:hover {
+  border-color: var(--focus);
+}
+
 .eyebrow,
 .context-label,
 .context-value,

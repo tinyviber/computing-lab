@@ -129,6 +129,25 @@ rail 的竖向分隔线画在网格内部（`border-right`），内容仍然受 
   `border-radius: var(--radius-panel)` + `background: var(--surface)`，
   需要浮起感时加 `--shadow-sm`。
 
+## Icons
+
+- 所有 UI 图标统一用 `src/shared/ui/Icon.tsx` 的内联 SVG 集
+  （`stroke: currentColor`，24×24 viewBox，按 `size` prop 缩放）：
+  `check` / `x` / `chevron-down` / `circle` / `lock` / `warning` / `arrow-right`。
+- **禁止**用字符当图标：`✓` `×` `⚠` `🔒` `○` `⌄` 等一律换成 `Icon`。
+- 下拉箭头一律是向下的 chevron（与原生 `<select>` 箭头一致），
+  展开态用 CSS `rotate(180deg)`，不要换字符。
+- 文本语义的符号保留为字符：`64×64` 的乘号、代码输出里的
+  `choose_size(...) → 16`、`label → value` 这类不是图标。
+- 需要新图标时往 `Icon.tsx` 的 `PATHS` 里加 stroke 风格 path，
+  不要引入 emoji 或第三方图标库。
+
+## Forms
+
+- 带标签的下拉用 `.field-select`（label 包 select，label 文字在上）。
+  表单类控件放在**内容区**，不放 topbar——topbar 只放品牌、
+  页面标题、保存状态和账号菜单。
+
 ## CSS 组织
 
 - 共享样式只放 `src/design/`（tokens/base）和 `src/shared/`（layout、auth）。

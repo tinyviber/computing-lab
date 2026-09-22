@@ -1,4 +1,5 @@
 import { useMemo, useState, type Dispatch, type DragEvent, type SetStateAction } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import { isValidComponentIdentifier, type ComponentSelection } from "../domain/componentize";
 import type { ComponentDef } from "../domain/graph";
 
@@ -221,7 +222,7 @@ export function CustomComponentDialog({
             </h2>
           </div>
           <button aria-label="关闭" className="icon-button" onClick={onCancel} type="button">
-            ×
+            <Icon name="x" size={15} />
           </button>
         </div>
         <p className="custom-component-dialog-note">

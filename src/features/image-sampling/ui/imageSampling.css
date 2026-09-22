@@ -212,9 +212,9 @@
 }
 
 .preview-arrow {
+  display: inline-flex;
   align-self: center;
-  color: #94a3b8;
-  font-size: 22px;
+  color: var(--muted);
 }
 
 .cell-inspector,
@@ -255,6 +255,9 @@
 }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border-radius: 999px;
   font-size: 12px;
   padding: 3px 10px;

@@ -35,22 +35,6 @@
   font-weight: 600;
 }
 
-.save-indicator {
-  min-width: 72px;
-  color: var(--muted);
-  font-size: 11px;
-  text-align: right;
-  transition: color 200ms ease;
-}
-
-.save-indicator.is-saved {
-  color: var(--success);
-}
-
-.save-indicator.is-error {
-  color: var(--danger);
-}
-
 .calculator-layout {
   display: grid;
   flex: 1;
@@ -178,6 +162,8 @@
 }
 
 .stage-mark {
+  display: inline-flex;
+  align-items: center;
   font-size: 12px;
 }
 
@@ -594,6 +580,9 @@
 }
 
 .icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 32px;
   height: 32px;
   border: 1px solid var(--border);
@@ -601,8 +590,6 @@
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
-  font-size: 20px;
-  line-height: 1;
 }
 
 .icon-button:hover {

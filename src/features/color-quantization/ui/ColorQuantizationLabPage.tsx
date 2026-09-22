@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
+import { Icon } from "../../../shared/ui/Icon";
 import type { QuantJudgeResult } from "../domain/protocol.ts";
 import { COLOR_QUANT_STAGES, quantStageUnlocked, type QuantStageDef } from "../domain/stages.ts";
 import {
@@ -27,7 +28,7 @@ const SAVE_LABEL: Record<string, string> = {
   idle: "",
   dirty: "未保存",
   saving: "保存中…",
-  saved: "已保存 ✓",
+  saved: "已保存",
   error: "保存失败",
 };
 
@@ -68,7 +69,13 @@ function StageNav({
                   <span>{stage.englishTitle}</span>
                 </span>
                 <span aria-hidden="true" className="quant-stage-mark">
-                  {passed ? "✓" : unlocked ? "○" : "🔒"}
+                  {passed ? (
+                    <Icon name="check" size={13} />
+                  ) : unlocked ? (
+                    <Icon name="circle" size={11} />
+                  ) : (
+                    <Icon name="lock" size={12} />
+                  )}
                 </span>
               </button>
             </li>
@@ -264,6 +271,7 @@ export function ColorQuantizationLabPage() {
       className="quant-lab"
       topbar={
         <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
+          {state.saveStatus === "saved" ? <Icon name="check" size={11} /> : null}
           {SAVE_LABEL[state.saveStatus]}
         </span>
       }
@@ -286,7 +294,7 @@ export function ColorQuantizationLabPage() {
             <p className="quant-error" role="alert">
               {state.message}
               <button onClick={() => dispatch({ type: "dismiss-message" })} type="button">
-                ×
+                <Icon name="x" size={12} />
               </button>
             </p>
           ) : null}

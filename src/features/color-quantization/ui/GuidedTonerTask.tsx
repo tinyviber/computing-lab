@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import { colorDist2, PAPER, SOURCE_COLORS, TONER_RACK, rgbCss } from "../domain/palette.ts";
 import { runNearestToner } from "./pyodideRunner.ts";
 
@@ -264,7 +265,11 @@ export function GuidedTonerTask({
         >
           {running ? "运行中…（首次需加载 Python）" : "运行检查"}
         </button>
-        {passed === true ? <span className="quant-badge is-pass">全部一致 ✓</span> : null}
+        {passed === true ? (
+          <span className="quant-badge is-pass">
+            <Icon name="check" size={12} /> 全部一致
+          </span>
+        ) : null}
         {passed === false && !error ? <span className="quant-badge is-fail">还不一致</span> : null}
       </div>
       {error ? (

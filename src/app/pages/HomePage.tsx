@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
+import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import "./home.css";
 
@@ -21,7 +22,7 @@ function AnonymousLanding() {
             </p>
             <div className="home-hero-actions">
               <Link className="button button-primary" to="/login">
-                登录 <span aria-hidden="true">→</span>
+                登录 <Icon name="arrow-right" size={14} />
               </Link>
             </div>
           </div>

@@ -13,6 +13,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit } from "@codemirror/language";
@@ -139,8 +140,8 @@ export function ChooseTonersPanel({
       </div>
       {helperFailed ? (
         <p className="quant-helper-warn" role="note">
-          ⚠ 你在第 1 关写的 <code>nearest_toner</code> 有错误，这次运行用的是内置参考版本——
-          回去修好它，这里才会真正调用你的规则。
+          <Icon name="warning" size={13} /> 你在第 1 关写的 <code>nearest_toner</code>{" "}
+          有错误，这次运行用的是内置参考版本—— 回去修好它，这里才会真正调用你的规则。
         </p>
       ) : null}
       {error ? (

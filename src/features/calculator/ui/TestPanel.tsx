@@ -11,6 +11,7 @@ import { readBus } from "../domain/bus";
 import type { Bit } from "../domain/graph";
 import type { BusDef, StageDef } from "../domain/stages";
 import type { JudgeOutcome, RunOutcome } from "../lesson/state";
+import { Icon } from "../../../shared/ui/Icon";
 import { AnnotatedText } from "./CalculatorTerms";
 
 const ERROR_HINTS: Record<string, string> = {
@@ -248,7 +249,9 @@ export function TestPanel({
               <th scope="row">
                 <AnnotatedText text={result.name} />
               </th>
-              <td>{result.passed ? "✓" : "×"}</td>
+              <td>
+                {result.passed ? <Icon name="check" size={13} /> : <Icon name="x" size={13} />}
+              </td>
               <td>
                 <CaseValues buses={outputBuses} inputs={result.inputs} values={result.expected} />
               </td>

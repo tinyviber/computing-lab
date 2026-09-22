@@ -1,7 +1,14 @@
 .dashboard-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.dashboard-heading-copy {
   display: grid;
   gap: 7px;
-  margin-bottom: 20px;
 }
 
 .dashboard-heading h1 {
@@ -129,14 +136,21 @@
   position: absolute;
   top: 16px;
   right: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 30px;
   height: 30px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
   cursor: pointer;
-  font-size: 17px;
-  line-height: 1;
+}
+
+.drawer-category-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .drawer-categories {

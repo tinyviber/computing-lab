@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import { cellBounds, cellRegion, cellStats, type Resolution } from "../domain/downsample.ts";
 import { downsample } from "../domain/downsample.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
@@ -230,7 +231,7 @@ export function DownsampleExplorer({
               </figcaption>
             </figure>
             <span aria-hidden="true" className="preview-arrow">
-              →
+              <Icon name="arrow-right" size={18} />
             </span>
             <figure>
               <BitmapCanvas

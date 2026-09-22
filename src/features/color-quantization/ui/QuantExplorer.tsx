@@ -6,6 +6,7 @@
  */
 
 import { useMemo, useState } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import { publicGalleryFor } from "../domain/fixtures.ts";
 import {
   PAPER,
@@ -162,7 +163,8 @@ export function QuantExplorer({
             ))}
           </div>
           <p className={`quant-slot-note${overSlots ? " is-over" : ""}`}>
-            {overSlots ? "⚠ " : ""}已装 {draft.toners.length} / {stage.tonerSlots} 槽
+            {overSlots ? <Icon name="warning" size={13} /> : null}已装 {draft.toners.length} /{" "}
+            {stage.tonerSlots} 槽
             {overSlots
               ? `——打印机只有 ${stage.tonerSlots} 个槽，超出的 ${draft.toners.length - stage.tonerSlots!} 种装不进去，这样提交必定失败`
               : " · 纸白永远免费"}
@@ -229,7 +231,7 @@ export function QuantExplorer({
                 {report.identified} / {report.total}
               </strong>{" "}
               张打印后仍可区分
-              {report.identified === report.total ? " ✓" : ""}
+              {report.identified === report.total ? <Icon name="check" size={13} /> : null}
             </p>
           ) : null}
 
@@ -261,7 +263,7 @@ export function QuantExplorer({
               <figcaption>原稿 {member.label}</figcaption>
             </figure>
             <span aria-hidden="true" className="quant-arrow">
-              →
+              <Icon name="arrow-right" size={18} />
             </span>
             <figure>
               <PaletteCanvas

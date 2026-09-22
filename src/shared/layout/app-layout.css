@@ -86,31 +86,24 @@
   white-space: nowrap;
 }
 
-.app-topbar select {
-  min-height: 36px;
-  padding: 6px 30px 6px 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-control);
-  background: var(--surface);
-  color: var(--primary);
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.app-topbar select:hover {
-  border-color: var(--focus);
-}
-
-.app-topbar-select {
-  display: grid;
-  gap: 3px;
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 72px;
   color: var(--muted);
-  font-size: 10px;
-  font-weight: 650;
+  font-size: 11px;
+  text-align: right;
+  transition: color 200ms ease;
 }
 
-.app-topbar-select span {
-  padding-left: 2px;
+.save-indicator.is-saved {
+  color: var(--success);
+}
+
+.save-indicator.is-error {
+  color: var(--danger);
 }
 
 @media (max-width: 760px) {

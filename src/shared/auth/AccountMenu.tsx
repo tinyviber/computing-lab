@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { Icon } from "../ui/Icon";
 import { isStaffRole, ROLE_LABELS, useAuth } from "./AuthProvider";
 import "./account-menu.css";
 
@@ -36,8 +37,8 @@ export function AccountMenu() {
         type="button"
       >
         <span className="account-menu-name">{session.user.name}</span>
-        <span aria-hidden="true" className="account-menu-chevron">
-          {open ? "⌃" : "⌄"}
+        <span aria-hidden="true" className="account-menu-chevron" data-open={open}>
+          <Icon name="chevron-down" size={13} />
         </span>
       </button>
       {open ? (

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
+import { Icon } from "../../../shared/ui/Icon";
 import { evaluateGraph } from "../domain/evaluate";
 import {
   GATE_LABEL,
@@ -70,7 +71,7 @@ const SAVE_LABEL: Record<string, string> = {
   idle: "",
   dirty: "未保存",
   saving: "保存中…",
-  saved: "已保存 ✓",
+  saved: "已保存",
   error: "保存失败",
 };
 
@@ -251,6 +252,7 @@ export function CalculatorLabPage() {
       topbar={
         <div className="calculator-status">
           <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
+            {state.saveStatus === "saved" ? <Icon name="check" size={11} /> : null}
             {SAVE_LABEL[state.saveStatus]}
           </span>
         </div>

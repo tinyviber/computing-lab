@@ -6,6 +6,7 @@
  */
 
 import { imageFromBase64 } from "../domain/indexed.ts";
+import { Icon } from "../../../shared/ui/Icon";
 import { sourceCellCss, tonerCellCss } from "../domain/palette.ts";
 import { TONER_RACK } from "../domain/palette.ts";
 import type { PackedImage, QuantJudgeResult } from "../domain/protocol.ts";
@@ -55,7 +56,7 @@ export function QuantResultPanel({
       aria-labelledby="quant-result-title"
       className={`quant-result${outcome.passed ? " is-passed" : " is-failed"}`}
     >
-      <h3 id="quant-result-title">判定结果：{outcome.passed ? "通过 ✓" : "未通过"}</h3>
+      <h3 id="quant-result-title">判定结果：{outcome.passed ? "通过" : "未通过"}</h3>
       <dl className="quant-verdict-stats">
         <div>
           <dt>仍能唯一认出</dt>
@@ -96,7 +97,7 @@ export function QuantResultPanel({
               space="source"
             />
             <span aria-hidden="true" className="quant-arrow">
-              →
+              <Icon name="arrow-right" size={18} />
             </span>
             <PackedFigure
               caption={`${outcome.counterexample.query.label} 打印结果`}

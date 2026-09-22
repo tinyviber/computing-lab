@@ -4,6 +4,7 @@
  * was confused with — plus the nearest-candidate ranking.
  */
 
+import { Icon } from "../../../shared/ui/Icon";
 import { imageFromBase64 } from "../domain/bitmap.ts";
 import type { PackedImage, SamplingJudgeResult } from "../domain/protocol.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
@@ -32,7 +33,16 @@ export function RecognitionPanel({
       aria-labelledby="judge-result-title"
       className={`recognition-panel${outcome.passed ? " is-passed" : " is-failed"}`}
     >
-      <h3 id="judge-result-title">判定结果：{outcome.passed ? "通过 ✓" : "未通过"}</h3>
+      <h3 id="judge-result-title">
+        判定结果：
+        {outcome.passed ? (
+          <>
+            通过 <Icon name="check" size={14} />
+          </>
+        ) : (
+          "未通过"
+        )}
+      </h3>
       <dl className="verdict-stats">
         <div>
           <dt>仍能唯一认出</dt>
@@ -85,7 +95,7 @@ export function RecognitionPanel({
               packed={outcome.counterexample.query.full}
             />
             <span aria-hidden="true" className="preview-arrow">
-              →
+              <Icon name="arrow-right" size={18} />
             </span>
             <PackedFigure
               caption={`压缩后（${outcome.resolution.width}×${outcome.resolution.height}）`}

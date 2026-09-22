@@ -4,6 +4,7 @@ import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
+import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
 
 type MatrixCell = {
@@ -51,7 +52,12 @@ function timeOf(iso: string | null): string {
 
 function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () => void }) {
   if (!cell) return <span className="cell-empty">—</span>;
-  if (cell.passed) return <span className="cell-pass">✓</span>;
+  if (cell.passed)
+    return (
+      <span className="cell-pass">
+        <Icon name="check" size={14} />
+      </span>
+    );
   return (
     <button className="cell-score" onClick={onOpen} type="button">
       {cell.score}/{cell.total}
@@ -137,31 +143,31 @@ export function TeacherDashboardPage() {
   }
 
   return (
-    <AppPageLayout
-      className="dashboard-page"
-      topbar={
-        <label className="app-topbar-select" htmlFor="dashboard-class-select">
-          <span>班级</span>
-          <select
-            aria-label="选择班级"
-            id="dashboard-class-select"
-            onChange={(event) => selectClass(event.target.value)}
-            value={classId ?? ""}
-          >
-            {(session?.memberships ?? []).map((membership) => (
-              <option key={membership.classId} value={membership.classId}>
-                {membership.className}
-              </option>
-            ))}
-          </select>
-        </label>
-      }
-    >
+    <AppPageLayout className="dashboard-page">
       <main aria-label="学生进度矩阵" className="page-content">
         <div className="dashboard-heading">
-          <p className="eyebrow">班级看板</p>
-          <h1>学生进度</h1>
-          <p>按关卡查看当前班级每位学生的最新提交结果。</p>
+          <div className="dashboard-heading-copy">
+            <p className="eyebrow">班级看板</p>
+            <h1>学生进度</h1>
+            <p>按关卡查看当前班级每位学生的最新提交结果。</p>
+          </div>
+          {(session?.memberships.length ?? 0) > 1 ? (
+            <label className="field-select" htmlFor="dashboard-class-select">
+              <span>班级</span>
+              <select
+                aria-label="选择班级"
+                id="dashboard-class-select"
+                onChange={(event) => selectClass(event.target.value)}
+                value={classId ?? ""}
+              >
+                {session?.memberships.map((membership) => (
+                  <option key={membership.classId} value={membership.classId}>
+                    {membership.className}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
         {error ? (
           <p className="test-error" role="alert">
@@ -254,7 +260,7 @@ export function TeacherDashboardPage() {
                 onClick={() => setDetail(null)}
                 type="button"
               >
-                ×
+                <Icon name="x" size={16} />
               </button>
             </header>
 
@@ -268,8 +274,8 @@ export function TeacherDashboardPage() {
                 return (
                   <li className={ok ? "is-pass" : "is-fail"} key={category}>
                     <span>{category}</span>
-                    <span>
-                      {bucket.passed}/{bucket.total} {ok ? "✓" : "×"}
+                    <span className="drawer-category-score">
+                      {bucket.passed}/{bucket.total} <Icon name={ok ? "check" : "x"} size={13} />
                     </span>
                   </li>
                 );

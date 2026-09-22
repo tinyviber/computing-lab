@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Icon } from "../../../shared/ui/Icon";
 import { imageFromLists } from "../domain/bitmap.ts";
 import { cellRegion, cellStats } from "../domain/downsample.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
@@ -150,7 +151,7 @@ export function GuidedCellTask({
                 {row ? (
                   <>
                     <span aria-hidden="true" className="preview-arrow">
-                      →
+                      <Icon name="arrow-right" size={16} />
                     </span>
                     <span
                       aria-label={`区域 ${index + 1} 的代码输出`}
@@ -244,7 +245,11 @@ export function GuidedCellTask({
         >
           {running ? "运行中…（首次需加载 Python）" : "运行检查"}
         </button>
-        {passed === true ? <span className="badge badge-pass">全部一致 ✓</span> : null}
+        {passed === true ? (
+          <span className="badge badge-pass">
+            <Icon name="check" size={12} /> 全部一致
+          </span>
+        ) : null}
         {passed === false && !error ? <span className="badge badge-fail">还不一致</span> : null}
       </div>
       {error ? (

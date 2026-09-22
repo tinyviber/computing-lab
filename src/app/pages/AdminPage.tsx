@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { API_ERROR_MESSAGES, api, describeApiError } from "../../shared/api/client";
 import { useAuth, type AccountRole } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
+import { Icon } from "../../shared/ui/Icon";
 import "./admin.css";
 
 type AdminClass = { id: string; name: string; inviteCode: string; memberCount: number };
@@ -621,7 +622,7 @@ export function AdminPage() {
                               title="移出该班级"
                               type="button"
                             >
-                              ×
+                              <Icon name="x" size={12} />
                             </button>
                           </span>
                         ))}

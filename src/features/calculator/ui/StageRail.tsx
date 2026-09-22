@@ -4,6 +4,7 @@ import {
   coreStages,
   stagePrerequisites,
 } from "../domain/stages";
+import { Icon } from "../../../shared/ui/Icon";
 import type { ComponentDef } from "../domain/graph";
 import { AnnotatedText } from "./CalculatorTerms";
 
@@ -66,7 +67,13 @@ export function StageRail({
             </span>
           </span>
           <span aria-hidden="true" className="stage-mark">
-            {passed ? "✓" : unlocked ? "○" : "🔒"}
+            {passed ? (
+              <Icon name="check" size={13} />
+            ) : unlocked ? (
+              <Icon name="circle" size={11} />
+            ) : (
+              <Icon name="lock" size={12} />
+            )}
           </span>
         </button>
       </li>
@@ -183,7 +190,7 @@ export function StageRail({
                       title="删除自定义组件"
                       type="button"
                     >
-                      ×
+                      <Icon name="x" size={12} />
                     </button>
                   </span>
                 ) : null}
