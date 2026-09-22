@@ -1,13 +1,3 @@
-.dashboard-page {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 24px 48px;
-}
-
-.dashboard-page > main {
-  padding-top: 24px;
-}
-
 .dashboard-heading {
   display: grid;
   gap: 7px;

@@ -1,9 +1,3 @@
-.home-page {
-  max-width: 1240px;
-  margin: 0 auto;
-  padding: 0 34px 42px;
-}
-
 .home-hero {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 0.78fr);
@@ -109,9 +103,6 @@
 }
 
 @media (max-width: 680px) {
-  .home-page {
-    padding: 0 16px 28px;
-  }
   .home-hero {
     gap: 32px;
     padding: 48px 0 52px;
@@ -141,7 +132,12 @@
 
 .lab-card.is-primary {
   border-color: #bfc2ff;
-  grid-column: span 2;
+}
+
+@media (min-width: 681px) {
+  .lab-card.is-primary {
+    grid-column: span 2;
+  }
 }
 
 .lab-card.is-primary h4 {

@@ -1,4 +1,6 @@
 .page-layout {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
 }
 
@@ -7,8 +9,17 @@
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  min-height: 72px;
+  min-height: 64px;
+  padding: 12px var(--page-gutter);
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.page-content {
+  width: 100%;
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--page-gutter) var(--space-8);
 }
 
 .app-topbar-left,
@@ -106,7 +117,8 @@
   .app-topbar {
     align-items: flex-start;
     flex-wrap: wrap;
-    padding: 16px 0;
+    padding-top: 16px;
+    padding-bottom: 16px;
   }
 
   .app-topbar-actions {

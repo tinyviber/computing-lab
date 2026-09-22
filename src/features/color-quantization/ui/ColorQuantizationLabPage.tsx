@@ -2,7 +2,7 @@ import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
-import { AppTopbar } from "../../../shared/layout/AppTopbar";
+import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import type { QuantJudgeResult } from "../domain/protocol.ts";
 import { COLOR_QUANT_STAGES, quantStageUnlocked, type QuantStageDef } from "../domain/stages.ts";
 import {
@@ -155,7 +155,6 @@ export function ColorQuantizationLabPage() {
     if (scenario.toners) dispatch({ type: "set-toners", toners: scenario.toners });
     if (scenario.table) dispatch({ type: "set-table", table: scenario.table });
     // A shared scenario link is a starting point, not a live binding to the URL.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectLoaded]);
 
   // Debounced autosave of the per-stage draft.
@@ -261,17 +260,19 @@ export function ColorQuantizationLabPage() {
   }
 
   return (
-    <div className="quant-lab">
-      <AppTopbar
-        subtitle={stage?.englishTitle}
-        title={stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "颜色量化"}
-      >
+    <AppPageLayout
+      className="quant-lab"
+      topbar={
         <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
           {SAVE_LABEL[state.saveStatus]}
         </span>
-      </AppTopbar>
-
-      <div className="quant-layout">
+      }
+      topbarProps={{
+        subtitle: stage?.englishTitle,
+        title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "颜色量化",
+      }}
+    >
+      <div className="page-content quant-layout">
         <StageNav
           onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
           passedStages={state.passedStages}
@@ -359,6 +360,6 @@ export function ColorQuantizationLabPage() {
           ) : null}
         </main>
       </div>
-    </div>
+    </AppPageLayout>
   );
 }

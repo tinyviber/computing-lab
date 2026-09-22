@@ -467,7 +467,7 @@ export function AdminPage() {
         </Link>
       }
     >
-      <main className="profile-main" aria-labelledby="admin-title">
+      <main className="page-content profile-main" aria-labelledby="admin-title">
         <section className="profile-intro">
           <p className="eyebrow">管理 / ADMIN</p>
           <h1 id="admin-title">账号与班级管理</h1>

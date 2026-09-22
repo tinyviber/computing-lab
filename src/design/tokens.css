@@ -17,10 +17,18 @@
   --shadow-md: 0 16px 40px rgb(23 40 61 / 8%);
   --radius-control: 8px;
   --radius-panel: 12px;
+  --page-max: 1240px;
+  --page-gutter: 24px;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-6: 24px;
   --space-8: 32px;
+}
+
+@media (max-width: 680px) {
+  :root {
+    --page-gutter: 16px;
+  }
 }

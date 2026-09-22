@@ -2,7 +2,7 @@ import { Link, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
-import { AppTopbar } from "../../../shared/layout/AppTopbar";
+import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import type { SamplingJudgeResult } from "../domain/protocol.ts";
 import {
   IMAGE_SAMPLING_STAGES,
@@ -261,17 +261,19 @@ export function ImageSamplingLabPage() {
   const previewHeight = stage?.mode === "square" ? previewWidth : (draft.height ?? 8);
 
   return (
-    <div className="sampling-lab">
-      <AppTopbar
-        subtitle={stage?.englishTitle}
-        title={stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "空间采样"}
-      >
+    <AppPageLayout
+      className="sampling-lab"
+      topbar={
         <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
           {SAVE_LABEL[state.saveStatus]}
         </span>
-      </AppTopbar>
-
-      <div className="sampling-layout">
+      }
+      topbarProps={{
+        subtitle: stage?.englishTitle,
+        title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "空间采样",
+      }}
+    >
+      <div className="page-content sampling-layout">
         <StageNav
           onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
           passedStages={state.passedStages}
@@ -346,6 +348,6 @@ export function ImageSamplingLabPage() {
           ) : null}
         </main>
       </div>
-    </div>
+    </AppPageLayout>
   );
 }

@@ -4,11 +4,10 @@
   display: grid;
   gap: 20px;
   grid-template-columns: 240px minmax(0, 1fr);
-  padding: 0 24px 48px;
 }
 
 .sampling-rail {
-  border-right: 1px solid #e2e8f0;
+  border-right: 1px solid var(--border);
   padding-right: 16px;
 }
 

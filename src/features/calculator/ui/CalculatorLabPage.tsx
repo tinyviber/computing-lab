@@ -2,7 +2,7 @@ import { Link, useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
-import { AppTopbar } from "../../../shared/layout/AppTopbar";
+import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
 import {
   GATE_LABEL,
@@ -246,18 +246,20 @@ export function CalculatorLabPage() {
   }
 
   return (
-    <div className="calculator-lab">
-      <AppTopbar
-        subtitle={stage ? <AnnotatedText text={stage.englishTitle} /> : undefined}
-        title={stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU"}
-      >
+    <AppPageLayout
+      className="calculator-lab"
+      topbar={
         <div className="calculator-status">
           <span aria-live="polite" className={`save-indicator is-${state.saveStatus}`}>
             {SAVE_LABEL[state.saveStatus]}
           </span>
         </div>
-      </AppTopbar>
-
+      }
+      topbarProps={{
+        subtitle: stage ? <AnnotatedText text={stage.englishTitle} /> : undefined,
+        title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU",
+      }}
+    >
       <div className="calculator-layout">
         <StageRail
           coachHighlight={coach.focusesOn("my-components")}
@@ -488,6 +490,6 @@ export function CalculatorLabPage() {
           }}
         />
       ) : null}
-    </div>
+    </AppPageLayout>
   );
 }

@@ -11,7 +11,7 @@ type ProjectSummary = { currentStage: number };
 function AnonymousLanding() {
   return (
     <AppPageLayout className="home-page" topbarProps={{ showAccount: false }}>
-      <main>
+      <main className="page-content">
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
             <p className="eyebrow">校内信息技术实验</p>
@@ -69,7 +69,7 @@ function ClassroomHome() {
 
   return (
     <AppPageLayout className="home-page">
-      <main>
+      <main className="page-content">
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
             <p className="eyebrow">{primaryMembership?.className ?? "未加入班级"}</p>
@@ -102,23 +102,6 @@ function ClassroomHome() {
               ) : null}
             </article>
 
-            {isStaff && classId ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">教师</span>
-                </div>
-                <h4>班级看板</h4>
-                <p>查看每位学生的关卡进度、得分与失败用例类别。</p>
-                <Link
-                  className="button button-secondary"
-                  params={{ classId }}
-                  to="/classes/$classId/dashboard"
-                >
-                  打开看板
-                </Link>
-              </article>
-            ) : null}
-
             {role === "admin" ? (
               <article className="lab-card">
                 <div className="lab-card-topline">
@@ -150,19 +133,6 @@ function ClassroomHome() {
                 ) : null}
               </article>
             ) : null}
-
-            {role === "admin" ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">管理</span>
-                </div>
-                <h4>账号与班级管理</h4>
-                <p>创建账号、批量导入学生、管理班级与邀请码。</p>
-                <Link className="button button-secondary" to="/admin">
-                  打开管理页
-                </Link>
-              </article>
-            ) : null}
           </div>
         </section>
       </main>
@@ -175,7 +145,7 @@ export function HomePage() {
   if (status === "loading") {
     return (
       <AppPageLayout className="home-page">
-        <main>
+        <main className="page-content">
           <p className="home-loading" role="status">
             正在载入…
           </p>

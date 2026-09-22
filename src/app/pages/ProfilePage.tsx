@@ -58,7 +58,7 @@ export function ProfilePage() {
         </Link>
       }
     >
-      <main className="profile-main" aria-labelledby="profile-title">
+      <main className="page-content profile-main" aria-labelledby="profile-title">
         <section className="profile-intro">
           <p className="eyebrow">账户 / PROFILE</p>
           <h1 id="profile-title">个人资料</h1>

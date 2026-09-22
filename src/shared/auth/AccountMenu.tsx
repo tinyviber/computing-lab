@@ -1,10 +1,10 @@
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { ROLE_LABELS, useAuth } from "./AuthProvider";
+import { isStaffRole, ROLE_LABELS, useAuth } from "./AuthProvider";
 import "./account-menu.css";
 
 export function AccountMenu() {
-  const { session, logout } = useAuth();
+  const { session, logout, primaryMembership } = useAuth();
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -48,6 +48,17 @@ export function AccountMenu() {
               {session.user.studentNo} · {ROLE_LABELS[session.user.role]}
             </span>
           </div>
+          {isStaffRole(session.user.role) && primaryMembership?.classId ? (
+            <Link
+              className="account-menu-item"
+              onClick={() => setOpen(false)}
+              params={{ classId: primaryMembership.classId }}
+              role="menuitem"
+              to="/classes/$classId/dashboard"
+            >
+              班级看板
+            </Link>
+          ) : null}
           {session.user.role === "admin" ? (
             <Link
               className="account-menu-item"

@@ -157,7 +157,7 @@ export function TeacherDashboardPage() {
         </label>
       }
     >
-      <main aria-label="学生进度矩阵">
+      <main aria-label="学生进度矩阵" className="page-content">
         <div className="dashboard-heading">
           <p className="eyebrow">班级看板</p>
           <h1>学生进度</h1>

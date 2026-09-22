@@ -1,4 +1,4 @@
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   adminAuthState,
@@ -24,11 +24,17 @@ describe("application router integration", () => {
     expect(screen.getByRole("link", { name: "开始" })).toHaveAttribute("href", "/labs/calculator");
   });
 
-  it("shows the calculator lab and management entry to admins", async () => {
+  it("shows the calculator lab and account menu to admins", async () => {
     await renderAppAt("/", { auth: adminAuthState });
 
     expect(screen.getByRole("heading", { name: "实现ALU" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "打开管理页" })).toBeInTheDocument();
+    const trigger = screen.getByRole("button", { name: /管理员/ });
+    fireEvent.click(trigger);
+    expect(await screen.findByRole("menuitem", { name: "账号管理" })).toHaveAttribute(
+      "href",
+      "/admin",
+    );
+    expect(screen.getByRole("menuitem", { name: "班级看板" })).toBeInTheDocument();
   });
 
   it("shows anonymous visitors a landing page with a sign-in entry", async () => {
