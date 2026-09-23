@@ -761,3 +761,161 @@ describe("admin teacher access", () => {
     expect(response.status).toBe(403);
   });
 });
+
+describe("student canvas forensics", () => {
+  const seedCanvas = (db: ReturnType<typeof openMemoryDb>, studentId: string) => {
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id, draft_graph) VALUES (?, ?, 'c1', 'calculator', ?)",
+    ).run(
+      "p1",
+      studentId,
+      JSON.stringify({
+        "1": {
+          nodes: [{ id: "a", kind: "input", name: "A", value: 0, x: 0, y: 0 }],
+          edges: [],
+        },
+      }),
+    );
+    db.prepare(
+      `INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph,
+         score, total, passed, test_summary)
+       VALUES ('s1', 'p1', ?, 'calculator', 1, '{"nodes":[],"edges":[]}', 0, 1, 0, '{"error":"x"}')`,
+    ).run(studentId);
+  };
+
+  it("serves drafts and submission snapshots to an admin only", async () => {
+    const { db, app } = setup();
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+    seedCanvas(db, studentId);
+
+    const teacher = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas`,
+      undefined,
+      await login(app, "teacher", "teacher-pass"),
+    );
+    expect(teacher.status).toBe(403);
+    const student = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas`,
+      undefined,
+      await login(app, "20260101", "student-pass"),
+    );
+    expect(student.status).toBe(403);
+
+    const admin = await login(app, "admin", "admin-pass");
+    const drafts = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=draft`,
+      undefined,
+      admin,
+    );
+    expect(drafts.status).toBe(200);
+    const draftPayload = (await drafts.json()) as {
+      revision: string;
+      drafts: Record<string, { kind: string; graph: { nodes: unknown[] } }>;
+    };
+    expect(draftPayload.revision).toBe("draft");
+    expect(draftPayload.drafts["1"].kind).toBe("circuit");
+    expect(draftPayload.drafts["1"].graph.nodes).toHaveLength(1);
+
+    const index = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=submission`,
+      undefined,
+      admin,
+    );
+    const { submissions } = (await index.json()) as {
+      submissions: { id: string; stageIndex: number; passed: boolean }[];
+    };
+    expect(submissions).toEqual([
+      {
+        id: "s1",
+        stageIndex: 1,
+        score: 0,
+        total: 1,
+        passed: false,
+        submittedAt: expect.any(String),
+      },
+    ]);
+
+    const snapshot = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=submission&submission=s1`,
+      undefined,
+      admin,
+    );
+    expect(snapshot.status).toBe(200);
+    const snapshotPayload = (await snapshot.json()) as {
+      submission: { id: string; testSummary: { error: string } };
+      canvas: { kind: string };
+    };
+    expect(snapshotPayload.submission.id).toBe("s1");
+    expect(snapshotPayload.submission.testSummary.error).toBe("x");
+    expect(snapshotPayload.canvas.kind).toBe("circuit");
+  });
+
+  it("returns 404s for unknown users, stages, and submissions", async () => {
+    const { db, app } = setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const studentId = (
+      db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
+    ).id;
+
+    const noUser = await request(
+      app,
+      "GET",
+      "/api/admin/users/nobody/labs/calculator/canvas",
+      undefined,
+      cookie,
+    );
+    expect(noUser.status).toBe(404);
+    expect(await noUser.json()).toEqual({ error: "user-not-found" });
+
+    const noLab = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/nope/canvas`,
+      undefined,
+      cookie,
+    );
+    expect(noLab.status).toBe(404);
+    expect(await noLab.json()).toEqual({ error: "unknown-lab" });
+
+    const noStage = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=draft&stage=99`,
+      undefined,
+      cookie,
+    );
+    expect(noStage.status).toBe(404);
+    expect(await noStage.json()).toEqual({ error: "not-found" });
+
+    const noSubmission = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=submission&submission=s9`,
+      undefined,
+      cookie,
+    );
+    expect(noSubmission.status).toBe(404);
+
+    const badRevision = await request(
+      app,
+      "GET",
+      `/api/admin/users/${studentId}/labs/calculator/canvas?revision=bogus`,
+      undefined,
+      cookie,
+    );
+    expect(badRevision.status).toBe(400);
+    expect(await badRevision.json()).toEqual({ error: "invalid-revision" });
+  });
+});

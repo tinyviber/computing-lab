@@ -72,9 +72,9 @@ describe("hidden tests accept the reference solutions", () => {
       ).toEqual([]);
       expect(score).toBe(total);
     },
-    // Stage 7 evaluates a full multiplier per hidden case; leave headroom for
-    // slow CI runners even though memoized component evaluation is much faster.
-    20_000,
+    // Stages 7-8 now enumerate every operand pair (256 and 1024 cases); leave
+    // headroom for slow CI runners even though component evaluation is memoized.
+    120_000,
   );
 
   it("rejects a wrong half adder and classifies the failures", () => {
@@ -114,6 +114,14 @@ describe("hidden tests accept the reference solutions", () => {
     const { results } = runCases(dangling, hiddenTestsFor(2), {});
     // 0+0 happens to expect Sum=0/Carry=0, but null must not equal 0.
     expect(results.every((r) => !r.passed)).toBe(true);
+  });
+
+  it("enumerates every operand pair for the 4-bit arithmetic stages", () => {
+    expect(hiddenTestsFor(4)).toHaveLength(256);
+    expect(hiddenTestsFor(5)).toHaveLength(16);
+    expect(hiddenTestsFor(6)).toHaveLength(256);
+    expect(hiddenTestsFor(7)).toHaveLength(256);
+    expect(hiddenTestsFor(8)).toHaveLength(1024);
   });
 
   it("detects a feedback loop rather than hanging", () => {
@@ -276,7 +284,27 @@ describe("judge persistence and unlocking", () => {
   it("does not advance on a partial pass but records the score", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject(db, userId, classId, "calculator");
-    const outcome = judgeSubmission(db, project, 2, { nodes: [], edges: [] });
+    // Fully wired but wrong: Carry is OR instead of AND, so exactly one
+    // hidden case fails — a genuine partial pass, not a structural fail.
+    const wrongCarry: CircuitGraph = {
+      nodes: [
+        { id: "a", kind: "input", name: "A", value: 0, x: 0, y: 0 },
+        { id: "b", kind: "input", name: "B", value: 0, x: 0, y: 40 },
+        { id: "x", kind: "xor", x: 100, y: 0 },
+        { id: "o", kind: "or", x: 100, y: 60 },
+        { id: "s", kind: "output", name: "Sum", x: 200, y: 0 },
+        { id: "c", kind: "output", name: "Carry", x: 200, y: 60 },
+      ],
+      edges: [
+        { id: "1", from: { node: "a", port: "out" }, to: { node: "x", port: "in0" } },
+        { id: "2", from: { node: "b", port: "out" }, to: { node: "x", port: "in1" } },
+        { id: "3", from: { node: "a", port: "out" }, to: { node: "o", port: "in0" } },
+        { id: "4", from: { node: "b", port: "out" }, to: { node: "o", port: "in1" } },
+        { id: "5", from: { node: "x", port: "out" }, to: { node: "s", port: "in" } },
+        { id: "6", from: { node: "o", port: "out" }, to: { node: "c", port: "in" } },
+      ],
+    };
+    const outcome = judgeSubmission(db, project, 2, wrongCarry);
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(false);
     expect(outcome.currentStage).toBe(1);
@@ -356,6 +384,38 @@ describe("judge persistence and unlocking", () => {
     expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(
       expect.arrayContaining(["HalfAdder", "FullAdder"]),
     );
+  });
+
+  it("fails a structurally invalid graph without running cases", () => {
+    const { db, userId, classId } = setup();
+    const project = getOrCreateProject(db, userId, classId, "calculator");
+    // Two wires into Sum's `in` port plus a missing B pin: the bug from issue
+    // #44 — this graph must fail before any truth-table case runs.
+    const bad: CircuitGraph = {
+      nodes: [
+        { id: "a", kind: "input", name: "A", value: 0, x: 0, y: 0 },
+        { id: "s", kind: "output", name: "Sum", x: 200, y: 0 },
+      ],
+      edges: [
+        { id: "e1", from: { node: "a", port: "out" }, to: { node: "s", port: "in" } },
+        { id: "e2", from: { node: "a", port: "out" }, to: { node: "s", port: "in" } },
+      ],
+    };
+    const outcome = judgeSubmission(db, project, 2, bad);
+    if ("error" in outcome) throw new Error(outcome.error);
+    expect(outcome.passed).toBe(false);
+    expect(outcome.score).toBe(0);
+    // sanitizeGraph dedupes the double-driven port first, so the readable
+    // diagnostics cover the pins it could not repair: a missing B and a
+    // missing Carry.
+    expect(outcome.testSummary.error).toContain("结构问题");
+    expect(outcome.testSummary.error).toContain("缺少输入引脚 B");
+    expect(outcome.testSummary.error).toContain("缺少输出引脚 Carry");
+
+    const row = db
+      .prepare("SELECT score, passed FROM submissions WHERE user_id = ?")
+      .get(userId) as { score: number; passed: number };
+    expect(row).toEqual({ score: 0, passed: 0 });
   });
 
   it("keeps drafts per stage and sanitizes them", () => {
