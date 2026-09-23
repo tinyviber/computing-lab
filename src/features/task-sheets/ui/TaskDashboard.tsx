@@ -1,6 +1,8 @@
 /**
- * Task-mode dashboard: assignment selector, per-question stats strip, and the
- * student × status table. The review drawer lives in TaskReviewDrawer.
+ * Task-mode dashboard: per-question stats strip and the student × status table.
+ * The assignment itself is selected in the page's controls row (it is the
+ * second-level option of the 分类 → 任务单 drill-down); the review drawer lives
+ * in TaskReviewDrawer.
  */
 
 import { useCallback, useEffect, useState } from "react";
@@ -157,9 +159,16 @@ function StatsStrip({
   );
 }
 
-export function TaskDashboard({ classId }: { classId: string }) {
-  const [assignments, setAssignments] = useState<AssignmentSummary[]>([]);
-  const [assignmentId, setAssignmentId] = useState<string>("");
+export function TaskDashboard({
+  classId,
+  assignment,
+  onAssignmentsChanged,
+}: {
+  classId: string;
+  assignment: AssignmentSummary | null;
+  onAssignmentsChanged: () => void;
+}) {
+  const assignmentId = assignment?.id ?? "";
   const [rows, setRows] = useState<ResponseRow[]>([]);
   const [stats, setStats] = useState<{ stats: QuestionStat[]; submittedCount: number } | null>(
     null,
@@ -169,16 +178,6 @@ export function TaskDashboard({ classId }: { classId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [onlyPending, setOnlyPending] = useState(false);
-
-  const loadAssignments = useCallback(() => {
-    void api
-      .get<{ assignments: AssignmentSummary[] }>(`/api/classes/${classId}/task-assignments`)
-      .then((p) => {
-        setAssignments(p.assignments);
-        setAssignmentId((current) => current || p.assignments[0]?.id || "");
-      })
-      .catch((caught) => setError(describeApiError(caught)));
-  }, [classId]);
 
   const loadRows = useCallback(() => {
     if (!assignmentId) {
@@ -204,7 +203,6 @@ export function TaskDashboard({ classId }: { classId: string }) {
       .catch(() => setStats(null));
   }, [classId, assignmentId]);
 
-  useEffect(loadAssignments, [loadAssignments]);
   useEffect(loadRows, [loadRows]);
 
   const openDetail = (responseId: string | null) => {
@@ -220,13 +218,13 @@ export function TaskDashboard({ classId }: { classId: string }) {
       .catch((caught) => setError(describeApiError(caught)));
   };
 
-  const archiveAssignment = (assignment: AssignmentSummary) => {
-    if (!window.confirm(`归档「${assignment.title}」？学生将看不到它，已收答卷保留。`)) return;
+  const archiveAssignment = (target: AssignmentSummary) => {
+    if (!window.confirm(`归档「${target.title}」？学生将看不到它，已收答卷保留。`)) return;
     void api
-      .patch(`/api/classes/${classId}/task-assignments/${assignment.id}`, { archived: true })
+      .patch(`/api/classes/${classId}/task-assignments/${target.id}`, { archived: true })
       .then(() => {
-        setNotice(`已归档「${assignment.title}」。`);
-        loadAssignments();
+        setNotice(`已归档「${target.title}」。`);
+        onAssignmentsChanged();
       })
       .catch((caught) => setError(describeApiError(caught)));
   };
@@ -234,22 +232,11 @@ export function TaskDashboard({ classId }: { classId: string }) {
   const visibleRows = onlyPending
     ? rows.filter((r) => r.status !== "submitted" && r.status !== "reviewed")
     : rows;
-  const current = assignments.find((a) => a.id === assignmentId);
+  const current = assignment;
 
   return (
     <>
       <div className="dashboard-subbar">
-        <label className="field-select">
-          <span>任务单</span>
-          <select onChange={(e) => setAssignmentId(e.target.value)} value={assignmentId}>
-            {assignments.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.title}
-                {a.archived ? "（已归档）" : ""}
-              </option>
-            ))}
-          </select>
-        </label>
         {current ? (
           <p className="dashboard-submeta">
             已交 {current.submittedCount}/{current.studentCount}
@@ -291,7 +278,7 @@ export function TaskDashboard({ classId }: { classId: string }) {
         </p>
       ) : null}
 
-      {assignments.length === 0 ? (
+      {assignment === null ? (
         <p className="ts-empty">
           还没有布置过任务单——到「任务单」页创建并布置一份，学生会在这里被你看到。
         </p>
@@ -361,7 +348,7 @@ export function TaskDashboard({ classId }: { classId: string }) {
             setDetail(null);
             if (changed) {
               loadRows();
-              loadAssignments();
+              onAssignmentsChanged();
             }
           }}
           response={detail}

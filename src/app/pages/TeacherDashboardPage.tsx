@@ -5,7 +5,7 @@ import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
-import { TaskDashboard } from "../../features/task-sheets/ui/TaskDashboard";
+import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
@@ -97,10 +97,15 @@ function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () =
 
 export function TeacherDashboardPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
-  const search = useSearch({ strict: false }) as { kind?: string; lab?: string };
+  const search = useSearch({ strict: false }) as {
+    kind?: string;
+    lab?: string;
+    assignment?: string;
+  };
   const navigate = useNavigate();
   const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
+  const [assignments, setAssignments] = useState<AssignmentSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
@@ -109,6 +114,7 @@ export function TeacherDashboardPage() {
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
   const labOptions = LAB_OPTIONS.filter((l) => l.teacherVisible || isAdmin);
   const lab = labOptions.find((l) => l.id === search.lab) ?? labOptions[0] ?? LAB_OPTIONS[0];
+  const assignment = assignments.find((a) => a.id === search.assignment) ?? assignments[0] ?? null;
 
   const load = useCallback(() => {
     if (!classId) return;
@@ -118,9 +124,19 @@ export function TeacherDashboardPage() {
       .catch((caught) => setError(describeApiError(caught)));
   }, [classId, lab.id]);
 
+  const loadAssignments = useCallback(() => {
+    if (!classId) return;
+    void api
+      .get<{ assignments: AssignmentSummary[] }>(`/api/classes/${classId}/task-assignments`)
+      .then((p) => setAssignments(p.assignments))
+      .catch((caught) => setError(describeApiError(caught)));
+  }, [classId]);
+
   useEffect(() => {
-    if (status === "authenticated") load();
-  }, [status, load]);
+    if (status !== "authenticated") return;
+    if (kind === "task") loadAssignments();
+    else load();
+  }, [status, kind, load, loadAssignments]);
 
   const clearRecords = (row: MatrixRow) => {
     if (
@@ -173,6 +189,14 @@ export function TeacherDashboardPage() {
     });
   };
 
+  const selectAssignment = (nextAssignmentId: string) => {
+    void navigate({
+      params: { classId: classId ?? "" },
+      search: { kind: "task", assignment: nextAssignmentId },
+      to: "/classes/$classId/dashboard",
+    });
+  };
+
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -208,6 +232,23 @@ export function TeacherDashboardPage() {
             </p>
           </div>
           <div className="dashboard-controls">
+            {(session?.memberships.length ?? 0) > 0 ? (
+              <label className="field-select" htmlFor="dashboard-class-select">
+                <span>班级</span>
+                <select
+                  aria-label="选择班级"
+                  id="dashboard-class-select"
+                  onChange={(event) => selectClass(event.target.value)}
+                  value={classId ?? ""}
+                >
+                  {session?.memberships.map((membership) => (
+                    <option key={membership.classId} value={membership.classId}>
+                      {membership.className}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="field-select" htmlFor="dashboard-kind-select">
               <span>分类</span>
               <select
@@ -236,24 +277,26 @@ export function TeacherDashboardPage() {
                   ))}
                 </select>
               </label>
-            ) : null}
-            {(session?.memberships.length ?? 0) > 1 ? (
-              <label className="field-select" htmlFor="dashboard-class-select">
-                <span>班级</span>
+            ) : (
+              <label className="field-select" htmlFor="dashboard-assignment-select">
+                <span>任务单</span>
                 <select
-                  aria-label="选择班级"
-                  id="dashboard-class-select"
-                  onChange={(event) => selectClass(event.target.value)}
-                  value={classId ?? ""}
+                  aria-label="选择任务单"
+                  disabled={assignments.length === 0}
+                  id="dashboard-assignment-select"
+                  onChange={(event) => selectAssignment(event.target.value)}
+                  value={assignment?.id ?? ""}
                 >
-                  {session?.memberships.map((membership) => (
-                    <option key={membership.classId} value={membership.classId}>
-                      {membership.className}
+                  {assignments.length === 0 ? <option value="">尚未布置</option> : null}
+                  {assignments.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.title}
+                      {a.archived ? "（已归档）" : ""}
                     </option>
                   ))}
                 </select>
               </label>
-            ) : null}
+            )}
           </div>
         </div>
         {error ? (
@@ -268,7 +311,11 @@ export function TeacherDashboardPage() {
         ) : null}
 
         {kind === "task" && classId ? (
-          <TaskDashboard classId={classId} />
+          <TaskDashboard
+            assignment={assignment}
+            classId={classId}
+            onAssignmentsChanged={loadAssignments}
+          />
         ) : (
           <div aria-label="学生进度横向滚动区" className="matrix-scroll" tabIndex={0}>
             <table className="matrix-table">
