@@ -97,29 +97,20 @@ function add4(a: number, b: number, name: string, category: string): JudgeCase {
 }
 
 function add4Cases(): JudgeCase[] {
-  const cases: JudgeCase[] = [
-    add4(0, 0, "0+0", "zero"),
-    add4(3, 4, "3+4", "basic"),
-    add4(5, 2, "5+2", "basic"),
-    add4(9, 6, "9+6", "basic"),
-    add4(7, 1, "7+1 carry", "carry-chain"),
-    add4(15, 1, "15+1 wraps", "carry-chain"),
-    add4(0b0111, 0b0001, "0111+0001", "carry-chain"),
-    add4(0b1011, 0b0101, "1011+0101", "carry-chain"),
-    add4(15, 15, "15+15", "overflow"),
-    add4(15, 0, "15+0", "max"),
-    add4(0, 15, "0+15", "max"),
-    add4(8, 8, "8+8", "overflow"),
-  ];
-  // Deterministic pseudo-random spread (LCG) — no runtime randomness.
-  let seed = 0x2f6e;
-  for (let i = 0; i < 38; i += 1) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    const a = seed & 0xf;
-    const b = (seed >> 4) & 0xf;
-    const cat = a + b > 15 ? "overflow" : a === 0 || b === 0 ? "zero" : "random";
-    cases.push(add4(a, b, `${a}+${b}`, cat));
-  }
+  // The whole 4-bit input space is only 16×16 — enumerate it, Cout included.
+  const cases: JudgeCase[] = [];
+  for (let a = 0; a < 16; a += 1)
+    for (let b = 0; b < 16; b += 1) {
+      const cat =
+        a + b > 15
+          ? "overflow"
+          : a === 0 || b === 0
+            ? "zero"
+            : (a & b) !== 0
+              ? "carry-chain"
+              : "basic";
+      cases.push(add4(a, b, `${a}+${b}`, cat));
+    }
   return cases;
 }
 
@@ -138,28 +129,19 @@ function sub4(a: number, b: number, name: string, category: string): JudgeCase {
 }
 
 function sub4Cases(): JudgeCase[] {
-  const cases: JudgeCase[] = [
-    sub4(0, 0, "0-0", "zero"),
-    sub4(5, 3, "5-3", "basic"),
-    sub4(9, 4, "9-4", "basic"),
-    sub4(15, 15, "15-15", "zero"),
-    sub4(0, 1, "0-1 borrow", "borrow"),
-    sub4(0, 15, "0-15 borrow", "borrow"),
-    sub4(3, 7, "3-7 borrow", "borrow"),
-    sub4(8, 9, "8-9 borrow", "borrow"),
-    sub4(15, 1, "15-1", "basic"),
-    sub4(1, 0, "1-0", "basic"),
-    sub4(8, 8, "8-8", "zero"),
-    sub4(15, 0, "15-0", "max"),
-  ];
-  let seed = 0x5a11;
-  for (let i = 0; i < 38; i += 1) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    const a = seed & 0xf;
-    const b = (seed >> 4) & 0xf;
-    const cat = a < b ? "borrow" : a === b ? "zero" : "random";
-    cases.push(sub4(a, b, `${a}-${b}`, cat));
-  }
+  const cases: JudgeCase[] = [];
+  for (let a = 0; a < 16; a += 1)
+    for (let b = 0; b < 16; b += 1) {
+      const cat =
+        a < b
+          ? "borrow"
+          : a === b || a === 0 || b === 0
+            ? "zero"
+            : a === 15 || b === 15
+              ? "max"
+              : "basic";
+      cases.push(sub4(a, b, `${a}-${b}`, cat));
+    }
   return cases;
 }
 
@@ -168,30 +150,22 @@ function mul4(a: number, b: number, name: string, category: string): JudgeCase {
 }
 
 function mul4Cases(): JudgeCase[] {
-  const cases: JudgeCase[] = [
-    mul4(0, 0, "0×0", "zero"),
-    mul4(0, 15, "0×15", "zero"),
-    mul4(15, 0, "15×0", "zero"),
-    mul4(1, 1, "1×1", "identity"),
-    mul4(7, 1, "7×1", "identity"),
-    mul4(1, 9, "1×9", "identity"),
-    mul4(15, 15, "15×15=225", "max"),
-    mul4(3, 5, "3×5", "basic"),
-    mul4(6, 7, "6×7", "basic"),
-    mul4(2, 4, "2×4", "power-shift"),
-    mul4(4, 4, "4×4", "power-shift"),
-    mul4(8, 2, "8×2", "power-shift"),
-    mul4(9, 9, "9×9", "basic"),
-    mul4(12, 11, "12×11", "basic"),
-  ];
-  let seed = 0x71c3;
-  for (let i = 0; i < 34; i += 1) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    const a = seed & 0xf;
-    const b = (seed >> 6) & 0xf;
-    const cat = a === 0 || b === 0 ? "zero" : a === 1 || b === 1 ? "identity" : "random";
-    cases.push(mul4(a, b, `${a}×${b}`, cat));
-  }
+  const cases: JudgeCase[] = [];
+  for (let a = 0; a < 16; a += 1)
+    for (let b = 0; b < 16; b += 1) {
+      const powerShift = (a & (a - 1)) === 0 || (b & (b - 1)) === 0;
+      const cat =
+        a === 0 || b === 0
+          ? "zero"
+          : a === 1 || b === 1
+            ? "identity"
+            : a === 15 && b === 15
+              ? "max"
+              : powerShift
+                ? "power-shift"
+                : "basic";
+      cases.push(mul4(a, b, `${a}×${b}`, cat));
+    }
   return cases;
 }
 
@@ -211,28 +185,12 @@ function calc(a: number, b: number, op: number, name: string, category: string):
 
 function calculatorCases(): JudgeCase[] {
   const ops = ["add", "sub", "mul", "xor"] as const;
-  const cases: JudgeCase[] = [
-    calc(3, 4, 0, "add 3+4", "op-add"),
-    calc(15, 1, 0, "add 15+1", "op-add"),
-    calc(5, 3, 1, "sub 5-3", "op-sub"),
-    calc(0, 1, 1, "sub 0-1", "op-sub"),
-    calc(3, 5, 1, "sub 3-5→14", "op-sub"),
-    calc(6, 7, 2, "mul 6×7→10", "op-mul"),
-    calc(15, 15, 2, "mul 15×15→1", "op-mul"),
-    calc(3, 5, 2, "mul 3×5→15", "op-mul"),
-    calc(0b1010, 0b0110, 3, "xor 1010^0110", "op-xor"),
-    calc(0b1111, 0b1111, 3, "xor 1111^1111", "op-xor"),
-    calc(0, 0, 0, "add 0+0", "op-add"),
-    calc(0, 0, 3, "xor 0^0", "op-xor"),
-  ];
-  let seed = 0x33d9;
-  for (let i = 0; i < 54; i += 1) {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    const a = seed & 0xf;
-    const b = (seed >> 4) & 0xf;
-    const op = (seed >> 8) & 3;
-    cases.push(calc(a, b, op, `${ops[op]} ${a},${b}`, `op-${ops[op]}`));
-  }
+  // 4 ops × 16 × 16 = 1024 exhaustive (a,b,op) combinations.
+  const cases: JudgeCase[] = [];
+  for (let op = 0; op < 4; op += 1)
+    for (let a = 0; a < 16; a += 1)
+      for (let b = 0; b < 16; b += 1)
+        cases.push(calc(a, b, op, `${ops[op]} ${a},${b}`, `op-${ops[op]}`));
   return cases;
 }
 

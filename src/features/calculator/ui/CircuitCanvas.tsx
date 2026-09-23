@@ -34,6 +34,12 @@ type CircuitCanvasProps = {
   dispatch: (action: CalculatorLessonAction) => void;
   /** Coach spotlight: pulse these nodes, ports, or every wire. */
   coachFocus?: { nodeIds: ReadonlySet<string>; portKeys: ReadonlySet<string>; wires: boolean };
+  /**
+   * Read-only presentation for forensics/review: no editing gestures, no
+   * keyboard shortcuts, no mutation dispatch. Collapse badges still toggle —
+   * locally, without touching the stored graph.
+   */
+  readOnly?: boolean;
 };
 
 const NODE_DRAG_THRESHOLD = 4;
@@ -66,6 +72,7 @@ export function CircuitCanvas({
   pendingWire,
   dispatch,
   coachFocus,
+  readOnly = false,
 }: CircuitCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{
@@ -84,6 +91,11 @@ export function CircuitCanvas({
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
   const [componentDialogOpen, setComponentDialogOpen] = useState(false);
   const [cursor, setCursor] = useState<{ x: number; y: number } | null>(null);
+  // Read-only viewers may expand a collapsed component locally; the stored
+  // flag is never touched.
+  const [collapsedOverrides, setCollapsedOverrides] = useState<Record<string, boolean>>({});
+  const collapsedOf = (node: CircuitNode) =>
+    readOnly ? (collapsedOverrides[node.id] ?? node.collapsed ?? false) : (node.collapsed ?? false);
   const bounds = canvasBounds(graph, components);
   const nodesById = new Map(graph.nodes.map((n) => [n.id, n]));
   const selection = useMemo(
@@ -106,6 +118,7 @@ export function CircuitCanvas({
   };
 
   const onNodePointerDown = (event: ReactPointerEvent, node: CircuitNode) => {
+    if (readOnly) return;
     event.stopPropagation();
     suppressClickRef.current = false;
     const point = toCanvas(event);
@@ -124,6 +137,7 @@ export function CircuitCanvas({
   };
 
   const onCanvasPointerDown = (event: ReactPointerEvent) => {
+    if (readOnly) return;
     suppressClickRef.current = false;
     if ((event.target as Element).closest(".wire")) return;
     if (pendingWire) {
@@ -148,6 +162,7 @@ export function CircuitCanvas({
   };
 
   const onPointerMove = (event: ReactPointerEvent) => {
+    if (readOnly) return;
     const point = toCanvas(event);
     if (marquee) {
       setMarquee((current) => (current ? { ...current, current: point } : current));
@@ -173,6 +188,7 @@ export function CircuitCanvas({
   };
 
   const endPointerInteraction = (event?: ReactPointerEvent) => {
+    if (readOnly) return;
     const nodeDrag = dragRef.current;
     const hadNodeDrag = Boolean(nodeDrag);
     if (nodeDrag?.moved) suppressClickRef.current = true;
@@ -211,6 +227,7 @@ export function CircuitCanvas({
   };
 
   useEffect(() => {
+    if (readOnly) return;
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (
@@ -238,7 +255,7 @@ export function CircuitCanvas({
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [dispatch, selectedNodeId, selectedNodeIds]);
+  }, [dispatch, selectedNodeId, selectedNodeIds, readOnly]);
 
   const marqueeRectangle = selectionRectangle();
   const onCreateComponent = (form: ComponentizeForm) => {
@@ -266,6 +283,7 @@ export function CircuitCanvas({
         onPointerDown={onCanvasPointerDown}
         onPointerUp={(event) => endPointerInteraction(event)}
         onClick={(event) => {
+          if (readOnly) return;
           if (suppressClickRef.current) {
             suppressClickRef.current = false;
             event.preventDefault();
@@ -304,17 +322,24 @@ export function CircuitCanvas({
           {graph.edges.map((edge) => {
             const fromNode = nodesById.get(edge.from.node);
             const toNode = nodesById.get(edge.to.node);
-            if (!fromNode || !toNode || fromNode.collapsed || toNode.collapsed) return null;
+            if (!fromNode || !toNode || collapsedOf(fromNode) || collapsedOf(toNode)) {
+              return null;
+            }
             const from = portAnchor(fromNode, edge.from.port, "out", components);
             const to = portAnchor(toNode, edge.to.port, "in", components);
             const value = portValues[`${edge.from.node}#${edge.from.port}`];
             return (
               <path
-                aria-label={`连线 ${nodeLabel(fromNode)} → ${nodeLabel(toNode)}，删除`}
+                aria-label={
+                  readOnly
+                    ? `连线 ${nodeLabel(fromNode)} → ${nodeLabel(toNode)}`
+                    : `连线 ${nodeLabel(fromNode)} → ${nodeLabel(toNode)}，删除`
+                }
                 className={`wire${valueClass(value)}${coachFocus?.wires ? " coach-focus" : ""}`}
                 d={wirePath(from, to)}
                 key={edge.id}
                 onClick={(event) => {
+                  if (readOnly) return;
                   event.stopPropagation();
                   dispatch({ type: "delete-edge", id: edge.id });
                 }}
@@ -344,14 +369,14 @@ export function CircuitCanvas({
 
             return (
               <g
-                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}${node.collapsed ? " is-collapsed" : ""}${coachFocus?.nodeIds.has(node.id) ? " coach-focus" : ""}`}
+                className={`circuit-node kind-${node.kind}${isSelected ? " is-selected" : ""}${collapsedOf(node) ? " is-collapsed" : ""}${coachFocus?.nodeIds.has(node.id) ? " coach-focus" : ""}`}
                 key={node.id}
                 onPointerDown={(event) => onNodePointerDown(event, node)}
                 transform={`translate(${node.x} ${node.y})`}
               >
-                {nodeHelp(node) || node.collapsed ? (
+                {nodeHelp(node) || collapsedOf(node) ? (
                   <title>
-                    {[nodeHelp(node), node.collapsed ? "已折叠，连接线已隐藏" : null]
+                    {[nodeHelp(node), collapsedOf(node) ? "已折叠，连接线已隐藏" : null]
                       .filter(Boolean)
                       .join("；")}
                   </title>
@@ -377,19 +402,33 @@ export function CircuitCanvas({
                     {node.kind === "component" ? (
                       <g
                         aria-label={
-                          node.collapsed
+                          collapsedOf(node)
                             ? `展开组件 ${nodeLabel(node)}`
                             : `折叠组件 ${nodeLabel(node)}`
                         }
                         className="node-collapse-toggle"
                         onClick={(event) => {
                           event.stopPropagation();
+                          if (readOnly) {
+                            setCollapsedOverrides((current) => ({
+                              ...current,
+                              [node.id]: !collapsedOf(node),
+                            }));
+                            return;
+                          }
                           dispatch({ type: "toggle-collapse-node", id: node.id });
                         }}
                         onKeyDown={(event) => {
                           if (event.key !== "Enter" && event.key !== " ") return;
                           event.preventDefault();
                           event.stopPropagation();
+                          if (readOnly) {
+                            setCollapsedOverrides((current) => ({
+                              ...current,
+                              [node.id]: !collapsedOf(node),
+                            }));
+                            return;
+                          }
                           dispatch({ type: "toggle-collapse-node", id: node.id });
                         }}
                         onPointerDown={(event) => event.stopPropagation()}
@@ -411,11 +450,11 @@ export function CircuitCanvas({
                           x={size.width - 13}
                           y={11}
                         >
-                          {node.collapsed ? "+" : "−"}
+                          {collapsedOf(node) ? "+" : "−"}
                         </text>
                       </g>
                     ) : null}
-                    {!node.collapsed &&
+                    {!collapsedOf(node) &&
                       inputs.map((port, index) => (
                         <text
                           className="port-label is-in"
@@ -426,7 +465,7 @@ export function CircuitCanvas({
                           {port}
                         </text>
                       ))}
-                    {!node.collapsed &&
+                    {!collapsedOf(node) &&
                       outputs.map((port, index) => (
                         <text
                           className="port-label is-out"
@@ -441,53 +480,99 @@ export function CircuitCanvas({
                   </>
                 )}
 
-                {/* Output ports start a wire. */}
-                {!node.collapsed &&
+                {/* Output ports start a wire. The visible dot stays r=5;
+                    a transparent r=8 hit disc carries the interaction so
+                    the usable target matches the ±9px spacing budget. */}
+                {!collapsedOf(node) &&
                   outputs.map((port) => {
                     const anchor = portAnchor(node, port, "out", components);
+                    const className = `port is-out${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#out`) ? " coach-focus" : ""}`;
+                    if (readOnly) {
+                      return (
+                        <circle
+                          aria-label={`${nodeLabel(node)} 输出 ${port}`}
+                          className={className}
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          key={`o-${port}`}
+                          pointerEvents="none"
+                          r={5}
+                        />
+                      );
+                    }
                     return (
-                      <circle
-                        aria-label={`${nodeLabel(node)} 输出 ${port}`}
-                        className={`port is-out${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#out`) ? " coach-focus" : ""}`}
-                        cx={anchor.x - node.x}
-                        cy={anchor.y - node.y}
-                        key={`o-${port}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          dispatch({ type: "start-wire", from: { node: node.id, port } });
-                        }}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        r={5}
-                        role="button"
-                      />
+                      <g key={`o-${port}`}>
+                        <circle
+                          aria-label={`${nodeLabel(node)} 输出 ${port}`}
+                          className="port-hit"
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            dispatch({ type: "start-wire", from: { node: node.id, port } });
+                          }}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          r={8}
+                          role="button"
+                        />
+                        <circle
+                          className={className}
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          pointerEvents="none"
+                          r={5}
+                        />
+                      </g>
                     );
                   })}
 
                 {/* Input ports complete a wire. */}
-                {!node.collapsed &&
+                {!collapsedOf(node) &&
                   inputs.map((port) => {
                     const anchor = portAnchor(node, port, "in", components);
+                    const className = `port is-in${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#in`) ? " coach-focus" : ""}`;
+                    if (readOnly) {
+                      return (
+                        <circle
+                          aria-label={`${nodeLabel(node)} 输入 ${port}`}
+                          className={className}
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          key={`i-${port}`}
+                          pointerEvents="none"
+                          r={5}
+                        />
+                      );
+                    }
                     return (
-                      <circle
-                        aria-label={`${nodeLabel(node)} 输入 ${port}`}
-                        className={`port is-in${valueClass(portValues[`${node.id}#${port}`])}${coachFocus?.portKeys.has(`${node.id}#${port}#in`) ? " coach-focus" : ""}`}
-                        cx={anchor.x - node.x}
-                        cy={anchor.y - node.y}
-                        key={`i-${port}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (pendingWire)
-                            dispatch({ type: "complete-wire", to: { node: node.id, port } });
-                        }}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        r={5}
-                        role="button"
-                      />
+                      <g key={`i-${port}`}>
+                        <circle
+                          aria-label={`${nodeLabel(node)} 输入 ${port}`}
+                          className="port-hit"
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (pendingWire)
+                              dispatch({ type: "complete-wire", to: { node: node.id, port } });
+                          }}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          r={8}
+                          role="button"
+                        />
+                        <circle
+                          className={className}
+                          cx={anchor.x - node.x}
+                          cy={anchor.y - node.y}
+                          pointerEvents="none"
+                          r={5}
+                        />
+                      </g>
                     );
                   })}
 
                 {/* Toggling a source pin drives the live preview. */}
-                {node.kind === "input" || node.kind === "const" ? (
+                {!readOnly && (node.kind === "input" || node.kind === "const") ? (
                   <rect
                     aria-label={`切换 ${nodeLabel(node)}，当前 ${node.value ?? 0}`}
                     className="pin-hit"
@@ -511,7 +596,7 @@ export function CircuitCanvas({
           })}
         </g>
       </svg>
-      {selectedNodeIds.length > 0 ? (
+      {!readOnly && selectedNodeIds.length > 0 ? (
         <div className="circuit-canvas-tools">
           <span>
             已框选 {selection.selectedIds.length} 个元件
@@ -537,7 +622,7 @@ export function CircuitCanvas({
           </div>
         </div>
       ) : null}
-      {componentDialogOpen ? (
+      {!readOnly && componentDialogOpen ? (
         <CustomComponentDialog
           existingNames={Object.keys(components)}
           onCancel={() => setComponentDialogOpen(false)}

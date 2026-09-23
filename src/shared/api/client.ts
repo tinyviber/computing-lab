@@ -51,6 +51,8 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "toner-not-loaded": "映射到了粉盒里没有的墨粉。",
   "lab-not-available": "这个实验暂未开放。",
   "unknown-lab": "未知的实验。",
+  "invalid-revision": "无效的版本参数。",
+  "not-found": "没有找到对应的数据。",
   "invalid-title": "标题无效（1～120 字符）。",
   "invalid-description": "说明太长了。",
   "invalid-status": "状态无效。",

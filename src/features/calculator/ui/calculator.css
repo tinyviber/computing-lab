@@ -927,7 +927,6 @@
   fill: var(--surface);
   stroke: var(--secondary);
   stroke-width: 1.5;
-  cursor: crosshair;
 }
 
 .port.is-high {
@@ -935,7 +934,15 @@
   stroke: var(--accent);
 }
 
-.port:hover {
+/* Invisible disc carrying the port's pointer target — r=8 stays inside the
+   ±9px budget implied by PORT_SPACING=18. */
+.port-hit {
+  fill: transparent;
+  cursor: crosshair;
+  pointer-events: all;
+}
+
+.port-hit:hover + .port {
   stroke: var(--focus-ring);
   stroke-width: 2.5;
 }
