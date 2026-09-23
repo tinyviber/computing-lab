@@ -388,7 +388,7 @@ describe("judge persistence and unlocking", () => {
 
   it("fails a structurally invalid graph without running cases", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     // Two wires into Sum's `in` port plus a missing B pin: the bug from issue
     // #44 — this graph must fail before any truth-table case runs.
     const bad: CircuitGraph = {

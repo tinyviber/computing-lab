@@ -784,7 +784,7 @@ describe("student canvas forensics", () => {
   };
 
   it("serves drafts and submission snapshots to an admin only", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
     ).id;
@@ -863,7 +863,7 @@ describe("student canvas forensics", () => {
   });
 
   it("returns 404s for unknown users, stages, and submissions", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
