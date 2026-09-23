@@ -10,11 +10,15 @@ export {
 } from "./ui/TaskSheetEditor";
 export { QuestionAnswer, type PublicGrading } from "./ui/QuestionFields";
 export {
+  BLANK_MARKER,
   publicSchema,
+  countPromptBlanks,
+  splitPromptBlanks,
   validateSheetSchema,
   SHEET_LIMITS,
   type ChoiceQuestion,
   type FillQuestion,
+  type PromptSegment,
   type PublicQuestion,
   type PublicSheetSchema,
   type Question,

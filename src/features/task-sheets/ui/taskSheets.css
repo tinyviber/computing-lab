@@ -637,3 +637,54 @@
   gap: 12px;
   margin-top: 20px;
 }
+
+.ts-cloze {
+  font-size: 15px;
+  line-height: 2.2;
+  margin: 10px 0 4px;
+}
+
+.ts-cloze-slot {
+  align-items: center;
+  display: inline-flex;
+  gap: 3px;
+  margin: 0 2px;
+}
+
+.ts-blank-inline {
+  border: none;
+  border-bottom: 2px solid var(--accent);
+  border-radius: 0;
+  font-size: 14px;
+  min-width: 72px;
+  padding: 2px 6px;
+  text-align: center;
+  width: auto;
+}
+
+.ts-blank-inline.is-right {
+  border-bottom-color: var(--success);
+  color: var(--success);
+}
+
+.ts-blank-inline.is-wrong {
+  border-bottom-color: var(--danger);
+  color: var(--danger);
+}
+
+.ts-cloze-fill {
+  border-bottom: 2px solid var(--accent);
+  font-weight: 600;
+  margin: 0 2px;
+  padding: 0 6px;
+}
+
+.ts-cloze-fill.is-right {
+  border-bottom-color: var(--success);
+  color: var(--success);
+}
+
+.ts-cloze-fill.is-wrong {
+  border-bottom-color: var(--danger);
+  color: var(--danger);
+}

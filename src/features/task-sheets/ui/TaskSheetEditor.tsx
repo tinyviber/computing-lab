@@ -4,10 +4,12 @@
  * debounced whole-document save reaches the server.
  */
 
-import type { Dispatch } from "react";
+import { useRef, type Dispatch } from "react";
 import { Icon } from "../../../shared/ui/Icon";
 import {
+  BLANK_MARKER,
   SHEET_LIMITS,
+  countPromptBlanks,
   type ChoiceQuestion,
   type FillQuestion,
   type Question,
@@ -124,6 +126,10 @@ export function questionProblem(q: Question): string | null {
   if (q.prompt.trim() === "") return "请填写题干";
   if (q.type === "fill") {
     if (q.blanks.length === 0) return "至少需要一个填空";
+    const markers = countPromptBlanks(q.prompt);
+    if (markers !== q.blanks.length) {
+      return `题干中的 ${BLANK_MARKER} 标记（${markers} 个）需与空数（${q.blanks.length} 个）一致`;
+    }
     if (q.blanks.some((b) => b.accept.every((a) => a.trim() === ""))) {
       return "每个空至少需要一个可接受答案";
     }
@@ -201,10 +207,14 @@ function NumberInput({
 function FillEditor({ q, dispatch }: { q: FillQuestion; dispatch: Dispatch<EditorAction> }) {
   const patch = (next: Partial<FillQuestion>) =>
     dispatch({ type: "update", question: { ...q, ...next } });
+  const markers = countPromptBlanks(q.prompt);
   return (
     <div className="ts-q-body">
       <p className="ts-hint">
         每个空可填多个可接受答案（大小写不敏感，自动忽略空格和全半角差异）。
+      </p>
+      <p className="ts-hint">
+        题干中已有 {markers} 个 {BLANK_MARKER} 标记 —— 第 i 个标记就是空 i。
       </p>
       {q.blanks.map((blank, i) => (
         <div className="ts-blank-row" key={blank.id}>
@@ -382,6 +392,26 @@ function QuestionCard({
   dispatch: Dispatch<EditorAction>;
 }) {
   const problem = questionProblem(q);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertBlankMarker = () => {
+    if (q.type !== "fill" || q.blanks.length >= SHEET_LIMITS.blanksPerQuestion) return;
+    const el = promptRef.current;
+    const start = el?.selectionStart ?? q.prompt.length;
+    const end = el?.selectionEnd ?? start;
+    const prompt = q.prompt.slice(0, start) + BLANK_MARKER + q.prompt.slice(end);
+    const blanks = [
+      ...q.blanks,
+      { id: `b${q.blanks.length + 1}-${Date.now() % 1000}`, accept: [""] },
+    ];
+    dispatch({ type: "update", question: { ...q, prompt, blanks } });
+    requestAnimationFrame(() => {
+      const caret = start + BLANK_MARKER.length;
+      el?.focus();
+      el?.setSelectionRange(caret, caret);
+    });
+  };
+
   return (
     <section
       aria-label={`第 ${index + 1} 题`}
@@ -441,11 +471,24 @@ function QuestionCard({
         <textarea
           aria-label="题干"
           onChange={(e) => dispatch({ type: "update", question: { ...q, prompt: e.target.value } })}
-          placeholder="输入题干…"
+          placeholder={
+            q.type === "fill" ? `输入题干…在需要填空的位置输入 ${BLANK_MARKER}` : "输入题干…"
+          }
+          ref={promptRef}
           rows={2}
           value={q.prompt}
         />
       </label>
+      {q.type === "fill" ? (
+        <button
+          className="button-ghost ts-add-inline"
+          disabled={q.blanks.length >= SHEET_LIMITS.blanksPerQuestion}
+          onClick={insertBlankMarker}
+          type="button"
+        >
+          + 插入空格
+        </button>
+      ) : null}
       {q.type === "fill" ? (
         <FillEditor dispatch={dispatch} q={q} />
       ) : q.type === "choice" ? (

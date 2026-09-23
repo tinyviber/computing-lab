@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { Icon } from "../../../shared/ui/Icon";
-import type { SheetSchema, Question } from "../domain/schema";
+import { splitPromptBlanks, type SheetSchema, type Question } from "../domain/schema";
 import type { QuestionGrading } from "../domain/grade";
 import type { ResponseDetail } from "./TaskDashboard";
 
@@ -22,22 +22,45 @@ function AnswerView({
   grading: QuestionGrading | undefined;
 }) {
   if (q.type === "fill") {
+    const segments = splitPromptBlanks(q.prompt);
+    const hasCloze = segments.some((s) => s.type === "blank");
+    const blankText = (id: string) => (answer?.type === "fill" ? (answer.blanks?.[id] ?? "") : "");
     return (
-      <ul className="ts-review-answers">
-        {q.blanks.map((blank, i) => {
-          const g = grading?.type === "fill" ? grading.blanks[blank.id] : undefined;
-          return (
-            <li key={blank.id}>
-              <span className="q-label">空 {i + 1}</span>{" "}
-              <span className={g?.correct ? "is-right" : "is-wrong"}>
-                {g?.answer?.trim() ? g.answer : <em>未作答</em>}
-              </span>{" "}
-              {g ? <Icon name={g.correct ? "check" : "x"} size={12} /> : null}
-              <span className="ts-stat-detail">答案：{blank.accept.join(" / ")}</span>
-            </li>
-          );
-        })}
-      </ul>
+      <>
+        {hasCloze ? (
+          <p className="ts-cloze ts-cloze-review">
+            {segments.map((seg, i) => {
+              if (seg.type === "text") return <span key={i}>{seg.text}</span>;
+              const blank = q.blanks[seg.index];
+              if (!blank) return null;
+              const g = grading?.type === "fill" ? grading.blanks[blank.id] : undefined;
+              return (
+                <span
+                  className={`ts-cloze-fill${g ? (g.correct ? " is-right" : " is-wrong") : ""}`}
+                  key={blank.id}
+                >
+                  {g?.answer?.trim() ? g.answer : "未作答"}
+                </span>
+              );
+            })}
+          </p>
+        ) : null}
+        <ul className="ts-review-answers">
+          {q.blanks.map((blank, i) => {
+            const g = grading?.type === "fill" ? grading.blanks[blank.id] : undefined;
+            return (
+              <li key={blank.id}>
+                <span className="q-label">空 {i + 1}</span>{" "}
+                <span className={g?.correct ? "is-right" : "is-wrong"}>
+                  {blankText(blank.id).trim() ? blankText(blank.id) : <em>未作答</em>}
+                </span>{" "}
+                {g ? <Icon name={g.correct ? "check" : "x"} size={12} /> : null}
+                <span className="ts-stat-detail">答案：{blank.accept.join(" / ")}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </>
     );
   }
   if (q.type === "choice") {

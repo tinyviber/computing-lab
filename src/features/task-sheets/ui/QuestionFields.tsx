@@ -8,7 +8,7 @@
 
 import { Icon } from "../../../shared/ui/Icon";
 import type { AnswerValue } from "../domain/grade";
-import type { PublicQuestion } from "../domain/schema";
+import { splitPromptBlanks, type PublicQuestion } from "../domain/schema";
 
 export type PublicGrading = {
   type: string;
@@ -46,12 +46,14 @@ export function QuestionAnswer({
   const max = q.type === "short" ? q.maxScore : q.score;
   const shownScore = review?.score ?? grading?.score;
   const hasScore = grading !== undefined || review?.score !== undefined;
+  const cloze = q.type === "fill" ? splitPromptBlanks(q.prompt) : null;
+  const hasCloze = cloze !== null && cloze.some((s) => s.type === "blank");
   return (
     <section className="ts-answer-card" aria-label={`第 ${index + 1} 题`}>
       <header className="ts-answer-head">
         <span className="ts-card-index">Q{index + 1}</span>
         <p className="ts-answer-prompt">
-          {q.prompt}
+          {hasCloze ? "" : q.prompt}
           {q.required ? <span className="ts-required"> *</span> : null}
         </p>
         <span className="ts-answer-max">{max} 分</span>
@@ -64,7 +66,42 @@ export function QuestionAnswer({
         ) : null}
       </header>
 
-      {q.type === "fill" ? (
+      {q.type === "fill" && hasCloze ? (
+        <p className="ts-cloze">
+          {cloze.map((seg, i) => {
+            if (seg.type === "text") return <span key={i}>{seg.text}</span>;
+            const blank = q.blanks[seg.index];
+            if (!blank) return null;
+            const mark = fillGrading(grading)?.blanks?.[blank.id];
+            return (
+              <span className="ts-cloze-slot" key={blank.id}>
+                <input
+                  aria-label={`空 ${seg.index + 1}`}
+                  className={`ts-blank-inline${mark ? (mark.correct ? " is-right" : " is-wrong") : ""}`}
+                  disabled={readOnly}
+                  onChange={(e) =>
+                    onChange?.({
+                      type: "fill",
+                      blanks: {
+                        ...(value?.type === "fill" ? value.blanks : {}),
+                        [blank.id]: e.target.value,
+                      },
+                    })
+                  }
+                  value={value?.type === "fill" ? (value.blanks[blank.id] ?? "") : ""}
+                />
+                {mark ? (
+                  <span className={`ts-blank-mark${mark.correct ? " is-right" : " is-wrong"}`}>
+                    <Icon name={mark.correct ? "check" : "x"} size={12} />
+                  </span>
+                ) : null}
+              </span>
+            );
+          })}
+        </p>
+      ) : null}
+
+      {q.type === "fill" && !hasCloze ? (
         <div className="ts-answer-blanks">
           {q.blanks.map((blank, i) => {
             const mark = fillGrading(grading)?.blanks?.[blank.id];

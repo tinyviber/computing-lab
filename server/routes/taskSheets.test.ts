@@ -10,7 +10,7 @@ import { taskAssignmentRoutes } from "./taskAssignments.ts";
 const FILL_Q = {
   id: "q1",
   type: "fill",
-  prompt: "1 字节等于多少位？8 位也叫什么？",
+  prompt: "1 字节等于 ${} 位？8 位也叫 ${}？",
   required: true,
   score: 4,
   blanks: [

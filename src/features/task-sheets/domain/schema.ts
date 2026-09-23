@@ -60,6 +60,36 @@ export type Question = FillQuestion | ChoiceQuestion | ShortQuestion;
 
 export type SheetSchema = { version: 1; questions: Question[] };
 
+/**
+ * Cloze marker: the i-th `${}` inside a fill question's prompt renders as the
+ * input for blanks[i]. Position-ordered — there is no explicit id in the text,
+ * so reordering markers reorders which blank config they bind to.
+ */
+export const BLANK_MARKER = "${}";
+
+export type PromptSegment = { type: "text"; text: string } | { type: "blank"; index: number };
+
+/** Split a fill prompt into text runs and blank slots (marker positions). */
+export function splitPromptBlanks(prompt: string): PromptSegment[] {
+  const segments: PromptSegment[] = [];
+  let index = 0;
+  let cursor = 0;
+  for (;;) {
+    const at = prompt.indexOf(BLANK_MARKER, cursor);
+    if (at === -1) break;
+    if (at > cursor) segments.push({ type: "text", text: prompt.slice(cursor, at) });
+    segments.push({ type: "blank", index });
+    index += 1;
+    cursor = at + BLANK_MARKER.length;
+  }
+  if (cursor < prompt.length) segments.push({ type: "text", text: prompt.slice(cursor) });
+  return segments;
+}
+
+export function countPromptBlanks(prompt: string): number {
+  return splitPromptBlanks(prompt).filter((s) => s.type === "blank").length;
+}
+
 export type PublicFillQuestion = Omit<FillQuestion, "blanks"> & {
   blanks: { id: string }[];
 };
@@ -186,6 +216,9 @@ export function validateSheetSchema(raw: unknown, opts?: { partial?: boolean }):
         });
       }
       if (!uniqueIds(blanks)) return { ok: false, error: "invalid-fill" };
+      if (!partial && countPromptBlanks(q.prompt) !== blanks.length) {
+        return { ok: false, error: "invalid-fill" };
+      }
       out.push({ ...base, type: "fill", score: q.score, blanks });
     } else if (q.type === "choice") {
       if (!isScore(q.score) || !Array.isArray(q.options) || !Array.isArray(q.correctOptionIds)) {
