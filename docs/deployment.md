@@ -399,6 +399,10 @@ sudo /usr/local/libexec/computing-lab-api/api-deploy.sh status
 - `seed` runs `server/db/seed.ts` as the service user. `api.env` is
   `root:root 0600`; systemd loads it as root and drops privileges, so the
   service account never reads the file directly.
+- Set `LAB_TRUST_PROXY=1` in `api.env`: behind Caddy the API may honor
+  `X-Forwarded-Proto` (Secure-cookie detection) and `X-Forwarded-For`
+  (login rate-limit keys). Leave it unset on any host where clients can
+  reach the API directly — the headers are spoofable otherwise.
 - A failed health gate leaves `state/previous.sha` pointing at the last good
   revision; `rollback` converges back to it.
 - `systemctl start computing-lab-api-deploy.service` is a shorthand for

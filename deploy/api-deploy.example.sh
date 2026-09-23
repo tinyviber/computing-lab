@@ -97,7 +97,8 @@ health_gate() {
         fi
         sleep 1
     done
-    die "API failed health gate within ${HEALTH_TIMEOUT_SEC}s (see journalctl -u $API_SERVICE)"
+    log "health check failed within ${HEALTH_TIMEOUT_SEC}s"
+    return 1
 }
 
 run_seed() {
@@ -134,7 +135,7 @@ deploy() {
 
     if [[ "$before" == "$target_sha" ]]; then
         log 'already at target; deploy is a no-op'
-        (( seed )) && run_seed
+        (( seed && ! dry )) && run_seed
         return 0
     fi
 
@@ -144,15 +145,40 @@ deploy() {
     fi
 
     require_clean_checkout
-    printf '%s\n' "$before" > "$PREVIOUS_SHA_FILE"
 
+    # Until the health gate passes, any failure rolls back to the previous
+    # checkout and restarts the service — a failed deploy must not leave the
+    # API offline. The rollback itself is best-effort; the original exit code
+    # is preserved either way.
+    rollback_on_error() {
+        local code=$?
+        trap - ERR
+        log "deploy failed (exit $code); rolling back to $before"
+        as_user git -C "$SOURCE_DIR" checkout --quiet --detach "$before" \
+            || log 'warning: could not restore previous checkout'
+        install_deps_if_changed "$target_sha" \
+            || log 'warning: could not restore previous dependencies'
+        systemctl start "$API_SERVICE" || log 'warning: could not restart service'
+        if health_gate; then
+            log 'rollback healthy; previous deploy restored'
+        else
+            log 'warning: rollback did not pass health gate; manual intervention needed'
+        fi
+        exit "$code"
+    }
+    trap rollback_on_error ERR
+
+    printf '%s\n' "$before" > "$PREVIOUS_SHA_FILE"
     systemctl stop "$API_SERVICE"
     backup_db
     as_user git -C "$SOURCE_DIR" checkout --quiet --detach "$target_sha"
     install_deps_if_changed "$before"
     (( seed )) && run_seed
     systemctl start "$API_SERVICE"
+    # A failed health gate triggers the ERR trap above: the previous deploy is
+    # restored instead of leaving a broken version serving traffic.
     health_gate
+    trap - ERR
     if systemctl list-unit-files "$RECONCILE_SERVICE" >/dev/null 2>&1 \
         && systemctl cat "$RECONCILE_SERVICE" >/dev/null 2>&1; then
         systemctl start "$RECONCILE_SERVICE" || log 'warning: reconcile service failed to start'

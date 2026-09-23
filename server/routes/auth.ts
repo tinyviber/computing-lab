@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import type { Context } from "hono";
 import {
   MAX_PASSWORD_LENGTH,
@@ -24,19 +25,38 @@ function mePayload(db: Parameters<typeof membershipsOf>[0], user: SessionUser) {
 }
 
 /**
- * Whether this request reached us over HTTPS — directly or through the Caddy
- * reverse proxy (`X-Forwarded-Proto`). `LAB_SECURE_COOKIES=1` forces the flag
- * for deployments that terminate TLS further upstream.
+ * X-Forwarded-* headers are only honored when the deployment declares a
+ * trusted proxy (`LAB_TRUST_PROXY=1`, e.g. the Caddy site in deploy/). Direct
+ * clients could otherwise spoof them: X-Forwarded-For would let an attacker
+ * rotate login-limiter keys to bypass throttling, and X-Forwarded-Proto would
+ * let them influence the session cookie's Secure flag.
+ */
+function trustProxy(): boolean {
+  return process.env.LAB_TRUST_PROXY === "1";
+}
+
+/**
+ * Whether this request reached us over HTTPS — directly or through the
+ * trusted reverse proxy (`X-Forwarded-Proto`). `LAB_SECURE_COOKIES=1` forces
+ * the flag for deployments that terminate TLS further upstream.
  */
 function secureRequest(c: Context<{ Variables: AppVariables }>): boolean {
   if (process.env.LAB_SECURE_COOKIES === "1") return true;
   if (new URL(c.req.url).protocol === "https:") return true;
-  return c.req.header("x-forwarded-proto")?.split(",")[0]?.trim() === "https";
+  return trustProxy() && c.req.header("x-forwarded-proto")?.split(",")[0]?.trim() === "https";
 }
 
 function clientIp(c: Context<{ Variables: AppVariables }>): string {
-  const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
-  return forwarded || "local";
+  if (trustProxy()) {
+    const forwarded = c.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+    if (forwarded) return forwarded;
+  }
+  try {
+    return getConnInfo(c).remote.address || "local";
+  } catch {
+    // app.request() test contexts carry no socket bindings
+    return "local";
+  }
 }
 
 export function authRoutes() {

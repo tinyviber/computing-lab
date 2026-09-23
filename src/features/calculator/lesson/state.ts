@@ -848,7 +848,7 @@ export function transitionCalculatorLesson(
       return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
 
     case "mark-save-error":
-      return { ...state, saveStatus: "error" };
+      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
 
     case "judge-result": {
       const unlocked = action.outcome.unlockedComponent;

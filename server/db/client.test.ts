@@ -86,4 +86,37 @@ describe("migrate", () => {
     expect(versionOf(db)).toBe(SCHEMA_VERSION);
     db.close();
   });
+
+  it("completes a database half-migrated by an older build", () => {
+    // Simulate the pre-transactional failure mode: passed_stages was added but
+    // the process died before stamping the version, so the next migrate must
+    // skip the applied ALTER instead of dying on a duplicate column.
+    const db = fixtureDb(1);
+    db.exec("ALTER TABLE student_projects ADD COLUMN passed_stages TEXT NOT NULL DEFAULT '[]'");
+    db.exec("PRAGMA user_version = 1");
+
+    migrate(db);
+
+    expect(versionOf(db)).toBe(SCHEMA_VERSION);
+    expect(tableExists(db, "task_sheets")).toBe(true);
+    db.close();
+  });
+
+  it("rolls back the whole chain when a step fails", () => {
+    // student_projects missing makes the v2 ALTER fail mid-chain; the version
+    // stamp and every later step must roll back together.
+    const db = fixtureDb(1);
+    db.exec("DROP TABLE student_projects");
+    try {
+      expect(() => migrate(db)).toThrow();
+      expect(versionOf(db)).toBe(1);
+      expect(
+        () => db.prepare("SELECT role FROM users LIMIT 0"),
+        "v3 step should have rolled back",
+      ).toThrow();
+      expect(tableExists(db, "task_sheets"), "v4 step should have rolled back").toBe(false);
+    } finally {
+      db.close();
+    }
+  });
 });
