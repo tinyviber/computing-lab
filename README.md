@@ -1,7 +1,9 @@
 # computing-lab
 
-校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API，当前只提供
-「实现ALU」（`calculator`）这一堂可运行的实验。
+校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API。已开放的实验是
+「实现ALU」（`calculator`）；「空间采样」（`image-sampling`）与「颜色量化」
+（`color-quantization`）处于管理员预览阶段。另有任务单功能（模板 → 班级布置 →
+学生作答 → 批改）。
 
 ## 本地开发
 
@@ -17,7 +19,7 @@ bun run dev
 `LAB_TEACHER_PASSWORD` 覆盖。
 
 学生流程是：管理员创建账号并分配班级 → `/login` 登录 → 首页进入
-`/classes/:classId/labs/calculator` → 用逻辑门连接电路 → 运行公开测试 → 提交，
+`/classes/:classId/labs/<lab>`（如 `calculator`）→ 完成各关卡 → 提交，
 由服务端隐藏用例判定并解锁后续关卡。教师和管理员可在
 `/classes/:classId/dashboard` 查看班级进度，管理员可在 `/admin` 管理账号与班级。
 
@@ -47,11 +49,14 @@ bun run test:caddy
 
 ## 架构边界
 
-- `src/app` 只负责路由和页面编排；calculator 的课程语义在
-  `src/features/calculator/{domain,lesson,ui}` 内闭合。
+- `src/app` 只负责路由和页面编排；每门实验的课程语义在
+  `src/features/<lab>/{domain,lesson,ui}` 内闭合，任务单在
+  `src/features/task-sheets` 内闭合。
 - `server/` 是 Node ≥22.13 单进程，负责认证、草稿、判题和班级看板；隐藏用例只在
-  `server/`，纯电路求值器由前端与服务端共享。
-- `src/shared/{auth,api,layout}` 只保留认证、请求和应用顶栏等仍有真实消费者的基础设施。
+  `server/`；三个实验的 project/draft/judge 走 `server/routes/labRoutes.ts`
+  的共用薄管线，判题协议类型由 `src/features/<lab>/domain` 共享给服务端。
+- `src/shared/{auth,api,layout,lab}` 只保留认证、请求、应用顶栏和实验页
+  薄封装（加载、自动保存、入口守卫）等仍有真实消费者的基础设施。
 - 数据库中的旧 `lab_id` 记录不会被迁移脚本主动删除；它们已没有对应路由或服务端处理器，
   不影响当前 calculator 流程。
 

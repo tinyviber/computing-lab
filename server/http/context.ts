@@ -9,6 +9,8 @@ export type AppVariables = {
   db: DatabaseSync;
   sessionId: string | null;
   user: SessionUser | null;
+  /** Set by hono/request-id middleware; "-" only before it runs. */
+  requestId: string;
 };
 
 export function attachDb(db: DatabaseSync) {

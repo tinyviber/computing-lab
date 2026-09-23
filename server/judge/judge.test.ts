@@ -210,7 +210,7 @@ describe("judge persistence and unlocking", () => {
 
   it("advances the stage and unlocks the component on a full pass", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(project.currentStage).toBe(1);
 
     const outcome = judgeSubmission(db, project, 2, halfAdderGraph());
@@ -222,7 +222,7 @@ describe("judge persistence and unlocking", () => {
     expect(outcome.testSummary.counterexample).toBeNull();
     expect(outcome.unlockedComponent).toBe("HalfAdder");
 
-    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.currentStage).toBe(3);
     expect(reloaded.passedStages).toEqual([2]);
     expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(["HalfAdder"]);
@@ -236,7 +236,7 @@ describe("judge persistence and unlocking", () => {
 
   it("judges with a learner-made component and persists it", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const custom = { name: "PackedHalfAdder", graph: halfAdderGraph(), custom: true };
     const graph: CircuitGraph = {
       nodes: [
@@ -273,7 +273,7 @@ describe("judge persistence and unlocking", () => {
     const outcome = judgeSubmission(db, project, 2, graph, [custom]);
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(true);
-    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
       "PackedHalfAdder",
       "HalfAdder",
@@ -283,7 +283,7 @@ describe("judge persistence and unlocking", () => {
 
   it("does not advance on a partial pass but records the score", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     // Fully wired but wrong: Carry is OR instead of AND, so exactly one
     // hidden case fails — a genuine partial pass, not a structural fail.
     const wrongCarry: CircuitGraph = {
@@ -324,14 +324,14 @@ describe("judge persistence and unlocking", () => {
 
   it("refuses a challenge stage while any core stage is unpassed", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const outcome = judgeSubmission(db, project, 7, mul4Graph());
     expect(outcome).toMatchObject({ error: "stage-locked", status: 409 });
   });
 
   it("opens an anchored side challenge without advancing the mainline", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const locked = judgeSubmission(db, project, 9, secondTickGraph());
     expect(locked).toMatchObject({ error: "stage-locked", status: 409 });
 
@@ -340,7 +340,7 @@ describe("judge persistence and unlocking", () => {
     expect(wire.passed).toBe(true);
     expect(wire.currentStage).toBe(2);
 
-    const afterWire = getOrCreateProject(db, userId, classId, "calculator");
+    const afterWire = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const side = judgeSubmission(db, afterWire, 9, secondTickGraph());
     if ("error" in side) throw new Error(side.error);
     expect(side.passed).toBe(true);
@@ -350,7 +350,7 @@ describe("judge persistence and unlocking", () => {
 
   it("accepts a core stage submission in any order", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     // neg4Graph needs the Add4 component, so it cannot pass yet — the point
     // is that judging stage 5 is allowed rather than stage-locked.
     const outcome = judgeSubmission(db, project, 5, neg4Graph());
@@ -361,7 +361,7 @@ describe("judge persistence and unlocking", () => {
 
   it("persists out-of-order passes in passed_stages", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
 
     // Stage 3 first (the primitive-only full adder needs no components).
     const stage2 = judgeSubmission(db, project, 3, fullAdderPrimitiveGraph());
@@ -372,13 +372,13 @@ describe("judge persistence and unlocking", () => {
     expect(stage2.unlockedComponent).toBe("FullAdder");
 
     // Stage 2 afterwards still counts.
-    const after2 = getOrCreateProject(db, userId, classId, "calculator");
+    const after2 = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const stage1 = judgeSubmission(db, after2, 2, halfAdderGraph());
     if ("error" in stage1) throw new Error(stage1.error);
     expect(stage1.passed).toBe(true);
     expect(stage1.passedStages).toEqual([2, 3]);
 
-    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.passedStages).toEqual([2, 3]);
     expect(reloaded.currentStage).toBe(4);
     expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(
@@ -388,7 +388,7 @@ describe("judge persistence and unlocking", () => {
 
   it("fails a structurally invalid graph without running cases", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     // Two wires into Sum's `in` port plus a missing B pin: the bug from issue
     // #44 — this graph must fail before any truth-table case runs.
     const bad: CircuitGraph = {
@@ -420,30 +420,30 @@ describe("judge persistence and unlocking", () => {
 
   it("keeps drafts per stage and sanitizes them", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     saveDraft(db, project, 1, halfAdderGraph());
-    const withOne = getOrCreateProject(db, userId, classId, "calculator");
-    expect(Object.keys(withOne.draftGraph)).toEqual(["1"]);
+    const withOne = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(Object.keys(withOne.drafts)).toEqual(["1"]);
 
     saveDraft(db, withOne, 2, { nodes: "not-an-array", edges: [] });
-    const withTwo = getOrCreateProject(db, userId, classId, "calculator");
-    expect(withTwo.draftGraph["2"]).toEqual({ nodes: [], edges: [] });
-    expect(withTwo.draftGraph["1"].nodes.length).toBeGreaterThan(0);
+    const withTwo = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(withTwo.drafts["2"]).toEqual({ nodes: [], edges: [] });
+    expect(withTwo.drafts["1"].nodes.length).toBeGreaterThan(0);
   });
 
   it("removes a learner-made component when autosave submits it as deleted", () => {
     const { db, userId, classId } = setup();
-    const project = getOrCreateProject(db, userId, classId, "calculator");
+    const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const custom = { name: "TemporaryBlock", graph: halfAdderGraph(), custom: true };
 
     saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom]);
-    const withCustom = getOrCreateProject(db, userId, classId, "calculator");
+    const withCustom = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(withCustom.unlockedSubmodules.map((component) => component.name)).toEqual([
       "TemporaryBlock",
     ]);
 
     saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, []);
-    const reloaded = getOrCreateProject(db, userId, classId, "calculator");
+    const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.unlockedSubmodules).toEqual([]);
   });
 });

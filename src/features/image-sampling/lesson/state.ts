@@ -13,7 +13,8 @@ import {
   type SamplingStageDef,
 } from "../domain/stages.ts";
 
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+export type { SaveStatus } from "../../../shared/api/client";
+import type { SaveStatus } from "../../../shared/api/client";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type StageDraft = {
@@ -176,9 +177,11 @@ export function transitionSamplingLesson(
     case "mark-saving":
       return { ...state, saveStatus: "saving" };
     case "mark-saved":
-      return { ...state, saveStatus: "saved" };
+      // Only a save started from the current dirty state may settle it — a
+      // stale completion must not hide a newer dirty draft.
+      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
     case "mark-save-error":
-      return { ...state, saveStatus: "error" };
+      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

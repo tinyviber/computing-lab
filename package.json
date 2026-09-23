@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "packageManager": "bun@1.2.17",
+  "engines": {
+    "node": ">=22.13",
+    "bun": "1.2.17"
+  },
   "scripts": {
     "setup": "bun install",
     "postinstall": "node scripts/sync-pyodide.mjs",
@@ -12,8 +16,8 @@
     "server": "node server/index.ts",
     "db:seed": "node server/db/seed.ts",
     "build": "bun run typecheck && bun run vite build",
-    "test": "bun run vitest --passWithNoTests",
-    "test:run": "bun run vitest run --passWithNoTests",
+    "test": "bun run vitest",
+    "test:run": "bun run vitest run",
     "test:deploy": "bash deploy/tests/reconcile.test.sh",
     "test:e2e": "bun run build && playwright test",
     "deploy": "bash deploy/reconcile.sh reconcile",

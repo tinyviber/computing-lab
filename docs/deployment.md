@@ -368,7 +368,10 @@ that name does not imply an editor service is required.
 `local/deploy/api-deploy.sh` is the deterministic, no-agent entry point. The
 script lives in the gitignored `local/` directory (host-specific ops material
 is never committed); the reviewed copy is installed at
-`/usr/local/libexec/computing-lab-api/api-deploy.sh`:
+`/usr/local/libexec/computing-lab-api/api-deploy.sh`. A versioned reference
+implementation of this contract is committed at
+`deploy/api-deploy.example.sh` — diff it against the host copy when the
+documented behavior changes:
 
 ```text
 git fetch → resolve exact SHA (origin/main or --sha)
@@ -396,6 +399,10 @@ sudo /usr/local/libexec/computing-lab-api/api-deploy.sh status
 - `seed` runs `server/db/seed.ts` as the service user. `api.env` is
   `root:root 0600`; systemd loads it as root and drops privileges, so the
   service account never reads the file directly.
+- Set `LAB_TRUST_PROXY=1` in `api.env`: behind Caddy the API may honor
+  `X-Forwarded-Proto` (Secure-cookie detection) and `X-Forwarded-For`
+  (login rate-limit keys). Leave it unset on any host where clients can
+  reach the API directly — the headers are spoofable otherwise.
 - A failed health gate leaves `state/previous.sha` pointing at the last good
   revision; `rollback` converges back to it.
 - `systemctl start computing-lab-api-deploy.service` is a shorthand for

@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { DatabaseSync } from "node:sqlite";
-import { hashPassword } from "../auth/password.ts";
+import { MAX_PASSWORD_LENGTH, hashPassword, minPasswordLength } from "../auth/password.ts";
 import type { AccountRole } from "../auth/session.ts";
-import { newId } from "../db/client.ts";
+import { newId, withTransaction } from "../db/client.ts";
 import { jsonError, requireAdmin, type AppVariables } from "../http/context.ts";
 import { labInfo } from "../labs.ts";
 
@@ -115,15 +115,29 @@ function validateAccount(row: {
   studentNo: string;
   name: string;
   password: string;
+  role: AccountRole;
 }): string | null {
   if (!STUDENT_NO.test(row.studentNo)) return "invalid-student-no";
   if (row.name.trim().length === 0 || row.name.length > 64) return "invalid-name";
-  if (row.password.length < 4 || row.password.length > 128) return "weak-password";
+  if (
+    row.password.length < minPasswordLength(row.role) ||
+    row.password.length > MAX_PASSWORD_LENGTH
+  ) {
+    return "weak-password";
+  }
   return null;
 }
 
-/** Insert one account + optional class membership. Returns an error code or null. */
-function createAccount(db: DatabaseSync, row: ImportRow): "exists" | string | null {
+/**
+ * Insert one account + optional class membership. Returns an error code or
+ * null. Runs its statements inside the caller's transaction — do NOT begin
+ * one here (imports already hold the write lock).
+ */
+function createAccount(
+  db: DatabaseSync,
+  row: ImportRow,
+  passwordHash: string,
+): "exists" | string | null {
   const invalid = validateAccount(row);
   if (invalid) return invalid;
   const existing = db.prepare("SELECT id FROM users WHERE student_no = ?").get(row.studentNo);
@@ -134,7 +148,7 @@ function createAccount(db: DatabaseSync, row: ImportRow): "exists" | string | nu
   const userId = newId();
   db.prepare(
     "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-  ).run(userId, row.studentNo, row.name.trim(), hashPassword(row.password), row.role);
+  ).run(userId, row.studentNo, row.name.trim(), passwordHash, row.role);
   if (klass) {
     const memberRole = row.role === "user" ? "student" : "teacher";
     db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
@@ -185,12 +199,24 @@ export function adminRoutes() {
       role: AccountRole;
       createdAt: string;
     }[];
-    const memberships = db
-      .prepare(
-        `SELECT m.user_id AS userId, m.class_id AS classId, c.name AS className, m.role
-         FROM class_members m JOIN classes c ON c.id = m.class_id`,
-      )
-      .all() as { userId: string; classId: string; className: string; role: string }[];
+    // Only this page's memberships are fetched — the join used to scan the
+    // whole class_members table regardless of the current page.
+    const userIds = users.map((u) => u.id);
+    const placeholders = userIds.map(() => "?").join(", ");
+    const memberships = userIds.length
+      ? (db
+          .prepare(
+            `SELECT m.user_id AS userId, m.class_id AS classId, c.name AS className, m.role
+             FROM class_members m JOIN classes c ON c.id = m.class_id
+             WHERE m.user_id IN (${placeholders})`,
+          )
+          .all(...userIds) as {
+          userId: string;
+          classId: string;
+          className: string;
+          role: string;
+        }[])
+      : [];
     const classesByUser = new Map<string, { classId: string; className: string; role: string }[]>();
     for (const m of memberships) {
       const list = classesByUser.get(m.userId) ?? [];
@@ -237,14 +263,16 @@ export function adminRoutes() {
       resolvedInvite = inviteCode.trim();
     }
 
-    const outcome = createAccount(db, {
+    const passwordHash = await hashPassword(password);
+    const row: ImportRow = {
       line: 1,
       studentNo,
       name,
       password,
       role,
       inviteCode: resolvedInvite,
-    });
+    };
+    const outcome = withTransaction(db, () => createAccount(db, row, passwordHash));
     if (outcome === "exists") return jsonError(c, 409, "student-no-taken");
     if (outcome === "class-not-found") return jsonError(c, 404, "class-not-found");
     if (outcome !== null) return jsonError(c, 400, outcome);
@@ -268,16 +296,40 @@ export function adminRoutes() {
 
     const db = c.get("db");
     const results: ImportResult[] = [...parsed.errors];
+
+    // Validate cheap fields first so hashing only happens for viable rows.
+    const valid: { row: ImportRow; passwordHash: string }[] = [];
     for (const row of parsed.rows) {
-      const outcome = createAccount(db, row);
-      if (outcome === null) {
-        results.push({ line: row.line, studentNo: row.studentNo, status: "created" });
-      } else if (outcome === "exists") {
-        results.push({ line: row.line, studentNo: row.studentNo, status: "exists" });
-      } else {
-        results.push({ line: row.line, studentNo: row.studentNo, status: "error", error: outcome });
+      const invalid = validateAccount(row);
+      if (invalid) {
+        results.push({ line: row.line, studentNo: row.studentNo, status: "error", error: invalid });
       }
     }
+    const hashable = parsed.rows.filter(
+      (row) => !results.some((r) => r.line === row.line && r.status === "error"),
+    );
+    const hashes = await Promise.all(hashable.map((row) => hashPassword(row.password)));
+    hashable.forEach((row, index) => valid.push({ row, passwordHash: hashes[index] }));
+
+    // All inserts commit atomically: a mid-import crash cannot leave half a
+    // roster behind. Duplicate student_nos stay "exists" per row.
+    withTransaction(db, () => {
+      for (const { row, passwordHash } of valid) {
+        const outcome = createAccount(db, row, passwordHash);
+        if (outcome === null) {
+          results.push({ line: row.line, studentNo: row.studentNo, status: "created" });
+        } else if (outcome === "exists") {
+          results.push({ line: row.line, studentNo: row.studentNo, status: "exists" });
+        } else {
+          results.push({
+            line: row.line,
+            studentNo: row.studentNo,
+            status: "error",
+            error: outcome,
+          });
+        }
+      }
+    });
     results.sort((a, b) => a.line - b.line);
     return c.json({
       created: results.filter((r) => r.status === "created").length,
@@ -308,11 +360,14 @@ export function adminRoutes() {
       { id: string; role: AccountRole } | undefined;
     if (!target) return jsonError(c, 404, "user-not-found");
 
-    db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, targetId);
-    db.prepare("UPDATE class_members SET role = ? WHERE user_id = ?").run(
-      role === "teacher" ? "teacher" : "student",
-      targetId,
-    );
+    // Account role and member roles move together or not at all.
+    withTransaction(db, () => {
+      db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, targetId);
+      db.prepare("UPDATE class_members SET role = ? WHERE user_id = ?").run(
+        role === "teacher" ? "teacher" : "student",
+        targetId,
+      );
+    });
     return c.json({ user: { id: targetId, role } });
   });
 
@@ -325,21 +380,25 @@ export function adminRoutes() {
     const password =
       body && typeof body === "object" ? (body as Record<string, unknown>).password : undefined;
     if (typeof password !== "string") return jsonError(c, 400, "invalid-body");
-    if (password.length < 4 || password.length > 128) return jsonError(c, 400, "weak-password");
 
     const targetId = c.req.param("id");
     const caller = c.get("user")!;
     if (targetId === caller.id) return jsonError(c, 400, "cannot-edit-own-password");
 
     const db = c.get("db");
-    const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
+    const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(targetId) as
+      { id: string; role: AccountRole } | undefined;
     if (!target) return jsonError(c, 404, "user-not-found");
+    // The minimum depends on the target's role, not the caller's.
+    if (password.length < minPasswordLength(target.role) || password.length > MAX_PASSWORD_LENGTH) {
+      return jsonError(c, 400, "weak-password");
+    }
 
-    db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(
-      hashPassword(password),
-      targetId,
-    );
-    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+    const passwordHash = await hashPassword(password);
+    withTransaction(db, () => {
+      db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(passwordHash, targetId);
+      db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+    });
     return c.json({ ok: true });
   });
 
@@ -355,25 +414,29 @@ export function adminRoutes() {
     const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
     if (!target) return jsonError(c, 404, "user-not-found");
 
-    db.prepare("DELETE FROM submissions WHERE user_id = ?").run(targetId);
-    db.prepare("DELETE FROM student_projects WHERE user_id = ?").run(targetId);
-    // Task-sheet data: their answers, then every response on assignments they
-    // created or that snapshot their sheets, then the assignments and sheets.
-    db.prepare("DELETE FROM task_responses WHERE user_id = ?").run(targetId);
-    db.prepare(
-      `DELETE FROM task_responses WHERE assignment_id IN (
-         SELECT a.id FROM task_assignments a
-         LEFT JOIN task_sheets s ON s.id = a.sheet_id
-         WHERE a.assigned_by = ? OR s.owner_user_id = ?)`,
-    ).run(targetId, targetId);
-    db.prepare(
-      `DELETE FROM task_assignments
-       WHERE assigned_by = ? OR sheet_id IN (SELECT id FROM task_sheets WHERE owner_user_id = ?)`,
-    ).run(targetId, targetId);
-    db.prepare("DELETE FROM task_sheets WHERE owner_user_id = ?").run(targetId);
-    db.prepare("DELETE FROM class_members WHERE user_id = ?").run(targetId);
-    db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
-    db.prepare("DELETE FROM users WHERE id = ?").run(targetId);
+    // The whole cascade is one transaction — a partial delete would orphan
+    // submissions/responses pointing at a missing user.
+    withTransaction(db, () => {
+      db.prepare("DELETE FROM submissions WHERE user_id = ?").run(targetId);
+      db.prepare("DELETE FROM student_projects WHERE user_id = ?").run(targetId);
+      // Task-sheet data: their answers, then every response on assignments they
+      // created or that snapshot their sheets, then the assignments and sheets.
+      db.prepare("DELETE FROM task_responses WHERE user_id = ?").run(targetId);
+      db.prepare(
+        `DELETE FROM task_responses WHERE assignment_id IN (
+           SELECT a.id FROM task_assignments a
+           LEFT JOIN task_sheets s ON s.id = a.sheet_id
+           WHERE a.assigned_by = ? OR s.owner_user_id = ?)`,
+      ).run(targetId, targetId);
+      db.prepare(
+        `DELETE FROM task_assignments
+         WHERE assigned_by = ? OR sheet_id IN (SELECT id FROM task_sheets WHERE owner_user_id = ?)`,
+      ).run(targetId, targetId);
+      db.prepare("DELETE FROM task_sheets WHERE owner_user_id = ?").run(targetId);
+      db.prepare("DELETE FROM class_members WHERE user_id = ?").run(targetId);
+      db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
+      db.prepare("DELETE FROM users WHERE id = ?").run(targetId);
+    });
     return c.json({ deleted: targetId });
   });
 
@@ -386,16 +449,21 @@ export function adminRoutes() {
     const target = db.prepare("SELECT id FROM users WHERE id = ?").get(targetId);
     if (!target) return jsonError(c, 404, "user-not-found");
 
-    const { changes: submissions } = db
-      .prepare("DELETE FROM submissions WHERE user_id = ?")
-      .run(targetId);
-    const { changes: projects } = db
-      .prepare("DELETE FROM student_projects WHERE user_id = ?")
-      .run(targetId);
-    const { changes: taskResponses } = db
-      .prepare("DELETE FROM task_responses WHERE user_id = ?")
-      .run(targetId);
-    return c.json({ cleared: { submissions, projects, taskResponses } });
+    let cleared = { submissions: 0, projects: 0, taskResponses: 0 };
+    withTransaction(db, () => {
+      cleared = {
+        submissions: Number(
+          db.prepare("DELETE FROM submissions WHERE user_id = ?").run(targetId).changes,
+        ),
+        projects: Number(
+          db.prepare("DELETE FROM student_projects WHERE user_id = ?").run(targetId).changes,
+        ),
+        taskResponses: Number(
+          db.prepare("DELETE FROM task_responses WHERE user_id = ?").run(targetId).changes,
+        ),
+      };
+    });
+    return c.json({ cleared });
   });
 
   app.get("/classes", (c) => {
@@ -447,12 +515,14 @@ export function adminRoutes() {
     if (count > 0) return jsonError(c, 409, "class-not-empty");
     // Empty roster: task assignments and their responses are orphaned data
     // owned by the class — remove them before the FK-guarded class row.
-    db.prepare(
-      `DELETE FROM task_responses WHERE assignment_id IN (
-         SELECT id FROM task_assignments WHERE class_id = ?)`,
-    ).run(classId);
-    db.prepare("DELETE FROM task_assignments WHERE class_id = ?").run(classId);
-    db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
+    withTransaction(db, () => {
+      db.prepare(
+        `DELETE FROM task_responses WHERE assignment_id IN (
+           SELECT id FROM task_assignments WHERE class_id = ?)`,
+      ).run(classId);
+      db.prepare("DELETE FROM task_assignments WHERE class_id = ?").run(classId);
+      db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
+    });
     return c.json({ deleted: classId });
   });
 

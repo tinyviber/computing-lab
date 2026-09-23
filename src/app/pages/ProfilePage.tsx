@@ -1,7 +1,7 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { describeApiError } from "../../shared/api/client";
-import { ROLE_LABELS, useAuth } from "../../shared/auth";
+import { isStaffRole, ROLE_LABELS, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./profile.css";
 
@@ -23,6 +23,8 @@ export function ProfilePage() {
   }
   if (status === "anonymous") return <Navigate replace to="/login" />;
 
+  const minLength = isStaffRole(session.user.role) ? 8 : 4;
+
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
@@ -31,8 +33,8 @@ export function ProfilePage() {
       setError("两次输入的新密码不一致。");
       return;
     }
-    if (newPassword.length < 4 || newPassword.length > 128) {
-      setError("新密码至少 4 位，最多 128 位。");
+    if (newPassword.length < minLength || newPassword.length > 128) {
+      setError(`新密码至少 ${minLength} 位，最多 128 位。`);
       return;
     }
     setBusy(true);
@@ -136,7 +138,9 @@ export function ProfilePage() {
                   value={confirmation}
                 />
               </label>
-              <p className="profile-form-note">密码长度为 4～128 位，不能与当前密码相同。</p>
+              <p className="profile-form-note">
+                密码长度为 {minLength}～128 位，不能与当前密码相同。
+              </p>
               {error ? (
                 <p className="auth-error" role="alert">
                   {error}

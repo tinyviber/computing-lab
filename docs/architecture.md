@@ -3,27 +3,44 @@
 ## 运行时边界
 
 仓库是一个 Vite 包和一个 Node API 进程。前端入口是 `src/main.tsx`，应用路由集中在
-`src/app/router.tsx`；目前唯一的课程 feature 是 `src/features/calculator`。
+`src/app/router.tsx`；课程 feature 有 `calculator`、`image-sampling`、
+`color-quantization` 三个，另有跨课程的 `task-sheets`（任务单）功能。
 
 ```text
 src/app
-  ├─ 页面编排、认证入口和 calculator 路由
+  ├─ 页面编排、认证入口和课程路由
   └─ 非课程页面（登录、资料、管理、班级看板）
 
-src/features/calculator
-  ├─ domain：电路图、纯求值器、关卡和组件规则
+src/features/<lab>（calculator / image-sampling / color-quantization）
+  ├─ domain：关卡、判题协议与纯计算（前端与服务端共享契约）
   ├─ lesson：URL/课程状态、引导和公开用例
   └─ ui：画布、控制器、提示和提交界面
 
+src/features/task-sheets
+  └─ 任务单模板、班级布置、学生作答与批改界面
+
+src/shared/lab
+  └─ 三个实验页共用的薄封装：useLabProject（加载）、
+     useAutosaveDraft（防抖自动保存）、LabAccessGate/SaveIndicator（入口守卫）
+
 server
   ├─ auth/db/http：认证、SQLite 和请求边界
-  ├─ routes：calculator、dashboard、admin、auth
+  ├─ routes：auth、admin、dashboard、task-sheets、task-assignments，
+  │          以及经 labRoutes 工厂挂载的三个实验管线
+  │          （project → draft → judge）
   └─ judge：服务端隐藏用例和持久化进度
 ```
 
-仍有真实消费者的跨页面基础设施只放在 `src/shared/auth`、`src/shared/api` 和
-`src/shared/layout`。旧的多实验导航、通用 lesson shell、参数/公式/可视化面板以及
-Slidev 编辑服务没有保留；它们在只有一个课程 feature 的产品里不再形成有价值的边界。
+`server/routes/labRoutes.ts` 是三个实验共用的薄管线：GET project 装载
+`{currentStage, passedStages, drafts, ...extras}`，PUT draft 防抖持久化，
+POST judge 跑隐藏用例并推进 `passedStages`。每个实验只提供 spec（labId、
+关卡数、adminPreview、saveDraft、judge）；不引入通用 `LessonRuntime`/
+`Stepper` 框架。
+
+仍有真实消费者的跨页面基础设施只放在 `src/shared/auth`、`src/shared/api`、
+`src/shared/layout` 与 `src/shared/lab`。旧的多实验导航、通用 lesson shell、
+参数/公式/可视化面板以及 Slidev 编辑服务没有保留；它们在当前课程集合里不再
+形成有价值的边界。
 
 ## 删除决策
 

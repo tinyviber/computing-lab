@@ -6,7 +6,7 @@ import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
 import { colorQuantizationRoutes } from "./colorQuantization.ts";
 
-function setup() {
+async function setup() {
   const db = openMemoryDb();
   const classId = newId();
   db.prepare("INSERT INTO classes (id, name, invite_code) VALUES (?, ?, ?)").run(
@@ -14,11 +14,11 @@ function setup() {
     "实验班",
     "invite-1",
   );
-  const mkUser = (no: string, role: string, memberRole: string | null) => {
+  const mkUser = async (no: string, role: string, memberRole: string | null) => {
     const id = newId();
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-    ).run(id, no, no, hashPassword("pass"), role);
+    ).run(id, no, no, await hashPassword("pass"), role);
     if (memberRole) {
       db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
         newId(),
@@ -29,9 +29,9 @@ function setup() {
     }
     return id;
   };
-  const studentId = mkUser("stu-1", "user", "student");
-  const teacherId = mkUser("tea-1", "teacher", "teacher");
-  const adminId = mkUser("adm-1", "admin", null);
+  const studentId = await mkUser("stu-1", "user", "student");
+  const teacherId = await mkUser("tea-1", "teacher", "teacher");
+  const adminId = await mkUser("adm-1", "admin", null);
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
   app.route("/api/classes/:classId/labs/color-quantization", colorQuantizationRoutes());
@@ -44,7 +44,7 @@ const url = (classId: string, path: string) =>
 
 describe("color-quantization routes", () => {
   it("creates and returns a project for a student member", async () => {
-    const { app, classId, studentId, cookieFor } = setup();
+    const { app, classId, studentId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/project"), { headers: { cookie: cookieFor(studentId) } }),
     );
@@ -57,7 +57,7 @@ describe("color-quantization routes", () => {
   });
 
   it("admins reach the lab even without class membership", async () => {
-    const { app, classId, adminId, cookieFor } = setup();
+    const { app, classId, adminId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/project"), { headers: { cookie: cookieFor(adminId) } }),
     );
@@ -65,7 +65,7 @@ describe("color-quantization routes", () => {
   });
 
   it("teachers are turned away (admin-preview gate)", async () => {
-    const { app, classId, teacherId, cookieFor } = setup();
+    const { app, classId, teacherId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/project"), { headers: { cookie: cookieFor(teacherId) } }),
     );
@@ -74,13 +74,13 @@ describe("color-quantization routes", () => {
   });
 
   it("unauthenticated requests get 401", async () => {
-    const { app, classId } = setup();
+    const { app, classId } = await setup();
     const res = await app.fetch(new Request(url(classId, "/project")));
     expect(res.status).toBe(401);
   });
 
   it("saves a draft and reads it back", async () => {
-    const { app, classId, studentId, cookieFor } = setup();
+    const { app, classId, studentId, cookieFor } = await setup();
     const cookie = cookieFor(studentId);
     const put = await app.fetch(
       new Request(url(classId, "/draft"), {
@@ -99,7 +99,7 @@ describe("color-quantization routes", () => {
   });
 
   it("judges a submission end-to-end", async () => {
-    const { app, classId, studentId, cookieFor } = setup();
+    const { app, classId, studentId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/judge"), {
         method: "POST",
@@ -117,7 +117,7 @@ describe("color-quantization routes", () => {
   });
 
   it("rejects a malformed submission envelope", async () => {
-    const { app, classId, studentId, cookieFor } = setup();
+    const { app, classId, studentId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/judge"), {
         method: "POST",

@@ -20,7 +20,7 @@ import {
   sanitizeDraft,
   type StageDraft,
 } from "../../../src/features/image-sampling/lesson/state.ts";
-import { newId } from "../../db/client.ts";
+import { newId, withTransaction } from "../../db/client.ts";
 import type { ProjectRow } from "../run.ts";
 import { judgeGalleryFor } from "./hiddenGallery.ts";
 
@@ -28,13 +28,11 @@ const LAB_ID = "image-sampling";
 
 export function saveImageDraft(
   db: DatabaseSync,
-  project: ProjectRow,
+  project: ProjectRow<StageDraft>,
   stageIndex: number,
   raw: unknown,
 ): void {
-  // draft_graph is a free JSON column; image drafts are {width,height,code},
-  // not circuit graphs — the calculator type on ProjectRow doesn't apply here.
-  const drafts: Record<string, unknown> = { ...project.draftGraph };
+  const drafts: Record<string, StageDraft> = { ...project.drafts };
   drafts[String(stageIndex)] = sanitizeDraft(raw) satisfies StageDraft;
   db.prepare(
     "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
@@ -45,7 +43,7 @@ export type ImageJudgeError = { error: string; status: number };
 
 export function judgeImageSubmission(
   db: DatabaseSync,
-  project: ProjectRow,
+  project: ProjectRow<StageDraft>,
   stageIndex: number,
   rawResolution: unknown,
   rawCode?: unknown,
@@ -111,34 +109,39 @@ export function judgeImageSubmission(
     confusionPairs: pairs,
     error: null,
   };
-  db.prepare(
-    `INSERT INTO submissions
-       (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    result.submissionId,
-    project.id,
-    project.userId,
-    LAB_ID,
-    stageIndex,
-    JSON.stringify({ ...resolution, code }),
-    report.identified,
-    report.total,
-    passed ? 1 : 0,
-    JSON.stringify(testSummary),
-  );
-
-  if (passed) {
-    const passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
-    const currentStage = nextSamplingStage(passedStages);
+  // Submission row + progress update commit together.
+  withTransaction(db, () => {
     db.prepare(
-      `UPDATE student_projects
-       SET current_stage = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-       WHERE id = ?`,
-    ).run(currentStage, JSON.stringify(passedStages), project.id);
-    result.passedStages = passedStages;
-    result.currentStage = currentStage;
-  }
+      `INSERT INTO submissions
+         (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      result.submissionId,
+      project.id,
+      project.userId,
+      LAB_ID,
+      stageIndex,
+      JSON.stringify({ ...resolution, code }),
+      report.identified,
+      report.total,
+      passed ? 1 : 0,
+      JSON.stringify(testSummary),
+    );
+
+    if (passed) {
+      const passedStages = [...new Set([...project.passedStages, stageIndex])].sort(
+        (a, b) => a - b,
+      );
+      const currentStage = nextSamplingStage(passedStages);
+      db.prepare(
+        `UPDATE student_projects
+         SET current_stage = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id = ?`,
+      ).run(currentStage, JSON.stringify(passedStages), project.id);
+      result.passedStages = passedStages;
+      result.currentStage = currentStage;
+    }
+  });
 
   return result;
 }

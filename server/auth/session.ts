@@ -40,10 +40,23 @@ export function destroySession(db: DatabaseSync, sessionId: string): void {
   db.prepare("DELETE FROM sessions WHERE id = ?").run(sessionId);
 }
 
-export function sessionCookieValue(sessionId: string, expiresAt: Date): string {
-  return `${SESSION_COOKIE}=${sessionId}; Path=/; HttpOnly; SameSite=Lax; Expires=${expiresAt.toUTCString()}`;
+/**
+ * Delete session rows past their expiry. `findSessionUser` already ignores
+ * them; this just keeps the table bounded. Called once at boot and then on a
+ * daily timer by the server entrypoint.
+ */
+export function sweepExpiredSessions(db: DatabaseSync): number {
+  return Number(
+    db.prepare("DELETE FROM sessions WHERE expires_at <= ?").run(new Date().toISOString()).changes,
+  );
 }
 
-export function clearedSessionCookie(): string {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
+const secureFlag = (secure: boolean) => (secure ? "; Secure" : "");
+
+export function sessionCookieValue(sessionId: string, expiresAt: Date, secure = false): string {
+  return `${SESSION_COOKIE}=${sessionId}; Path=/; HttpOnly; SameSite=Lax${secureFlag(secure)}; Expires=${expiresAt.toUTCString()}`;
+}
+
+export function clearedSessionCookie(secure = false): string {
+  return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax${secureFlag(secure)}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
 }

@@ -71,6 +71,16 @@ request_status /labs/calculator
 [[ "$HTTP_STATUS" == 200 ]] || fail "SPA deep route returned $HTTP_STATUS"
 grep -Fq 'assets/app.js' "$BODY_FILE" || fail 'SPA deep route did not fall back to index.html'
 
+HEADERS="$(curl --noproxy '*' -sSI "http://127.0.0.1:$PORT/labs/calculator")"
+grep -Fqi 'cache-control: no-cache' <<<"$HEADERS" \
+  || fail 'SPA fallback response missing Cache-Control: no-cache'
+grep -Fqi 'x-content-type-options: nosniff' <<<"$HEADERS" \
+  || fail 'response missing X-Content-Type-Options: nosniff'
+grep -Fqi 'referrer-policy:' <<<"$HEADERS" \
+  || fail 'response missing Referrer-Policy'
+grep -Fqi "frame-ancestors 'none'" <<<"$HEADERS" \
+  || fail 'response missing CSP frame-ancestors'
+
 request_status /assets/app.js
 [[ "$HTTP_STATUS" == 200 ]] || fail "real asset returned $HTTP_STATUS"
 grep -Fq 'console.log' "$BODY_FILE" || fail 'real asset body was not served'

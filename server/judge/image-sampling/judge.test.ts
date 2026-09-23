@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { openMemoryDb, newId } from "../../db/client.ts";
 import { getOrCreateProject } from "../run.ts";
+import type { StageDraft } from "../../../src/features/image-sampling/lesson/state.ts";
 import { judgeImageSubmission, saveImageDraft } from "./judge.ts";
 import { judgeGalleryFor } from "./hiddenGallery.ts";
 import { imageToRows } from "../../../src/features/image-sampling/domain/bitmap.ts";
@@ -21,7 +22,7 @@ function setupProject(passedStages: number[] = []) {
     "x",
   );
   const userId = db.prepare("SELECT id FROM users").get() as { id: string };
-  const project = getOrCreateProject(db, userId.id, "class-1", LAB_ID);
+  const project = getOrCreateProject<StageDraft>(db, userId.id, "class-1", LAB_ID);
   if (passedStages.length) {
     db.prepare("UPDATE student_projects SET passed_stages = ?, current_stage = ? WHERE id = ?").run(
       JSON.stringify(passedStages),

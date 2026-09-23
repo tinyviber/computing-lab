@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { jsonError, requireStaff, type AppVariables } from "../http/context.ts";
-import { newId } from "../db/client.ts";
+import { newId, parseJsonColumn } from "../db/client.ts";
 import {
   SHEET_LIMITS,
   validateSheetSchema,
@@ -19,13 +19,15 @@ type SheetRow = {
   updated_at: string;
 };
 
+const EMPTY_SCHEMA: SheetSchema = { version: 1, questions: [] };
+
 function toSheet(row: SheetRow) {
   return {
     id: row.id,
     ownerUserId: row.owner_user_id,
     title: row.title,
     description: row.description,
-    schema: JSON.parse(row.schema_json) as SheetSchema,
+    schema: parseJsonColumn<SheetSchema>(row.schema_json, EMPTY_SCHEMA),
     status: row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -52,7 +54,7 @@ function validDescription(value: unknown): value is string {
   );
 }
 
-const EMPTY_SCHEMA = JSON.stringify({ version: 1, questions: [] });
+const EMPTY_SCHEMA_JSON = JSON.stringify({ version: 1, questions: [] });
 
 export function taskSheetRoutes() {
   const app = new Hono<{ Variables: AppVariables }>();
@@ -76,7 +78,7 @@ export function taskSheetRoutes() {
         auth.user.id,
         title.trim(),
         typeof description === "string" ? description : "",
-        EMPTY_SCHEMA,
+        EMPTY_SCHEMA_JSON,
       );
     return c.json({ sheet: toSheet(getSheet(c, id)! as SheetRow) }, 201);
   });
@@ -110,7 +112,7 @@ export function taskSheetRoutes() {
         ...toSheet(row),
         ownerName: row.ownerName,
         assignmentCount: row.assignmentCount,
-        questionCount: (JSON.parse(row.schema_json) as SheetSchema).questions.length,
+        questionCount: parseJsonColumn<SheetSchema>(row.schema_json, EMPTY_SCHEMA).questions.length,
         // Listing stays light: no question payload needed.
         schema: undefined,
       })),

@@ -44,7 +44,7 @@ const SHORT_Q = {
 };
 const SCHEMA = { version: 1, questions: [FILL_Q, CHOICE_Q, SHORT_Q] };
 
-function setup() {
+async function setup() {
   const db = openMemoryDb();
   const classId = newId();
   const otherClassId = newId();
@@ -58,11 +58,11 @@ function setup() {
     "隔壁班",
     "invite-2",
   );
-  const mkUser = (no: string, role: string, member: [string, string][]) => {
+  const mkUser = async (no: string, role: string, member: [string, string][]) => {
     const id = newId();
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-    ).run(id, no, no, hashPassword("pass"), role);
+    ).run(id, no, no, await hashPassword("pass"), role);
     for (const [cid, mrole] of member) {
       db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
         newId(),
@@ -73,14 +73,14 @@ function setup() {
     }
     return id;
   };
-  const studentId = mkUser("stu-1", "user", [[classId, "student"]]);
-  const student2Id = mkUser("stu-2", "user", [[classId, "student"]]);
-  const teacherId = mkUser("tea-1", "teacher", [[classId, "teacher"]]);
-  const teacher2Id = mkUser("tea-2", "teacher", [
+  const studentId = await mkUser("stu-1", "user", [[classId, "student"]]);
+  const student2Id = await mkUser("stu-2", "user", [[classId, "student"]]);
+  const teacherId = await mkUser("tea-1", "teacher", [[classId, "teacher"]]);
+  const teacher2Id = await mkUser("tea-2", "teacher", [
     [classId, "teacher"],
     [otherClassId, "teacher"],
   ]);
-  const adminId = mkUser("adm-1", "admin", []);
+  const adminId = await mkUser("adm-1", "admin", []);
 
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
@@ -140,7 +140,7 @@ const assignUrl = (classId: string, path = "") =>
 
 describe("task-sheet CRUD and ownership", () => {
   it("creates, reads, updates a sheet as owner", async () => {
-    const { app, teacherId, cookieFor } = setup();
+    const { app, teacherId, cookieFor } = await setup();
     const created = await app.fetch(
       new Request(sheetsUrl(), {
         method: "POST",
@@ -168,7 +168,7 @@ describe("task-sheet CRUD and ownership", () => {
   });
 
   it("isolates sheets between teacher accounts", async () => {
-    const { app, teacherId, teacher2Id, cookieFor, createSheet } = setup();
+    const { app, teacherId, teacher2Id, cookieFor, createSheet } = await setup();
     const sheetId = await createSheet(teacherId);
 
     const list = await app.fetch(
@@ -193,7 +193,7 @@ describe("task-sheet CRUD and ownership", () => {
   });
 
   it("admins can see and edit every sheet", async () => {
-    const { app, teacherId, adminId, cookieFor, createSheet } = setup();
+    const { app, teacherId, adminId, cookieFor, createSheet } = await setup();
     const sheetId = await createSheet(teacherId);
     const list = await app.fetch(
       new Request(sheetsUrl(), { headers: { cookie: cookieFor(adminId) } }),
@@ -211,7 +211,7 @@ describe("task-sheet CRUD and ownership", () => {
   });
 
   it("rejects invalid schema and non-staff callers", async () => {
-    const { app, teacherId, studentId, cookieFor, createSheet } = setup();
+    const { app, teacherId, studentId, cookieFor, createSheet } = await setup();
     const sheetId = await createSheet(teacherId);
     const bad = await app.fetch(
       new Request(sheetsUrl(`/${sheetId}`), {
@@ -228,7 +228,7 @@ describe("task-sheet CRUD and ownership", () => {
   });
 
   it("clone copies the sheet into the caller's library", async () => {
-    const { app, teacherId, adminId, cookieFor, createSheet } = setup();
+    const { app, teacherId, adminId, cookieFor, createSheet } = await setup();
     const sheetId = await createSheet(teacherId);
     const res = await app.fetch(
       new Request(sheetsUrl(`/${sheetId}/clone`), {
@@ -247,7 +247,7 @@ describe("task-sheet CRUD and ownership", () => {
 });
 
 describe("assignments and student flow", () => {
-  async function assignAndGet(ctx: ReturnType<typeof setup>) {
+  async function assignAndGet(ctx: Awaited<ReturnType<typeof setup>>) {
     const { teacherId, classId, createSheet, assign } = ctx;
     const sheetId = await createSheet(teacherId);
     const res = await assign(teacherId, classId, sheetId, { dueAt: "2030-01-01T00:00:00Z" });
@@ -257,7 +257,7 @@ describe("assignments and student flow", () => {
   }
 
   it("assigns a sheet to a class (owner only) with a frozen snapshot", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, teacherId, teacher2Id, classId, otherClassId, cookieFor, db } = ctx;
     const { sheetId, assignmentId } = await assignAndGet(ctx);
 
@@ -282,7 +282,7 @@ describe("assignments and student flow", () => {
   });
 
   it("students see the public schema — never the grading data", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, studentId, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const res = await app.fetch(
@@ -309,7 +309,7 @@ describe("assignments and student flow", () => {
   });
 
   it("saves a draft then submits; auto-grades fill and choice", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, studentId, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const url = assignUrl(classId, `/${assignmentId}/response`);
@@ -349,7 +349,7 @@ describe("assignments and student flow", () => {
   });
 
   it("blocks submit while a required question is unanswered", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, studentId, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const res = await app.fetch(
@@ -363,7 +363,7 @@ describe("assignments and student flow", () => {
   });
 
   it("teacher lists responses, reviews short answers, returns work", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, studentId, teacherId, teacher2Id, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const url = assignUrl(classId, `/${assignmentId}/response`);
@@ -442,7 +442,7 @@ describe("assignments and student flow", () => {
   });
 
   it("rejects cross-class IDOR on assignment and response ids", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, teacher2Id, otherClassId, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const res = await app.fetch(
@@ -454,7 +454,7 @@ describe("assignments and student flow", () => {
   });
 
   it("question stats aggregate correct rates and option distribution", async () => {
-    const ctx = setup();
+    const ctx = await setup();
     const { app, studentId, student2Id, teacherId, classId, cookieFor } = ctx;
     const { assignmentId } = await assignAndGet(ctx);
     const answer = async (uid: string, options: string[]) => {

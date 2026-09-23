@@ -39,14 +39,14 @@ if (!klass) {
 }
 
 /** Create the account if missing; always enforce the target global role. */
-function ensureAccount(studentNo: string, name: string, password: string, role: AccountRole) {
+async function ensureAccount(studentNo: string, name: string, password: string, role: AccountRole) {
   const existing = db.prepare("SELECT id, role FROM users WHERE student_no = ?").get(studentNo) as
     { id: string; role: AccountRole } | undefined;
   if (!existing) {
     const id = newId();
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-    ).run(id, studentNo, name, hashPassword(password), role);
+    ).run(id, studentNo, name, await hashPassword(password), role);
     console.log(`[seed] ${role} "${name}" (${studentNo}) created`);
     return { id };
   }
@@ -57,8 +57,8 @@ function ensureAccount(studentNo: string, name: string, password: string, role: 
   return existing;
 }
 
-ensureAccount(adminNo, adminName, adminPassword, "admin");
-const teacher = ensureAccount(teacherNo, teacherName, teacherPassword, "teacher");
+await ensureAccount(adminNo, adminName, adminPassword, "admin");
+const teacher = await ensureAccount(teacherNo, teacherName, teacherPassword, "teacher");
 
 const membership = db
   .prepare("SELECT id, role FROM class_members WHERE class_id = ? AND user_id = ?")
