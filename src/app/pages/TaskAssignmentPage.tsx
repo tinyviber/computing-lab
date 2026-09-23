@@ -1,4 +1,4 @@
-import { Link, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { useAuth } from "../../shared/auth";
@@ -205,9 +205,6 @@ export function TaskAssignmentPage() {
             >
               {response?.status === "returned" ? "重新提交" : "提交"}
             </button>
-            <Link className="button button-secondary" to="/">
-              返回首页
-            </Link>
           </div>
         ) : null}
       </main>

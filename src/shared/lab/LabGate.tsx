@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import type { AccountRole } from "../auth";
 import type { SaveStatus } from "../api/client";
+import { AppPageLayout } from "../layout/AppTopbar";
 import { Icon } from "../ui/Icon";
 
 const SAVE_LABEL: Record<SaveStatus, string> = {
@@ -49,43 +50,39 @@ export function LabAccessGate(props: {
   }
   if (status === "anonymous") {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">实验 / 需要登录</p>
-        <h1>请先登录</h1>
-        <div className="error-actions">
-          <Link className="button button-primary" to="/login">
-            去登录
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout>
+        <main className="not-found" role="status">
+          <p className="eyebrow">实验 / 需要登录</p>
+          <h1>请先登录</h1>
+          <div className="error-actions">
+            <Link className="button button-primary" to="/login">
+              去登录
+            </Link>
+          </div>
+        </main>
+      </AppPageLayout>
     );
   }
   if (adminPreview && role === "teacher") {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">实验 / 预览阶段</p>
-        <h1>这个实验暂未开放</h1>
-        <p>「{labName}」实验目前仅对管理员开放预览。</p>
-        <div className="error-actions">
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout>
+        <main className="not-found" role="status">
+          <p className="eyebrow">实验 / 预览阶段</p>
+          <h1>这个实验暂未开放</h1>
+          <p>「{labName}」实验目前仅对管理员开放预览。</p>
+        </main>
+      </AppPageLayout>
     );
   }
   if (!classId) {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">实验 / 未加入班级</p>
-        <h1>你还没有加入班级</h1>
-        {noClassHint ? <p>{noClassHint}</p> : null}
-        <div className="error-actions">
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout>
+        <main className="not-found" role="status">
+          <p className="eyebrow">实验 / 未加入班级</p>
+          <h1>你还没有加入班级</h1>
+          {noClassHint ? <p>{noClassHint}</p> : null}
+        </main>
+      </AppPageLayout>
     );
   }
   return <>{children}</>;

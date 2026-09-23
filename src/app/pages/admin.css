@@ -1,7 +1,3 @@
-.admin-page .profile-main {
-  max-width: 1180px;
-}
-
 .admin-tabs {
   display: flex;
   gap: 8px;

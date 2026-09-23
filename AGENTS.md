@@ -20,6 +20,14 @@
   semantics do not belong in shared code.
 - Do not import from `talk-polish-ai`; this repository stays independently deployable.
 
+## Frontend layout and visual consistency
+
+- Use `AppPageLayout` and `AppTopbar` from `src/shared/layout` for full-page screens, including access-denied and error states. Keep shared navigation and account behavior in this layout instead of recreating it in page components.
+- `AppTopbar` provides “返回首页” by default. Hide it only on the home route with `showHomeLink: false`; do not add duplicate home links in individual page topbars or content actions.
+- Keep page gutters and alignment based on shared `.page-content` and `--page-gutter` / `--page-max` tokens. Avoid outer page padding or margins that offset one page from the shared header and other pages. Page-specific content widths are fine when intentional.
+- Keep cards in the same collection visually consistent in width and height across breakpoints. Use the grid for equal tracks; avoid one-off spans unless hierarchy explicitly requires them.
+- Do not add thick, dark-purple focus outlines globally. Text inputs and textareas may use the existing thin, light-purple focus border.
+
 ## Teaching model
 
 Prefer explicit formulas and observable state. A scenario may be encoded in the URL so a teacher can share a reproducible experiment. Validate and clamp user-controlled values at the domain boundary.

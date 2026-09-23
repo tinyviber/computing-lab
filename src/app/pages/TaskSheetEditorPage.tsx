@@ -113,15 +113,12 @@ export function TaskSheetEditorPage() {
   }
   if (status === "anonymous" || (role && !isStaffRole(role))) {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">任务单 / 无权访问</p>
-        <h1>只有教师或管理员可以编辑任务单</h1>
-        <div className="error-actions">
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout className="dashboard-page">
+        <main className="not-found" role="status">
+          <p className="eyebrow">任务单 / 无权访问</p>
+          <h1>只有教师或管理员可以编辑任务单</h1>
+        </main>
+      </AppPageLayout>
     );
   }
 

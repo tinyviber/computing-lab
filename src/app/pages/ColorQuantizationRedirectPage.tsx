@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
@@ -27,11 +27,6 @@ export function ColorQuantizationRedirectPage() {
           <p className="eyebrow">实验 / 预览阶段</p>
           <h1>这个实验暂未开放</h1>
           <p>「颜色量化」实验目前仅对管理员开放预览。</p>
-          <div className="error-actions">
-            <Link className="button button-primary" to="/">
-              返回首页
-            </Link>
-          </div>
         </main>
       </AppPageLayout>
     );
@@ -44,11 +39,6 @@ export function ColorQuantizationRedirectPage() {
           <p className="eyebrow">实验 / 未加入班级</p>
           <h1>你还没有加入班级</h1>
           <p>请联系管理员把你的账号分配到班级后再开始实验。</p>
-          <div className="error-actions">
-            <Link className="button button-primary" to="/">
-              返回首页
-            </Link>
-          </div>
         </main>
       </AppPageLayout>
     );

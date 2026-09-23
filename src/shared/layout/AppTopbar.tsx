@@ -9,6 +9,7 @@ export type AppTopbarProps = {
   leading?: ReactNode;
   nav?: ReactNode;
   showAccount?: boolean;
+  showHomeLink?: boolean;
   subtitle?: ReactNode;
   title?: string;
 };
@@ -19,6 +20,7 @@ export function AppTopbar({
   leading,
   nav,
   showAccount = true,
+  showHomeLink = true,
   subtitle,
   title,
 }: AppTopbarProps) {
@@ -36,6 +38,11 @@ export function AppTopbar({
         {nav}
       </div>
       <div className="app-topbar-actions">
+        {showHomeLink ? (
+          <Link className="app-home-link" to="/">
+            返回首页
+          </Link>
+        ) : null}
         {context}
         {children}
         {showAccount ? <AccountMenu /> : null}

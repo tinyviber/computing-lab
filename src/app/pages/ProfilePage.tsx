@@ -1,4 +1,4 @@
-import { Link, Navigate } from "@tanstack/react-router";
+import { Navigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 import { describeApiError } from "../../shared/api/client";
 import { isStaffRole, ROLE_LABELS, useAuth } from "../../shared/auth";
@@ -52,14 +52,7 @@ export function ProfilePage() {
   };
 
   return (
-    <AppPageLayout
-      className="profile-page"
-      topbar={
-        <Link className="profile-back" to="/">
-          返回首页
-        </Link>
-      }
-    >
+    <AppPageLayout className="profile-page">
       <main className="page-content profile-main" aria-labelledby="profile-title">
         <section className="profile-intro">
           <p className="eyebrow">账户 / PROFILE</p>

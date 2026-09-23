@@ -18,6 +18,21 @@ type StudentTask = {
   finalTotal: number | null;
 };
 
+const ADMIN_PREVIEW_LABS = [
+  {
+    id: "image-sampling",
+    title: "空间采样",
+    description: "探索图像分辨率如何影响细节，以及怎样用更少像素保留关键信息。",
+    to: "/labs/image-sampling",
+  },
+  {
+    id: "color-quantization",
+    title: "颜色量化",
+    description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
+    to: "/labs/color-quantization",
+  },
+] as const;
+
 const TASK_STATUS: Record<StudentTask["status"], string> = {
   not_started: "未开始",
   in_progress: "进行中",
@@ -85,7 +100,7 @@ function StudentTasks({ classId }: { classId: string }) {
 
 function AnonymousLanding() {
   return (
-    <AppPageLayout className="home-page" topbarProps={{ showAccount: false }}>
+    <AppPageLayout className="home-page" topbarProps={{ showAccount: false, showHomeLink: false }}>
       <main className="page-content">
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -143,7 +158,7 @@ function ClassroomHome() {
   }, [classId, isStaff]);
 
   return (
-    <AppPageLayout className="home-page">
+    <AppPageLayout className="home-page" topbarProps={{ showHomeLink: false }}>
       <main className="page-content">
         <section className="home-hero" aria-labelledby="home-title">
           <div className="home-hero-copy">
@@ -162,7 +177,7 @@ function ClassroomHome() {
             </div>
           </div>
 
-          <div className="lab-card-grid">
+          <div className={`lab-card-grid${role === "admin" ? " is-admin-preview" : ""}`}>
             <article className="lab-card is-primary">
               <div className="lab-card-topline">
                 <span className="category-label">Lab 01</span>
@@ -176,6 +191,24 @@ function ClassroomHome() {
                 </Link>
               ) : null}
             </article>
+            {role === "admin"
+              ? ADMIN_PREVIEW_LABS.map((lab, index) => (
+                  <article className="lab-card" key={lab.id}>
+                    <div className="lab-card-topline">
+                      <span className="category-label">Lab 0{index + 2} · 管理员预览</span>
+                    </div>
+                    <h4>{lab.title}</h4>
+                    <p>{lab.description}</p>
+                    {classId ? (
+                      <Link className="button button-primary" to={lab.to}>
+                        预览实验
+                      </Link>
+                    ) : (
+                      <p>请先将管理员账号分配到班级，再预览实验。</p>
+                    )}
+                  </article>
+                ))
+              : null}
           </div>
         </section>
 
@@ -189,7 +222,7 @@ export function HomePage() {
   const { status } = useAuth();
   if (status === "loading") {
     return (
-      <AppPageLayout className="home-page">
+      <AppPageLayout className="home-page" topbarProps={{ showHomeLink: false }}>
         <main className="page-content">
           <p className="home-loading" role="status">
             正在载入…
