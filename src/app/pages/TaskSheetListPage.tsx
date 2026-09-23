@@ -4,6 +4,12 @@ import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
+import {
+  TaskSheetPreview,
+  publicSchema,
+  type PublicQuestion,
+  type SheetSchema,
+} from "../../features/task-sheets";
 import "../../features/task-sheets/ui/taskSheets.css";
 
 type SheetSummary = {
@@ -19,6 +25,12 @@ type SheetSummary = {
 };
 
 type SheetPayload = { sheets: SheetSummary[] };
+
+type PreviewState = {
+  title: string;
+  description: string;
+  questions: PublicQuestion[];
+};
 
 function AssignDialog({
   sheet,
@@ -124,6 +136,7 @@ export function TaskSheetListPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [assigning, setAssigning] = useState<SheetSummary | null>(null);
+  const [previewing, setPreviewing] = useState<PreviewState | null>(null);
   const isAdmin = role === "admin";
 
   const load = useCallback(() => {
@@ -141,6 +154,21 @@ export function TaskSheetListPage() {
     void api
       .post<{ sheet: { id: string } }>("/api/task-sheets", { title: "未命名任务单" })
       .then((p) => navigate({ to: "/tasks/$sheetId/edit", params: { sheetId: p.sheet.id } }))
+      .catch((caught) => setError(describeApiError(caught)));
+  };
+
+  const previewSheet = (sheet: SheetSummary) => {
+    void api
+      .get<{ sheet: { title: string; description: string; schema: SheetSchema } }>(
+        `/api/task-sheets/${sheet.id}`,
+      )
+      .then((p) =>
+        setPreviewing({
+          title: p.sheet.title,
+          description: p.sheet.description,
+          questions: publicSchema(p.sheet.schema).questions,
+        }),
+      )
       .catch((caught) => setError(describeApiError(caught)));
   };
 
@@ -238,6 +266,13 @@ export function TaskSheetListPage() {
                 >
                   布置
                 </button>
+                <button
+                  className="button button-secondary"
+                  onClick={() => previewSheet(sheet)}
+                  type="button"
+                >
+                  预览
+                </button>
                 <Link
                   className="button button-secondary"
                   params={{ sheetId: sheet.id }}
@@ -278,6 +313,14 @@ export function TaskSheetListPage() {
             }
           }}
           sheet={assigning}
+        />
+      ) : null}
+      {previewing ? (
+        <TaskSheetPreview
+          description={previewing.description}
+          onClose={() => setPreviewing(null)}
+          questions={previewing.questions}
+          title={previewing.title}
         />
       ) : null}
     </AppPageLayout>

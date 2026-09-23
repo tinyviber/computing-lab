@@ -9,6 +9,7 @@ export {
   type EditorState,
 } from "./ui/TaskSheetEditor";
 export { QuestionAnswer, type PublicGrading } from "./ui/QuestionFields";
+export { TaskSheetPreview } from "./ui/TaskSheetPreview";
 export {
   BLANK_MARKER,
   publicSchema,

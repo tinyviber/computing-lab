@@ -688,3 +688,57 @@
   border-bottom-color: var(--danger);
   color: var(--danger);
 }
+
+/* Sheet preview modal — mirrors the student answer page in a centered panel. */
+.ts-preview-scrim {
+  align-items: flex-start;
+  background: rgb(23 40 61 / 32%);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  overflow-y: auto;
+  position: fixed;
+}
+
+.ts-preview {
+  background: var(--surface);
+  border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-md);
+  margin: 48px 16px;
+  max-width: 720px;
+  padding: 24px;
+  position: relative;
+  width: 100%;
+}
+
+.ts-preview-head {
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.ts-preview-head h2 {
+  font-size: 20px;
+  font-weight: 650;
+  margin-top: 4px;
+}
+
+.ts-preview-desc {
+  color: var(--secondary);
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.ts-preview-close {
+  flex: none;
+}
+
+.ts-preview-note {
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--secondary);
+  font-size: 13px;
+  margin: 14px 0;
+  padding: 10px 12px;
+}

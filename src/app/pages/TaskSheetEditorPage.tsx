@@ -6,8 +6,10 @@ import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import {
   TaskSheetEditor,
+  TaskSheetPreview,
   cleanForSave,
   editorReducer,
+  publicSchema,
   type EditorState,
   type SheetSchema,
 } from "../../features/task-sheets";
@@ -35,6 +37,7 @@ export function TaskSheetEditorPage() {
   const [loaded, setLoaded] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -144,6 +147,13 @@ export function TaskSheetEditorPage() {
                     : ""}
               {saveState === "saved" ? <Icon name="check" size={12} /> : null}
             </span>
+            <button
+              className="button button-secondary"
+              onClick={() => setPreviewing(true)}
+              type="button"
+            >
+              预览
+            </button>
             <button className="button button-secondary" onClick={toggleStatus} type="button">
               {sheetStatus === "published" ? "转为草稿" : "标记为已发布"}
             </button>
@@ -158,6 +168,15 @@ export function TaskSheetEditorPage() {
 
         <TaskSheetEditor dispatch={dispatch} state={state} />
       </main>
+
+      {previewing ? (
+        <TaskSheetPreview
+          description={state.description}
+          onClose={() => setPreviewing(false)}
+          questions={publicSchema(cleanForSave(state)).questions}
+          title={state.title.trim() || "未命名任务单"}
+        />
+      ) : null}
     </AppPageLayout>
   );
 }
