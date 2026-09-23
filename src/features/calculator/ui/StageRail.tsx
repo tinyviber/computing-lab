@@ -4,6 +4,7 @@ import {
   coreStages,
   stagePrerequisites,
 } from "../domain/stages";
+import { StageLink } from "../../../shared/lab/StageRail";
 import { Icon } from "../../../shared/ui/Icon";
 import type { ComponentDef } from "../domain/graph";
 import { AnnotatedText } from "./CalculatorTerms";
@@ -49,33 +50,17 @@ export function StageRail({
 
   const renderStage = (stage: (typeof CALCULATOR_STAGES)[number], optional = false) => {
     const unlocked = stagePrerequisites(stage).every((index) => passedStages.includes(index));
-    const passed = passedStages.includes(stage.index);
-    const active = stage.index === stageIndex;
     return (
       <li key={stage.id}>
-        <button
-          aria-current={active ? "step" : undefined}
-          className={`stage-link${optional ? " is-optional" : ""}${active ? " is-active" : ""}${passed ? " is-passed" : ""}`}
-          disabled={!unlocked}
-          onClick={() => onSelectStage(stage.index)}
-          type="button"
-        >
-          <span className="stage-titles">
-            <strong>{stage.title}</strong>
-            <span>
-              <AnnotatedText text={stage.englishTitle} />
-            </span>
-          </span>
-          <span aria-hidden="true" className="stage-mark">
-            {passed ? (
-              <Icon name="check" size={13} />
-            ) : unlocked ? (
-              <Icon name="circle" size={11} />
-            ) : (
-              <Icon name="lock" size={12} />
-            )}
-          </span>
-        </button>
+        <StageLink
+          active={stage.index === stageIndex}
+          onSelect={() => onSelectStage(stage.index)}
+          optional={optional}
+          passed={passedStages.includes(stage.index)}
+          subtitle={<AnnotatedText text={stage.englishTitle} />}
+          title={stage.title}
+          unlocked={unlocked}
+        />
       </li>
     );
   };

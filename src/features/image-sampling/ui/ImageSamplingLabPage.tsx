@@ -3,11 +3,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
-import type { SamplingJudgeResult } from "../domain/protocol.ts";
+import type { SamplingJudgeResult, SamplingSubmission } from "../domain/protocol.ts";
 import {
   IMAGE_SAMPLING_STAGES,
   samplingStageUnlocked,
@@ -29,54 +30,6 @@ import { DownsampleExplorer } from "./DownsampleExplorer.tsx";
 import { GuidedCellTask } from "./GuidedCellTask.tsx";
 import { RecognitionPanel } from "./RecognitionPanel.tsx";
 import "./imageSampling.css";
-
-function StageNav({
-  stageIndex,
-  passedStages,
-  onSelect,
-}: {
-  stageIndex: number;
-  passedStages: number[];
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <aside aria-label="关卡进度" className="sampling-rail">
-      <p className="eyebrow">空间采样</p>
-      <ol>
-        {IMAGE_SAMPLING_STAGES.map((stage) => {
-          const unlocked = samplingStageUnlocked(passedStages, stage.index);
-          const passed = passedStages.includes(stage.index);
-          const active = stage.index === stageIndex;
-          return (
-            <li key={stage.id}>
-              <button
-                aria-current={active ? "step" : undefined}
-                className={`stage-link${active ? " is-active" : ""}${passed ? " is-passed" : ""}`}
-                disabled={!unlocked}
-                onClick={() => onSelect(stage.index)}
-                type="button"
-              >
-                <span className="stage-titles">
-                  <strong>{stage.title}</strong>
-                  <span>{stage.englishTitle}</span>
-                </span>
-                <span aria-hidden="true" className="stage-mark">
-                  {passed ? (
-                    <Icon name="check" size={13} />
-                  ) : unlocked ? (
-                    <Icon name="circle" size={11} />
-                  ) : (
-                    <Icon name="lock" size={12} />
-                  )}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </aside>
-  );
-}
 
 function StageBrief({ stage }: { stage: SamplingStageDef }) {
   return (
@@ -172,14 +125,15 @@ export function ImageSamplingLabPage() {
     }
     setSubmitting(true);
     try {
+      const submission: SamplingSubmission = {
+        stageIndex: stage.index,
+        width: resolution.width,
+        height: resolution.height,
+        code: draft.code || undefined,
+      };
       const outcome = await api.post<SamplingJudgeResult>(
         `/api/classes/${classId}/labs/image-sampling/judge`,
-        {
-          stageIndex: stage.index,
-          width: resolution.width,
-          height: resolution.height,
-          code: draft.code || undefined,
-        },
+        submission,
       );
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -204,10 +158,13 @@ export function ImageSamplingLabPage() {
         }}
       >
         <div className="page-content sampling-layout">
-          <StageNav
+          <StageRail
+            label="空间采样"
             onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
             passedStages={state.passedStages}
             stageIndex={state.stageIndex}
+            stages={IMAGE_SAMPLING_STAGES}
+            unlocked={(stage) => samplingStageUnlocked(state.passedStages, stage.index)}
           />
 
           <main aria-label="图像采样实验区" className="sampling-workspace">

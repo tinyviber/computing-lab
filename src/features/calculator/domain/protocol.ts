@@ -7,6 +7,13 @@
 import type { LabProjectPayload } from "../../../shared/api/client.ts";
 import type { Bit, CircuitGraph, ComponentDef } from "./graph.ts";
 
+/** POST /judge body: the graph to grade plus the learner's component library. */
+export type CalculatorSubmission = {
+  stageIndex: number;
+  graph: CircuitGraph;
+  components?: ComponentDef[];
+};
+
 export type CalculatorTestSummary = {
   categories: Record<string, { passed: number; total: number }>;
   results: { name: string; category: string; passed: boolean }[];

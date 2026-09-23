@@ -6,57 +6,6 @@
   grid-template-columns: 240px minmax(0, 1fr);
 }
 
-.sampling-rail {
-  border-right: 1px solid var(--border);
-  padding-right: 16px;
-}
-
-.sampling-rail ol {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.sampling-rail .stage-link {
-  align-items: center;
-  background: none;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.sampling-rail .stage-link.is-active {
-  background: #eef2ff;
-  border-color: #c7d2fe;
-}
-
-.sampling-rail .stage-link.is-passed .stage-mark {
-  color: #15803d;
-}
-
-.sampling-rail .stage-link:disabled {
-  color: #94a3b8;
-  cursor: not-allowed;
-}
-
-.stage-titles {
-  display: flex;
-  flex-direction: column;
-}
-
-.stage-titles > span {
-  color: #64748b;
-  font-size: 12px;
-}
-
 .sampling-workspace {
   display: flex;
   flex-direction: column;
@@ -474,10 +423,6 @@
 @media (max-width: 960px) {
   .sampling-layout {
     grid-template-columns: 1fr;
-  }
-
-  .sampling-rail {
-    border-right: none;
   }
 
   .explorer-columns {

@@ -1,7 +1,11 @@
 import { quantStageCount } from "../../src/features/color-quantization/domain/stages.ts";
 import type { QuantJudgeResult } from "../../src/features/color-quantization/domain/protocol.ts";
-import type { StageDraft } from "../../src/features/color-quantization/lesson/state.ts";
-import { judgeQuantSubmission, saveQuantDraft } from "../judge/color-quantization/judge.ts";
+import {
+  sanitizeDraft,
+  type StageDraft,
+} from "../../src/features/color-quantization/lesson/state.ts";
+import { judgeQuantSubmission } from "../judge/color-quantization/judge.ts";
+import { saveStageDraft } from "../judge/pipeline.ts";
 import { labRoutes } from "./labRoutes.ts";
 
 /**
@@ -15,7 +19,7 @@ export function colorQuantizationRoutes() {
     stageCount: quantStageCount,
     adminPreview: true,
     saveDraft: (db, project, stageIndex, body) =>
-      saveQuantDraft(db, project, stageIndex, body.draft ?? {}),
+      saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
     judge: (db, project, stageIndex, body) =>
       judgeQuantSubmission(
         db,

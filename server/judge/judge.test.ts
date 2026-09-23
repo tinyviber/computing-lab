@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { openMemoryDb, newId } from "../db/client.ts";
-import { getOrCreateProject, judgeSubmission, saveDraft } from "./run.ts";
+import { getOrCreateProject } from "./pipeline.ts";
+import { judgeSubmission, saveDraft } from "./run.ts";
 import { hiddenTestsFor } from "./testcases.ts";
 import { runCases } from "../../src/features/calculator/domain/evaluate.ts";
 import {

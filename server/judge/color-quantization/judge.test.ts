@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { openMemoryDb, newId } from "../../db/client.ts";
-import { getOrCreateProject } from "../run.ts";
-import type { StageDraft } from "../../../src/features/color-quantization/lesson/state.ts";
-import { judgeQuantSubmission, saveQuantDraft } from "./judge.ts";
+import { getOrCreateProject, saveStageDraft } from "../pipeline.ts";
+import {
+  sanitizeDraft,
+  type StageDraft,
+} from "../../../src/features/color-quantization/lesson/state.ts";
+import { judgeQuantSubmission } from "./judge.ts";
 import { judgeGalleryFor } from "./hiddenSet.ts";
 import { judgeMapping } from "../../../src/features/color-quantization/domain/recognize.ts";
 import {
@@ -178,7 +181,12 @@ describe("color-quantization judge", () => {
 
   it("saves and sanitizes a stage draft", () => {
     const { db, project } = setupProject();
-    saveQuantDraft(db, project, 2, { toners: [0, 1, 2, 5], code: "return [0,1,2,5]" });
+    saveStageDraft(
+      db,
+      project,
+      2,
+      sanitizeDraft({ toners: [0, 1, 2, 5], code: "return [0,1,2,5]" }),
+    );
     const row = db
       .prepare("SELECT draft_graph FROM student_projects WHERE id = ?")
       .get(project.id) as { draft_graph: string };
