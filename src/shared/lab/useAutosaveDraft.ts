@@ -71,6 +71,5 @@ export function useAutosaveDraft<TDraft>(options: {
     // The callbacks and draftOf are inline closures — new identity every
     // render — so they cannot join the deps; the timer should only re-arm on
     // the stable inputs (and the caller's extra deps), not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [saveStatus, stageIndex, classId, labId, ...deps]);
 }
