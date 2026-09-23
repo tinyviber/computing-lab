@@ -5,6 +5,7 @@ import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
+import { StudentCanvasDrawer } from "./StudentCanvasDrawer";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
 import "../../features/task-sheets/ui/taskSheets.css";
@@ -97,6 +98,7 @@ export function TeacherDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
+  const [canvasRow, setCanvasRow] = useState<MatrixRow | null>(null);
   const isAdmin = role === "admin";
 
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
@@ -340,14 +342,24 @@ export function TeacherDashboardPage() {
                     <td>{timeOf(row.lastActiveAt)}</td>
                     {isAdmin ? (
                       <td>
-                        <button
-                          className="cell-score"
-                          onClick={() => clearRecords(row)}
-                          title="删除该学生的全部提交和关卡进度"
-                          type="button"
-                        >
-                          清空记录
-                        </button>
+                        <div className="matrix-row-actions">
+                          <button
+                            className="cell-score"
+                            onClick={() => setCanvasRow(row)}
+                            title="查看该学生的草稿画布与历次提交图"
+                            type="button"
+                          >
+                            查看画布
+                          </button>
+                          <button
+                            className="cell-score"
+                            onClick={() => clearRecords(row)}
+                            title="删除该学生的全部提交和关卡进度"
+                            type="button"
+                          >
+                            清空记录
+                          </button>
+                        </div>
                       </td>
                     ) : null}
                   </tr>
@@ -410,6 +422,10 @@ export function TeacherDashboardPage() {
             <p className="drawer-note">提交时间 {timeOf(detail.submittedAt)}</p>
           </aside>
         </div>
+      ) : null}
+
+      {canvasRow ? (
+        <StudentCanvasDrawer labId={lab.id} onClose={() => setCanvasRow(null)} row={canvasRow} />
       ) : null}
     </AppPageLayout>
   );

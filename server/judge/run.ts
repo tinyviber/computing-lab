@@ -8,6 +8,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { runCases, type CaseResult } from "../../src/features/calculator/domain/evaluate.ts";
 import { isValidComponentIdentifier } from "../../src/features/calculator/domain/componentize.ts";
 import {
+  findContractIssues,
   sanitizeGraph,
   type CircuitGraph,
   type ComponentDef,
@@ -181,7 +182,13 @@ export function judgeSubmission(
   const graph = sanitizeGraph(rawGraph);
   const submodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
   const cases = hiddenTestsFor(stageIndex);
-  const { results, score, total } = runCases(graph, cases, componentMap(submodules));
+  // Structural gate before any truth-table work: a graph whose contract is
+  // already broken (missing/undriven pins, multi-driven ports) fails here
+  // with a readable reason instead of "losing" a percentage of cases.
+  const structureIssues = findContractIssues(graph, stage.inputs, stage.outputs);
+  const { results, score, total } = structureIssues.length
+    ? { results: [] as CaseResult[], score: 0, total: cases.length }
+    : runCases(graph, cases, componentMap(submodules));
 
   const categories: CalculatorTestSummary["categories"] = {};
   for (const r of results as CaseResult[]) {
@@ -204,7 +211,11 @@ export function judgeSubmission(
             actual: results[failIndex].actual,
           }
         : null,
-    error: firstError ? `${firstError.kind}: ${firstError.detail}` : null,
+    error: structureIssues.length
+      ? `结构问题：${structureIssues.join("；")}`
+      : firstError
+        ? `${firstError.kind}: ${firstError.detail}`
+        : null,
   };
   const passed = score === total && total > 0;
 

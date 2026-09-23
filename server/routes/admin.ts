@@ -4,6 +4,7 @@ import { MAX_PASSWORD_LENGTH, hashPassword, minPasswordLength } from "../auth/pa
 import type { AccountRole } from "../auth/session.ts";
 import { newId, withTransaction } from "../db/client.ts";
 import { jsonError, requireAdmin, type AppVariables } from "../http/context.ts";
+import { labInfo } from "../labs.ts";
 
 const STUDENT_NO = /^[A-Za-z0-9_-]{2,32}$/;
 /** CSV/表格里常见的中文写法也接受。 */
@@ -564,6 +565,149 @@ export function adminRoutes() {
       .run(classId, userId);
     if (result.changes === 0) return jsonError(c, 404, "membership-not-found");
     return c.json({ removed: { classId, userId } });
+  });
+
+  /**
+   * Admin-only forensics: a student's canvas — either their live draft or a
+   * submission snapshot. `canvas.kind` is the renderer discriminator so the
+   * contract stays lab-agnostic ("circuit" graphs for calculator, raw JSON
+   * for labs that store other draft shapes); the UI must not assume
+   * CircuitGraph.
+   *
+   *   ?revision=draft[&stage=N]    — every stage draft, or one stage
+   *   ?revision=submission[&submission=<id>|&stage=N]
+   *                                 — one snapshot; bare call returns the
+   *                                   submission index (metadata only)
+   */
+  app.get("/users/:userId/labs/:labId/canvas", (c) => {
+    const labId = c.req.param("labId");
+    if (!labInfo(labId)) return jsonError(c, 404, "unknown-lab");
+    const db = c.get("db");
+    const userId = c.req.param("userId");
+    const student = db
+      .prepare("SELECT id, student_no AS studentNo, name FROM users WHERE id = ?")
+      .get(userId) as { id: string; studentNo: string; name: string } | undefined;
+    if (!student) return jsonError(c, 404, "user-not-found");
+
+    const project = db
+      .prepare(
+        `SELECT unlocked_submodules AS submodules, draft_graph AS draftGraph,
+                updated_at AS updatedAt
+         FROM student_projects WHERE user_id = ? AND lab_id = ?`,
+      )
+      .get(userId, labId) as
+      { submodules: string; draftGraph: string; updatedAt: string } | undefined;
+    const components = project ? JSON.parse(project.submodules) : [];
+    const wrap = (raw: unknown) =>
+      labId === "calculator" ? { kind: "circuit", graph: raw } : { kind: "raw", data: raw };
+
+    const revision = c.req.query("revision") ?? "draft";
+    if (revision === "draft") {
+      const drafts = project ? (JSON.parse(project.draftGraph) as Record<string, unknown>) : {};
+      const stageParam = c.req.query("stage");
+      if (stageParam !== undefined) {
+        const raw = drafts[stageParam];
+        if (raw === undefined) return jsonError(c, 404, "not-found");
+        return c.json({
+          student,
+          labId,
+          revision,
+          updatedAt: project?.updatedAt ?? null,
+          stage: Number(stageParam),
+          canvas: wrap(raw),
+          components,
+        });
+      }
+      return c.json({
+        student,
+        labId,
+        revision,
+        updatedAt: project?.updatedAt ?? null,
+        drafts: Object.fromEntries(
+          Object.keys(drafts).map((stage) => [stage, wrap(drafts[stage])]),
+        ),
+        components,
+      });
+    }
+
+    if (revision === "submission") {
+      const submissionId = c.req.query("submission");
+      const stageParam = c.req.query("stage");
+      if (submissionId === undefined && stageParam === undefined) {
+        const rows = db
+          .prepare(
+            `SELECT id, stage_index AS stageIndex, score, total, passed,
+                    submitted_at AS submittedAt
+             FROM submissions WHERE user_id = ? AND lab_id = ?
+             ORDER BY submitted_at DESC, id DESC`,
+          )
+          .all(userId, labId) as {
+          id: string;
+          stageIndex: number;
+          score: number;
+          total: number;
+          passed: number;
+          submittedAt: string;
+        }[];
+        return c.json({
+          student,
+          labId,
+          revision,
+          submissions: rows.map((row) => ({ ...row, passed: row.passed === 1 })),
+        });
+      }
+      const row = (
+        submissionId !== undefined
+          ? db
+              .prepare(
+                `SELECT id, stage_index AS stageIndex, snapshot_graph AS snapshotGraph,
+                        score, total, passed, test_summary AS testSummary,
+                        submitted_at AS submittedAt
+                 FROM submissions WHERE id = ? AND user_id = ? AND lab_id = ?`,
+              )
+              .get(submissionId, userId, labId)
+          : db
+              .prepare(
+                `SELECT id, stage_index AS stageIndex, snapshot_graph AS snapshotGraph,
+                        score, total, passed, test_summary AS testSummary,
+                        submitted_at AS submittedAt
+                 FROM submissions WHERE user_id = ? AND lab_id = ? AND stage_index = ?
+                 ORDER BY submitted_at DESC, id DESC LIMIT 1`,
+              )
+              .get(userId, labId, Number(stageParam))
+      ) as
+        | {
+            id: string;
+            stageIndex: number;
+            snapshotGraph: string;
+            score: number;
+            total: number;
+            passed: number;
+            testSummary: string;
+            submittedAt: string;
+          }
+        | undefined;
+      if (!row) return jsonError(c, 404, "not-found");
+      const snapshot = JSON.parse(row.snapshotGraph);
+      return c.json({
+        student,
+        labId,
+        revision,
+        submission: {
+          id: row.id,
+          stageIndex: row.stageIndex,
+          score: row.score,
+          total: row.total,
+          passed: row.passed === 1,
+          testSummary: JSON.parse(row.testSummary),
+          submittedAt: row.submittedAt,
+        },
+        canvas: wrap(snapshot),
+        components,
+      });
+    }
+
+    return jsonError(c, 400, "invalid-revision");
   });
 
   return app;
