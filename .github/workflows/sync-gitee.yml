@@ -146,7 +146,7 @@ jobs:
           fi
 
       - name: Checkout exact commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ env.TARGET_SHA }}
           fetch-depth: 0
