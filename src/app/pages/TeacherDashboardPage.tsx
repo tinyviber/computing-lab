@@ -3,8 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
-import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
-import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
@@ -21,20 +19,10 @@ type LabOption = {
   teacherVisible: boolean;
 };
 
+// Only shipped labs appear here; preview labs (image-sampling, color-quantization)
+// stay hidden from the picker but remain reachable by URL for admin review.
 const LAB_OPTIONS: LabOption[] = [
   { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES, teacherVisible: true },
-  {
-    id: "image-sampling",
-    title: "图像的空间采样",
-    stages: IMAGE_SAMPLING_STAGES,
-    teacherVisible: false,
-  },
-  {
-    id: "color-quantization",
-    title: "颜色量化与墨粉",
-    stages: COLOR_QUANT_STAGES,
-    teacherVisible: false,
-  },
 ];
 
 type MatrixCell = {

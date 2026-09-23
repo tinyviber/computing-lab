@@ -176,38 +176,6 @@ function ClassroomHome() {
                 </Link>
               ) : null}
             </article>
-
-            {role === "admin" ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">Lab 02 · 预览</span>
-                </div>
-                <h4>图像的空间采样</h4>
-                <p>二值剪影 + 分辨率收缩：找到仍能区分整组图片的最小格子数。</p>
-                {classId ? (
-                  <Link className="button button-secondary" to="/labs/image-sampling">
-                    打开预览
-                  </Link>
-                ) : null}
-              </article>
-            ) : null}
-
-            {role === "admin" ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">Lab 03 · 预览</span>
-                </div>
-                <h4>颜色量化与墨粉</h4>
-                <p>
-                  打印机只有几种粉：选装哪些墨粉、或改写映射规则，让整组机器人印出来仍然分得开。
-                </p>
-                {classId ? (
-                  <Link className="button button-secondary" to="/labs/color-quantization">
-                    打开预览
-                  </Link>
-                ) : null}
-              </article>
-            ) : null}
           </div>
         </section>
 
