@@ -660,7 +660,9 @@ describe("record clearing", () => {
       adminCookie,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ cleared: { submissions: 2, projects: 1 } });
+    expect(await response.json()).toEqual({
+      cleared: { submissions: 2, projects: 1, taskResponses: 0 },
+    });
     expect(db.prepare("SELECT id FROM submissions WHERE user_id = ?").all(studentId)).toHaveLength(
       0,
     );

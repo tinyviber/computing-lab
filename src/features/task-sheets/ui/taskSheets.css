@@ -1,0 +1,639 @@
+/* Task sheets (任务单): editor + answer form. All colors come from the shared
+   tokens — see DESIGN.md. */
+
+.ts-editor {
+  display: grid;
+  gap: 18px;
+}
+
+.ts-meta {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.ts-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.ts-field input,
+.ts-field textarea,
+.ts-blank-row input,
+.ts-option-text,
+.ts-answer-blank input,
+.ts-answer-text,
+.ts-num input {
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 13px;
+}
+
+.ts-field textarea,
+.ts-answer-text,
+.ts-prompt textarea {
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.ts-field input:focus,
+.ts-field textarea:focus,
+.ts-blank-row input:focus,
+.ts-option-text:focus,
+.ts-answer-blank input:focus,
+.ts-answer-text:focus {
+  border-color: var(--focus);
+  outline: none;
+}
+
+.ts-palette {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--subtle);
+}
+
+.ts-palette-btn {
+  min-height: 34px;
+  padding: 6px 14px;
+}
+
+.ts-flow {
+  display: grid;
+  gap: 14px;
+}
+
+.ts-empty {
+  padding: 32px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-panel);
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.ts-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.ts-card.has-problem {
+  border-color: #f0cfcb;
+}
+
+.ts-card-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ts-card-index {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ts-badge {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--subtle);
+  color: var(--secondary);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ts-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.ts-card-actions {
+  display: inline-flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--secondary);
+  cursor: pointer;
+}
+
+.icon-button:hover:not(:disabled) {
+  border-color: var(--focus);
+  color: var(--primary);
+}
+
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.icon-button.danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.ts-prompt textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.ts-q-body {
+  display: grid;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--subtle);
+}
+
+.ts-hint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.ts-hint.ts-wrong {
+  color: var(--danger);
+}
+
+.ts-blank-row,
+.ts-option-row,
+.ts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-blank-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-blank-label {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ts-option-row input[type="checkbox"],
+.ts-option-row input[type="radio"] {
+  flex-shrink: 0;
+}
+
+.ts-option-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-add-inline {
+  justify-self: start;
+  min-height: 30px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+
+.ts-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.ts-num input {
+  width: 76px;
+}
+
+.ts-problem {
+  color: var(--danger);
+  font-size: 12px;
+}
+
+/* ---- Answer form (student fill page / review view) ---- */
+
+.ts-answer-list {
+  display: grid;
+  gap: 14px;
+}
+
+.ts-answer-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.ts-answer-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.ts-answer-prompt {
+  flex: 1;
+  color: var(--primary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.ts-required {
+  color: var(--danger);
+}
+
+.ts-answer-max {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+}
+
+.ts-answer-score {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--subtle);
+  color: var(--secondary);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ts-answer-score.is-full {
+  background: #f0faf6;
+  color: var(--success);
+}
+
+.ts-answer-blanks,
+.ts-answer-options {
+  display: grid;
+  gap: 8px;
+}
+
+.ts-answer-blank {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-answer-blank > span:first-child {
+  flex-shrink: 0;
+  width: 34px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ts-answer-blank input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ts-answer-blank.is-right input {
+  border-color: #b7e0cd;
+  background: #f0faf6;
+}
+
+.ts-answer-blank.is-wrong input {
+  border-color: #f0cfcb;
+  background: #fdf0ef;
+}
+
+.ts-blank-mark {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.ts-blank-mark.is-right {
+  color: var(--success);
+}
+
+.ts-blank-mark.is-wrong {
+  color: var(--danger);
+}
+
+.ts-answer-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.ts-answer-option:hover {
+  border-color: var(--focus);
+}
+
+.ts-answer-option.is-selected {
+  border-color: var(--accent);
+  background: var(--subtle);
+}
+
+.ts-answer-text {
+  width: 100%;
+}
+
+/* ---- Sheet list page ---- */
+
+.ts-sheet-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.ts-sheet-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.ts-sheet-card h3 {
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.ts-sheet-meta {
+  grid-column: 1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ts-sheet-actions {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.ts-sheet-actions .button {
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.ts-status-pill {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ts-status-pill.is-draft {
+  background: var(--subtle);
+  color: var(--secondary);
+}
+
+.ts-status-pill.is-published {
+  background: #f0faf6;
+  color: var(--success);
+}
+
+/* ---- Task status badges (home + dashboard) ---- */
+
+.ts-task-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.ts-task-badge.not_started,
+.ts-task-badge.in_progress {
+  background: var(--subtle);
+  color: var(--secondary);
+}
+
+.ts-task-badge.submitted {
+  background: #eef2ff;
+  color: var(--accent);
+}
+
+.ts-task-badge.reviewed {
+  background: #f0faf6;
+  color: var(--success);
+}
+
+.ts-task-badge.returned {
+  background: #fdf0ef;
+  color: var(--danger);
+}
+
+.ts-task-badge.late {
+  background: #fdf0ef;
+  color: var(--danger);
+}
+
+/* ---- Review drawer extras ---- */
+
+.ts-review-q {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+}
+
+.ts-review-q-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ts-review-q-head .ts-answer-max {
+  margin-left: auto;
+}
+
+.ts-review-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ts-review-score input {
+  width: 72px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+}
+
+.ts-review-score span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.ts-review-comment {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  resize: vertical;
+}
+
+.ts-stat-strip {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.ts-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  font-size: 12px;
+}
+
+.ts-stat-row .q-label {
+  color: var(--muted);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.ts-stat-pct {
+  color: var(--primary);
+  font-weight: 700;
+}
+
+.ts-stat-detail {
+  color: var(--secondary);
+  font-size: 11px;
+}
+
+/* ---- Dashboard task subbar + review answer list ---- */
+
+.dashboard-subbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 18px;
+  margin-bottom: 14px;
+}
+
+.dashboard-submeta {
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.ts-review-answers {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.ts-review-answers .is-right {
+  color: var(--success);
+  font-weight: 600;
+}
+
+.ts-review-answers .is-wrong {
+  color: var(--danger);
+}
+
+.ts-review-answers .is-picked {
+  font-weight: 600;
+}
+
+.ts-pick-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border: 1.5px solid var(--muted);
+  border-radius: 999px;
+  vertical-align: 0;
+}
+
+.ts-pick-dot.is-picked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.ts-review-short {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.ts-editor-status {
+  align-items: center;
+  display: flex;
+  gap: 14px;
+}
+
+.ts-review-comment {
+  border-left: 3px solid var(--accent);
+  color: var(--muted);
+  font-size: 13px;
+  margin: 10px 0 0;
+  padding-left: 10px;
+}
+
+.ts-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}

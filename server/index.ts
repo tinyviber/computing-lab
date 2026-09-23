@@ -23,6 +23,8 @@ import { authRoutes } from "./routes/auth.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { calculatorRoutes } from "./routes/calculator.ts";
 import { dashboardRoutes } from "./routes/dashboard.ts";
+import { taskSheetRoutes } from "./routes/taskSheets.ts";
+import { taskAssignmentRoutes } from "./routes/taskAssignments.ts";
 import { imageSamplingRoutes } from "./routes/imageSampling.ts";
 import { colorQuantizationRoutes } from "./routes/colorQuantization.ts";
 
@@ -55,6 +57,8 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/classes/:classId/labs/image-sampling", imageSamplingRoutes());
   app.route("/api/classes/:classId/labs/color-quantization", colorQuantizationRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
+  app.route("/api/task-sheets", taskSheetRoutes());
+  app.route("/api/classes/:classId/task-assignments", taskAssignmentRoutes());
 
   app.notFound((c) => c.json({ error: "not-found" }, 404));
   app.onError((err, c) => {

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { jsonError, requireMembership, type AppVariables } from "../http/context.ts";
+import { labInfo } from "../labs.ts";
 
 type MatrixCell = {
   stageIndex: number;
@@ -19,15 +20,23 @@ export type MatrixRow = {
   lastActiveAt: string | null;
 };
 
-const LAB_ID = "calculator";
+const DEFAULT_LAB_ID = "calculator";
 
 export function dashboardRoutes() {
   const app = new Hono<{ Variables: AppVariables }>();
 
-  // Teacher-only: progress matrix for one class.
+  // Teacher-only: progress matrix for one class. `?lab=` selects the lab —
+  // allowlisted via the server registry; preview labs stay admin-only, the
+  // same visibility rule the lab APIs themselves enforce.
   app.get("/", (c) => {
     const auth = requireMembership(c, "teacher");
     if ("error" in auth) return jsonError(c, auth.status, auth.error);
+    const labId = c.req.query("lab") ?? DEFAULT_LAB_ID;
+    const lab = labInfo(labId);
+    if (!lab) return jsonError(c, 404, "unknown-lab");
+    if (!lab.teacherVisible && auth.user.role === "teacher") {
+      return jsonError(c, 403, "lab-not-available");
+    }
     const db = c.get("db");
     const classId = auth.membership.classId;
 
@@ -53,7 +62,7 @@ export function dashboardRoutes() {
              WHERE x.user_id = s.user_id AND x.stage_index = s.stage_index AND x.lab_id = s.lab_id
            )`,
       )
-      .all(classId, LAB_ID) as {
+      .all(classId, labId) as {
       userId: string;
       stageIndex: number;
       score: number;
@@ -70,7 +79,7 @@ export function dashboardRoutes() {
          JOIN class_members m ON m.user_id = p.user_id AND m.class_id = ?
          WHERE p.lab_id = ?`,
       )
-      .all(classId, LAB_ID) as { userId: string; currentStage: number; updatedAt: string }[];
+      .all(classId, labId) as { userId: string; currentStage: number; updatedAt: string }[];
 
     const cellsByUser = new Map<string, Record<number, MatrixCell>>();
     const lastByUser = new Map<string, string>();
@@ -105,7 +114,7 @@ export function dashboardRoutes() {
       lastActiveAt: lastByUser.get(s.userId) ?? null,
     }));
 
-    return c.json({ classId, className: auth.membership.className, rows });
+    return c.json({ classId, className: auth.membership.className, labId, rows });
   });
 
   // Teacher-only: one submission's failure detail for the drawer.

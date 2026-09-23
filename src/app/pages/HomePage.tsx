@@ -9,6 +9,80 @@ import "./home.css";
 
 type ProjectSummary = { currentStage: number };
 
+type StudentTask = {
+  id: string;
+  title: string;
+  dueAt: string | null;
+  status: "not_started" | "in_progress" | "submitted" | "reviewed" | "returned";
+  finalScore: number | null;
+  finalTotal: number | null;
+};
+
+const TASK_STATUS: Record<StudentTask["status"], string> = {
+  not_started: "未开始",
+  in_progress: "进行中",
+  submitted: "已提交",
+  reviewed: "已批改",
+  returned: "待重做",
+};
+
+function StudentTasks({ classId }: { classId: string }) {
+  const [tasks, setTasks] = useState<StudentTask[] | null>(null);
+
+  useEffect(() => {
+    void api
+      .get<{ assignments: StudentTask[] }>(`/api/classes/${classId}/task-assignments`)
+      .then((p) => setTasks(p.assignments))
+      .catch(() => setTasks([]));
+  }, [classId]);
+
+  if (!tasks || tasks.length === 0) return null;
+  const open = tasks.filter((t) => t.status !== "reviewed");
+  return (
+    <section aria-labelledby="tasks-title" className="current-lab-section">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">任务单</p>
+          <h2 id="tasks-title">布置的任务{open.length > 0 ? `（${open.length} 项待完成）` : ""}</h2>
+        </div>
+      </div>
+      <div className="lab-card-grid">
+        {tasks.map((task) => (
+          <article className="lab-card" key={task.id}>
+            <div className="lab-card-topline">
+              <span className={`ts-task-badge ${task.status}`}>{TASK_STATUS[task.status]}</span>
+            </div>
+            <h4>{task.title}</h4>
+            <p>
+              {task.dueAt
+                ? `截止 ${new Date(task.dueAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+                : "无截止时间"}
+              {task.status === "reviewed" && task.finalScore !== null
+                ? ` · ${task.finalScore}/${task.finalTotal} 分`
+                : ""}
+            </p>
+            <Link
+              className="button button-primary"
+              params={{ assignmentId: task.id, classId }}
+              to="/classes/$classId/tasks/$assignmentId"
+            >
+              {task.status === "reviewed"
+                ? "查看批改"
+                : task.status === "submitted"
+                  ? "查看提交"
+                  : task.status === "in_progress"
+                    ? "继续作答"
+                    : task.status === "returned"
+                      ? "重新作答"
+                      : "开始作答"}
+            </Link>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function AnonymousLanding() {
   return (
     <AppPageLayout className="home-page" topbarProps={{ showAccount: false }}>
@@ -136,6 +210,8 @@ function ClassroomHome() {
             ) : null}
           </div>
         </section>
+
+        {classId && !isStaff ? <StudentTasks classId={classId} /> : null}
       </main>
     </AppPageLayout>
   );

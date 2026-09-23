@@ -41,7 +41,7 @@ export function migrate(db: DatabaseSync): void {
   };
   if (version === 0) {
     db.exec(schemaSql);
-    db.exec("PRAGMA user_version = 3");
+    db.exec("PRAGMA user_version = 4");
     return;
   }
   // v1 -> v2: out-of-order stage passes replace the serial stage lock.
@@ -60,7 +60,55 @@ export function migrate(db: DatabaseSync): void {
         "WHERE id IN (SELECT user_id FROM class_members WHERE role = 'teacher')",
     );
   }
-  if (version !== 3) db.exec("PRAGMA user_version = 3");
+  // v3 -> v4: task sheets — teacher-owned worksheet templates, class-scoped
+  // assignments (schema snapshot at assign time), per-student responses.
+  if (version === 3) {
+    db.exec(`CREATE TABLE IF NOT EXISTS task_sheets (
+      id            TEXT PRIMARY KEY,
+      owner_user_id TEXT NOT NULL REFERENCES users (id),
+      title         TEXT NOT NULL,
+      description   TEXT NOT NULL DEFAULT '',
+      schema_json   TEXT NOT NULL,
+      status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+      created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS task_assignments (
+      id          TEXT PRIMARY KEY,
+      sheet_id    TEXT REFERENCES task_sheets (id) ON DELETE SET NULL,
+      class_id    TEXT NOT NULL REFERENCES classes (id),
+      assigned_by TEXT NOT NULL REFERENCES users (id),
+      title       TEXT NOT NULL,
+      schema_json TEXT NOT NULL,
+      due_at      TEXT,
+      archived    INTEGER NOT NULL DEFAULT 0,
+      created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    )`);
+    db.exec(`CREATE TABLE IF NOT EXISTS task_responses (
+      id             TEXT PRIMARY KEY,
+      assignment_id  TEXT NOT NULL REFERENCES task_assignments (id),
+      user_id        TEXT NOT NULL REFERENCES users (id),
+      answers_json   TEXT NOT NULL DEFAULT '{}',
+      auto_score     REAL,
+      auto_total     REAL,
+      grading_json   TEXT,
+      review_json    TEXT,
+      reviewed_by    TEXT,
+      reviewed_at    TEXT,
+      final_score    REAL,
+      final_total    REAL,
+      status         TEXT NOT NULL DEFAULT 'in_progress'
+                     CHECK (status IN ('in_progress', 'submitted', 'reviewed', 'returned')),
+      submitted_at   TEXT,
+      updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (assignment_id, user_id)
+    )`);
+    db.exec("CREATE INDEX IF NOT EXISTS idx_task_sheets_owner ON task_sheets (owner_user_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_task_assignments_class ON task_assignments (class_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_task_assignments_sheet ON task_assignments (sheet_id)");
+    db.exec("CREATE INDEX IF NOT EXISTS idx_task_responses_user ON task_responses (user_id)");
+  }
+  if (version !== 4) db.exec("PRAGMA user_version = 4");
 }
 
 export function newId(): string {

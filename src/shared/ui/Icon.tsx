@@ -1,7 +1,15 @@
 import type { ReactNode } from "react";
 
 export type IconName =
-  "arrow-right" | "check" | "chevron-down" | "circle" | "lock" | "warning" | "x";
+  | "arrow-right"
+  | "check"
+  | "chevron-down"
+  | "chevron-up"
+  | "circle"
+  | "copy"
+  | "lock"
+  | "warning"
+  | "x";
 
 const PATHS: Record<IconName, ReactNode> = {
   "arrow-right": (
@@ -12,7 +20,14 @@ const PATHS: Record<IconName, ReactNode> = {
   ),
   check: <path d="M4 12l5 5L20 7" />,
   "chevron-down": <path d="M6 9l6 6 6-6" />,
+  "chevron-up": <path d="M6 15l6-6 6 6" />,
   circle: <circle cx="12" cy="12" r="8" />,
+  copy: (
+    <>
+      <rect height="13" rx="2" width="13" x="9" y="9" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </>
+  ),
   lock: (
     <>
       <rect height="10" rx="2" width="16" x="4" y="11" />

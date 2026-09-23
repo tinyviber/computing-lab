@@ -1,11 +1,41 @@
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
+import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
+import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
+import { TaskDashboard } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
+import "../../features/task-sheets/ui/taskSheets.css";
+
+/** First-level dashboard category: lab matrix vs task-sheet responses. */
+type DashKind = "lab" | "task";
+
+type LabOption = {
+  id: string;
+  title: string;
+  stages: { index: number; englishTitle: string; title: string }[];
+  teacherVisible: boolean;
+};
+
+const LAB_OPTIONS: LabOption[] = [
+  { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES, teacherVisible: true },
+  {
+    id: "image-sampling",
+    title: "图像的空间采样",
+    stages: IMAGE_SAMPLING_STAGES,
+    teacherVisible: false,
+  },
+  {
+    id: "color-quantization",
+    title: "颜色量化与墨粉",
+    stages: COLOR_QUANT_STAGES,
+    teacherVisible: false,
+  },
+];
 
 type MatrixCell = {
   stageIndex: number;
@@ -67,6 +97,7 @@ function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () =
 
 export function TeacherDashboardPage() {
   const { classId } = useParams({ strict: false }) as { classId?: string };
+  const search = useSearch({ strict: false }) as { kind?: string; lab?: string };
   const navigate = useNavigate();
   const { status, role, session } = useAuth();
   const [payload, setPayload] = useState<MatrixPayload | null>(null);
@@ -75,13 +106,17 @@ export function TeacherDashboardPage() {
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
   const isAdmin = role === "admin";
 
+  const kind: DashKind = search.kind === "task" ? "task" : "lab";
+  const labOptions = LAB_OPTIONS.filter((l) => l.teacherVisible || isAdmin);
+  const lab = labOptions.find((l) => l.id === search.lab) ?? labOptions[0] ?? LAB_OPTIONS[0];
+
   const load = useCallback(() => {
     if (!classId) return;
     void api
-      .get<MatrixPayload>(`/api/classes/${classId}/dashboard`)
+      .get<MatrixPayload>(`/api/classes/${classId}/dashboard?lab=${lab.id}`)
       .then(setPayload)
       .catch((caught) => setError(describeApiError(caught)));
-  }, [classId]);
+  }, [classId, lab.id]);
 
   useEffect(() => {
     if (status === "authenticated") load();
@@ -117,6 +152,23 @@ export function TeacherDashboardPage() {
   const selectClass = (nextClassId: string) => {
     void navigate({
       params: { classId: nextClassId },
+      search,
+      to: "/classes/$classId/dashboard",
+    });
+  };
+
+  const selectKind = (next: DashKind) => {
+    void navigate({
+      params: { classId: classId ?? "" },
+      search: next === "task" ? { kind: "task" } : { kind: "lab", lab: lab.id },
+      to: "/classes/$classId/dashboard",
+    });
+  };
+
+  const selectLab = (labId: string) => {
+    void navigate({
+      params: { classId: classId ?? "" },
+      search: { kind: "lab", lab: labId },
       to: "/classes/$classId/dashboard",
     });
   };
@@ -148,26 +200,61 @@ export function TeacherDashboardPage() {
         <div className="dashboard-heading">
           <div className="dashboard-heading-copy">
             <p className="eyebrow">班级看板</p>
-            <h1>学生进度</h1>
-            <p>按关卡查看当前班级每位学生的最新提交结果。</p>
+            <h1>{kind === "task" ? "任务单提交" : "学生进度"}</h1>
+            <p>
+              {kind === "task"
+                ? "查看每次任务单布置的提交与批改。"
+                : "按关卡查看当前班级每位学生的最新提交结果。"}
+            </p>
           </div>
-          {(session?.memberships.length ?? 0) > 1 ? (
-            <label className="field-select" htmlFor="dashboard-class-select">
-              <span>班级</span>
+          <div className="dashboard-controls">
+            <label className="field-select" htmlFor="dashboard-kind-select">
+              <span>分类</span>
               <select
-                aria-label="选择班级"
-                id="dashboard-class-select"
-                onChange={(event) => selectClass(event.target.value)}
-                value={classId ?? ""}
+                aria-label="看板分类"
+                id="dashboard-kind-select"
+                onChange={(event) => selectKind(event.target.value as DashKind)}
+                value={kind}
               >
-                {session?.memberships.map((membership) => (
-                  <option key={membership.classId} value={membership.classId}>
-                    {membership.className}
-                  </option>
-                ))}
+                <option value="lab">实验</option>
+                <option value="task">任务单</option>
               </select>
             </label>
-          ) : null}
+            {kind === "lab" ? (
+              <label className="field-select" htmlFor="dashboard-lab-select">
+                <span>实验</span>
+                <select
+                  aria-label="选择实验"
+                  id="dashboard-lab-select"
+                  onChange={(event) => selectLab(event.target.value)}
+                  value={lab.id}
+                >
+                  {labOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.title}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {(session?.memberships.length ?? 0) > 1 ? (
+              <label className="field-select" htmlFor="dashboard-class-select">
+                <span>班级</span>
+                <select
+                  aria-label="选择班级"
+                  id="dashboard-class-select"
+                  onChange={(event) => selectClass(event.target.value)}
+                  value={classId ?? ""}
+                >
+                  {session?.memberships.map((membership) => (
+                    <option key={membership.classId} value={membership.classId}>
+                      {membership.className}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+          </div>
         </div>
         {error ? (
           <p className="test-error" role="alert">
@@ -180,63 +267,67 @@ export function TeacherDashboardPage() {
           </p>
         ) : null}
 
-        <div aria-label="学生进度横向滚动区" className="matrix-scroll" tabIndex={0}>
-          <table className="matrix-table">
-            <caption className="sr-only">按关卡显示每位学生的最新提交结果</caption>
-            <thead>
-              <tr>
-                <th scope="col">学号</th>
-                <th scope="col">姓名</th>
-                {CALCULATOR_STAGES.map((stage) => (
-                  <th key={stage.id} scope="col" title={stage.title}>
-                    {stage.englishTitle}
-                  </th>
-                ))}
-                <th scope="col">最后活动</th>
-                {isAdmin ? <th scope="col">操作</th> : null}
-              </tr>
-            </thead>
-            <tbody>
-              {(payload?.rows ?? []).map((row) => (
-                <tr key={row.studentNo}>
-                  <th scope="row">{row.studentNo}</th>
-                  <td>{row.name}</td>
-                  {CALCULATOR_STAGES.map((stage) => (
-                    <td key={stage.id}>
-                      <CellView
-                        cell={row.cells[String(stage.index)]}
-                        onOpen={() => {
-                          const cell = row.cells[String(stage.index)];
-                          if (cell) openDetail(cell.submissionId);
-                        }}
-                      />
-                    </td>
-                  ))}
-                  <td>{timeOf(row.lastActiveAt)}</td>
-                  {isAdmin ? (
-                    <td>
-                      <button
-                        className="cell-score"
-                        onClick={() => clearRecords(row)}
-                        title="删除该学生的全部提交和关卡进度"
-                        type="button"
-                      >
-                        清空记录
-                      </button>
-                    </td>
-                  ) : null}
-                </tr>
-              ))}
-              {payload && payload.rows.length === 0 ? (
+        {kind === "task" && classId ? (
+          <TaskDashboard classId={classId} />
+        ) : (
+          <div aria-label="学生进度横向滚动区" className="matrix-scroll" tabIndex={0}>
+            <table className="matrix-table">
+              <caption className="sr-only">按关卡显示每位学生的最新提交结果</caption>
+              <thead>
                 <tr>
-                  <td colSpan={CALCULATOR_STAGES.length + (isAdmin ? 4 : 3)}>
-                    还没有学生加入这个班级。
-                  </td>
+                  <th scope="col">学号</th>
+                  <th scope="col">姓名</th>
+                  {lab.stages.map((stage) => (
+                    <th key={stage.index} scope="col" title={stage.title}>
+                      {stage.englishTitle}
+                    </th>
+                  ))}
+                  <th scope="col">最后活动</th>
+                  {isAdmin ? <th scope="col">操作</th> : null}
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {(payload?.rows ?? []).map((row) => (
+                  <tr key={row.studentNo}>
+                    <th scope="row">{row.studentNo}</th>
+                    <td>{row.name}</td>
+                    {lab.stages.map((stage) => (
+                      <td key={stage.index}>
+                        <CellView
+                          cell={row.cells[String(stage.index)]}
+                          onOpen={() => {
+                            const cell = row.cells[String(stage.index)];
+                            if (cell) openDetail(cell.submissionId);
+                          }}
+                        />
+                      </td>
+                    ))}
+                    <td>{timeOf(row.lastActiveAt)}</td>
+                    {isAdmin ? (
+                      <td>
+                        <button
+                          className="cell-score"
+                          onClick={() => clearRecords(row)}
+                          title="删除该学生的全部提交和关卡进度"
+                          type="button"
+                        >
+                          清空记录
+                        </button>
+                      </td>
+                    ) : null}
+                  </tr>
+                ))}
+                {payload && payload.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={lab.stages.length + (isAdmin ? 4 : 3)}>
+                      还没有学生加入这个班级。
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        )}
       </main>
 
       {detail ? (

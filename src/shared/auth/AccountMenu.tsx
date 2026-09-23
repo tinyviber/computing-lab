@@ -60,6 +60,16 @@ export function AccountMenu() {
               班级看板
             </Link>
           ) : null}
+          {isStaffRole(session.user.role) ? (
+            <Link
+              className="account-menu-item"
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              to="/tasks"
+            >
+              任务单
+            </Link>
+          ) : null}
           {session.user.role === "admin" ? (
             <Link
               className="account-menu-item"

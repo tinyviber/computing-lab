@@ -356,6 +356,20 @@ export function adminRoutes() {
 
     db.prepare("DELETE FROM submissions WHERE user_id = ?").run(targetId);
     db.prepare("DELETE FROM student_projects WHERE user_id = ?").run(targetId);
+    // Task-sheet data: their answers, then every response on assignments they
+    // created or that snapshot their sheets, then the assignments and sheets.
+    db.prepare("DELETE FROM task_responses WHERE user_id = ?").run(targetId);
+    db.prepare(
+      `DELETE FROM task_responses WHERE assignment_id IN (
+         SELECT a.id FROM task_assignments a
+         LEFT JOIN task_sheets s ON s.id = a.sheet_id
+         WHERE a.assigned_by = ? OR s.owner_user_id = ?)`,
+    ).run(targetId, targetId);
+    db.prepare(
+      `DELETE FROM task_assignments
+       WHERE assigned_by = ? OR sheet_id IN (SELECT id FROM task_sheets WHERE owner_user_id = ?)`,
+    ).run(targetId, targetId);
+    db.prepare("DELETE FROM task_sheets WHERE owner_user_id = ?").run(targetId);
     db.prepare("DELETE FROM class_members WHERE user_id = ?").run(targetId);
     db.prepare("DELETE FROM sessions WHERE user_id = ?").run(targetId);
     db.prepare("DELETE FROM users WHERE id = ?").run(targetId);
@@ -377,7 +391,10 @@ export function adminRoutes() {
     const { changes: projects } = db
       .prepare("DELETE FROM student_projects WHERE user_id = ?")
       .run(targetId);
-    return c.json({ cleared: { submissions, projects } });
+    const { changes: taskResponses } = db
+      .prepare("DELETE FROM task_responses WHERE user_id = ?")
+      .run(targetId);
+    return c.json({ cleared: { submissions, projects, taskResponses } });
   });
 
   app.get("/classes", (c) => {
@@ -427,6 +444,13 @@ export function adminRoutes() {
       .prepare("SELECT COUNT(*) AS count FROM class_members WHERE class_id = ?")
       .get(classId) as { count: number };
     if (count > 0) return jsonError(c, 409, "class-not-empty");
+    // Empty roster: task assignments and their responses are orphaned data
+    // owned by the class — remove them before the FK-guarded class row.
+    db.prepare(
+      `DELETE FROM task_responses WHERE assignment_id IN (
+         SELECT id FROM task_assignments WHERE class_id = ?)`,
+    ).run(classId);
+    db.prepare("DELETE FROM task_assignments WHERE class_id = ?").run(classId);
     db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
     return c.json({ deleted: classId });
   });

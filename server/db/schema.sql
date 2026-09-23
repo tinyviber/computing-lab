@@ -60,7 +60,63 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL
 );
 
+-- Task sheets (任务单): teacher-owned worksheet templates. schema_json holds
+-- the full question list INCLUDING grading data (accept lists, correct
+-- options, reference answers) — students only ever receive the publicSchema()
+-- projection that strips those fields.
+CREATE TABLE IF NOT EXISTS task_sheets (
+  id            TEXT PRIMARY KEY,
+  owner_user_id TEXT NOT NULL REFERENCES users (id),
+  title         TEXT NOT NULL,
+  description   TEXT NOT NULL DEFAULT '',
+  schema_json   TEXT NOT NULL,
+  status        TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published')),
+  created_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  updated_at    TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- Assignments snapshot the sheet schema at assign time so later template
+-- edits can never invalidate already-collected answers.
+CREATE TABLE IF NOT EXISTS task_assignments (
+  id          TEXT PRIMARY KEY,
+  sheet_id    TEXT REFERENCES task_sheets (id) ON DELETE SET NULL,
+  class_id    TEXT NOT NULL REFERENCES classes (id),
+  assigned_by TEXT NOT NULL REFERENCES users (id),
+  title       TEXT NOT NULL,
+  schema_json TEXT NOT NULL,
+  due_at      TEXT,
+  archived    INTEGER NOT NULL DEFAULT 0,
+  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
+-- One row per student per assignment: draft answers → submitted → reviewed.
+-- answers_json is student data only; grading_json/review_json are produced
+-- server-side (grading authority lives here, same rule as lab judging).
+CREATE TABLE IF NOT EXISTS task_responses (
+  id             TEXT PRIMARY KEY,
+  assignment_id  TEXT NOT NULL REFERENCES task_assignments (id),
+  user_id        TEXT NOT NULL REFERENCES users (id),
+  answers_json   TEXT NOT NULL DEFAULT '{}',
+  auto_score     REAL,
+  auto_total     REAL,
+  grading_json   TEXT,
+  review_json    TEXT,
+  reviewed_by    TEXT,
+  reviewed_at    TEXT,
+  final_score    REAL,
+  final_total    REAL,
+  status         TEXT NOT NULL DEFAULT 'in_progress'
+                 CHECK (status IN ('in_progress', 'submitted', 'reviewed', 'returned')),
+  submitted_at   TEXT,
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  UNIQUE (assignment_id, user_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_submissions_project_stage ON submissions (project_id, stage_index);
 CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions (user_id, lab_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions (expires_at);
 CREATE INDEX IF NOT EXISTS idx_class_members_user ON class_members (user_id);
+CREATE INDEX IF NOT EXISTS idx_task_sheets_owner ON task_sheets (owner_user_id);
+CREATE INDEX IF NOT EXISTS idx_task_assignments_class ON task_assignments (class_id);
+CREATE INDEX IF NOT EXISTS idx_task_assignments_sheet ON task_assignments (sheet_id);
+CREATE INDEX IF NOT EXISTS idx_task_responses_user ON task_responses (user_id);

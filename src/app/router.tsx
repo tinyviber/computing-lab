@@ -16,6 +16,8 @@ import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { TaskSheetListPage } from "./pages/TaskSheetListPage";
+import { TaskAssignmentPage } from "./pages/TaskAssignmentPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 
@@ -126,6 +128,28 @@ const dashboardRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+const taskSheetListRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks",
+  component: TaskSheetListPage,
+  errorComponent: LabErrorPage,
+});
+
+const taskSheetEditorRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tasks/$sheetId/edit",
+  // Lazy: the editor stays out of the student-facing main bundle.
+  component: lazyRouteComponent(() => import("./pages/TaskSheetEditorPage"), "TaskSheetEditorPage"),
+  errorComponent: LabErrorPage,
+});
+
+const taskAssignmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/tasks/$assignmentId",
+  component: TaskAssignmentPage,
+  errorComponent: LabErrorPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -138,6 +162,9 @@ const routeTree = rootRoute.addChildren([
   colorQuantizationEntryRoute,
   colorQuantizationLabRoute,
   dashboardRoute,
+  taskSheetListRoute,
+  taskSheetEditorRoute,
+  taskAssignmentRoute,
 ]);
 
 export function createAppRouter({

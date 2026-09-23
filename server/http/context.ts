@@ -100,3 +100,15 @@ export function requireAdmin(
   if (user.role !== "admin") return { error: "admin-required", status: 403 };
   return { user };
 }
+
+/** Teacher-owned resources outside any class scope (e.g. task sheets). */
+export function requireStaff(
+  c: Context<{ Variables: AppVariables }>,
+): { user: SessionUser } | GuardFailure {
+  const user = c.get("user");
+  if (!user) return { error: "unauthenticated", status: 401 };
+  if (user.role !== "teacher" && user.role !== "admin") {
+    return { error: "teacher-required", status: 403 };
+  }
+  return { user };
+}
