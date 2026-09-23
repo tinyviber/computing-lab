@@ -14,11 +14,26 @@ export class ApiError extends Error {
   }
 }
 
+/** Shared lab /project envelope — every lab returns this shape plus extras. */
+export type LabProjectPayload<TDraft> = {
+  labId: string;
+  currentStage: number;
+  passedStages: number[];
+  /** Per-stage drafts keyed by stage index (`draft_graph` column). */
+  drafts: Record<string, TDraft>;
+};
+
+/** Autosave lifecycle flags shared by every lab's lesson state. */
+export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+
 export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-credentials": "学号或密码不正确。",
   "invalid-student-no": "学号只能包含字母、数字、下划线或连字符。",
   "invalid-name": "请填写姓名。",
-  "weak-password": "密码至少 4 位。",
+  "weak-password": "密码太短（学生至少 4 位，教师/管理员至少 8 位）。",
+  "too-many-attempts": "尝试次数过多，请稍后再试。",
+  "payload-too-large": "提交内容太大，无法处理。",
+  "invalid-response": "服务器返回了无法解析的内容。",
   "current-password-incorrect": "当前密码不正确。",
   "same-password": "新密码不能与当前密码相同。",
   unauthenticated: "请先登录。",
@@ -99,7 +114,16 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
     throw new ApiError(0, "offline");
   }
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as unknown) : null;
+  let payload: unknown = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      // Non-JSON body (proxy error page, truncated response): never surface a
+      // bare SyntaxError to callers.
+      throw new ApiError(response.status, response.ok ? "invalid-response" : "internal-error");
+    }
+  }
   if (!response.ok) {
     const code =
       payload && typeof payload === "object" && "error" in payload

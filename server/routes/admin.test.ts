@@ -7,21 +7,21 @@ import { adminRoutes } from "./admin.ts";
 import { authRoutes } from "./auth.ts";
 import { dashboardRoutes } from "./dashboard.ts";
 
-function setup() {
+async function setup() {
   const db = openMemoryDb();
   db.prepare("INSERT INTO classes (id, name, invite_code) VALUES (?, ?, ?)").run(
     "c1",
     "测试班级",
     "CLASS26",
   );
-  const seed = (studentNo: string, name: string, role: string, password = "pw") => {
+  const seed = async (studentNo: string, name: string, role: string, password = "pw") => {
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
-    ).run(newId(), studentNo, name, hashPassword(password), role);
+    ).run(newId(), studentNo, name, await hashPassword(password), role);
   };
-  seed("admin", "管理员", "admin", "admin-pass");
-  seed("teacher", "教师", "teacher", "teacher-pass");
-  seed("20260101", "张三", "user", "student-pass");
+  await seed("admin", "管理员", "admin", "admin-pass");
+  await seed("teacher", "教师", "teacher", "teacher-pass");
+  await seed("20260101", "张三", "user", "student-pass");
 
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
@@ -76,7 +76,7 @@ function request(
 
 describe("admin guard", () => {
   it("rejects anonymous, student, and teacher callers", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const anonymous = await post(app, "/api/admin/users", {});
     expect(anonymous.status).toBe(401);
 
@@ -101,7 +101,7 @@ describe("admin guard", () => {
 
 describe("single account creation", () => {
   it("creates a student account that can log in", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const response = await post(
       app,
@@ -114,7 +114,7 @@ describe("single account creation", () => {
       .prepare("SELECT role, password_hash AS passwordHash FROM users WHERE student_no = ?")
       .get("20260102") as { role: string; passwordHash: string };
     expect(row.role).toBe("user");
-    expect(verifyPassword("pw-1234", row.passwordHash)).toBe(true);
+    expect(await verifyPassword("pw-1234", row.passwordHash)).toBe(true);
     const member = db
       .prepare(
         `SELECT m.role FROM class_members m JOIN users u ON u.id = m.user_id
@@ -134,7 +134,7 @@ describe("single account creation", () => {
   });
 
   it("rejects a duplicate student number with 409", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const response = await post(
       app,
@@ -149,12 +149,12 @@ describe("single account creation", () => {
 
 describe("batch import", () => {
   it("imports CSV rows, assigns classes, and reports per-row failures", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const csv = [
       "学号,姓名,密码,角色,班级邀请码",
       "20260110,王五,pw-a,学生,CLASS26",
-      "t1001,赵老师,pw-b,教师,CLASS26",
+      "t1001,赵老师,pw-teacher-b,教师,CLASS26",
       "20260101,重复学号,pw-c",
       "bad no,坏学号,pw-d",
       "20260111,无班级,pw-e,,NOPE",
@@ -185,7 +185,7 @@ describe("batch import", () => {
   });
 
   it("imports a JSON users array", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const response = await post(
       app,
@@ -204,7 +204,7 @@ describe("batch import", () => {
 
 describe("class management", () => {
   it("creates a class and lists it with its invite code", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const created = await post(app, "/api/admin/classes", { name: "2026-新班" }, cookie);
     expect(created.status).toBe(201);
@@ -221,7 +221,7 @@ describe("class management", () => {
   });
 
   it("deletes an empty class but refuses a class with members", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const created = await post(app, "/api/admin/classes", { name: "空班级" }, cookie);
     const { class: empty } = (await created.json()) as { class: { id: string } };
@@ -251,7 +251,7 @@ describe("class management", () => {
 
 describe("role editing", () => {
   it("promotes a user to teacher and syncs membership role", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
@@ -286,7 +286,7 @@ describe("role editing", () => {
   });
 
   it("refuses to set anyone's role to admin", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
@@ -303,7 +303,7 @@ describe("role editing", () => {
   });
 
   it("refuses to edit the caller's own role", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const adminId = (
       db.prepare("SELECT id FROM users WHERE student_no = 'admin'").get() as { id: string }
@@ -322,7 +322,7 @@ describe("role editing", () => {
 
 describe("password reset", () => {
   it("resets the password, drops the target's sessions, and keeps the role", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const adminCookie = await login(app, "admin", "admin-pass");
     const studentCookie = await login(app, "20260101", "student-pass");
     const studentId = (
@@ -342,7 +342,7 @@ describe("password reset", () => {
       .prepare("SELECT role, password_hash AS passwordHash FROM users WHERE id = ?")
       .get(studentId) as { role: string; passwordHash: string };
     expect(row.role).toBe("user");
-    expect(verifyPassword("new-pass-1", row.passwordHash)).toBe(true);
+    expect(await verifyPassword("new-pass-1", row.passwordHash)).toBe(true);
 
     const stale = await app.fetch(
       new Request("http://lab.test/api/auth/me", { headers: { cookie: studentCookie } }),
@@ -353,7 +353,7 @@ describe("password reset", () => {
   });
 
   it("rejects a weak or missing password", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
@@ -375,7 +375,7 @@ describe("password reset", () => {
   });
 
   it("returns 404 for an unknown user and refuses the caller's own password", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
 
     const missing = await request(
@@ -405,7 +405,7 @@ describe("password reset", () => {
 
 describe("user listing pagination", () => {
   it("pages users with a default page size of 50 and clamps out-of-range pages", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
 
     const first = await request(
@@ -457,7 +457,7 @@ describe("user listing pagination", () => {
   });
 
   it("searches users by student number or name", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
 
     const byStudentNo = await request(
@@ -488,7 +488,7 @@ describe("user listing pagination", () => {
 
 describe("class assignment", () => {
   it("adds a student and a teacher to a class with matching member roles", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const idOf = (studentNo: string) =>
       (db.prepare("SELECT id FROM users WHERE student_no = ?").get(studentNo) as { id: string }).id;
@@ -523,7 +523,7 @@ describe("class assignment", () => {
   });
 
   it("rejects duplicates and missing class or user", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
@@ -566,7 +566,7 @@ describe("class assignment", () => {
 
 describe("account deletion", () => {
   it("deletes the account together with records, memberships, and sessions", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const adminCookie = await login(app, "admin", "admin-pass");
     const studentCookie = await login(app, "20260101", "student-pass");
     const studentId = (
@@ -611,7 +611,7 @@ describe("account deletion", () => {
   });
 
   it("refuses self-deletion and returns 404 for unknown users", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const adminId = (
       db.prepare("SELECT id FROM users WHERE student_no = 'admin'").get() as { id: string }
@@ -629,7 +629,7 @@ describe("account deletion", () => {
 
 describe("record clearing", () => {
   it("clears submissions and projects while keeping the account and membership", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const adminCookie = await login(app, "admin", "admin-pass");
     const studentCookie = await login(app, "20260101", "student-pass");
     const studentId = (
@@ -681,7 +681,7 @@ describe("record clearing", () => {
   });
 
   it("returns 404 for an unknown user", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const response = await request(
       app,
@@ -697,7 +697,7 @@ describe("record clearing", () => {
 
 describe("member removal", () => {
   it("removes a member while other memberships survive", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as { id: string }
@@ -736,7 +736,7 @@ describe("member removal", () => {
 
 describe("admin teacher access", () => {
   it("lets an admin read a class dashboard without a membership row", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const response = await app.fetch(
       new Request("http://lab.test/api/classes/c1/dashboard", { headers: { cookie } }),
@@ -745,7 +745,7 @@ describe("admin teacher access", () => {
   });
 
   it("denies dashboard access to a student member", async () => {
-    const { db, app } = setup();
+    const { db, app } = await setup();
     const studentId = (
       db.prepare("SELECT id FROM users WHERE student_no = '20260101'").get() as {
         id: string;

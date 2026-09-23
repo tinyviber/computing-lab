@@ -5,14 +5,14 @@ import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
 import { authRoutes } from "./auth.ts";
 
-function setup() {
+async function setup() {
   const db = openMemoryDb();
   const userId = newId();
   db.prepare("INSERT INTO users (id, student_no, name, password_hash) VALUES (?, ?, ?, ?)").run(
     userId,
     "20260101",
     "张三",
-    hashPassword("old-pass"),
+    await hashPassword("old-pass"),
   );
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
@@ -34,7 +34,7 @@ async function login(app: Hono<{ Variables: AppVariables }>) {
 
 describe("password changes", () => {
   it("requires an authenticated session", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const response = await app.fetch(
       new Request("http://lab.test/api/auth/change-password", {
         method: "POST",
@@ -47,7 +47,7 @@ describe("password changes", () => {
   });
 
   it("rejects the wrong current password and preserves the account", async () => {
-    const { app, db, userId } = setup();
+    const { app, db, userId } = await setup();
     const cookie = await login(app);
     const response = await app.fetch(
       new Request("http://lab.test/api/auth/change-password", {
@@ -61,11 +61,11 @@ describe("password changes", () => {
     const row = db
       .prepare("SELECT password_hash AS passwordHash FROM users WHERE id = ?")
       .get(userId) as { passwordHash: string };
-    expect(verifyPassword("old-pass", row.passwordHash)).toBe(true);
+    expect(await verifyPassword("old-pass", row.passwordHash)).toBe(true);
   });
 
   it("updates the password while keeping the current session valid", async () => {
-    const { app, db, userId } = setup();
+    const { app, db, userId } = await setup();
     const cookie = await login(app);
     const response = await app.fetch(
       new Request("http://lab.test/api/auth/change-password", {
@@ -80,15 +80,15 @@ describe("password changes", () => {
     const row = db
       .prepare("SELECT password_hash AS passwordHash FROM users WHERE id = ?")
       .get(userId) as { passwordHash: string };
-    expect(verifyPassword("old-pass", row.passwordHash)).toBe(false);
-    expect(verifyPassword("new-pass", row.passwordHash)).toBe(true);
+    expect(await verifyPassword("old-pass", row.passwordHash)).toBe(false);
+    expect(await verifyPassword("new-pass", row.passwordHash)).toBe(true);
 
     const me = await app.fetch(new Request("http://lab.test/api/auth/me", { headers: { cookie } }));
     expect(me.status).toBe(200);
   });
 
   it("rejects a repeated password and weak new password", async () => {
-    const { app } = setup();
+    const { app } = await setup();
     const cookie = await login(app);
     const same = await app.fetch(
       new Request("http://lab.test/api/auth/change-password", {

@@ -3,11 +3,26 @@
 {$SITE_ADDRESS} {
     root * {$DEPLOY_ROOT}/current/dist
 
+    header {
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "frame-ancestors 'none'"
+    }
+
+    # index.html is the deploy boundary: it must revalidate on every load so a
+    # new release is picked up immediately. Hashed files under /assets stay
+    # cacheable. The header runs before the rewrite below, so match the
+    # original extensionless path (@spa) and the direct /index.html request.
+    @index path /index.html
+    header @index Cache-Control "no-cache"
+
     @spa {
         not file
         not path /assets/* /icons/* /fonts/* /favicon.ico /robots.txt /manifest.webmanifest
         path_regexp extensionless ^(?:/[^./]+)*/?$
     }
+
+    header @spa Cache-Control "no-cache"
 
     # Production root artifact. try_files keeps real files authoritative; only
     # extensionless, non-asset paths reach index.html, so missing JS/CSS/image

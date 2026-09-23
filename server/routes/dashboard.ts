@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { jsonError, requireMembership, type AppVariables } from "../http/context.ts";
+import { parseJsonColumn } from "../db/client.ts";
 import { labInfo } from "../labs.ts";
 
 type MatrixCell = {
@@ -152,7 +153,7 @@ export function dashboardRoutes() {
     return c.json({
       ...row,
       passed: row.passed === 1,
-      testSummary: JSON.parse(row.testSummary),
+      testSummary: parseJsonColumn(row.testSummary, null),
     });
   });
 

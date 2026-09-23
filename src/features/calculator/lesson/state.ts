@@ -26,7 +26,8 @@ import {
 import { getStage, nextMainlineStage, stagePrerequisites, type StageDef } from "../domain/stages";
 import { publicCasesFor } from "./publicCases";
 
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+export type { SaveStatus } from "../../../shared/api/client";
+import type { SaveStatus } from "../../../shared/api/client";
 
 /** First failing hidden case, echoed back by the judge for display. */
 export type Counterexample = {

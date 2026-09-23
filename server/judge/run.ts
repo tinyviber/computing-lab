@@ -9,7 +9,6 @@ import { runCases, type CaseResult } from "../../src/features/calculator/domain/
 import { isValidComponentIdentifier } from "../../src/features/calculator/domain/componentize.ts";
 import {
   sanitizeGraph,
-  type Bit,
   type CircuitGraph,
   type ComponentDef,
 } from "../../src/features/calculator/domain/graph.ts";
@@ -18,24 +17,20 @@ import {
   nextMainlineStage,
   stagePrerequisites,
 } from "../../src/features/calculator/domain/stages.ts";
-import { newId } from "../db/client.ts";
+import type {
+  CalculatorJudgeResult,
+  CalculatorTestSummary,
+} from "../../src/features/calculator/domain/protocol.ts";
+import { newId, parseJsonColumn, withTransaction } from "../db/client.ts";
 import { hiddenTestsFor } from "./testcases.ts";
 
-export type TestSummary = {
-  categories: Record<string, { passed: number; total: number }>;
-  results: { name: string; category: string; passed: boolean }[];
-  /** First failing hidden case, in runCases order; null on a full pass. */
-  counterexample: {
-    name: string;
-    category: string;
-    inputs: Record<string, Bit>;
-    expected: Record<string, Bit>;
-    actual: Record<string, Bit | null>;
-  } | null;
-  error: string | null;
-};
+export type { CalculatorJudgeResult as JudgeOutcome, CalculatorTestSummary as TestSummary };
 
-export type ProjectRow = {
+/**
+ * student_projects row decoded into camelCase. `drafts` is typed per-lab via
+ * `TDraft` — the column stores whatever shape the lab's draft type defines.
+ */
+export type ProjectRow<TDraft = unknown> = {
   id: string;
   userId: string;
   classId: string;
@@ -43,7 +38,7 @@ export type ProjectRow = {
   currentStage: number;
   passedStages: number[];
   unlockedSubmodules: ComponentDef[];
-  draftGraph: Record<string, CircuitGraph>;
+  drafts: Record<string, TDraft>;
 };
 
 type RawProject = {
@@ -57,44 +52,44 @@ type RawProject = {
   draft_graph: string;
 };
 
-function toProject(row: RawProject): ProjectRow {
+function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
   return {
     id: row.id,
     userId: row.user_id,
     classId: row.class_id,
     labId: row.lab_id,
     currentStage: row.current_stage,
-    passedStages: JSON.parse(row.passed_stages) as number[],
-    unlockedSubmodules: JSON.parse(row.unlocked_submodules) as ComponentDef[],
-    draftGraph: JSON.parse(row.draft_graph) as Record<string, CircuitGraph>,
+    passedStages: parseJsonColumn<number[]>(row.passed_stages, []),
+    unlockedSubmodules: parseJsonColumn<ComponentDef[]>(row.unlocked_submodules, []),
+    drafts: parseJsonColumn<Record<string, TDraft>>(row.draft_graph, {}),
   };
 }
 
-export function getOrCreateProject(
+export function getOrCreateProject<TDraft = unknown>(
   db: DatabaseSync,
   userId: string,
   classId: string,
   labId: string,
-): ProjectRow {
-  const existing = db
-    .prepare("SELECT * FROM student_projects WHERE user_id = ? AND lab_id = ?")
-    .get(userId, labId) as RawProject | undefined;
-  if (existing) return toProject(existing);
-  const id = newId();
+): ProjectRow<TDraft> {
+  // INSERT OR IGNORE makes the get-or-create atomic under (user_id, lab_id);
+  // a concurrent insert wins and is returned instead of a UNIQUE crash.
   db.prepare(
-    "INSERT INTO student_projects (id, user_id, class_id, lab_id) VALUES (?, ?, ?, ?)",
-  ).run(id, userId, classId, labId);
-  return toProject(db.prepare("SELECT * FROM student_projects WHERE id = ?").get(id) as RawProject);
+    "INSERT OR IGNORE INTO student_projects (id, user_id, class_id, lab_id) VALUES (?, ?, ?, ?)",
+  ).run(newId(), userId, classId, labId);
+  const row = db
+    .prepare("SELECT * FROM student_projects WHERE user_id = ? AND lab_id = ?")
+    .get(userId, labId) as RawProject;
+  return toProject<TDraft>(row);
 }
 
 export function saveDraft(
   db: DatabaseSync,
-  project: ProjectRow,
+  project: ProjectRow<CircuitGraph>,
   stageIndex: number,
   graph: unknown,
   rawComponents?: unknown,
 ): void {
-  const drafts = { ...project.draftGraph, [String(stageIndex)]: sanitizeGraph(graph) };
+  const drafts = { ...project.drafts, [String(stageIndex)]: sanitizeGraph(graph) };
   if (rawComponents === undefined) {
     db.prepare(
       "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
@@ -166,24 +161,13 @@ function mergeCustomComponents(existing: ComponentDef[], raw: unknown): Componen
   return merged;
 }
 
-export type JudgeOutcome = {
-  score: number;
-  total: number;
-  passed: boolean;
-  testSummary: TestSummary;
-  submissionId: string;
-  currentStage: number;
-  passedStages: number[];
-  unlockedComponent: string | null;
-};
-
 export function judgeSubmission(
   db: DatabaseSync,
-  project: ProjectRow,
+  project: ProjectRow<CircuitGraph>,
   stageIndex: number,
   rawGraph: unknown,
   rawComponents?: unknown,
-): JudgeOutcome | { error: string; status: number } {
+): CalculatorJudgeResult | { error: string; status: number } {
   const stage = getStage(stageIndex);
   if (!stage) return { error: "unknown-stage", status: 400 };
   // Core stages are always judgeable in any order; optional stages declare
@@ -199,7 +183,7 @@ export function judgeSubmission(
   const cases = hiddenTestsFor(stageIndex);
   const { results, score, total } = runCases(graph, cases, componentMap(submodules));
 
-  const categories: TestSummary["categories"] = {};
+  const categories: CalculatorTestSummary["categories"] = {};
   for (const r of results as CaseResult[]) {
     const bucket = (categories[r.category] ??= { passed: 0, total: 0 });
     bucket.total += 1;
@@ -207,7 +191,7 @@ export function judgeSubmission(
   }
   const firstError = results.find((r) => r.error)?.error;
   const failIndex = results.findIndex((r) => !r.passed);
-  const testSummary: TestSummary = {
+  const testSummary: CalculatorTestSummary = {
     categories,
     results: results.map((r) => ({ name: r.name, category: r.category, passed: r.passed })),
     counterexample:
@@ -224,48 +208,53 @@ export function judgeSubmission(
   };
   const passed = score === total && total > 0;
 
-  const submissionId = newId();
-  db.prepare(
-    `INSERT INTO submissions
-       (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    submissionId,
-    project.id,
-    project.userId,
-    project.labId,
-    stageIndex,
-    JSON.stringify(graph),
-    score,
-    total,
-    passed ? 1 : 0,
-    JSON.stringify(testSummary),
-  );
-
+  // Submission row + project progress are one write unit — a crash between
+  // them would record a pass the student never got credit for.
   let currentStage = project.currentStage;
   let passedStages = project.passedStages;
   let unlockedComponent: string | null = null;
-  if (passed) {
-    // Passes may arrive out of order; keep the set sorted and deduplicated.
-    passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
-    currentStage = nextMainlineStage(passedStages);
-    if (stage.unlocks) {
-      unlockedComponent = stage.unlocks;
-      const unlockName = stage.unlocks.toLocaleLowerCase();
-      const rest = submodules.filter((s) => s.name.toLocaleLowerCase() !== unlockName);
-      submodules.splice(0, submodules.length, ...rest, { name: stage.unlocks, graph });
+  const submissionId = withTransaction(db, () => {
+    const submissionId = newId();
+    db.prepare(
+      `INSERT INTO submissions
+         (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(
+      submissionId,
+      project.id,
+      project.userId,
+      project.labId,
+      stageIndex,
+      JSON.stringify(graph),
+      score,
+      total,
+      passed ? 1 : 0,
+      JSON.stringify(testSummary),
+    );
+
+    if (passed) {
+      // Passes may arrive out of order; keep the set sorted and deduplicated.
+      passedStages = [...new Set([...project.passedStages, stageIndex])].sort((a, b) => a - b);
+      currentStage = nextMainlineStage(passedStages);
+      if (stage.unlocks) {
+        unlockedComponent = stage.unlocks;
+        const unlockName = stage.unlocks.toLocaleLowerCase();
+        const rest = submodules.filter((s) => s.name.toLocaleLowerCase() !== unlockName);
+        submodules.splice(0, submodules.length, ...rest, { name: stage.unlocks, graph });
+      }
+      db.prepare(
+        `UPDATE student_projects
+         SET current_stage = ?, passed_stages = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+         WHERE id = ?`,
+      ).run(currentStage, JSON.stringify(passedStages), JSON.stringify(submodules), project.id);
+    } else if (rawComponents !== undefined) {
+      // Keep learner-made blocks even when the current circuit still needs work.
+      db.prepare(
+        "UPDATE student_projects SET unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+      ).run(JSON.stringify(submodules), project.id);
     }
-    db.prepare(
-      `UPDATE student_projects
-       SET current_stage = ?, passed_stages = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-       WHERE id = ?`,
-    ).run(currentStage, JSON.stringify(passedStages), JSON.stringify(submodules), project.id);
-  } else if (rawComponents !== undefined) {
-    // Keep learner-made blocks even when the current circuit still needs work.
-    db.prepare(
-      "UPDATE student_projects SET unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-    ).run(JSON.stringify(submodules), project.id);
-  }
+    return submissionId;
+  });
 
   return {
     score,

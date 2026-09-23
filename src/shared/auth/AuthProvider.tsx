@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api } from "../api/client";
+import { api, ApiError } from "../api/client";
 
 /** Account-level role: admin ⊃ teacher ⊃ user. */
 export type AccountRole = "admin" | "teacher" | "user";
@@ -59,12 +59,25 @@ export function AuthProvider({
     initialState ?? { status: "loading", session: null },
   );
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (attempt = 0) => {
     try {
       const session = await api.get<AuthSession>("/api/auth/me");
       setState({ status: "authenticated", session });
-    } catch {
-      setState({ status: "anonymous", session: null });
+    } catch (error) {
+      // A 401 is definitive "not signed in". Anything else (offline, proxy
+      // restart, 5xx) is transient: keep the current state and back off,
+      // so a blip never bounces a signed-in learner to the login page.
+      if (error instanceof ApiError && error.status === 401) {
+        setState({ status: "anonymous", session: null });
+        return;
+      }
+      if (attempt < 3) {
+        setTimeout(() => void refresh(attempt + 1), 1500 * (attempt + 1));
+        return;
+      }
+      setState((current) =>
+        current.status === "authenticated" ? current : { status: "anonymous", session: null },
+      );
     }
   }, []);
 

@@ -298,5 +298,5 @@
 ## 附：事实来源清单
 
 - 教材：沪科教版《信息技术 必修1：数据与计算》（2022 年 7 月第 1 版；见 `research/source/README.md`）
-- 项目文档：README.md、AGENTS.md、docs/architecture.md、docs/retired-labs.md、vercel_design.md
+- 项目文档：README.md、AGENTS.md、docs/architecture.md、docs/retired-labs.md、docs/research/vercel_design.md
 - 代码：`src/app/catalog/{labs,types}.ts`、`src/app/router.tsx`、`src/app/pages/HomePage.tsx`、三个 feature 的 `domain/model.ts`、`lesson/{scenario,state}.ts`、`ui/*Page.tsx`、`src/shared/lab/*`（LabShell、LabNavigationProvider、ParameterControl、VisualizationPanel、FormulaPanel、ExperimentStatus、number.ts）、`src/design/tokens.css`、测试文件（单元与 e2e）

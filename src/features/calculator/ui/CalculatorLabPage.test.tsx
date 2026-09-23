@@ -24,7 +24,7 @@ describe("CalculatorLabPage autosave", () => {
       const payload =
         init?.method === "PUT"
           ? null
-          : { currentStage: 1, passedStages: [], unlockedSubmodules: [], draftGraph: {} };
+          : { currentStage: 1, passedStages: [], unlockedSubmodules: [], drafts: {} };
       return new Response(JSON.stringify(payload), {
         headers: { "content-type": "application/json" },
       });
@@ -60,7 +60,7 @@ describe("CalculatorLabPage coach", () => {
               currentStage: 2,
               passedStages: [1],
               unlockedSubmodules: [],
-              draftGraph: {},
+              drafts: {},
             }),
             { headers: { "content-type": "application/json" } },
           ),
@@ -96,7 +96,7 @@ describe("CalculatorLabPage coach", () => {
               currentStage: 1,
               passedStages: [],
               unlockedSubmodules: [],
-              draftGraph: {},
+              drafts: {},
             }),
             { headers: { "content-type": "application/json" } },
           ),
@@ -123,7 +123,7 @@ describe("CalculatorLabPage coach", () => {
               currentStage: 2,
               passedStages: [1],
               unlockedSubmodules: [],
-              draftGraph: {},
+              drafts: {},
             }),
             { headers: { "content-type": "application/json" } },
           ),

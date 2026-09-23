@@ -1,16 +1,11 @@
 import { defineConfig } from "@playwright/test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { basePathPrefix } from "./src/shared/basePath.ts";
 
 const port = 8788;
 
-function normalizeBasePath(value: string | undefined): string {
-  const raw = value?.trim() || "/";
-  if (raw === "/") return "";
-  return `/${raw.replace(/^\/+|\/+$/g, "")}`;
-}
-
-const basePath = normalizeBasePath(process.env.VITE_BASE_PATH ?? process.env.BASE_PATH);
+const basePath = basePathPrefix(process.env.VITE_BASE_PATH ?? process.env.BASE_PATH);
 
 export default defineConfig({
   testDir: "./tests/e2e",

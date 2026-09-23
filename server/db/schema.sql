@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS class_members (
 CREATE TABLE IF NOT EXISTS student_projects (
   id                  TEXT PRIMARY KEY,
   user_id             TEXT NOT NULL REFERENCES users (id),
+  -- Snapshot of the class the project was started in. It is never
+  -- re-resolved: a student who switches classes keeps their existing
+  -- progress under the original class_id, by design.
   class_id            TEXT NOT NULL,
   lab_id              TEXT NOT NULL,
   current_stage       INTEGER NOT NULL DEFAULT 1,
@@ -114,6 +117,9 @@ CREATE TABLE IF NOT EXISTS task_responses (
 
 CREATE INDEX IF NOT EXISTS idx_submissions_project_stage ON submissions (project_id, stage_index);
 CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions (user_id, lab_id);
+-- Dashboard lookup: latest submission per (user, lab, stage).
+CREATE INDEX IF NOT EXISTS idx_submissions_user_stage
+  ON submissions (user_id, lab_id, stage_index, submitted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions (expires_at);
 CREATE INDEX IF NOT EXISTS idx_class_members_user ON class_members (user_id);
 CREATE INDEX IF NOT EXISTS idx_task_sheets_owner ON task_sheets (owner_user_id);

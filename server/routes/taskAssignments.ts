@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 import type { DatabaseSync } from "node:sqlite";
-import { newId } from "../db/client.ts";
+import { newId, parseJsonColumn, withTransaction } from "../db/client.ts";
 import {
   jsonError,
   requireMembership,
@@ -90,16 +90,18 @@ function responseOf(db: DatabaseSync, assignmentId: string, userId: string) {
 }
 
 function getOrCreateResponse(db: DatabaseSync, assignmentId: string, userId: string) {
-  const existing = responseOf(db, assignmentId, userId);
-  if (existing) return existing;
-  const id = newId();
-  db.prepare("INSERT INTO task_responses (id, assignment_id, user_id) VALUES (?, ?, ?)").run(
-    id,
-    assignmentId,
-    userId,
-  );
+  // INSERT OR IGNORE + re-select: atomic under UNIQUE (assignment_id,
+  // user_id), so a repeat write can never crash on a duplicate key.
+  db.prepare(
+    "INSERT OR IGNORE INTO task_responses (id, assignment_id, user_id) VALUES (?, ?, ?)",
+  ).run(newId(), assignmentId, userId);
   return responseOf(db, assignmentId, userId)!;
 }
+
+/** Corrupt schema_json degrades to an empty sheet rather than a 500. */
+const EMPTY_SCHEMA: SheetSchema = { version: 1, questions: [] };
+const assignmentSchema = (row: { schema_json: string }): SheetSchema =>
+  parseJsonColumn<SheetSchema>(row.schema_json, EMPTY_SCHEMA);
 
 function parseReview(raw: string | null): ReviewPatch {
   if (!raw) return { questions: {} };
@@ -183,7 +185,10 @@ export function taskAssignmentRoutes() {
     }
     // Assigning freezes the snapshot, so the stored draft must be complete:
     // re-validate strictly here rather than trusting the sheet row.
-    const strict = validateSheetSchema(JSON.parse(sheet.schema_json));
+    const sheetSchema = parseJsonColumn<SheetSchema | null>(sheet.schema_json, null);
+    const strict = sheetSchema
+      ? validateSheetSchema(sheetSchema)
+      : ({ ok: false, error: "invalid-schema" } as const);
     if (!strict.ok) return jsonError(c, 400, "sheet-incomplete");
     const schema = strict.schema;
     if (schema.questions.length === 0) return jsonError(c, 400, "sheet-empty");
@@ -234,7 +239,7 @@ export function taskAssignmentRoutes() {
       })[];
       return c.json({
         assignments: rows.map((row) => ({
-          ...assignmentMeta(row, JSON.parse(row.schema_json) as SheetSchema),
+          ...assignmentMeta(row, assignmentSchema(row)),
           studentCount: row.studentCount,
           submittedCount: row.submittedCount,
           needsReviewCount: row.needsReviewCount,
@@ -269,7 +274,7 @@ export function taskAssignmentRoutes() {
         title: row.title,
         dueAt: row.due_at,
         createdAt: row.created_at,
-        questionCount: (JSON.parse(row.schema_json) as SheetSchema).questions.length,
+        questionCount: assignmentSchema(row).questions.length,
         status: row.responseStatus ?? "not_started",
         finalScore: row.finalScore,
         finalTotal: row.finalTotal,
@@ -350,7 +355,7 @@ export function taskAssignmentRoutes() {
     const db = c.get("db");
     const row = assignmentOf(db, auth.membership.classId, c.req.param("id"));
     if (!row || row.archived === 1) return jsonError(c, 404, "assignment-not-found");
-    const schema = JSON.parse(row.schema_json) as SheetSchema;
+    const schema = assignmentSchema(row);
     const response = responseOf(db, row.id, auth.user.id);
     return c.json({
       assignment: assignmentMeta(row, schema),
@@ -359,11 +364,11 @@ export function taskAssignmentRoutes() {
         ? {
             id: response.id,
             status: response.status,
-            answers: JSON.parse(response.answers_json) as AnswerMap,
+            answers: parseJsonColumn<AnswerMap>(response.answers_json, {}),
             autoScore: response.auto_score,
             autoTotal: response.auto_total,
             grading: response.grading_json
-              ? publicGrading(JSON.parse(response.grading_json))
+              ? publicGrading(parseJsonColumn(response.grading_json, {}))
               : null,
             review: response.status === "reviewed" ? parseReview(response.review_json) : null,
             finalScore: response.final_score,
@@ -381,18 +386,21 @@ export function taskAssignmentRoutes() {
     const db = c.get("db");
     const row = assignmentOf(db, auth.membership.classId, c.req.param("id"));
     if (!row || row.archived === 1) return jsonError(c, 404, "assignment-not-found");
-    const schema = JSON.parse(row.schema_json) as SheetSchema;
+    const schema = assignmentSchema(row);
     const existing = responseOf(db, row.id, auth.user.id);
     if (existing && (existing.status === "submitted" || existing.status === "reviewed")) {
       return jsonError(c, 409, "response-locked");
     }
     const body = await c.req.json().catch(() => null);
     const answers = sanitizeAnswers(schema, (body as { answers?: unknown })?.answers);
-    const resp = existing ?? getOrCreateResponse(db, row.id, auth.user.id);
-    db.prepare(
-      `UPDATE task_responses SET answers_json = ?, status = 'in_progress',
-       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
-    ).run(JSON.stringify(answers), resp.id);
+    // Create-if-missing plus the answer write commit together.
+    withTransaction(db, () => {
+      const resp = existing ?? getOrCreateResponse(db, row.id, auth.user.id);
+      db.prepare(
+        `UPDATE task_responses SET answers_json = ?, status = 'in_progress',
+         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?`,
+      ).run(JSON.stringify(answers), resp.id);
+    });
     return c.json({ ok: true, savedAt: new Date().toISOString() });
   });
 
@@ -403,13 +411,16 @@ export function taskAssignmentRoutes() {
     const db = c.get("db");
     const row = assignmentOf(db, auth.membership.classId, c.req.param("id"));
     if (!row || row.archived === 1) return jsonError(c, 404, "assignment-not-found");
-    const schema = JSON.parse(row.schema_json) as SheetSchema;
+    const schema = assignmentSchema(row);
     const existing = responseOf(db, row.id, auth.user.id);
     if (existing && (existing.status === "submitted" || existing.status === "reviewed")) {
       return jsonError(c, 409, "response-locked");
     }
-    const resp = existing ?? getOrCreateResponse(db, row.id, auth.user.id);
-    const answers = JSON.parse(resp.answers_json) as AnswerMap;
+    const resp = withTransaction(
+      db,
+      () => existing ?? getOrCreateResponse(db, row.id, auth.user.id),
+    );
+    const answers = parseJsonColumn<AnswerMap>(resp.answers_json, {});
     const invalid = validateAnswers(schema, answers);
     if (invalid) return jsonError(c, 400, invalid);
 
@@ -474,8 +485,8 @@ export function taskAssignmentRoutes() {
       updatedAt: string | null;
     }[];
     return c.json({
-      assignment: assignmentMeta(row, JSON.parse(row.schema_json) as SheetSchema),
-      schema: JSON.parse(row.schema_json) as SheetSchema,
+      assignment: assignmentMeta(row, assignmentSchema(row)),
+      schema: assignmentSchema(row),
       rows: rows.map((r) => ({
         ...r,
         status: r.status ?? "not_started",
@@ -505,19 +516,19 @@ export function taskAssignmentRoutes() {
       | undefined;
     if (!resp) return jsonError(c, 404, "response-not-found");
     return c.json({
-      assignment: assignmentMeta(row, JSON.parse(row.schema_json) as SheetSchema),
-      schema: JSON.parse(row.schema_json) as SheetSchema,
+      assignment: assignmentMeta(row, assignmentSchema(row)),
+      schema: assignmentSchema(row),
       response: {
         id: resp.id,
         userId: resp.user_id,
         studentNo: resp.studentNo,
         name: resp.name,
         status: resp.status,
-        answers: JSON.parse(resp.answers_json) as AnswerMap,
+        answers: parseJsonColumn<AnswerMap>(resp.answers_json, {}),
         autoScore: resp.auto_score,
         autoTotal: resp.auto_total,
         grading: resp.grading_json
-          ? (JSON.parse(resp.grading_json) as Record<string, QuestionGrading>)
+          ? parseJsonColumn<Record<string, QuestionGrading>>(resp.grading_json, {})
           : null,
         review: parseReview(resp.review_json),
         reviewedBy: resp.reviewed_by,
@@ -550,8 +561,8 @@ export function taskAssignmentRoutes() {
       questions?: Record<string, { score?: unknown; comment?: unknown }>;
       comment?: unknown;
     };
-    const schema = JSON.parse(row.schema_json) as SheetSchema;
-    const grading = JSON.parse(target.grading_json ?? "{}") as Record<string, QuestionGrading>;
+    const schema = assignmentSchema(row);
+    const grading = parseJsonColumn<Record<string, QuestionGrading>>(target.grading_json, {});
     const review = parseReview(target.review_json);
 
     if (patch.questions && typeof patch.questions === "object") {
@@ -616,7 +627,7 @@ export function taskAssignmentRoutes() {
     const db = c.get("db");
     const row = assignmentOf(db, auth.membership.classId, c.req.param("id"));
     if (!row) return jsonError(c, 404, "assignment-not-found");
-    const schema = JSON.parse(row.schema_json) as SheetSchema;
+    const schema = assignmentSchema(row);
     const responses = db
       .prepare(
         `SELECT grading_json, review_json, status FROM task_responses
@@ -630,7 +641,7 @@ export function taskAssignmentRoutes() {
         for (const b of q.blanks) perBlank[b.id] = { correct: 0, wrong: {} };
         for (const r of responses) {
           const g = r.grading_json
-            ? (JSON.parse(r.grading_json) as Record<string, QuestionGrading>)
+            ? parseJsonColumn<Record<string, QuestionGrading>>(r.grading_json, {})
             : null;
           const fq = g?.[q.id];
           if (!fq || fq.type !== "fill") continue;
@@ -663,7 +674,7 @@ export function taskAssignmentRoutes() {
         for (const o of q.options) optionCounts[o.id] = 0;
         for (const r of responses) {
           const g = r.grading_json
-            ? (JSON.parse(r.grading_json) as Record<string, QuestionGrading>)
+            ? parseJsonColumn<Record<string, QuestionGrading>>(r.grading_json, {})
             : null;
           const cq = g?.[q.id];
           if (!cq || cq.type !== "choice") continue;

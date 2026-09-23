@@ -1,12 +1,13 @@
 import { Link, Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { API_ERROR_MESSAGES, api, describeApiError } from "../../shared/api/client";
-import { useAuth, type AccountRole } from "../../shared/auth";
+import { api, describeApiError } from "../../shared/api/client";
+import { isStaffRole, useAuth, type AccountRole } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
+import { CreateAccountForm, CreateClassForm, ImportPanel } from "./AdminForms";
 import "./admin.css";
 
-type AdminClass = { id: string; name: string; inviteCode: string; memberCount: number };
+export type AdminClass = { id: string; name: string; inviteCode: string; memberCount: number };
 
 type AdminUser = {
   id: string;
@@ -24,7 +25,12 @@ type ImportRowResult = {
   error?: string;
 };
 
-type ImportSummary = { created: number; exists: number; failed: number; rows: ImportRowResult[] };
+export type ImportSummary = {
+  created: number;
+  exists: number;
+  failed: number;
+  rows: ImportRowResult[];
+};
 
 type UsersPayload = { users: AdminUser[]; total: number; page: number; pageSize: number };
 
@@ -37,289 +43,6 @@ type DeleteTarget = {
   description: string;
   endpoint: string;
 };
-
-const IMPORT_HINT =
-  "每行一个账号：学号,姓名,密码[,角色][,班级邀请码]。角色可选 学生/教师/管理员，留空默认为学生；也支持粘贴 JSON 数组。";
-
-function rowErrorText(code: string | undefined): string {
-  return code ? (API_ERROR_MESSAGES[code] ?? code) : "";
-}
-
-function CreateAccountForm({
-  classes,
-  onCreated,
-}: {
-  classes: AdminClass[];
-  onCreated: () => void;
-}) {
-  const [studentNo, setStudentNo] = useState("");
-  const [name, setName] = useState("");
-  const [password, setPassword] = useState("");
-  const [role, setRole] = useState<AccountRole>("user");
-  const [classId, setClassId] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setBusy(true);
-    try {
-      await api.post("/api/admin/users", {
-        studentNo,
-        name,
-        password,
-        role,
-        classId: classId || undefined,
-      });
-      setStudentNo("");
-      setName("");
-      setPassword("");
-      setRole("user");
-      setClassId("");
-      setSuccess("账号已创建。");
-      onCreated();
-    } catch (caught) {
-      setError(describeApiError(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="profile-form" onSubmit={onSubmit}>
-      <label>
-        学号
-        <input
-          autoComplete="off"
-          name="studentNo"
-          onChange={(e) => setStudentNo(e.target.value)}
-          required
-          value={studentNo}
-        />
-      </label>
-      <label>
-        姓名
-        <input
-          autoComplete="off"
-          name="name"
-          onChange={(e) => setName(e.target.value)}
-          required
-          value={name}
-        />
-      </label>
-      <label>
-        初始密码
-        <input
-          autoComplete="off"
-          name="password"
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          value={password}
-        />
-      </label>
-      <label>
-        角色
-        <select name="role" onChange={(e) => setRole(e.target.value as AccountRole)} value={role}>
-          <option value="user">学生</option>
-          <option value="teacher">教师</option>
-          <option value="admin">管理员</option>
-        </select>
-      </label>
-      <label>
-        分配班级（可选）
-        <select
-          className="admin-form-select"
-          name="classId"
-          onChange={(e) => setClassId(e.target.value)}
-          value={classId}
-        >
-          <option value="">不分配</option>
-          {classes.map((klass) => (
-            <option key={klass.id} value={klass.id}>
-              {klass.name}
-            </option>
-          ))}
-        </select>
-      </label>
-      {error ? (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {success ? (
-        <p className="profile-success" role="status">
-          {success}
-        </p>
-      ) : null}
-      <button className="button button-primary" disabled={busy} type="submit">
-        {busy ? "创建中…" : "创建账号"}
-      </button>
-    </form>
-  );
-}
-
-function ImportPanel({ onImported }: { onImported: () => void }) {
-  const [text, setText] = useState("");
-  const [summary, setSummary] = useState<ImportSummary | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const onFile = async (file: File | undefined) => {
-    if (!file) return;
-    setText(await file.text());
-  };
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setSummary(null);
-    const trimmed = text.trim();
-    if (!trimmed) {
-      setError("请先粘贴名单或选择 CSV 文件。");
-      return;
-    }
-    let payload: { csv: string } | { users: unknown[] };
-    if (trimmed.startsWith("[")) {
-      try {
-        payload = { users: JSON.parse(trimmed) as unknown[] };
-      } catch {
-        setError("JSON 解析失败，请检查格式。");
-        return;
-      }
-    } else {
-      payload = { csv: trimmed };
-    }
-    setBusy(true);
-    try {
-      const result = await api.post<ImportSummary>("/api/admin/users/import", payload);
-      setSummary(result);
-      onImported();
-    } catch (caught) {
-      setError(describeApiError(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="profile-form" onSubmit={onSubmit}>
-      <label>
-        名单（CSV 或 JSON）
-        <textarea
-          className="admin-import-text"
-          name="importText"
-          onChange={(e) => setText(e.target.value)}
-          placeholder={"20260101,张三,pass123\n20260102,李四,pass456,学生,CLASS26"}
-          rows={7}
-          value={text}
-        />
-      </label>
-      <label className="admin-file-label">
-        或选择 .csv 文件
-        <input
-          accept=".csv,text/csv,text/plain"
-          name="importFile"
-          onChange={(e) => void onFile(e.target.files?.[0])}
-          type="file"
-        />
-      </label>
-      <p className="profile-form-note">{IMPORT_HINT}</p>
-      {error ? (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <button className="button button-primary" disabled={busy} type="submit">
-        {busy ? "导入中…" : "开始导入"}
-      </button>
-
-      {summary ? (
-        <div className="admin-import-result" role="status">
-          <p>
-            新建 {summary.created} 个，已存在 {summary.exists} 个，失败 {summary.failed} 个。
-          </p>
-          {summary.rows.some((row) => row.status !== "created") ? (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th scope="col">行</th>
-                  <th scope="col">学号</th>
-                  <th scope="col">结果</th>
-                </tr>
-              </thead>
-              <tbody>
-                {summary.rows
-                  .filter((row) => row.status !== "created")
-                  .map((row) => (
-                    <tr key={row.line}>
-                      <td>{row.line}</td>
-                      <td>{row.studentNo || "—"}</td>
-                      <td>{row.status === "exists" ? "已存在，跳过" : rowErrorText(row.error)}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          ) : null}
-        </div>
-      ) : null}
-    </form>
-  );
-}
-
-function CreateClassForm({ onCreated }: { onCreated: () => void }) {
-  const [name, setName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setBusy(true);
-    try {
-      await api.post("/api/admin/classes", {
-        name,
-        inviteCode: inviteCode || undefined,
-      });
-      setName("");
-      setInviteCode("");
-      onCreated();
-    } catch (caught) {
-      setError(describeApiError(caught));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <form className="admin-class-form" onSubmit={onSubmit}>
-      <label>
-        班级名称
-        <input name="className" onChange={(e) => setName(e.target.value)} required value={name} />
-      </label>
-      <label>
-        邀请码（可选）
-        <input
-          name="inviteCode"
-          onChange={(e) => setInviteCode(e.target.value)}
-          placeholder="留空自动生成"
-          value={inviteCode}
-        />
-      </label>
-      <button className="button button-secondary" disabled={busy} type="submit">
-        {busy ? "创建中…" : "新建班级"}
-      </button>
-      {error ? (
-        <p className="auth-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </form>
-  );
-}
 
 export function AdminPage() {
   const { status, role, session } = useAuth();
@@ -665,19 +388,24 @@ export function AdminPage() {
                             disabled={busy}
                             onChange={(e) => setResetPassword(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter" && resetPassword.length >= 4) {
+                              if (
+                                e.key === "Enter" &&
+                                resetPassword.length >= (isStaffRole(user.role) ? 8 : 4)
+                              ) {
                                 submitReset(user);
                               } else if (e.key === "Escape") {
                                 cancelReset();
                               }
                             }}
-                            placeholder="新密码（至少 4 位）"
+                            placeholder={`新密码（至少 ${isStaffRole(user.role) ? 8 : 4} 位）`}
                             type="password"
                             value={resetPassword}
                           />
                           <button
                             className="button button-ghost admin-inline-button"
-                            disabled={busy || resetPassword.length < 4}
+                            disabled={
+                              busy || resetPassword.length < (isStaffRole(user.role) ? 8 : 4)
+                            }
                             onClick={() => submitReset(user)}
                             type="button"
                           >

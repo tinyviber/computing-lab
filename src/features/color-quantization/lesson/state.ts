@@ -18,7 +18,8 @@ import {
   type QuantStageDef,
 } from "../domain/stages.ts";
 
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+export type { SaveStatus } from "../../../shared/api/client";
+import type { SaveStatus } from "../../../shared/api/client";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type StageDraft = {

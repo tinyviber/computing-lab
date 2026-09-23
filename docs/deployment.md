@@ -368,7 +368,10 @@ that name does not imply an editor service is required.
 `local/deploy/api-deploy.sh` is the deterministic, no-agent entry point. The
 script lives in the gitignored `local/` directory (host-specific ops material
 is never committed); the reviewed copy is installed at
-`/usr/local/libexec/computing-lab-api/api-deploy.sh`:
+`/usr/local/libexec/computing-lab-api/api-deploy.sh`. A versioned reference
+implementation of this contract is committed at
+`deploy/api-deploy.example.sh` — diff it against the host copy when the
+documented behavior changes:
 
 ```text
 git fetch → resolve exact SHA (origin/main or --sha)

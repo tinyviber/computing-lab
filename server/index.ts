@@ -10,6 +10,9 @@
  */
 
 import { Hono } from "hono";
+import type { Context, Next } from "hono";
+import { bodyLimit } from "hono/body-limit";
+import { requestId } from "hono/request-id";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { existsSync } from "node:fs";
@@ -17,8 +20,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { DatabaseSync } from "node:sqlite";
+import { normalizeBasePath } from "../src/shared/basePath.ts";
 import { getDb } from "./db/client.ts";
-import { attachDb, attachSession, type AppVariables } from "./http/context.ts";
+import { sweepExpiredSessions } from "./auth/session.ts";
+import { attachDb, attachSession, jsonError, type AppVariables } from "./http/context.ts";
 import { authRoutes } from "./routes/auth.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { calculatorRoutes } from "./routes/calculator.ts";
@@ -31,13 +36,10 @@ import { colorQuantizationRoutes } from "./routes/colorQuantization.ts";
 const here = fileURLToPath(new URL(".", import.meta.url));
 const distRoot = resolve(here, "../dist");
 
-function normalizeBasePath(value: string | undefined): string {
-  const raw = value?.trim() || "/";
-  if (raw === "/") return "/";
-  return `/${raw.replace(/^\/+|\/+$/g, "")}`;
-}
-
 const basePath = normalizeBasePath(process.env.VITE_BASE_PATH ?? process.env.BASE_PATH);
+
+/** JSON bodies stay small (drafts, imports, answers); refuse megabyte blobs. */
+const BODY_LIMIT_BYTES = 2 * 1024 * 1024;
 
 function stripBasePath(path: string): string {
   if (basePath === "/") return path;
@@ -45,10 +47,36 @@ function stripBasePath(path: string): string {
   return path.startsWith(`${basePath}/`) ? path.slice(basePath.length) || "/" : path;
 }
 
+/** Minimal access log: one line per request, tagged with its request id. */
+function accessLog() {
+  return async (c: Context<{ Variables: AppVariables }>, next: Next) => {
+    const start = performance.now();
+    try {
+      await next();
+    } finally {
+      const ms = Math.round(performance.now() - start);
+      const rid = c.get("requestId") ?? "-";
+      console.log(
+        `[api] ${rid} ${c.req.method} ${new URL(c.req.url).pathname} ${c.res.status} ${ms}ms`,
+      );
+    }
+  };
+}
+
 export function createApp(db: DatabaseSync) {
   const app = new Hono<{ Variables: AppVariables }>();
 
-  app.use("/api/*", attachDb(db), attachSession());
+  app.use(
+    "/api/*",
+    requestId(),
+    accessLog(),
+    bodyLimit({
+      maxSize: BODY_LIMIT_BYTES,
+      onError: (c) => jsonError(c, 413, "payload-too-large"),
+    }),
+    attachDb(db),
+    attachSession(),
+  );
 
   app.get("/api/health", (c) => c.json({ ok: true }));
   app.route("/api/auth", authRoutes());
@@ -62,7 +90,7 @@ export function createApp(db: DatabaseSync) {
 
   app.notFound((c) => c.json({ error: "not-found" }, 404));
   app.onError((err, c) => {
-    console.error("[api]", err);
+    console.error(`[api] ${c.get("requestId") ?? "-"}`, err);
     return c.json({ error: "internal-error" }, 500);
   });
   return app;
@@ -73,7 +101,10 @@ export function createServerApp(db: DatabaseSync) {
 
   if (existsSync(distRoot)) {
     app.use("/*", serveStatic({ root: distRoot, rewriteRequestPath: stripBasePath }));
-    // SPA history fallback for extensionless paths.
+    // SPA history fallback for extensionless paths. A dotted path is assumed
+    // to be an asset and 404s when missing rather than silently receiving
+    // index.html; the accepted trade-off is that no app route may contain a
+    // "." in its path segment.
     app.get("/*", async (c, next) => {
       const path = stripBasePath(new URL(c.req.url).pathname);
       if (path.includes(".")) return next();
@@ -89,6 +120,19 @@ if (isMain) {
   const port = Number(process.env.LAB_PORT ?? 8788);
   const host = process.env.LAB_HOST ?? "0.0.0.0";
   const db = getDb();
+  // Expired session rows are ignored on lookup but still swept so the table
+  // stays bounded: once at boot, then daily.
+  sweepExpiredSessions(db);
+  setInterval(
+    () => {
+      try {
+        sweepExpiredSessions(db);
+      } catch (err) {
+        console.error("[api] session sweep failed:", err);
+      }
+    },
+    24 * 60 * 60 * 1000,
+  ).unref();
   serve({ fetch: createServerApp(db).fetch, port, hostname: host }, (info) => {
     console.log(`[lab-server] listening on http://${host}:${info.port}`);
     console.log(`[lab-server] db: ${process.env.LAB_DB_PATH ?? "data/lab.db"}`);

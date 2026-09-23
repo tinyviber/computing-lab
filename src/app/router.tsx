@@ -7,6 +7,7 @@ import {
   lazyRouteComponent,
   type RouterHistory,
 } from "@tanstack/react-router";
+import { normalizeBasePath } from "../shared/basePath";
 import { CalculatorLabPage } from "../features/calculator";
 import { HomePage } from "./pages/HomePage";
 import { LabErrorPage } from "./pages/LabErrorPage";
@@ -23,12 +24,6 @@ import { AdminPage } from "./pages/AdminPage";
 
 function RootLayout() {
   return <Outlet />;
-}
-
-function normalizeBasePath(baseUrl: string): string {
-  const pathname = baseUrl.split("?")[0].split("#")[0] || "/";
-  if (pathname === "/") return "/";
-  return `/${pathname.replace(/^\/+|\/+$/g, "")}`;
 }
 
 function resolveRuntimeBasePath(configuredBasePath: string): string {
@@ -177,6 +172,7 @@ export function createAppRouter({
 export const router = createAppRouter();
 
 export { normalizeBasePath, resolveRuntimeBasePath };
+export { basePathPrefix } from "../shared/basePath";
 
 declare module "@tanstack/react-router" {
   interface Register {

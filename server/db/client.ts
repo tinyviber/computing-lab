@@ -6,6 +6,9 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
+/** Current schema version; bump alongside every migration step below. */
+export const SCHEMA_VERSION = 5;
+
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
 let singleton: DatabaseSync | undefined;
@@ -35,22 +38,60 @@ export function openMemoryDb(): DatabaseSync {
   return db;
 }
 
+/**
+ * Run `fn` inside one IMMEDIATE transaction. IMMEDIATE takes the write lock
+ * up front so the first statement cannot promote mid-flight; any throw rolls
+ * back every statement the callback already ran.
+ */
+export function withTransaction<T>(db: DatabaseSync, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // A failed rollback means the connection itself is broken — surface the
+      // original error, which is the useful one.
+    }
+    throw error;
+  }
+}
+
+/**
+ * Parse a JSON column, returning `fallback` when the stored text is missing or
+ * corrupt. Route code must never let one bad row fail a whole request.
+ */
+export function parseJsonColumn<T>(raw: string | null | undefined, fallback: T): T {
+  if (raw == null || raw === "") return fallback;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
 export function migrate(db: DatabaseSync): void {
   const { user_version: version } = db.prepare("PRAGMA user_version").get() as {
     user_version: number;
   };
   if (version === 0) {
     db.exec(schemaSql);
-    db.exec("PRAGMA user_version = 4");
+    db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
     return;
   }
+  // Each step runs for every version below its target — an older database
+  // replays the whole chain in order, so checks are `version < target`, never
+  // equality against a single version.
   // v1 -> v2: out-of-order stage passes replace the serial stage lock.
-  if (version === 1) {
+  if (version < 2) {
     db.exec("ALTER TABLE student_projects ADD COLUMN passed_stages TEXT NOT NULL DEFAULT '[]'");
   }
   // v2 -> v3: account-level roles (admin / teacher / user). Existing class
   // teachers keep their permissions via a global 'teacher' role backfill.
-  if (version <= 2) {
+  if (version < 3) {
     db.exec(
       "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user' " +
         "CHECK (role IN ('admin', 'teacher', 'user'))",
@@ -62,7 +103,7 @@ export function migrate(db: DatabaseSync): void {
   }
   // v3 -> v4: task sheets — teacher-owned worksheet templates, class-scoped
   // assignments (schema snapshot at assign time), per-student responses.
-  if (version === 3) {
+  if (version < 4) {
     db.exec(`CREATE TABLE IF NOT EXISTS task_sheets (
       id            TEXT PRIMARY KEY,
       owner_user_id TEXT NOT NULL REFERENCES users (id),
@@ -108,7 +149,13 @@ export function migrate(db: DatabaseSync): void {
     db.exec("CREATE INDEX IF NOT EXISTS idx_task_assignments_sheet ON task_assignments (sheet_id)");
     db.exec("CREATE INDEX IF NOT EXISTS idx_task_responses_user ON task_responses (user_id)");
   }
-  if (version !== 4) db.exec("PRAGMA user_version = 4");
+  // v4 -> v5: covering index for the dashboard's "latest submission per stage"
+  // lookup, which scans submissions filtered by (user_id, lab_id, stage_index).
+  if (version < 5) {
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_submissions_user_stage
+      ON submissions (user_id, lab_id, stage_index, submitted_at DESC)`);
+  }
+  if (version !== SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 }
 
 export function newId(): string {
