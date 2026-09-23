@@ -159,10 +159,6 @@ export function getSamplingStage(index: number): SamplingStageDef | undefined {
   return IMAGE_SAMPLING_STAGES.find((s) => s.index === index);
 }
 
-export function samplingStageCount(): number {
-  return IMAGE_SAMPLING_STAGES.length;
-}
-
 /** Stages unlock in order: stage 1 is open, each later stage needs the previous pass. */
 export function samplingStageUnlocked(passedStages: readonly number[], index: number): boolean {
   const stage = getSamplingStage(index);

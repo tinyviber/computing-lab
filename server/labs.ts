@@ -4,9 +4,9 @@
  * precedent (see routes/calculator.ts).
  */
 
-import { stageCount as calculatorStageCount } from "../src/features/calculator/domain/stages.ts";
-import { samplingStageCount } from "../src/features/image-sampling/domain/stages.ts";
-import { quantStageCount } from "../src/features/color-quantization/domain/stages.ts";
+import { CALCULATOR_STAGES } from "../src/features/calculator/domain/stages.ts";
+import { IMAGE_SAMPLING_STAGES } from "../src/features/image-sampling/domain/stages.ts";
+import { COLOR_QUANT_STAGES } from "../src/features/color-quantization/domain/stages.ts";
 
 export type LabInfo = {
   id: string;
@@ -16,9 +16,9 @@ export type LabInfo = {
 };
 
 export const LAB_REGISTRY: LabInfo[] = [
-  { id: "calculator", stageCount: calculatorStageCount(), teacherVisible: true },
-  { id: "image-sampling", stageCount: samplingStageCount(), teacherVisible: false },
-  { id: "color-quantization", stageCount: quantStageCount(), teacherVisible: false },
+  { id: "calculator", stageCount: CALCULATOR_STAGES.length, teacherVisible: true },
+  { id: "image-sampling", stageCount: IMAGE_SAMPLING_STAGES.length, teacherVisible: false },
+  { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length, teacherVisible: false },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {

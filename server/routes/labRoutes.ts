@@ -22,7 +22,7 @@ type LabAuth = { user: SessionUser; membership: Membership };
 
 type LabSpec<TDraft, TOutcome> = {
   labId: string;
-  stageCount: () => number;
+  stageCount: number;
   /** Admin-preview labs turn class teachers away (students still enter). */
   adminPreview?: boolean;
   /** Extra top-level fields merged into the GET /project payload. */
@@ -60,7 +60,7 @@ export function labRoutes<TDraft, TOutcome extends object>(
 
   const stageIndexOf = (body: unknown): number | null => {
     const stageIndex = Number((body as { stageIndex?: unknown } | null)?.stageIndex);
-    return Number.isInteger(stageIndex) && stageIndex >= 1 && stageIndex <= spec.stageCount()
+    return Number.isInteger(stageIndex) && stageIndex >= 1 && stageIndex <= spec.stageCount
       ? stageIndex
       : null;
   };

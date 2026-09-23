@@ -160,10 +160,6 @@ export function getQuantStage(index: number): QuantStageDef | undefined {
   return COLOR_QUANT_STAGES.find((s) => s.index === index);
 }
 
-export function quantStageCount(): number {
-  return COLOR_QUANT_STAGES.length;
-}
-
 /** Stages unlock in order: stage 1 is open, each later stage needs the previous pass. */
 export function quantStageUnlocked(passedStages: readonly number[], index: number): boolean {
   const stage = getQuantStage(index);

@@ -1,4 +1,4 @@
-import { samplingStageCount } from "../../src/features/image-sampling/domain/stages.ts";
+import { IMAGE_SAMPLING_STAGES } from "../../src/features/image-sampling/domain/stages.ts";
 import type { SamplingJudgeResult } from "../../src/features/image-sampling/domain/protocol.ts";
 import { sanitizeDraft, type StageDraft } from "../../src/features/image-sampling/lesson/state.ts";
 import { judgeImageSubmission } from "../judge/image-sampling/judge.ts";
@@ -13,7 +13,7 @@ import { labRoutes } from "./labRoutes.ts";
 export function imageSamplingRoutes() {
   return labRoutes<StageDraft, SamplingJudgeResult>({
     labId: "image-sampling",
-    stageCount: samplingStageCount,
+    stageCount: IMAGE_SAMPLING_STAGES.length,
     adminPreview: true,
     saveDraft: (db, project, stageIndex, body) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
