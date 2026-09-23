@@ -16,30 +16,16 @@ import {
   getSamplingStage,
   nextSamplingStage,
 } from "../../../src/features/image-sampling/domain/stages.ts";
+import type { StageDraft } from "../../../src/features/image-sampling/lesson/state.ts";
+import { withTransaction } from "../../db/client.ts";
 import {
-  sanitizeDraft,
-  type StageDraft,
-} from "../../../src/features/image-sampling/lesson/state.ts";
-import { newId, withTransaction } from "../../db/client.ts";
-import type { ProjectRow } from "../run.ts";
+  advanceStage,
+  insertSubmission,
+  gateStage,
+  type LabJudgeError,
+  type ProjectRow,
+} from "../pipeline.ts";
 import { judgeGalleryFor } from "./hiddenGallery.ts";
-
-const LAB_ID = "image-sampling";
-
-export function saveImageDraft(
-  db: DatabaseSync,
-  project: ProjectRow<StageDraft>,
-  stageIndex: number,
-  raw: unknown,
-): void {
-  const drafts: Record<string, StageDraft> = { ...project.drafts };
-  drafts[String(stageIndex)] = sanitizeDraft(raw) satisfies StageDraft;
-  db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(drafts), project.id);
-}
-
-export type ImageJudgeError = { error: string; status: number };
 
 export function judgeImageSubmission(
   db: DatabaseSync,
@@ -47,12 +33,13 @@ export function judgeImageSubmission(
   stageIndex: number,
   rawResolution: unknown,
   rawCode?: unknown,
-): SamplingJudgeResult | ImageJudgeError {
-  const stage = getSamplingStage(stageIndex);
-  if (!stage) return { error: "unknown-stage", status: 400 };
-  if (stage.index > 1 && !project.passedStages.includes(stage.index - 1)) {
-    return { error: "stage-locked", status: 409 };
-  }
+): SamplingJudgeResult | LabJudgeError {
+  const gated = gateStage(
+    getSamplingStage(stageIndex),
+    (stage) => stage.index <= 1 || project.passedStages.includes(stage.index - 1),
+  );
+  if ("error" in gated) return gated;
+  const stage = gated.stage;
 
   const resolution = sanitizeResolution(rawResolution);
   if (!resolution) return { error: "invalid-resolution", status: 400 };
@@ -91,7 +78,7 @@ export function judgeImageSubmission(
     passed,
     counterexample,
     confusionPairs: pairs,
-    submissionId: newId(),
+    submissionId: "",
     currentStage: project.currentStage,
     passedStages: project.passedStages,
   };
@@ -111,35 +98,21 @@ export function judgeImageSubmission(
   };
   // Submission row + progress update commit together.
   withTransaction(db, () => {
-    db.prepare(
-      `INSERT INTO submissions
-         (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      result.submissionId,
-      project.id,
-      project.userId,
-      LAB_ID,
+    result.submissionId = insertSubmission(db, {
+      projectId: project.id,
+      userId: project.userId,
+      labId: project.labId,
       stageIndex,
-      JSON.stringify({ ...resolution, code }),
-      report.identified,
-      report.total,
-      passed ? 1 : 0,
-      JSON.stringify(testSummary),
-    );
-
+      snapshot: { ...resolution, code },
+      score: report.identified,
+      total: report.total,
+      passed,
+      testSummary,
+    });
     if (passed) {
-      const passedStages = [...new Set([...project.passedStages, stageIndex])].sort(
-        (a, b) => a - b,
-      );
-      const currentStage = nextSamplingStage(passedStages);
-      db.prepare(
-        `UPDATE student_projects
-         SET current_stage = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE id = ?`,
-      ).run(currentStage, JSON.stringify(passedStages), project.id);
-      result.passedStages = passedStages;
-      result.currentStage = currentStage;
+      const progress = advanceStage(db, project, stageIndex, nextSamplingStage);
+      result.passedStages = progress.passedStages;
+      result.currentStage = progress.currentStage;
     }
   });
 

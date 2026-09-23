@@ -7,13 +7,8 @@ import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
-import {
-  GATE_LABEL,
-  type Bit,
-  type CircuitGraph,
-  type ComponentDef,
-  type GateKind,
-} from "../domain/graph";
+import { GATE_LABEL, type CircuitGraph, type ComponentDef, type GateKind } from "../domain/graph";
+import type { CalculatorJudgeResult, CalculatorSubmission } from "../domain/protocol";
 import {
   componentMap,
   componentCatalog,
@@ -33,26 +28,6 @@ import { TestPanel } from "./TestPanel";
 import { AnnotatedText, CalculatorTermGuide } from "./CalculatorTerms";
 import { CustomComponentDialog, type ComponentizeForm } from "./CustomComponentDialog";
 import "./calculator.css";
-
-type JudgePayload = {
-  score: number;
-  total: number;
-  passed: boolean;
-  testSummary: {
-    categories: Record<string, { passed: number; total: number }>;
-    counterexample: {
-      name: string;
-      category: string;
-      inputs: Record<string, Bit>;
-      expected: Record<string, Bit>;
-      actual: Record<string, Bit | null>;
-    } | null;
-    error: string | null;
-  };
-  currentStage: number;
-  passedStages: number[];
-  unlockedComponent: string | null;
-};
 
 export function CalculatorLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/calculator" });
@@ -131,11 +106,15 @@ export function CalculatorLabPage() {
     if (!classId) return;
     setSubmitting(true);
     try {
-      const result = await api.post<JudgePayload>(`/api/classes/${classId}/labs/calculator/judge`, {
+      const submission: CalculatorSubmission = {
         stageIndex,
         graph,
         components: state.unlockedSubmodules,
-      });
+      };
+      const result = await api.post<CalculatorJudgeResult>(
+        `/api/classes/${classId}/labs/calculator/judge`,
+        submission,
+      );
       dispatch({
         type: "judge-result",
         outcome: {

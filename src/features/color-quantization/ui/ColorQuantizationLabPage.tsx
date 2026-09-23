@@ -3,11 +3,12 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
-import type { QuantJudgeResult } from "../domain/protocol.ts";
+import type { QuantJudgeResult, QuantSubmission } from "../domain/protocol.ts";
 import { COLOR_QUANT_STAGES, quantStageUnlocked, type QuantStageDef } from "../domain/stages.ts";
 import {
   createQuantLessonState,
@@ -25,54 +26,6 @@ import { GuidedTonerTask } from "./GuidedTonerTask.tsx";
 import { QuantExplorer } from "./QuantExplorer.tsx";
 import { QuantResultPanel } from "./QuantResultPanel.tsx";
 import "./colorQuantization.css";
-
-function StageNav({
-  stageIndex,
-  passedStages,
-  onSelect,
-}: {
-  stageIndex: number;
-  passedStages: number[];
-  onSelect: (index: number) => void;
-}) {
-  return (
-    <aside aria-label="关卡进度" className="quant-rail">
-      <p className="eyebrow">颜色量化</p>
-      <ol>
-        {COLOR_QUANT_STAGES.map((stage) => {
-          const unlocked = quantStageUnlocked(passedStages, stage.index);
-          const passed = passedStages.includes(stage.index);
-          const active = stage.index === stageIndex;
-          return (
-            <li key={stage.id}>
-              <button
-                aria-current={active ? "step" : undefined}
-                className={`quant-stage-link${active ? " is-active" : ""}${passed ? " is-passed" : ""}`}
-                disabled={!unlocked}
-                onClick={() => onSelect(stage.index)}
-                type="button"
-              >
-                <span className="quant-stage-titles">
-                  <strong>{stage.title}</strong>
-                  <span>{stage.englishTitle}</span>
-                </span>
-                <span aria-hidden="true" className="quant-stage-mark">
-                  {passed ? (
-                    <Icon name="check" size={13} />
-                  ) : unlocked ? (
-                    <Icon name="circle" size={11} />
-                  ) : (
-                    <Icon name="lock" size={12} />
-                  )}
-                </span>
-              </button>
-            </li>
-          );
-        })}
-      </ol>
-    </aside>
-  );
-}
 
 function StageBrief({ stage }: { stage: QuantStageDef }) {
   return (
@@ -175,13 +128,14 @@ export function ColorQuantizationLabPage() {
     }
     setSubmitting(true);
     try {
+      const submission: QuantSubmission = {
+        stageIndex: stage.index,
+        ...(stage.mode === "pick" ? { toners: draft.toners } : { table: draft.table ?? undefined }),
+        code: draft.code || undefined,
+      };
       const outcome = await api.post<QuantJudgeResult>(
         `/api/classes/${classId}/labs/color-quantization/judge`,
-        {
-          stageIndex: stage.index,
-          ...(stage.mode === "pick" ? { toners: draft.toners } : { table: draft.table }),
-          code: draft.code || undefined,
-        },
+        submission,
       );
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -202,10 +156,13 @@ export function ColorQuantizationLabPage() {
         }}
       >
         <div className="page-content quant-layout">
-          <StageNav
+          <StageRail
+            label="颜色量化"
             onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
             passedStages={state.passedStages}
             stageIndex={state.stageIndex}
+            stages={COLOR_QUANT_STAGES}
+            unlocked={(stage) => quantStageUnlocked(state.passedStages, stage.index)}
           />
 
           <main aria-label="颜色量化实验区" className="quant-workspace">

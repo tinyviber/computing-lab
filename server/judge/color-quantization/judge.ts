@@ -28,30 +28,16 @@ import {
   getQuantStage,
   nextQuantStage,
 } from "../../../src/features/color-quantization/domain/stages.ts";
+import type { StageDraft } from "../../../src/features/color-quantization/lesson/state.ts";
+import { withTransaction } from "../../db/client.ts";
 import {
-  sanitizeDraft,
-  type StageDraft,
-} from "../../../src/features/color-quantization/lesson/state.ts";
-import { newId, withTransaction } from "../../db/client.ts";
-import type { ProjectRow } from "../run.ts";
+  advanceStage,
+  insertSubmission,
+  gateStage,
+  type LabJudgeError,
+  type ProjectRow,
+} from "../pipeline.ts";
 import { judgeGalleryFor } from "./hiddenSet.ts";
-
-const LAB_ID = "color-quantization";
-
-export function saveQuantDraft(
-  db: DatabaseSync,
-  project: ProjectRow<StageDraft>,
-  stageIndex: number,
-  raw: unknown,
-): void {
-  const drafts: Record<string, StageDraft> = { ...project.drafts };
-  drafts[String(stageIndex)] = sanitizeDraft(raw) satisfies StageDraft;
-  db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(drafts), project.id);
-}
-
-export type QuantJudgeError = { error: string; status: number };
 
 export function judgeQuantSubmission(
   db: DatabaseSync,
@@ -59,12 +45,13 @@ export function judgeQuantSubmission(
   stageIndex: number,
   rawSubmission: unknown,
   rawCode?: unknown,
-): QuantJudgeResult | QuantJudgeError {
-  const stage = getQuantStage(stageIndex);
-  if (!stage) return { error: "unknown-stage", status: 400 };
-  if (stage.index > 1 && !project.passedStages.includes(stage.index - 1)) {
-    return { error: "stage-locked", status: 409 };
-  }
+): QuantJudgeResult | LabJudgeError {
+  const gated = gateStage(
+    getQuantStage(stageIndex),
+    (stage) => stage.index <= 1 || project.passedStages.includes(stage.index - 1),
+  );
+  if ("error" in gated) return gated;
+  const stage = gated.stage;
   const submission = (rawSubmission ?? {}) as { toners?: unknown; table?: unknown };
 
   // Resolve the effective mapping table for the stage's mode.
@@ -122,7 +109,7 @@ export function judgeQuantSubmission(
     passed,
     counterexample,
     confusionPairs: pairs,
-    submissionId: newId(),
+    submissionId: "",
     currentStage: project.currentStage,
     passedStages: project.passedStages,
   };
@@ -143,35 +130,21 @@ export function judgeQuantSubmission(
   };
   // Submission row + progress update commit together.
   withTransaction(db, () => {
-    db.prepare(
-      `INSERT INTO submissions
-         (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      result.submissionId,
-      project.id,
-      project.userId,
-      LAB_ID,
+    result.submissionId = insertSubmission(db, {
+      projectId: project.id,
+      userId: project.userId,
+      labId: project.labId,
       stageIndex,
-      JSON.stringify({ mode: stage.mode, submission, code }),
-      report.identified,
-      report.total,
-      passed ? 1 : 0,
-      JSON.stringify(testSummary),
-    );
-
+      snapshot: { mode: stage.mode, submission, code },
+      score: report.identified,
+      total: report.total,
+      passed,
+      testSummary,
+    });
     if (passed) {
-      const passedStages = [...new Set([...project.passedStages, stageIndex])].sort(
-        (a, b) => a - b,
-      );
-      const currentStage = nextQuantStage(passedStages);
-      db.prepare(
-        `UPDATE student_projects
-         SET current_stage = ?, passed_stages = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-         WHERE id = ?`,
-      ).run(currentStage, JSON.stringify(passedStages), project.id);
-      result.passedStages = passedStages;
-      result.currentStage = currentStage;
+      const progress = advanceStage(db, project, stageIndex, nextQuantStage);
+      result.passedStages = progress.passedStages;
+      result.currentStage = progress.currentStage;
     }
   });
 

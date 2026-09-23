@@ -15,11 +15,10 @@ import {
   type GuardFailure,
   type Membership,
 } from "../http/context.ts";
-import { getOrCreateProject, type ProjectRow } from "../judge/run.ts";
+import { getOrCreateProject, type LabJudgeError, type ProjectRow } from "../judge/pipeline.ts";
 
 type LabContext = Context<{ Variables: AppVariables }>;
 type LabAuth = { user: SessionUser; membership: Membership };
-type LabJudgeError = { error: string; status: number };
 
 type LabSpec<TDraft, TOutcome> = {
   labId: string;

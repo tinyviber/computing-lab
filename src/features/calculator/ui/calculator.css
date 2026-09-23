@@ -76,34 +76,8 @@
   list-style: none;
 }
 
-.stage-link {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-control);
-  background: transparent;
-  cursor: pointer;
-  text-align: left;
-}
-
-.stage-link:hover:not(:disabled) {
-  background: var(--subtle);
-}
-
-.stage-link:disabled {
-  cursor: not-allowed;
-  opacity: 0.45;
-}
-
-.stage-link.is-active {
-  border-color: #bfc2ff;
-  background: var(--accent-soft);
-}
-
-.stage-link.is-optional {
+/* Optional side stages indent and dash the shared lab-stage-link row. */
+.lab-stage-link.is-optional {
   margin-left: 12px;
   border-style: dashed;
 }
@@ -140,31 +114,6 @@
 
 .stage-branch-list {
   margin-bottom: 4px;
-}
-
-.stage-titles {
-  display: grid;
-  flex: 1;
-}
-
-.stage-titles strong {
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.stage-titles span {
-  color: var(--muted);
-  font-size: 10px;
-}
-
-.stage-link.is-passed .stage-mark {
-  color: var(--success);
-}
-
-.stage-mark {
-  display: inline-flex;
-  align-items: center;
-  font-size: 12px;
 }
 
 .my-components {
