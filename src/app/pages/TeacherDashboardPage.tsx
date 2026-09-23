@@ -1,8 +1,10 @@
-import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
+import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
+import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { StudentCanvasDrawer } from "./StudentCanvasDrawer";
@@ -20,10 +22,20 @@ type LabOption = {
   teacherVisible: boolean;
 };
 
-// Only shipped labs appear here; preview labs (image-sampling, color-quantization)
-// stay hidden from the picker but remain reachable by URL for admin review.
 const LAB_OPTIONS: LabOption[] = [
   { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES, teacherVisible: true },
+  {
+    id: "image-sampling",
+    title: "空间采样",
+    stages: IMAGE_SAMPLING_STAGES,
+    teacherVisible: false,
+  },
+  {
+    id: "color-quantization",
+    title: "颜色量化",
+    stages: COLOR_QUANT_STAGES,
+    teacherVisible: false,
+  },
 ];
 
 type MatrixCell = {
@@ -196,15 +208,12 @@ export function TeacherDashboardPage() {
   }
   if (status === "anonymous" || (role && !isStaffRole(role))) {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">看板 / 无权访问</p>
-        <h1>只有教师或管理员可以查看班级看板</h1>
-        <div className="error-actions">
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout className="dashboard-page">
+        <main className="not-found" role="status">
+          <p className="eyebrow">看板 / 无权访问</p>
+          <h1>只有教师或管理员可以查看班级看板</h1>
+        </main>
+      </AppPageLayout>
     );
   }
 

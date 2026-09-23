@@ -1,4 +1,4 @@
-import { Link, type ErrorComponentProps } from "@tanstack/react-router";
+import { type ErrorComponentProps } from "@tanstack/react-router";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./home.css";
 
@@ -13,9 +13,6 @@ export function LabErrorPage({ error, reset }: ErrorComponentProps) {
           <button className="button button-secondary" onClick={reset} type="button">
             重试实验
           </button>
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
         </div>
       </main>
     </AppPageLayout>

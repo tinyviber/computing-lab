@@ -45,12 +45,13 @@ button {
   color: inherit;
 }
 
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-summary:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
+:focus-visible {
+  outline: none;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):focus-visible,
+textarea:focus-visible {
+  border-color: var(--focus);
 }
 
 h1,

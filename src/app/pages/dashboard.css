@@ -42,11 +42,6 @@
   -webkit-overflow-scrolling: touch;
 }
 
-.matrix-scroll:focus-visible {
-  outline: 2px solid var(--focus-ring);
-  outline-offset: 3px;
-}
-
 .matrix-table {
   width: max-content;
   min-width: 100%;

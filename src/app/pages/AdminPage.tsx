@@ -1,4 +1,4 @@
-import { Link, Navigate } from "@tanstack/react-router";
+import { Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth, type AccountRole } from "../../shared/auth";
@@ -170,27 +170,17 @@ export function AdminPage() {
   if (status === "anonymous") return <Navigate replace to="/login" />;
   if (role !== "admin") {
     return (
-      <div className="not-found" role="status">
-        <p className="eyebrow">管理 / 无权访问</p>
-        <h1>只有管理员可以打开账号管理</h1>
-        <div className="error-actions">
-          <Link className="button button-primary" to="/">
-            返回首页
-          </Link>
-        </div>
-      </div>
+      <AppPageLayout className="admin-page">
+        <main className="not-found" role="status">
+          <p className="eyebrow">管理 / 无权访问</p>
+          <h1>只有管理员可以打开账号管理</h1>
+        </main>
+      </AppPageLayout>
     );
   }
 
   return (
-    <AppPageLayout
-      className="admin-page"
-      topbar={
-        <Link className="profile-back" to="/">
-          返回首页
-        </Link>
-      }
-    >
+    <AppPageLayout className="admin-page">
       <main className="page-content profile-main" aria-labelledby="admin-title">
         <section className="profile-intro">
           <p className="eyebrow">管理 / ADMIN</p>
