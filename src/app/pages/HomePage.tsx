@@ -7,6 +7,7 @@ import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
+import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -157,6 +158,7 @@ function ClassroomHome() {
   const cardVisible = (labId: string) => isAdmin || !hiddenOf(labId);
 
   const [cpuProject, setCpuProject] = useState<ProjectSummary | null>(null);
+  const [isProject, setIsProject] = useState<ProjectSummary | null>(null);
 
   useEffect(() => {
     if (!classId || isStaff || catalog === null) return;
@@ -171,6 +173,12 @@ function ClassroomHome() {
         .get<ProjectSummary>(`/api/classes/${classId}/labs/cpu/project`)
         .then(setCpuProject)
         .catch(() => setCpuProject(null));
+    }
+    if (!hiddenOf("is-sim")) {
+      void api
+        .get<ProjectSummary>(`/api/classes/${classId}/labs/is-sim/project`)
+        .then(setIsProject)
+        .catch(() => setIsProject(null));
     }
   }, [classId, isStaff, catalog]);
 
@@ -238,12 +246,36 @@ function ClassroomHome() {
                 ) : null}
               </article>
             ) : null}
+            {cardVisible("is-sim") ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
+                  <span className="category-label">
+                    Lab 03{isAdmin && hiddenOf("is-sim") ? " · 已隐藏" : ""}
+                  </span>
+                </div>
+                <h4>小型信息系统</h4>
+                <p>
+                  搭一个传感器、网关、数据库、执行器组成的小系统：在事件的时间线上看数据怎么流动。
+                </p>
+                {!isStaff && isProject ? (
+                  <StageProgress
+                    currentStage={isProject.currentStage}
+                    total={IS_SIM_CORE_STAGES.length}
+                  />
+                ) : null}
+                {classId ? (
+                  <Link className="button button-primary" to="/labs/is-sim">
+                    {isProject && isProject.currentStage > 1 ? "继续" : "开始"}
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
             {role === "admin"
               ? ADMIN_PREVIEW_LABS.map((lab, index) => (
                   <article className="lab-card" key={lab.id}>
                     <div className="lab-card-topline">
                       <span className="category-label">
-                        Lab 0{index + 2} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
+                        Lab 0{index + 4} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
                       </span>
                     </div>
                     <h4>{lab.title}</h4>
@@ -259,7 +291,10 @@ function ClassroomHome() {
                 ))
               : null}
           </div>
-          {!cardVisible("calculator") && !cardVisible("cpu") && role !== "admin" ? (
+          {!cardVisible("calculator") &&
+          !cardVisible("cpu") &&
+          !cardVisible("is-sim") &&
+          role !== "admin" ? (
             <p className="home-empty">当前没有开放的实验，等管理员开放后再来。</p>
           ) : null}
         </section>

@@ -4,6 +4,7 @@ import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
 import { CPU_STAGES } from "../../features/cpu";
+import { IS_SIM_STAGES } from "../../features/is-sim";
 import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
@@ -26,6 +27,7 @@ type LabOption = {
 const LAB_OPTIONS: LabOption[] = [
   { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES, teacherVisible: true },
   { id: "cpu", title: "冯诺依曼数据通路", stages: CPU_STAGES, teacherVisible: true },
+  { id: "is-sim", title: "小型信息系统", stages: IS_SIM_STAGES, teacherVisible: true },
   {
     id: "image-sampling",
     title: "空间采样",
