@@ -27,6 +27,8 @@ export type PublicRunOutcome = {
     passed: boolean;
     reason: CaseVerdict["reason"];
     cyclesUsed: number;
+    /** The case's cycle budget — over-budget is a fail even when state is right. */
+    cycleBudget: number;
     memDiff: CaseVerdict["memDiff"];
     regDiff: CaseVerdict["regDiff"];
     branchMismatch: boolean;
@@ -204,12 +206,13 @@ export function transitionCpuLesson(
       return {
         ...state,
         runOutcome: {
-          results: verdicts.map((v) => ({
+          results: verdicts.map((v, i) => ({
             name: v.name,
             category: v.category,
             passed: v.passed,
             reason: v.reason,
             cyclesUsed: v.cyclesUsed,
+            cycleBudget: action.cases[i].expect.cycles,
             memDiff: v.memDiff,
             regDiff: v.regDiff,
             branchMismatch: v.branchMismatch,

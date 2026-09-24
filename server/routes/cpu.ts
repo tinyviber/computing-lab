@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { coreStages } from "../../src/features/calculator/domain/stages.ts";
 import type { CpuDraft, CpuJudgeResult } from "../../src/features/cpu/domain/protocol.ts";
 import { cpuStageCount } from "../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../src/features/cpu/lesson/state.ts";
@@ -20,7 +21,7 @@ function calculatorCoreComplete(db: DatabaseSync, userId: string): boolean {
     )
     .get(userId) as { passed_stages: string } | undefined;
   const passed = row ? parseJsonColumn<number[]>(row.passed_stages, []) : [];
-  return [1, 2, 3, 4, 5, 6].every((index) => passed.includes(index));
+  return coreStages().every((stage) => passed.includes(stage.index));
 }
 
 export function cpuRoutes() {

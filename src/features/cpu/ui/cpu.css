@@ -31,6 +31,47 @@
   text-transform: uppercase;
 }
 
+/* Anchored challenge branches — mirrors the calculator rail's 支线练习
+   groups (same class names so the shared link styles apply). */
+.lab-stage-link.is-optional {
+  border-style: dashed;
+  margin-left: 12px;
+}
+
+.stage-branch-item {
+  list-style: none;
+}
+
+.stage-branch {
+  margin: 2px 0;
+}
+
+.stage-branch-summary {
+  align-items: center;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 10px;
+  gap: 8px;
+  justify-content: space-between;
+  list-style-position: inside;
+  padding: 6px 10px 6px 22px;
+}
+
+.stage-branch-summary:hover {
+  color: var(--primary);
+}
+
+.stage-branch-summary span:last-child {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+}
+
+.stage-branch-list {
+  margin-bottom: 4px;
+}
+
 /* Soft-gate banner — guidance, never a block. */
 .cpu-gate-banner {
   background: #fff8eb;

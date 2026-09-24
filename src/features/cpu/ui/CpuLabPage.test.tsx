@@ -6,9 +6,10 @@ describe("CpuLabPage", () => {
   it("mounts the workspace: rail, program editor, and the machine view", async () => {
     await renderAppAt("/classes/c1/labs/cpu", { auth: teacherAuthState });
 
-    // The stage rail shows the lab line and the challenge group.
+    // The stage rail shows the lab line and the anchored challenge groups.
     expect(await screen.findByRole("heading", { name: /程序会自己走/ })).toBeInTheDocument();
-    expect(screen.getByText("选做挑战")).toBeInTheDocument();
+    expect(screen.getByText("支线练习 · 第 4 关后")).toBeInTheDocument();
+    expect(screen.getByText("支线练习 · 第 5 关后")).toBeInTheDocument();
 
     // The editor is prefilled with the stage-1 scaffold row.
     expect(screen.getByRole("heading", { name: "程序" })).toBeInTheDocument();

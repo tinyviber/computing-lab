@@ -85,6 +85,7 @@ export function judgeCpuSubmission(
           category: failing.category,
           reason: failing.reason,
           cyclesUsed: failing.cyclesUsed,
+          cycleBudget: testCase.expect.cycles,
           initMem: testCase.initMem,
           initRegs: testCase.initRegs,
           memDiff: failing.memDiff,

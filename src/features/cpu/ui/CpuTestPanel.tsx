@@ -11,6 +11,9 @@ const REASON_TEXT: Record<string, string> = {
 function diffText(c: CpuCounterexample): string {
   const parts: string[] = [];
   if (c.reason) parts.push(REASON_TEXT[c.reason]);
+  if (c.cyclesUsed > c.cycleBudget) {
+    parts.push(`用了 ${c.cyclesUsed} 周期，超出该用例预算 ${c.cycleBudget} 周期`);
+  }
   for (const d of c.regDiff) parts.push(`${d.reg} 应为 ${d.expected}，实际是 ${d.actual}`);
   for (const d of c.memDiff.slice(0, 4)) {
     parts.push(`M[${d.addr}] 应为 ${d.expected}，实际是 ${d.actual}`);
@@ -90,6 +93,9 @@ export function CpuTestPanel(props: {
                   ) : (
                     <>
                       {r.reason ? REASON_TEXT[r.reason] : "结果不对"}
+                      {r.cyclesUsed > r.cycleBudget
+                        ? ` · 用了 ${r.cyclesUsed} 周期，超出预算 ${r.cycleBudget}`
+                        : ""}
                       {r.memDiff.length > 0
                         ? ` · M[${r.memDiff[0].addr}]=${r.memDiff[0].actual}≠${r.memDiff[0].expected}`
                         : ""}

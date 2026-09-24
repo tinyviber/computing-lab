@@ -23,6 +23,8 @@ export type CpuCounterexample = {
   /** Why the run ended before the contract could be checked (null = wrong answer on a halted run). */
   reason: RunReason | null;
   cyclesUsed: number;
+  /** The case's cycle budget — over-budget is a fail even when final state is right. */
+  cycleBudget: number;
   initMem: Record<number, number>;
   initRegs?: { A?: number; B?: number };
   memDiff: { addr: number; expected: number; actual: number }[];
