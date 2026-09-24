@@ -527,6 +527,55 @@ describe("calculator lesson state", () => {
     expect(graphOf(stage3, 2).nodes.length).toBeGreaterThan(0);
   });
 
+  it("reopens the stage named by the URL when it is unlocked", () => {
+    const loaded = apply(createCalculatorLessonState(), {
+      type: "load-project",
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5, 6],
+      unlockedSubmodules: [],
+      drafts: { 8: halfAdderGraph() },
+      stageIndex: 8,
+    });
+    expect(loaded.stageIndex).toBe(8);
+    expect(graphOf(loaded).nodes.length).toBeGreaterThan(0);
+  });
+
+  it("restores a core stage even before its predecessors are passed", () => {
+    const loaded = apply(createCalculatorLessonState(), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      unlockedSubmodules: [],
+      drafts: {},
+      stageIndex: 4,
+    });
+    expect(loaded.stageIndex).toBe(4);
+  });
+
+  it("falls back to the first stage when the requested stage is still locked", () => {
+    const loaded = apply(createCalculatorLessonState(), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      unlockedSubmodules: [],
+      drafts: {},
+      stageIndex: 8,
+    });
+    expect(loaded.stageIndex).toBe(1);
+  });
+
+  it("ignores a requested stage that does not exist", () => {
+    const loaded = apply(createCalculatorLessonState(), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      unlockedSubmodules: [],
+      drafts: {},
+      stageIndex: 99,
+    });
+    expect(loaded.stageIndex).toBe(1);
+  });
+
   it("restores missing contract pins when loading an older draft", () => {
     const loaded = apply(createCalculatorLessonState(), {
       type: "load-project",
