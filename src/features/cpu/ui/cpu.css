@@ -714,6 +714,26 @@
   margin-top: 8px;
 }
 
+.cpu-test-replay {
+  font-size: 12px;
+  margin: 4px 0;
+  padding: 2px 8px;
+}
+
+.cpu-counter-trace {
+  margin-top: 4px;
+}
+
+.cpu-counter-trace summary {
+  color: var(--secondary);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.cpu-counter-trace tbody tr {
+  cursor: default;
+}
+
 .submit-row {
   align-items: center;
   display: flex;

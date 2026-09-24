@@ -10,8 +10,13 @@ import { Icon } from "../../../shared/ui/Icon";
 // Cross-feature reuse per issue #58 §6 — do not lift to shared until a third
 // consumer appears. The terms annotator just renders plain text here.
 import { HintDisclosure } from "../../calculator/ui/HintDisclosure";
-import { runProgram, type MachineRun } from "../domain/machine.ts";
-import type { CpuDraft, CpuJudgeResult, CpuProjectPayload } from "../domain/protocol.ts";
+import { runProgram, type CpuCase, type MachineRun } from "../domain/machine.ts";
+import type {
+  CpuCounterexample,
+  CpuDraft,
+  CpuJudgeResult,
+  CpuProjectPayload,
+} from "../domain/protocol.ts";
 import { seedFor } from "../domain/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
@@ -74,6 +79,9 @@ export function CpuLabPage() {
   // The machine view: which public case feeds memory, and how far through
   // its trace the display sits. Derived data — never persisted.
   const [caseIndex, setCaseIndex] = useState(0);
+  // A hidden counterexample the student replayed into the machine view —
+  // overrides the public-case picker until they pick a public case again.
+  const [replayCase, setReplayCase] = useState<CpuCase | null>(null);
   const [cursor, setCursor] = useState(0);
   const [clock, setClock] = useState<"idle" | "running" | "paused">("idle");
 
@@ -118,7 +126,8 @@ export function CpuLabPage() {
     () => (stage ? publicCasesFor(stage.index, seedFor(userId, "cpu", stage.index)) : []),
     [stage, userId],
   );
-  const machineCase = publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
+  const machineCase =
+    replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
   const run = useMemo(
     () =>
       stage && machineCase
@@ -136,13 +145,33 @@ export function CpuLabPage() {
   // A stage switch or case switch restarts the playback.
   useEffect(() => {
     setCaseIndex(0);
+    setReplayCase(null);
     setCursor(0);
     setClock("idle");
   }, [state.stageIndex]);
   useEffect(() => {
     setCursor(0);
     setClock("idle");
-  }, [caseIndex]);
+  }, [caseIndex, replayCase]);
+
+  // The hidden judge counterexample can be replayed through the same
+  // machine view — the run re-executes locally on the student's current
+  // program, so edits can be re-checked without another submission.
+  const onReplayCounterexample = useCallback(
+    (c: CpuCounterexample) => {
+      if (!stage) return;
+      setReplayCase({
+        name: `隐藏反例 · ${c.name}`,
+        category: c.category,
+        initMem: c.initMem,
+        initRegs: c.initRegs,
+        expect: { cycles: stage.maxCycles },
+      });
+      setCursor(0);
+      setClock("idle");
+    },
+    [stage],
+  );
 
   // 2 Hz clock: each tick commits one cycle; editing is locked while it runs.
   const canStep = run !== null && effectiveCursor < maxCursor;
@@ -292,14 +321,23 @@ export function CpuLabPage() {
                     演示数据
                     <select
                       disabled={clock === "running"}
-                      onChange={(event) => setCaseIndex(Number(event.target.value))}
-                      value={Math.min(caseIndex, Math.max(0, publicCases.length - 1))}
+                      onChange={(event) => {
+                        if (event.target.value === "replay") return;
+                        setReplayCase(null);
+                        setCaseIndex(Number(event.target.value));
+                      }}
+                      value={
+                        replayCase
+                          ? "replay"
+                          : Math.min(caseIndex, Math.max(0, publicCases.length - 1))
+                      }
                     >
                       {publicCases.map((testCase, i) => (
                         <option key={testCase.name} value={i}>
                           {testCase.name}
                         </option>
                       ))}
+                      {replayCase ? <option value="replay">{replayCase.name}</option> : null}
                     </select>
                   </label>
                   <span className="cpu-cycle-count">
@@ -362,7 +400,11 @@ export function CpuLabPage() {
               </div>
             ) : null}
 
-            <CpuTestPanel judgeOutcome={state.judgeOutcome} runOutcome={state.runOutcome} />
+            <CpuTestPanel
+              judgeOutcome={state.judgeOutcome}
+              onReplayCounterexample={onReplayCounterexample}
+              runOutcome={state.runOutcome}
+            />
           </main>
         </div>
       </AppPageLayout>

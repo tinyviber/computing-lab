@@ -91,6 +91,9 @@ export function judgeCpuSubmission(
           regDiff: failing.regDiff,
           branchMismatch: failing.branchMismatch || undefined,
           selfModMissing: failing.selfModMissing || undefined,
+          trace: failing.run.trace,
+          finalRegs: failing.run.final.regs,
+          selfModFetch: failing.run.selfModFetch,
         }
       : null;
 

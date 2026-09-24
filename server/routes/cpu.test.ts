@@ -148,9 +148,27 @@ describe("cpu routes", () => {
       draft: { rows: [{ op: "LOAD", reg: 0, operand: 14 }] },
     });
     expect(res.status).toBe(200);
-    const outcome = (await res.json()) as { passed: boolean; score: number };
+    const outcome = (await res.json()) as {
+      passed: boolean;
+      score: number;
+      testSummary: {
+        counterexample: {
+          trace: { cycle: number; pc: number; decoded: { op: string } }[];
+          finalRegs: { A: number; B: number };
+          selfModFetch: boolean;
+        } | null;
+      };
+    };
     expect(outcome.passed).toBe(false);
     expect(outcome.score).toBe(0);
+    // The counterexample ships its bounded per-cycle trace so the UI can
+    // show exactly where the hidden run went wrong.
+    const counterexample = outcome.testSummary.counterexample;
+    expect(counterexample).not.toBeNull();
+    expect(counterexample!.trace.length).toBeGreaterThan(0);
+    expect(counterexample!.trace[0]).toMatchObject({ cycle: 1, pc: 0 });
+    expect(counterexample!.finalRegs.A).toEqual(expect.any(Number));
+    expect(counterexample!.selfModFetch).toBe(false);
   });
 
   it("rate-limits the 21st judge call within the window", async () => {

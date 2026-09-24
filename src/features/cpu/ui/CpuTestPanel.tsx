@@ -1,5 +1,6 @@
 import type { CpuCounterexample, CpuJudgeResult } from "../domain/protocol.ts";
 import type { PublicRunOutcome } from "../lesson/state.ts";
+import { REASON_LABEL, TRACE_HEAD, TraceRows } from "./TraceTable.tsx";
 
 const REASON_TEXT: Record<string, string> = {
   halted: "停机",
@@ -20,12 +21,57 @@ function diffText(c: CpuCounterexample): string {
   return parts.join("；");
 }
 
+/** The hidden counterexample: diff summary, bounded trace, and replay. */
+function CounterexampleBlock(props: {
+  counterexample: CpuCounterexample;
+  onReplay?: (counterexample: CpuCounterexample) => void;
+}) {
+  const { counterexample: c, onReplay } = props;
+  return (
+    <div className="cpu-test-counterexample" role="alert">
+      <p>
+        反例 {c.name}：{diffText(c)}
+      </p>
+      {onReplay ? (
+        <button
+          className="button button-ghost cpu-test-replay"
+          onClick={() => onReplay(c)}
+          type="button"
+        >
+          把这份数据装进机器视图 ↩
+        </button>
+      ) : null}
+      <details className="cpu-trace cpu-counter-trace">
+        <summary>
+          逐周期轨迹（{c.trace.length} 周期，{REASON_LABEL[c.reason ?? "halted"]}
+          {c.selfModFetch ? " · 取到过自写格" : ""}）
+        </summary>
+        <div className="cpu-trace-scroll">
+          <table>
+            {TRACE_HEAD}
+            <tbody>
+              <TraceRows finalRegs={c.finalRegs} trace={c.trace} />
+              <tr className="cpu-trace-end is-current">
+                <td colSpan={8}>
+                  结束：{REASON_LABEL[c.reason ?? "halted"]}；A={c.finalRegs.A}，B=
+                  {c.finalRegs.B}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </div>
+  );
+}
+
 /** Results of the public sweep + the server's hidden judgement. */
 export function CpuTestPanel(props: {
   runOutcome: PublicRunOutcome | null;
   judgeOutcome: CpuJudgeResult | null;
+  onReplayCounterexample?: (counterexample: CpuCounterexample) => void;
 }) {
-  const { runOutcome, judgeOutcome } = props;
+  const { runOutcome, judgeOutcome, onReplayCounterexample } = props;
   if (!runOutcome && !judgeOutcome) return null;
   return (
     <section aria-label="测试结果" className="cpu-tests">
@@ -78,10 +124,10 @@ export function CpuTestPanel(props: {
             ))}
           </ul>
           {judgeOutcome.testSummary.counterexample ? (
-            <p className="cpu-test-counterexample">
-              反例 {judgeOutcome.testSummary.counterexample.name}：
-              {diffText(judgeOutcome.testSummary.counterexample)}
-            </p>
+            <CounterexampleBlock
+              counterexample={judgeOutcome.testSummary.counterexample}
+              onReplay={onReplayCounterexample}
+            />
           ) : null}
         </div>
       ) : null}
