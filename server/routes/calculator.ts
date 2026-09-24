@@ -8,7 +8,7 @@ export function calculatorRoutes() {
   return labRoutes<CircuitGraph, CalculatorJudgeResult>({
     labId: "calculator",
     stageCount,
-    projectExtras: (project) => ({ unlockedSubmodules: project.unlockedSubmodules }),
+    projectExtras: (_db, project) => ({ unlockedSubmodules: project.unlockedSubmodules }),
     saveDraft: (db, project, stageIndex, body) =>
       saveDraft(db, project, stageIndex, body.graph ?? {}, body.components),
     judge: (db, project, stageIndex, body) =>

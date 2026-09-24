@@ -32,6 +32,7 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-name": "请填写姓名。",
   "weak-password": "密码太短（学生至少 4 位，教师/管理员至少 8 位）。",
   "too-many-attempts": "尝试次数过多，请稍后再试。",
+  "rate-limited": "提交太频繁了，稍后再试。",
   "payload-too-large": "提交内容太大，无法处理。",
   "invalid-response": "服务器返回了无法解析的内容。",
   "current-password-incorrect": "当前密码不正确。",

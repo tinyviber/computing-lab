@@ -7,6 +7,7 @@
 import { stageCount as calculatorStageCount } from "../src/features/calculator/domain/stages.ts";
 import { samplingStageCount } from "../src/features/image-sampling/domain/stages.ts";
 import { quantStageCount } from "../src/features/color-quantization/domain/stages.ts";
+import { cpuStageCount } from "../src/features/cpu/domain/stages.ts";
 
 export type LabInfo = {
   id: string;
@@ -19,6 +20,7 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "calculator", stageCount: calculatorStageCount(), teacherVisible: true },
   { id: "image-sampling", stageCount: samplingStageCount(), teacherVisible: false },
   { id: "color-quantization", stageCount: quantStageCount(), teacherVisible: false },
+  { id: "cpu", stageCount: cpuStageCount(), teacherVisible: true },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {

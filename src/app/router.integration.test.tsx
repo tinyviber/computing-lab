@@ -21,7 +21,12 @@ describe("application router integration", () => {
     await renderAppAt("/", { auth: teacherAuthState });
 
     expect(screen.getByRole("heading", { name: "实现ALU" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "开始" })).toHaveAttribute("href", "/labs/calculator");
+    const calcCard = screen.getByRole("heading", { name: "实现ALU" }).closest("article");
+    expect(calcCard).not.toBeNull();
+    expect(within(calcCard as HTMLElement).getByRole("link", { name: "开始" })).toHaveAttribute(
+      "href",
+      "/labs/calculator",
+    );
   });
 
   it("shows the calculator lab and account menu to admins", async () => {
