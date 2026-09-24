@@ -26,7 +26,7 @@ type LabSpec<TDraft, TOutcome> = {
   /** Admin-preview labs turn class teachers away (students still enter). */
   adminPreview?: boolean;
   /** Extra top-level fields merged into the GET /project payload. */
-  projectExtras?: (project: ProjectRow<TDraft>) => Record<string, unknown>;
+  projectExtras?: (db: DatabaseSync, project: ProjectRow<TDraft>) => Record<string, unknown>;
   saveDraft: (
     db: DatabaseSync,
     project: ProjectRow<TDraft>,
@@ -74,7 +74,7 @@ export function labRoutes<TDraft, TOutcome extends object>(
       currentStage: project.currentStage,
       passedStages: project.passedStages,
       drafts: project.drafts,
-      ...(spec.projectExtras?.(project) ?? {}),
+      ...(spec.projectExtras?.(c.get("db"), project) ?? {}),
     });
   });
 

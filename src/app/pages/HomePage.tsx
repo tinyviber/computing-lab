@@ -5,6 +5,7 @@ import { isStaffRole, useAuth } from "../../shared/auth";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
+import { CPU_CORE_STAGES } from "../../features/cpu";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -121,8 +122,7 @@ function AnonymousLanding() {
   );
 }
 
-function StageProgress({ currentStage }: { currentStage: number }) {
-  const total = coreStages().length;
+function StageProgress({ currentStage, total }: { currentStage: number; total: number }) {
   const done = Math.max(0, Math.min(currentStage - 1, total));
   return (
     <div className="progress-block">
@@ -149,12 +149,18 @@ function ClassroomHome() {
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
 
+  const [cpuProject, setCpuProject] = useState<ProjectSummary | null>(null);
+
   useEffect(() => {
     if (!classId || isStaff) return;
     void api
       .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
       .then(setProject)
       .catch(() => setProject(null));
+    void api
+      .get<ProjectSummary>(`/api/classes/${classId}/labs/cpu/project`)
+      .then(setCpuProject)
+      .catch(() => setCpuProject(null));
   }, [classId, isStaff]);
 
   return (
@@ -184,10 +190,30 @@ function ClassroomHome() {
               </div>
               <h4>实现ALU</h4>
               <p>从半加器到完整计算器：用逻辑门逐关搭出运算电路。</p>
-              {!isStaff && project ? <StageProgress currentStage={project.currentStage} /> : null}
+              {!isStaff && project ? (
+                <StageProgress currentStage={project.currentStage} total={coreStages().length} />
+              ) : null}
               {classId ? (
                 <Link className="button button-primary" to="/labs/calculator">
                   {project && project.currentStage > 1 ? "继续" : "开始"}
+                </Link>
+              ) : null}
+            </article>
+            <article className="lab-card">
+              <div className="lab-card-topline">
+                <span className="category-label">Lab 02</span>
+              </div>
+              <h4>冯诺依曼数据通路</h4>
+              <p>写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。</p>
+              {!isStaff && cpuProject ? (
+                <StageProgress
+                  currentStage={cpuProject.currentStage}
+                  total={CPU_CORE_STAGES.length}
+                />
+              ) : null}
+              {classId ? (
+                <Link className="button button-primary" to="/labs/cpu">
+                  {cpuProject && cpuProject.currentStage > 1 ? "继续" : "开始"}
                 </Link>
               ) : null}
             </article>

@@ -16,6 +16,7 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
+import { CpuRedirectPage } from "./pages/CpuRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
 import { TaskSheetListPage } from "./pages/TaskSheetListPage";
@@ -116,6 +117,21 @@ const colorQuantizationLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+const cpuEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/cpu",
+  component: CpuRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const cpuLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/cpu",
+  validateSearch: passThroughSearch,
+  component: lazyRouteComponent(() => import("../features/cpu"), "CpuLabPage"),
+  errorComponent: LabErrorPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/dashboard",
@@ -170,6 +186,8 @@ const routeTree = rootRoute.addChildren([
   imageSamplingLabRoute,
   colorQuantizationEntryRoute,
   colorQuantizationLabRoute,
+  cpuEntryRoute,
+  cpuLabRoute,
   dashboardRoute,
   studentLabPreviewRoute,
   taskSheetListRoute,
