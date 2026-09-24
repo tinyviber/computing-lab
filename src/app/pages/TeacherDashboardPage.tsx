@@ -7,7 +7,6 @@ import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stag
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
-import { StudentCanvasDrawer } from "./StudentCanvasDrawer";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
 import "../../features/task-sheets/ui/taskSheets.css";
@@ -81,18 +80,27 @@ function timeOf(iso: string | null): string {
     : `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen: () => void }) {
+function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen?: () => void }) {
   if (!cell) return <span className="cell-empty">—</span>;
-  if (cell.passed)
-    return (
+  if (cell.passed) {
+    return onOpen ? (
+      <button className="cell-pass" onClick={onOpen} title="预览学生画布" type="button">
+        <Icon name="check" size={14} />
+      </button>
+    ) : (
       <span className="cell-pass">
         <Icon name="check" size={14} />
       </span>
     );
-  return (
+  }
+  return onOpen ? (
     <button className="cell-score" onClick={onOpen} type="button">
       {cell.score}/{cell.total}
     </button>
+  ) : (
+    <span className="cell-score">
+      {cell.score}/{cell.total}
+    </span>
   );
 }
 
@@ -110,7 +118,6 @@ export function TeacherDashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [detail, setDetail] = useState<SubmissionDetail | null>(null);
-  const [canvasRow, setCanvasRow] = useState<MatrixRow | null>(null);
   const isAdmin = role === "admin";
 
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
@@ -165,6 +172,16 @@ export function TeacherDashboardPage() {
       .get<SubmissionDetail>(`/api/classes/${classId}/dashboard/submissions/${submissionId}`)
       .then(setDetail)
       .catch((caught) => setError(describeApiError(caught)));
+  };
+
+  /** Admin replay of a student's lab — own route, own page, never writes back. */
+  const openPreview = (row: MatrixRow, cell?: MatrixCell) => {
+    if (!classId) return;
+    void navigate({
+      to: "/classes/$classId/students/$userId/labs/calculator",
+      params: { classId, userId: row.userId },
+      search: cell?.submissionId ? { submission: cell.submissionId } : { stage: row.currentStage },
+    });
   };
 
   const selectClass = (nextClassId: string) => {
@@ -341,10 +358,14 @@ export function TeacherDashboardPage() {
                       <td key={stage.index}>
                         <CellView
                           cell={row.cells[String(stage.index)]}
-                          onOpen={() => {
+                          onOpen={(() => {
                             const cell = row.cells[String(stage.index)];
-                            if (cell) openDetail(cell.submissionId);
-                          }}
+                            if (!cell) return undefined;
+                            if (isAdmin && lab.id === "calculator") {
+                              return () => openPreview(row, cell);
+                            }
+                            return cell.passed ? undefined : () => openDetail(cell.submissionId);
+                          })()}
                         />
                       </td>
                     ))}
@@ -352,14 +373,16 @@ export function TeacherDashboardPage() {
                     {isAdmin ? (
                       <td>
                         <div className="matrix-row-actions">
-                          <button
-                            className="cell-score"
-                            onClick={() => setCanvasRow(row)}
-                            title="查看该学生的草稿画布与历次提交图"
-                            type="button"
-                          >
-                            查看画布
-                          </button>
+                          {lab.id === "calculator" ? (
+                            <button
+                              className="cell-score"
+                              onClick={() => openPreview(row)}
+                              title="模拟该学生看到的画布（仅前端预览，刷新还原）"
+                              type="button"
+                            >
+                              预览画布
+                            </button>
+                          ) : null}
                           <button
                             className="cell-score"
                             onClick={() => clearRecords(row)}
@@ -431,10 +454,6 @@ export function TeacherDashboardPage() {
             <p className="drawer-note">提交时间 {timeOf(detail.submittedAt)}</p>
           </aside>
         </div>
-      ) : null}
-
-      {canvasRow ? (
-        <StudentCanvasDrawer labId={lab.id} onClose={() => setCanvasRow(null)} row={canvasRow} />
       ) : null}
     </AppPageLayout>
   );

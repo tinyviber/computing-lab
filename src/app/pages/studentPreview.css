@@ -1,0 +1,57 @@
+/* Admin student-preview chrome: the bar above the simulated lab. */
+.preview-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  margin: 10px var(--page-gutter) 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.preview-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--secondary);
+  font-size: 12px;
+}
+
+.preview-note svg {
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+/* Submission snapshot banner inside the workspace column. */
+.inspect-meta {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--surface);
+}
+
+.inspect-meta-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 14px;
+  font-size: 13px;
+}
+
+.inspect-meta-head .is-pass {
+  color: var(--success);
+}
+
+.inspect-meta-head .is-fail {
+  color: var(--danger);
+}
+
+.inspect-meta-time {
+  color: var(--muted);
+  font-size: 12px;
+}

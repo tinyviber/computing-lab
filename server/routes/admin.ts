@@ -592,11 +592,19 @@ export function adminRoutes() {
     const project = db
       .prepare(
         `SELECT unlocked_submodules AS submodules, draft_graph AS draftGraph,
+                current_stage AS currentStage, passed_stages AS passedStages,
                 updated_at AS updatedAt
          FROM student_projects WHERE user_id = ? AND lab_id = ?`,
       )
       .get(userId, labId) as
-      { submodules: string; draftGraph: string; updatedAt: string } | undefined;
+      | {
+          submodules: string;
+          draftGraph: string;
+          currentStage: number;
+          passedStages: string;
+          updatedAt: string;
+        }
+      | undefined;
     const components = project ? JSON.parse(project.submodules) : [];
     const wrap = (raw: unknown) =>
       labId === "calculator" ? { kind: "circuit", graph: raw } : { kind: "raw", data: raw };
@@ -623,6 +631,10 @@ export function adminRoutes() {
         labId,
         revision,
         updatedAt: project?.updatedAt ?? null,
+        // Student-shaped progress so an admin preview can replay their
+        // unlock state, not just the raw canvas payloads.
+        currentStage: project?.currentStage ?? 1,
+        passedStages: project ? JSON.parse(project.passedStages) : [],
         drafts: Object.fromEntries(
           Object.keys(drafts).map((stage) => [stage, wrap(drafts[stage])]),
         ),

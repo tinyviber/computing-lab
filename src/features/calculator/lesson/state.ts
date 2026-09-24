@@ -89,7 +89,12 @@ export type CalculatorLessonAction =
       /** Stage the URL asked to reopen; falls back when absent or still locked. */
       stageIndex?: number;
     }
-  | { type: "select-stage"; stageIndex: number }
+  | {
+      type: "select-stage";
+      stageIndex: number;
+      /** Admin preview only: open a stage regardless of the student's unlock path. */
+      force?: boolean;
+    }
   | { type: "undo" }
   | { type: "start-node-move"; id: string }
   | { type: "finish-node-move" }
@@ -581,7 +586,7 @@ export function transitionCalculatorLesson(
     }
 
     case "select-stage": {
-      if (!isStageUnlocked(state, action.stageIndex)) return state;
+      if (!action.force && !isStageUnlocked(state, action.stageIndex)) return state;
       const existing = state.drafts[action.stageIndex];
       return {
         ...state,
