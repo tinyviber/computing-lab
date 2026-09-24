@@ -1,5 +1,5 @@
-import { useParams } from "@tanstack/react-router";
-import { useCallback, useMemo, useReducer, useState } from "react";
+import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
@@ -31,7 +31,15 @@ import "./calculator.css";
 
 export function CalculatorLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/calculator" });
+  const search = useSearch({ from: "/classes/$classId/labs/calculator" });
+  const navigate = useNavigate();
   const { status, role } = useAuth();
+  // The current stage rides in the URL so a refresh reopens the same canvas
+  // instead of dropping back to stage 1.
+  const requestedStage = useMemo(() => {
+    const value = Number(search.stage);
+    return Number.isInteger(value) ? value : undefined;
+  }, [search]);
   const [state, dispatch] = useReducer(transitionCalculatorLesson, undefined, () =>
     createCalculatorLessonState(1),
   );
@@ -77,9 +85,26 @@ export function CalculatorLabPage() {
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
+      stageIndex: requestedStage,
     }),
     dispatch,
   });
+
+  // Keep the URL in step with the stage the learner actually ended on — rail
+  // clicks, coach jumps, and the load-project fallback all funnel here.
+  useEffect(() => {
+    if (!projectLoaded) return;
+    if ((requestedStage ?? 1) === state.stageIndex) return;
+    void navigate({
+      to: "/classes/$classId/labs/calculator",
+      params: { classId: classId as string },
+      search: (prev: Record<string, unknown>) => ({
+        ...prev,
+        stage: state.stageIndex === 1 ? undefined : state.stageIndex,
+      }),
+      replace: true,
+    });
+  }, [classId, navigate, projectLoaded, requestedStage, state.stageIndex]);
 
   // Live preview: evaluate with the pins' current toggle values.
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
@@ -160,7 +185,7 @@ export function CalculatorLabPage() {
       >
         <div className="calculator-layout">
           <StageRail
-            coachHighlight={coach.focusesOn("my-components")}
+            coachHighlight={coach.focusesOn("my-components") && stage?.id === "full-adder"}
             passedStages={state.passedStages}
             onPlaceComponent={(name) =>
               dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
