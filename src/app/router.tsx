@@ -17,6 +17,7 @@ import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
 import { TaskSheetListPage } from "./pages/TaskSheetListPage";
 import { TaskAssignmentPage } from "./pages/TaskAssignmentPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -123,6 +124,19 @@ const dashboardRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+/**
+ * Admin-only replay of a student's calculator lab — deliberately separate
+ * from the student's own /classes/$classId/labs/calculator route so a
+ * preview URL can never be mistaken for (or overwrite) the real thing.
+ */
+const studentLabPreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/students/$userId/labs/calculator",
+  validateSearch: passThroughSearch,
+  component: StudentLabPreviewPage,
+  errorComponent: LabErrorPage,
+});
+
 const taskSheetListRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tasks",
@@ -157,6 +171,7 @@ const routeTree = rootRoute.addChildren([
   colorQuantizationEntryRoute,
   colorQuantizationLabRoute,
   dashboardRoute,
+  studentLabPreviewRoute,
   taskSheetListRoute,
   taskSheetEditorRoute,
   taskAssignmentRoute,

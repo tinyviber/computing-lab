@@ -765,7 +765,9 @@ describe("admin teacher access", () => {
 describe("student canvas forensics", () => {
   const seedCanvas = (db: ReturnType<typeof openMemoryDb>, studentId: string) => {
     db.prepare(
-      "INSERT INTO student_projects (id, user_id, class_id, lab_id, draft_graph) VALUES (?, ?, 'c1', 'calculator', ?)",
+      `INSERT INTO student_projects
+         (id, user_id, class_id, lab_id, draft_graph, current_stage, passed_stages)
+       VALUES (?, ?, 'c1', 'calculator', ?, 3, '[1,2]')`,
     ).run(
       "p1",
       studentId,
@@ -818,9 +820,13 @@ describe("student canvas forensics", () => {
     expect(drafts.status).toBe(200);
     const draftPayload = (await drafts.json()) as {
       revision: string;
+      currentStage: number;
+      passedStages: number[];
       drafts: Record<string, { kind: string; graph: { nodes: unknown[] } }>;
     };
     expect(draftPayload.revision).toBe("draft");
+    expect(draftPayload.currentStage).toBe(3);
+    expect(draftPayload.passedStages).toEqual([1, 2]);
     expect(draftPayload.drafts["1"].kind).toBe("circuit");
     expect(draftPayload.drafts["1"].graph.nodes).toHaveLength(1);
 
