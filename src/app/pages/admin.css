@@ -309,6 +309,28 @@
   text-align: center;
 }
 
+.admin-labs-hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 20px;
+  max-width: 640px;
+}
+
+.admin-lab-id {
+  margin-left: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.admin-lab-state {
+  font-size: 13px;
+}
+
+.admin-lab-state.is-hidden {
+  color: var(--danger, #b42318);
+}
+
 .admin-class-chips {
   display: flex;
   align-items: center;

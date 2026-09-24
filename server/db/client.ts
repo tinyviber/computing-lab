@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -176,6 +176,15 @@ export function migrate(db: DatabaseSync): void {
     if (version < 5) {
       db.exec(`CREATE INDEX IF NOT EXISTS idx_submissions_user_stage
         ON submissions (user_id, lab_id, stage_index, submitted_at DESC)`);
+    }
+    // v5 -> v6: lab_settings — per-lab admin visibility switch. A missing
+    // row means the lab is open.
+    if (version < 6) {
+      db.exec(`CREATE TABLE IF NOT EXISTS lab_settings (
+        lab_id     TEXT PRIMARY KEY,
+        hidden     INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+      )`);
     }
     // Never stamp a newer database down to an older version.
     if (version < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

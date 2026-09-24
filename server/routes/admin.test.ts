@@ -5,7 +5,9 @@ import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
 import { adminRoutes } from "./admin.ts";
 import { authRoutes } from "./auth.ts";
+import { calculatorRoutes } from "./calculator.ts";
 import { dashboardRoutes } from "./dashboard.ts";
+import { labsRoutes } from "./labs.ts";
 
 async function setup() {
   const db = openMemoryDb();
@@ -28,6 +30,8 @@ async function setup() {
   app.route("/api/auth", authRoutes());
   app.route("/api/admin", adminRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
+  app.route("/api/classes/:classId/labs/calculator", calculatorRoutes());
+  app.route("/api/labs", labsRoutes());
   return { db, app };
 }
 
@@ -923,5 +927,126 @@ describe("student canvas forensics", () => {
     );
     expect(badRevision.status).toBe(400);
     expect(await badRevision.json()).toEqual({ error: "invalid-revision" });
+  });
+});
+
+describe("lab visibility", () => {
+  const memberOf = (db: ReturnType<typeof openMemoryDb>, studentNo: string) => {
+    const { id } = db.prepare("SELECT id FROM users WHERE student_no = ?").get(studentNo) as {
+      id: string;
+    };
+    return id;
+  };
+
+  it("rejects anonymous, student, and teacher callers on the toggle", async () => {
+    const { app } = await setup();
+    const anonymous = await request(app, "PUT", "/api/admin/labs/calculator/visibility", {
+      hidden: true,
+    });
+    expect(anonymous.status).toBe(401);
+
+    const student = await login(app, "20260101", "student-pass");
+    const teacher = await login(app, "teacher", "teacher-pass");
+    for (const cookie of [student, teacher]) {
+      const res = await request(
+        app,
+        "PUT",
+        "/api/admin/labs/calculator/visibility",
+        { hidden: true },
+        cookie,
+      );
+      expect(res.status).toBe(403);
+    }
+  });
+
+  it("rejects unknown labs and non-boolean bodies", async () => {
+    const { app } = await setup();
+    const cookie = await login(app, "admin", "admin-pass");
+    const unknown = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/nope/visibility",
+      { hidden: true },
+      cookie,
+    );
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({ error: "unknown-lab" });
+    for (const body of [{}, { hidden: "yes" }, { hidden: 1 }]) {
+      const res = await request(app, "PUT", "/api/admin/labs/calculator/visibility", body, cookie);
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("requires auth for the catalog and reflects the toggle", async () => {
+    const { app } = await setup();
+    const anonymous = await request(app, "GET", "/api/labs", undefined);
+    expect(anonymous.status).toBe(401);
+
+    const cookie = await login(app, "admin", "admin-pass");
+    const before = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
+      labs: { id: string; hidden: boolean }[];
+    };
+    expect(before.labs.every((lab) => lab.hidden === false)).toBe(true);
+
+    const toggled = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/cpu/visibility",
+      { hidden: true },
+      cookie,
+    );
+    expect(toggled.status).toBe(200);
+    const after = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
+      labs: { id: string; hidden: boolean }[];
+    };
+    expect(after.labs.find((lab) => lab.id === "cpu")?.hidden).toBe(true);
+    expect(after.labs.find((lab) => lab.id === "calculator")?.hidden).toBe(false);
+  });
+
+  it("blocks students and teachers from a hidden lab until reopened", async () => {
+    const { db, app } = await setup();
+    const admin = await login(app, "admin", "admin-pass");
+    const teacher = await login(app, "teacher", "teacher-pass");
+    const student = await login(app, "20260101", "student-pass");
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'teacher')",
+    ).run(newId(), memberOf(db, "teacher"));
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), memberOf(db, "20260101"));
+
+    await request(app, "PUT", "/api/admin/labs/calculator/visibility", { hidden: true }, admin);
+
+    const project = (cookie: string) =>
+      request(app, "GET", "/api/classes/c1/labs/calculator/project", undefined, cookie);
+    expect((await project(student)).status).toBe(403);
+    expect(await (await project(student)).json()).toEqual({ error: "lab-not-available" });
+    expect((await project(teacher)).status).toBe(403);
+    expect(
+      (await request(app, "GET", "/api/classes/c1/dashboard?lab=calculator", undefined, teacher))
+        .status,
+    ).toBe(403);
+    const draft = await request(
+      app,
+      "PUT",
+      "/api/classes/c1/labs/calculator/draft",
+      { stageIndex: 1, graph: {} },
+      student,
+    );
+    expect(draft.status).toBe(403);
+
+    // Admins keep full access — they preview and reopen hidden labs.
+    expect((await project(admin)).status).toBe(200);
+    expect(
+      (await request(app, "GET", "/api/classes/c1/dashboard?lab=calculator", undefined, admin))
+        .status,
+    ).toBe(200);
+
+    await request(app, "PUT", "/api/admin/labs/calculator/visibility", { hidden: false }, admin);
+    expect((await project(student)).status).toBe(200);
+    expect(
+      (await request(app, "GET", "/api/classes/c1/dashboard?lab=calculator", undefined, teacher))
+        .status,
+    ).toBe(200);
   });
 });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
@@ -56,6 +57,7 @@ export function ColorQuantizationLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/color-quantization" });
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const { status, role } = useAuth();
+  const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionQuantLesson, undefined, () =>
     createQuantLessonState(1),
   );
@@ -146,7 +148,14 @@ export function ColorQuantizationLabPage() {
   }, [classId, stage, state, draft]);
 
   return (
-    <LabAccessGate adminPreview classId={classId} labName="颜色量化" role={role} status={status}>
+    <LabAccessGate
+      adminPreview
+      classId={classId}
+      hidden={catalog?.get("color-quantization")?.hidden === true}
+      labName="颜色量化"
+      role={role}
+      status={status}
+    >
       <AppPageLayout
         className="quant-lab"
         topbar={<SaveIndicator status={state.saveStatus} />}

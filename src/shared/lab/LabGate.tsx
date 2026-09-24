@@ -36,11 +36,13 @@ export function LabAccessGate(props: {
   labName: string;
   /** When true, class teachers see the preview notice instead of the lab. */
   adminPreview?: boolean;
+  /** Admin-hidden lab: everyone but admins sees the closed notice. */
+  hidden?: boolean;
   /** Extra guidance under the "你还没有加入班级" heading. */
   noClassHint?: string;
   children: ReactNode;
 }) {
-  const { status, role, classId, labName, adminPreview, noClassHint, children } = props;
+  const { status, role, classId, labName, adminPreview, hidden, noClassHint, children } = props;
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -59,6 +61,17 @@ export function LabAccessGate(props: {
               去登录
             </Link>
           </div>
+        </main>
+      </AppPageLayout>
+    );
+  }
+  if (hidden && role !== "admin") {
+    return (
+      <AppPageLayout>
+        <main className="not-found" role="status">
+          <p className="eyebrow">实验 / 已隐藏</p>
+          <h1>这个实验暂未开放</h1>
+          <p>「{labName}」已被管理员隐藏，开放后再来。</p>
         </main>
       </AppPageLayout>
     );
