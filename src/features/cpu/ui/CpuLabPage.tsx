@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
@@ -71,6 +72,7 @@ function StageBrief({ stage }: { stage: CpuStageDef }) {
 export function CpuLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/cpu" });
   const { status, role, session } = useAuth();
+  const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionCpuLesson, undefined, () =>
     createCpuLessonState(1),
   );
@@ -214,7 +216,13 @@ export function CpuLabPage() {
   const lastOp = display?.lastRow?.decoded.op ?? null;
 
   return (
-    <LabAccessGate classId={classId} labName="冯诺依曼数据通路" role={role} status={status}>
+    <LabAccessGate
+      classId={classId}
+      hidden={catalog?.get("cpu")?.hidden === true}
+      labName="冯诺依曼数据通路"
+      role={role}
+      status={status}
+    >
       <AppPageLayout
         className="cpu-lab"
         topbar={<SaveIndicator status={state.saveStatus} />}

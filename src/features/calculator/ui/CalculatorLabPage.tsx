@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
@@ -26,6 +27,7 @@ export function CalculatorLabPage() {
   const search = useSearch({ from: "/classes/$classId/labs/calculator" });
   const navigate = useNavigate();
   const { status, role } = useAuth();
+  const catalog = useLabCatalog(status === "authenticated");
   // The current stage rides in the URL so a refresh reopens the same canvas
   // instead of dropping back to stage 1.
   const requestedStage = useMemo(() => {
@@ -137,6 +139,7 @@ export function CalculatorLabPage() {
   return (
     <LabAccessGate
       classId={classId}
+      hidden={catalog?.get("calculator")?.hidden === true}
       labName="实现ALU"
       noClassHint="请用老师给的邀请码加入班级后再开始实验。"
       role={role}

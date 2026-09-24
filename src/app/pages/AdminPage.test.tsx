@@ -4,6 +4,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { adminAuthState, renderAppAt } from "../../test/router-test-helpers";
 
 const classes = [{ id: "c1", name: "测试班级", inviteCode: "CLASS1", memberCount: 0 }];
+const labs = [
+  { id: "calculator", stageCount: 7, teacherVisible: true, hidden: false },
+  { id: "image-sampling", stageCount: 3, teacherVisible: false, hidden: false },
+  { id: "cpu", stageCount: 5, teacherVisible: true, hidden: true },
+];
 const users = [
   {
     id: "u1",
@@ -27,6 +32,7 @@ function mockAdminApi() {
     const path = String(input);
     const method = init?.method ?? "GET";
     if (method === "DELETE") return jsonResponse({ ok: true });
+    if (path.includes("/api/admin/labs")) return jsonResponse({ lab: {} });
     if (path.includes("/api/admin/classes")) return jsonResponse({ classes });
     if (path.includes("/api/admin/users")) {
       const url = new URL(path, "http://admin.test");
@@ -37,6 +43,7 @@ function mockAdminApi() {
         pageSize: 50,
       });
     }
+    if (path.includes("/api/labs")) return jsonResponse({ labs });
     return jsonResponse({});
   });
 }
@@ -99,6 +106,7 @@ describe("AdminPage", () => {
       const path = String(input);
       const method = init?.method ?? "GET";
       if (method === "DELETE") return jsonResponse({ ok: true });
+      if (path.includes("/api/admin/labs")) return jsonResponse({ lab: {} });
       if (path.includes("/api/admin/classes")) return jsonResponse({ classes });
       if (path.includes("/api/admin/users")) {
         const url = new URL(path, "http://admin.test");
@@ -109,6 +117,7 @@ describe("AdminPage", () => {
           pageSize: 50,
         });
       }
+      if (path.includes("/api/labs")) return jsonResponse({ labs });
       return jsonResponse({});
     });
     const user = userEvent.setup();
@@ -135,5 +144,34 @@ describe("AdminPage", () => {
       ).toBe(true),
     );
     expect(screen.getByText(/第 2 \/ 3 页/)).toBeInTheDocument();
+  });
+
+  it("hides and reopens labs from the labs tab", async () => {
+    const fetchMock = mockAdminApi();
+    const user = userEvent.setup();
+
+    await renderAppAt("/admin", { auth: adminAuthState });
+
+    await user.click(screen.getByRole("tab", { name: /实验管理/ }));
+    expect(screen.getByRole("tabpanel", { name: /实验管理/ })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "实验开放管理" })).toBeInTheDocument();
+
+    // calculator is open -> 隐藏; cpu is hidden -> 恢复开放
+    const hideButtons = screen.getAllByRole("button", { name: "隐藏" });
+    await user.click(hideButtons[0]);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/labs/calculator/visibility",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ hidden: true }) }),
+      ),
+    );
+
+    await user.click(screen.getByRole("button", { name: "恢复开放" }));
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/labs/cpu/visibility",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ hidden: false }) }),
+      ),
+    );
   });
 });

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
@@ -57,6 +58,7 @@ export function ImageSamplingLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/image-sampling" });
   const search = useSearch({ strict: false }) as Record<string, unknown>;
   const { status, role } = useAuth();
+  const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionSamplingLesson, undefined, () =>
     createSamplingLessonState(1),
   );
@@ -148,7 +150,14 @@ export function ImageSamplingLabPage() {
   const previewHeight = stage?.mode === "square" ? previewWidth : (draft.height ?? 8);
 
   return (
-    <LabAccessGate adminPreview classId={classId} labName="空间采样" role={role} status={status}>
+    <LabAccessGate
+      adminPreview
+      classId={classId}
+      hidden={catalog?.get("image-sampling")?.hidden === true}
+      labName="空间采样"
+      role={role}
+      status={status}
+    >
       <AppPageLayout
         className="sampling-lab"
         topbar={<SaveIndicator status={state.saveStatus} />}

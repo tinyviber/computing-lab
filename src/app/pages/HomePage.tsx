@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
+import { useLabCatalog } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
@@ -144,24 +145,34 @@ function StageProgress({ currentStage, total }: { currentStage: number; total: n
 }
 
 function ClassroomHome() {
-  const { primaryMembership, role } = useAuth();
+  const { status, primaryMembership, role } = useAuth();
+  const catalog = useLabCatalog(status === "authenticated");
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
+  const isAdmin = role === "admin";
+  // Hidden labs drop off every non-admin surface; admins still see the
+  // cards (badged) so they can preview and reopen them.
+  const hiddenOf = (labId: string) => catalog?.get(labId)?.hidden === true;
+  const cardVisible = (labId: string) => isAdmin || !hiddenOf(labId);
 
   const [cpuProject, setCpuProject] = useState<ProjectSummary | null>(null);
 
   useEffect(() => {
-    if (!classId || isStaff) return;
-    void api
-      .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
-      .then(setProject)
-      .catch(() => setProject(null));
-    void api
-      .get<ProjectSummary>(`/api/classes/${classId}/labs/cpu/project`)
-      .then(setCpuProject)
-      .catch(() => setCpuProject(null));
-  }, [classId, isStaff]);
+    if (!classId || isStaff || catalog === null) return;
+    if (!hiddenOf("calculator")) {
+      void api
+        .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
+        .then(setProject)
+        .catch(() => setProject(null));
+    }
+    if (!hiddenOf("cpu")) {
+      void api
+        .get<ProjectSummary>(`/api/classes/${classId}/labs/cpu/project`)
+        .then(setCpuProject)
+        .catch(() => setCpuProject(null));
+    }
+  }, [classId, isStaff, catalog]);
 
   return (
     <AppPageLayout className="home-page" topbarProps={{ showHomeLink: false }}>
@@ -184,44 +195,56 @@ function ClassroomHome() {
           </div>
 
           <div className={`lab-card-grid${role === "admin" ? " is-admin-preview" : ""}`}>
-            <article className="lab-card is-primary">
-              <div className="lab-card-topline">
-                <span className="category-label">Lab 01</span>
-              </div>
-              <h4>实现ALU</h4>
-              <p>从半加器到完整计算器：用逻辑门逐关搭出运算电路。</p>
-              {!isStaff && project ? (
-                <StageProgress currentStage={project.currentStage} total={coreStages().length} />
-              ) : null}
-              {classId ? (
-                <Link className="button button-primary" to="/labs/calculator">
-                  {project && project.currentStage > 1 ? "继续" : "开始"}
-                </Link>
-              ) : null}
-            </article>
-            <article className="lab-card">
-              <div className="lab-card-topline">
-                <span className="category-label">Lab 02</span>
-              </div>
-              <h4>冯诺依曼数据通路</h4>
-              <p>写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。</p>
-              {!isStaff && cpuProject ? (
-                <StageProgress
-                  currentStage={cpuProject.currentStage}
-                  total={CPU_CORE_STAGES.length}
-                />
-              ) : null}
-              {classId ? (
-                <Link className="button button-primary" to="/labs/cpu">
-                  {cpuProject && cpuProject.currentStage > 1 ? "继续" : "开始"}
-                </Link>
-              ) : null}
-            </article>
+            {cardVisible("calculator") ? (
+              <article className="lab-card is-primary">
+                <div className="lab-card-topline">
+                  <span className="category-label">
+                    Lab 01{isAdmin && hiddenOf("calculator") ? " · 已隐藏" : ""}
+                  </span>
+                </div>
+                <h4>实现ALU</h4>
+                <p>从半加器到完整计算器：用逻辑门逐关搭出运算电路。</p>
+                {!isStaff && project ? (
+                  <StageProgress currentStage={project.currentStage} total={coreStages().length} />
+                ) : null}
+                {classId ? (
+                  <Link className="button button-primary" to="/labs/calculator">
+                    {project && project.currentStage > 1 ? "继续" : "开始"}
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
+            {cardVisible("cpu") ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
+                  <span className="category-label">
+                    Lab 02{isAdmin && hiddenOf("cpu") ? " · 已隐藏" : ""}
+                  </span>
+                </div>
+                <h4>冯诺依曼数据通路</h4>
+                <p>
+                  写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。
+                </p>
+                {!isStaff && cpuProject ? (
+                  <StageProgress
+                    currentStage={cpuProject.currentStage}
+                    total={CPU_CORE_STAGES.length}
+                  />
+                ) : null}
+                {classId ? (
+                  <Link className="button button-primary" to="/labs/cpu">
+                    {cpuProject && cpuProject.currentStage > 1 ? "继续" : "开始"}
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
             {role === "admin"
               ? ADMIN_PREVIEW_LABS.map((lab, index) => (
                   <article className="lab-card" key={lab.id}>
                     <div className="lab-card-topline">
-                      <span className="category-label">Lab 0{index + 2} · 管理员预览</span>
+                      <span className="category-label">
+                        Lab 0{index + 2} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
+                      </span>
                     </div>
                     <h4>{lab.title}</h4>
                     <p>{lab.description}</p>
@@ -236,6 +259,9 @@ function ClassroomHome() {
                 ))
               : null}
           </div>
+          {!cardVisible("calculator") && !cardVisible("cpu") && role !== "admin" ? (
+            <p className="home-empty">当前没有开放的实验，等管理员开放后再来。</p>
+          ) : null}
         </section>
 
         {classId && !isStaff ? <StudentTasks classId={classId} /> : null}

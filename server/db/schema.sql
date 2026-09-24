@@ -115,6 +115,14 @@ CREATE TABLE IF NOT EXISTS task_responses (
   UNIQUE (assignment_id, user_id)
 );
 
+-- Per-lab visibility switch, toggled by admins. A missing row means the
+-- lab is open; hidden = 1 makes it admin-only until it is reopened.
+CREATE TABLE IF NOT EXISTS lab_settings (
+  lab_id     TEXT PRIMARY KEY,
+  hidden     INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_submissions_project_stage ON submissions (project_id, stage_index);
 CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions (user_id, lab_id);
 -- Dashboard lookup: latest submission per (user, lab, stage).

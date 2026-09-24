@@ -16,6 +16,7 @@ import {
   type Membership,
 } from "../http/context.ts";
 import { getOrCreateProject, type LabJudgeError, type ProjectRow } from "../judge/pipeline.ts";
+import { isLabHidden } from "../labs.ts";
 
 type LabContext = Context<{ Variables: AppVariables }>;
 type LabAuth = { user: SessionUser; membership: Membership };
@@ -49,6 +50,10 @@ export function labRoutes<TDraft, TOutcome extends object>(
   const requireAccess = (c: LabContext): LabAuth | GuardFailure => {
     const auth = requireMembership(c);
     if ("error" in auth) return auth;
+    // Hidden labs are admin-only until an admin reopens them.
+    if (auth.user.role !== "admin" && isLabHidden(c.get("db"), spec.labId)) {
+      return { error: "lab-not-available", status: 403 };
+    }
     if (spec.adminPreview && auth.user.role === "teacher") {
       return { error: "lab-not-available", status: 403 };
     }

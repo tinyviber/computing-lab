@@ -7,6 +7,7 @@ import { CPU_STAGES } from "../../features/cpu";
 import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
+import { useLabCatalog } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
@@ -123,7 +124,11 @@ export function TeacherDashboardPage() {
   const isAdmin = role === "admin";
 
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
-  const labOptions = LAB_OPTIONS.filter((l) => l.teacherVisible || isAdmin);
+  const catalog = useLabCatalog(status === "authenticated");
+  // Hidden labs drop off teacher surfaces too; admins keep full access.
+  const labOptions = LAB_OPTIONS.filter(
+    (l) => (l.teacherVisible || isAdmin) && (isAdmin || catalog?.get(l.id)?.hidden !== true),
+  );
   const lab = labOptions.find((l) => l.id === search.lab) ?? labOptions[0] ?? LAB_OPTIONS[0];
   const assignment = assignments.find((a) => a.id === search.assignment) ?? assignments[0] ?? null;
 

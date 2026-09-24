@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { jsonError, requireMembership, type AppVariables } from "../http/context.ts";
 import { parseJsonColumn } from "../db/client.ts";
-import { labInfo } from "../labs.ts";
+import { isLabHidden, labInfo } from "../labs.ts";
 
 type MatrixCell = {
   stageIndex: number;
@@ -35,10 +35,11 @@ export function dashboardRoutes() {
     const labId = c.req.query("lab") ?? DEFAULT_LAB_ID;
     const lab = labInfo(labId);
     if (!lab) return jsonError(c, 404, "unknown-lab");
-    if (!lab.teacherVisible && auth.user.role === "teacher") {
+    const db = c.get("db");
+    // Hidden and preview labs stay admin-only on teacher surfaces.
+    if ((isLabHidden(db, labId) || !lab.teacherVisible) && auth.user.role !== "admin") {
       return jsonError(c, 403, "lab-not-available");
     }
-    const db = c.get("db");
     const classId = auth.membership.classId;
 
     const students = db

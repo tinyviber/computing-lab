@@ -130,6 +130,11 @@
   text-align: center;
 }
 
+.home-empty {
+  color: var(--muted);
+  font-size: 14px;
+}
+
 .lab-card.is-primary {
   border-color: #bfc2ff;
 }
