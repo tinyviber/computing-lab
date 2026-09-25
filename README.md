@@ -28,19 +28,23 @@ bun run dev
 
 ## 质量门槛
 
+交接前运行：
+
 ```sh
 bun run format:check
 bun run lint
 bun run typecheck
 bun run test:run
 bun run build
-bun run test:e2e
 ```
 
 `typecheck` 会分别检查前端、Node API 和构建/测试配置；不要用根目录的空
 project-reference 配置替代这三个检查。
 
-`test:e2e` 需要本机或 CI 已安装 Playwright 浏览器。部署相关检查按需运行：
+实现过程中先运行与改动相关的测试和静态检查。涉及浏览器路由、认证、API/持久化
+边界或完整用户流程时，在 build 后运行一个相关 Playwright spec；完整的
+`bun run test:e2e` 留给 CI、发布验证或明确要求。E2E 需要可用的 Playwright 浏览器。
+部署相关检查按需运行：
 
 ```sh
 bun run test:deploy
