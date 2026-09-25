@@ -1,0 +1,541 @@
+/* Network lab: canvas + trace player + panels. `net-` prefix keeps feature CSS scoped. */
+
+.net-layout {
+  align-items: start;
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.net-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.net-task {
+  margin-block: var(--space-2);
+}
+
+.net-rail-count {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.net-rail-challenges {
+  margin-top: var(--space-4);
+}
+
+.net-rail-group {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: var(--space-2);
+}
+
+/* ---- canvas ---- */
+
+.net-board {
+  background: var(--canvas);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  overflow: auto;
+  position: relative;
+}
+
+.net-links {
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.net-link {
+  opacity: 0.75;
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.net-link.is-used {
+  opacity: 1;
+  stroke: var(--success);
+  stroke-width: 3;
+}
+
+.net-link-label {
+  fill: var(--muted);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+.net-node {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  min-height: 148px;
+  padding: var(--space-2) var(--space-3);
+  position: absolute;
+  width: 160px;
+}
+
+.net-node.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.net-node.is-active {
+  border-color: var(--success);
+}
+
+.net-node.is-wire-target {
+  border-color: var(--accent);
+}
+
+.net-node-head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-1);
+  justify-content: space-between;
+}
+
+.net-node-kind {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.net-node-id {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.net-node-label {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 2px 0 var(--space-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-ifaces {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.net-ifaces-switch .net-iface {
+  font-size: 10px;
+  padding: 0 5px;
+}
+
+.net-iface {
+  background: var(--subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  color: var(--secondary);
+  font-size: 11px;
+  padding: 1px var(--space-2);
+  white-space: nowrap;
+}
+
+.net-iface.is-wired {
+  border-color: var(--accent);
+  color: var(--primary);
+}
+
+.net-iface.is-armed {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--surface);
+}
+
+.net-iface.is-open {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.net-node-addrs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: var(--space-1);
+}
+
+.net-node-addrs code {
+  color: var(--muted);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-wiring-hint {
+  color: var(--accent);
+  font-size: 13px;
+  margin: var(--space-2) 0 0;
+}
+
+.net-wiring-hint.is-muted {
+  color: var(--muted);
+}
+
+.net-cancel-wire {
+  margin-top: var(--space-2);
+}
+
+/* ---- inspector ---- */
+
+.net-edit-grid {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.net-inspector {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.net-inspector-head {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+}
+
+.net-inspector-head code {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.net-inspector-empty,
+.net-inspector-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.net-field {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  gap: 4px;
+}
+
+.net-field input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  padding: 4px var(--space-2);
+}
+
+.net-field input:focus {
+  border-color: var(--accent-soft);
+  outline: none;
+}
+
+.net-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2);
+}
+
+.net-fieldset legend {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 0 var(--space-1);
+}
+
+.net-fieldset:disabled {
+  opacity: 0.7;
+}
+
+.net-addr-inputs,
+.net-route-row {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+}
+
+.net-addr-inputs input,
+.net-route-row input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  min-width: 0;
+  padding: 3px var(--space-2);
+  width: 100%;
+}
+
+.net-prefix {
+  max-width: 56px;
+}
+
+.net-mactable {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 11px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.net-mactable code {
+  color: var(--secondary);
+}
+
+/* ---- player / trace ---- */
+
+.net-player {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.net-player-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.net-player-buttons {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.net-case-picker {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: var(--space-2);
+}
+
+.net-case-picker select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 13px;
+  padding: 4px var(--space-2);
+}
+
+.net-step-count {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.net-outcome {
+  font-size: 13px;
+}
+
+.net-outcome.is-ok {
+  color: var(--success);
+}
+
+.net-outcome.is-bad {
+  color: var(--danger);
+}
+
+.net-timeline {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  max-height: 320px;
+  overflow: auto;
+}
+
+.net-timeline-head {
+  background: var(--subtle);
+  color: var(--muted);
+  display: grid;
+  font-size: 11px;
+  gap: var(--space-3);
+  grid-template-columns: 36px 110px 76px 1fr;
+  padding: var(--space-1) var(--space-3);
+  position: sticky;
+  top: 0;
+}
+
+.net-timeline-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.net-row {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--primary);
+  display: grid;
+  font-size: 13px;
+  gap: var(--space-3);
+  grid-template-columns: 36px 110px 76px 1fr;
+  padding: var(--space-1) var(--space-3);
+  text-align: left;
+  width: 100%;
+}
+
+.net-row:hover {
+  background: var(--subtle);
+}
+
+.net-row.is-current {
+  background: var(--accent-soft);
+}
+
+.net-row.is-row-drop {
+  color: var(--danger);
+}
+
+.net-row.is-row-done {
+  color: var(--success);
+}
+
+.net-row.is-row-stim .net-action {
+  color: var(--accent);
+}
+
+.net-step {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.net-node-col {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-node-col small {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.net-action {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-note {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.net-timeline-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ---- contract issues ---- */
+
+.net-issues {
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-panel);
+  color: var(--danger);
+  font-size: 13px;
+  padding: var(--space-2) var(--space-3);
+}
+
+.net-issues ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-4);
+}
+
+/* ---- test panel ---- */
+
+.net-tests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.net-test-block h4 {
+  margin: 0 0 var(--space-2);
+}
+
+.net-test-list,
+.net-test-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.net-test-categories {
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.net-test-list li,
+.net-test-categories li {
+  border-radius: var(--radius-control);
+  display: flex;
+  font-size: 13px;
+  gap: var(--space-2);
+  padding: 2px var(--space-2);
+}
+
+.net-test-list li.is-pass,
+.net-test-categories li.is-pass {
+  color: var(--success);
+}
+
+.net-test-list li.is-fail,
+.net-test-categories li.is-fail {
+  color: var(--danger);
+}
+
+.net-test-detail {
+  color: var(--muted);
+}
+
+.net-test-error {
+  color: var(--danger);
+  font-size: 13px;
+  margin: 0 0 var(--space-2);
+}
+
+.net-test-counterexample {
+  background: var(--subtle);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-panel);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+}
+
+.net-test-counterexample p {
+  margin: 0 0 var(--space-2);
+}
+
+.net-test-replay {
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .net-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .net-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}

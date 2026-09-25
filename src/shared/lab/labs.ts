@@ -17,6 +17,7 @@ export const LAB_TITLES: Record<string, string> = {
   "image-sampling": "空间采样",
   "color-quantization": "颜色量化",
   "is-sim": "小型信息系统",
+  network: "网络寻径",
 };
 
 /**
