@@ -1,9 +1,9 @@
 # computing-lab
 
 校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API。已开放的实验是
-「实现ALU」（`calculator`）；「空间采样」（`image-sampling`）与「颜色量化」
-（`color-quantization`）处于管理员预览阶段。另有任务单功能（模板 → 班级布置 →
-学生作答 → 批改）。
+「实现ALU」（`calculator`）和「冯诺依曼数据通路」（`cpu`）；「空间采样」
+（`image-sampling`）与「颜色量化」（`color-quantization`）处于管理员预览阶段。
+另有任务单功能（模板 → 班级布置 → 学生作答 → 批改）。
 
 ## 本地开发
 
@@ -53,7 +53,7 @@ bun run test:caddy
   `src/features/<lab>/{domain,lesson,ui}` 内闭合，任务单在
   `src/features/task-sheets` 内闭合。
 - `server/` 是 Node ≥22.13 单进程，负责认证、草稿、判题和班级看板；隐藏用例只在
-  `server/`；三个实验的 project/draft/judge 走 `server/routes/labRoutes.ts`
+  `server/`；各实验的 project/draft/judge 走 `server/routes/labRoutes.ts`
   的共用薄管线，判题协议类型由 `src/features/<lab>/domain` 共享给服务端。
 - `src/shared/{auth,api,layout,lab}` 只保留认证、请求、应用顶栏和实验页
   薄封装（加载、自动保存、入口守卫）等仍有真实消费者的基础设施。

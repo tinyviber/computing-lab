@@ -16,7 +16,10 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
+import { CpuRedirectPage } from "./pages/CpuRedirectPage";
+import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
 import { TaskSheetListPage } from "./pages/TaskSheetListPage";
 import { TaskAssignmentPage } from "./pages/TaskAssignmentPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -115,11 +118,54 @@ const colorQuantizationLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+const cpuEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/cpu",
+  component: CpuRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const cpuLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/cpu",
+  validateSearch: passThroughSearch,
+  component: lazyRouteComponent(() => import("../features/cpu"), "CpuLabPage"),
+  errorComponent: LabErrorPage,
+});
+
+const isSimEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/is-sim",
+  component: IsSimRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const isSimLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/is-sim",
+  validateSearch: passThroughSearch,
+  component: lazyRouteComponent(() => import("../features/is-sim"), "IsLabPage"),
+  errorComponent: LabErrorPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/dashboard",
   validateSearch: passThroughSearch,
   component: TeacherDashboardPage,
+  errorComponent: LabErrorPage,
+});
+
+/**
+ * Admin-only replay of a student's calculator lab — deliberately separate
+ * from the student's own /classes/$classId/labs/calculator route so a
+ * preview URL can never be mistaken for (or overwrite) the real thing.
+ */
+const studentLabPreviewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/students/$userId/labs/calculator",
+  validateSearch: passThroughSearch,
+  component: StudentLabPreviewPage,
   errorComponent: LabErrorPage,
 });
 
@@ -156,7 +202,12 @@ const routeTree = rootRoute.addChildren([
   imageSamplingLabRoute,
   colorQuantizationEntryRoute,
   colorQuantizationLabRoute,
+  cpuEntryRoute,
+  cpuLabRoute,
+  isSimEntryRoute,
+  isSimLabRoute,
   dashboardRoute,
+  studentLabPreviewRoute,
   taskSheetListRoute,
   taskSheetEditorRoute,
   taskAssignmentRoute,

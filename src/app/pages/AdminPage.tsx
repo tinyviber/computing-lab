@@ -2,6 +2,7 @@ import { Navigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth, type AccountRole } from "../../shared/auth";
+import { LAB_TITLES, type LabVisibility } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { CreateAccountForm, CreateClassForm, ImportPanel } from "./AdminForms";
@@ -36,7 +37,7 @@ type UsersPayload = { users: AdminUser[]; total: number; page: number; pageSize:
 
 const PAGE_SIZE = 50;
 
-type AdminTab = "accounts" | "classes";
+type AdminTab = "accounts" | "classes" | "labs";
 
 type DeleteTarget = {
   label: string;
@@ -58,6 +59,7 @@ export function AdminPage() {
   const [jumpPage, setJumpPage] = useState("1");
   const [total, setTotal] = useState(0);
   const [activeTab, setActiveTab] = useState<AdminTab>("accounts");
+  const [labs, setLabs] = useState<LabVisibility[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const reload = useCallback(() => {
@@ -66,6 +68,10 @@ export function AdminPage() {
     void api
       .get<{ classes: AdminClass[] }>("/api/admin/classes")
       .then((payload) => setClasses(payload.classes))
+      .catch((caught) => setError(describeApiError(caught)));
+    void api
+      .get<{ labs: LabVisibility[] }>("/api/labs")
+      .then((payload) => setLabs(payload.labs))
       .catch((caught) => setError(describeApiError(caught)));
     void api
       .get<UsersPayload>(`/api/admin/users?${query.toString()}`)
@@ -218,6 +224,18 @@ export function AdminPage() {
           >
             班级管理
             <span>班级、邀请码和成员数</span>
+          </button>
+          <button
+            aria-controls="admin-labs-panel"
+            aria-selected={activeTab === "labs"}
+            className={`admin-tab${activeTab === "labs" ? " is-active" : ""}`}
+            id="admin-labs-tab"
+            onClick={() => setActiveTab("labs")}
+            role="tab"
+            type="button"
+          >
+            实验管理
+            <span>实验的开放与隐藏</span>
           </button>
         </div>
 
@@ -557,6 +575,75 @@ export function AdminPage() {
                 {classes.length === 0 ? (
                   <tr>
                     <td colSpan={4}>还没有班级。</td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </section>
+        </div>
+
+        <div
+          aria-labelledby="admin-labs-tab"
+          className={`admin-grid admin-grid-single${activeTab === "labs" ? "" : " is-hidden"}`}
+          hidden={activeTab !== "labs"}
+          id="admin-labs-panel"
+          role="tabpanel"
+        >
+          <section className="profile-card" aria-labelledby="labs-title">
+            <div className="profile-card-heading">
+              <p className="eyebrow">LABS</p>
+              <h2 id="labs-title">实验开放管理</h2>
+            </div>
+            <p className="admin-labs-hint">
+              隐藏的实验对学生和教师不可见：首页卡片、入口链接、实验接口和教师看板都会关闭，
+              管理员仍可预览。重新开放后恢复如常。
+            </p>
+            <table className="admin-table">
+              <thead>
+                <tr>
+                  <th scope="col">实验</th>
+                  <th scope="col">关卡数</th>
+                  <th scope="col">开放范围</th>
+                  <th scope="col">状态</th>
+                  <th scope="col">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {labs.map((lab) => (
+                  <tr key={lab.id}>
+                    <td>
+                      {LAB_TITLES[lab.id] ?? lab.id}
+                      <span className="admin-lab-id">{lab.id}</span>
+                    </td>
+                    <td>{lab.stageCount}</td>
+                    <td>{lab.teacherVisible ? "全部成员" : "仅管理员预览"}</td>
+                    <td>
+                      <span className={`admin-lab-state${lab.hidden ? " is-hidden" : ""}`}>
+                        {lab.hidden ? "已隐藏" : "开放中"}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        className="button button-ghost admin-inline-button"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(() =>
+                            api.put(`/api/admin/labs/${lab.id}/visibility`, {
+                              hidden: !lab.hidden,
+                            }),
+                          )
+                        }
+                        title={lab.hidden ? "重新对学生和教师开放" : "对学生和教师隐藏"}
+                        type="button"
+                      >
+                        {lab.hidden ? "恢复开放" : "隐藏"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {labs.length === 0 ? (
+                  <tr>
+                    <td colSpan={5}>还没有实验。</td>
                   </tr>
                 ) : null}
               </tbody>

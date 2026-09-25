@@ -32,6 +32,9 @@ import { taskSheetRoutes } from "./routes/taskSheets.ts";
 import { taskAssignmentRoutes } from "./routes/taskAssignments.ts";
 import { imageSamplingRoutes } from "./routes/imageSampling.ts";
 import { colorQuantizationRoutes } from "./routes/colorQuantization.ts";
+import { cpuRoutes } from "./routes/cpu.ts";
+import { isSimRoutes } from "./routes/isSim.ts";
+import { labsRoutes } from "./routes/labs.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const distRoot = resolve(here, "../dist");
@@ -84,6 +87,9 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/classes/:classId/labs/calculator", calculatorRoutes());
   app.route("/api/classes/:classId/labs/image-sampling", imageSamplingRoutes());
   app.route("/api/classes/:classId/labs/color-quantization", colorQuantizationRoutes());
+  app.route("/api/classes/:classId/labs/cpu", cpuRoutes());
+  app.route("/api/classes/:classId/labs/is-sim", isSimRoutes());
+  app.route("/api/labs", labsRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
   app.route("/api/task-sheets", taskSheetRoutes());
   app.route("/api/classes/:classId/task-assignments", taskAssignmentRoutes());

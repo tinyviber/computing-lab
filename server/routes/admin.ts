@@ -4,7 +4,7 @@ import { MAX_PASSWORD_LENGTH, hashPassword, minPasswordLength } from "../auth/pa
 import type { AccountRole } from "../auth/session.ts";
 import { newId, withTransaction } from "../db/client.ts";
 import { jsonError, requireAdmin, type AppVariables } from "../http/context.ts";
-import { labInfo } from "../labs.ts";
+import { labInfo, setLabHidden } from "../labs.ts";
 
 const STUDENT_NO = /^[A-Za-z0-9_-]{2,32}$/;
 /** CSV/表格里常见的中文写法也接受。 */
@@ -466,6 +466,20 @@ export function adminRoutes() {
     return c.json({ cleared });
   });
 
+  // Hide or reopen a lab. Hidden labs stay reachable for admins (preview +
+  // this toggle) but drop out of the student/teacher home cards, entry
+  // redirects, lab APIs, and dashboards.
+  app.put("/labs/:labId/visibility", async (c) => {
+    const labId = c.req.param("labId");
+    if (!labInfo(labId)) return jsonError(c, 404, "unknown-lab");
+    const body = await c.req.json().catch(() => null);
+    const hidden =
+      body && typeof body === "object" ? (body as Record<string, unknown>).hidden : undefined;
+    if (typeof hidden !== "boolean") return jsonError(c, 400, "invalid-body");
+    setLabHidden(c.get("db"), labId, hidden);
+    return c.json({ lab: { id: labId, hidden } });
+  });
+
   app.get("/classes", (c) => {
     const classes = c
       .get("db")
@@ -592,11 +606,19 @@ export function adminRoutes() {
     const project = db
       .prepare(
         `SELECT unlocked_submodules AS submodules, draft_graph AS draftGraph,
+                current_stage AS currentStage, passed_stages AS passedStages,
                 updated_at AS updatedAt
          FROM student_projects WHERE user_id = ? AND lab_id = ?`,
       )
       .get(userId, labId) as
-      { submodules: string; draftGraph: string; updatedAt: string } | undefined;
+      | {
+          submodules: string;
+          draftGraph: string;
+          currentStage: number;
+          passedStages: string;
+          updatedAt: string;
+        }
+      | undefined;
     const components = project ? JSON.parse(project.submodules) : [];
     const wrap = (raw: unknown) =>
       labId === "calculator" ? { kind: "circuit", graph: raw } : { kind: "raw", data: raw };
@@ -623,6 +645,10 @@ export function adminRoutes() {
         labId,
         revision,
         updatedAt: project?.updatedAt ?? null,
+        // Student-shaped progress so an admin preview can replay their
+        // unlock state, not just the raw canvas payloads.
+        currentStage: project?.currentStage ?? 1,
+        passedStages: project ? JSON.parse(project.passedStages) : [],
         drafts: Object.fromEntries(
           Object.keys(drafts).map((stage) => [stage, wrap(drafts[stage])]),
         ),

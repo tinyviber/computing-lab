@@ -32,11 +32,12 @@
 
 .matrix-scroll {
   max-width: 100%;
-  overflow-x: auto;
+  max-height: 70vh;
+  overflow: auto;
   border: 1px solid var(--border);
   border-radius: var(--radius-panel);
   background: var(--surface);
-  overscroll-behavior-x: contain;
+  overscroll-behavior: contain;
   scrollbar-color: var(--accent) var(--subtle);
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
@@ -57,6 +58,10 @@
 }
 
 .matrix-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
   color: var(--muted);
   font-family: "SFMono-Regular", Consolas, monospace;
   font-size: 10px;
@@ -78,6 +83,18 @@
 .cell-pass {
   color: var(--success);
   font-weight: 700;
+}
+
+button.cell-pass {
+  padding: 2px 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: transparent;
+  cursor: pointer;
+}
+
+button.cell-pass:hover {
+  border-color: var(--success);
 }
 
 .cell-empty {
@@ -196,43 +213,9 @@
   font-size: 11px;
 }
 
-/* Student canvas drawer (admin forensics) */
 .matrix-row-actions {
   display: flex;
   gap: 8px;
-}
-
-.drawer-canvas {
-  width: min(920px, 96vw);
-}
-
-.canvas-drawer-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.canvas-drawer-scroll {
-  max-height: 62vh;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--subtle);
-  overflow: auto;
-}
-
-.canvas-drawer-scroll .circuit-canvas-wrap {
-  margin: 0;
-}
-
-.canvas-drawer-raw {
-  max-height: 62vh;
-  margin: 0;
-  padding: 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-panel);
-  background: var(--subtle);
-  font-size: 11px;
-  overflow: auto;
 }
 
 @media (max-width: 760px) {

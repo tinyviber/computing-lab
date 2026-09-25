@@ -86,8 +86,15 @@ export type CalculatorLessonAction =
       passedStages: number[];
       unlockedSubmodules: ComponentDef[];
       drafts: Record<number, CircuitGraph>;
+      /** Stage the URL asked to reopen; falls back when absent or still locked. */
+      stageIndex?: number;
     }
-  | { type: "select-stage"; stageIndex: number }
+  | {
+      type: "select-stage";
+      stageIndex: number;
+      /** Admin preview only: open a stage regardless of the student's unlock path. */
+      force?: boolean;
+    }
   | { type: "undo" }
   | { type: "start-node-move"; id: string }
   | { type: "finish-node-move" }
@@ -554,7 +561,14 @@ export function transitionCalculatorLesson(
       for (const [key, graph] of Object.entries(action.drafts)) {
         drafts[Number(key)] = graph;
       }
-      const stageIndex = Math.min(state.stageIndex, action.currentStage);
+      const requested = action.stageIndex ?? state.stageIndex;
+      const requestedStage = getStage(requested);
+      const requestedUnlocked =
+        requestedStage !== undefined &&
+        stagePrerequisites(requestedStage).every((index) => action.passedStages.includes(index));
+      const stageIndex = requestedUnlocked
+        ? requested
+        : Math.min(state.stageIndex, action.currentStage);
       drafts[stageIndex] = withScaffold(drafts[stageIndex] ?? emptyGraph(), stageIndex);
       return {
         ...state,
@@ -572,7 +586,7 @@ export function transitionCalculatorLesson(
     }
 
     case "select-stage": {
-      if (!isStageUnlocked(state, action.stageIndex)) return state;
+      if (!action.force && !isStageUnlocked(state, action.stageIndex)) return state;
       const existing = state.drafts[action.stageIndex];
       return {
         ...state,
