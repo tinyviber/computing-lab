@@ -3,7 +3,7 @@ import type { RegPair } from "../domain/machine.ts";
 
 const toBin = (value: number, width: number) => value.toString(2).padStart(width, "0");
 
-function RegCard(props: {
+function RegChip(props: {
   name: string;
   bits: number;
   value: number;
@@ -30,9 +30,13 @@ function RegCard(props: {
 }
 
 /**
- * The four registers. IR shows its bit-field split `[op 3b | reg 1b |
- * operand 4b]` plus the decoded mnemonic — the "decode" step made visible.
- * The carry lamp lights when the last ADD/SUB spilled past 4 bits.
+ * One flattened strip — `A=5 B=0 PC=3 IR=E0 灯●` — so the program /
+ * registers / memory trio shares one row height in the viz grid and a
+ * single viewport carries all the step evidence.
+ *
+ * IR still shows its bit-field split `[op 3b | reg 1b | operand 4b]` plus
+ * the decoded mnemonic — the "decode" step made visible — and the carry
+ * lamp lights when the last ADD/SUB spilled past 4 bits.
  *
  * Phase-aware (issue #70 §5.5): during fetch the pending byte is in
  * transit to IR (ghosted); decode highlights the field split; exec shows
@@ -64,24 +68,24 @@ export function RegistersPanel(props: {
     <section aria-label="寄存器" className="cpu-registers">
       <div className="cpu-panel-heading">
         <h3>寄存器</h3>
-        <p className="cpu-panel-note">十进制为主，悬停看二进制。变动的那一格会高亮。</p>
+        <p className="cpu-panel-note">十进制为主，悬停看二进制。</p>
       </div>
       <div className="cpu-reg-grid">
-        <RegCard
+        <RegChip
           bits={4}
           changed={prevRegs !== null && regs.A !== prevRegs.A}
           name="A"
           next={nextRegs && nextRegs.A !== regs.A ? nextRegs.A : null}
           value={regs.A}
         />
-        <RegCard
+        <RegChip
           bits={4}
           changed={prevRegs !== null && regs.B !== prevRegs.B}
           name="B"
           next={nextRegs && nextRegs.B !== regs.B ? nextRegs.B : null}
           value={regs.B}
         />
-        <RegCard
+        <RegChip
           bits={4}
           changed={prevPc !== null && pc !== prevPc}
           extra={<span className="cpu-reg-sub">下一条取指</span>}
@@ -97,15 +101,17 @@ export function RegistersPanel(props: {
             </span>
           ) : (
             <>
-              <span className="cpu-ir-fields" title={`编码 ${toBin(ir, 8)}`}>
-                <code className="cpu-ir-op">{toBin(ir, 8).slice(0, 3)}</code>
-                <code className="cpu-ir-reg">{toBin(ir, 8).slice(3, 4)}</code>
-                <code className="cpu-ir-operand">{toBin(ir, 8).slice(4)}</code>
-              </span>
-              <span className="cpu-ir-legend">
-                <span>指令</span>
-                <span>寄存器</span>
-                <span>操作数</span>
+              <span className="cpu-ir-fieldset">
+                <span className="cpu-ir-fields" title={`编码 ${toBin(ir, 8)}`}>
+                  <code className="cpu-ir-op">{toBin(ir, 8).slice(0, 3)}</code>
+                  <code className="cpu-ir-reg">{toBin(ir, 8).slice(3, 4)}</code>
+                  <code className="cpu-ir-operand">{toBin(ir, 8).slice(4)}</code>
+                </span>
+                <span className="cpu-ir-legend">
+                  <span>指令</span>
+                  <span>寄存器</span>
+                  <span>操作数</span>
+                </span>
               </span>
               <code className="cpu-reg-sub">{formatInstr(decoded)}</code>
             </>
