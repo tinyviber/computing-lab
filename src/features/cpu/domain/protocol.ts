@@ -15,6 +15,13 @@ export type CpuDraft = { rows: InstrRow[] };
 export type CpuSubmission = {
   stageIndex: number;
   draft: CpuDraft;
+  /**
+   * Guided stages: promptId → the option index the learner picked. The
+   * server re-checks every pick against the stage's prompts — passing a
+   * guided stage means submitting a complete, all-correct answer set,
+   * not just a program.
+   */
+  guidedAnswers?: Record<string, number>;
 };
 
 export type CpuCounterexample = {

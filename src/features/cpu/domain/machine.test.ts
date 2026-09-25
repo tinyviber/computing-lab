@@ -105,18 +105,24 @@ describe("machine", () => {
   });
 });
 
-/** Reference solutions — proof every stage is solvable within its budget. */
+/**
+ * Reference solutions — proof every stage is solvable within its budget.
+ * For guided stages this is the program `guidedProgram` produces once the
+ * editable rows are filled correctly.
+ */
 const REFERENCES: Record<number, InstrRow[]> = {
+  // C1 watch-it-go / C2 missing-instruction / C4 byte-decoder: the copy.
   1: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
-  2: [
-    I("ADD", 0, 14),
-    I("STORE", 0, 15),
-    I("LOAD", 0, 13),
-    I("SUB", 0, 14),
-    I("STORE", 0, 12),
-    I("HALT"),
-  ],
-  3: [
+  2: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
+  // C3 alu-inside: the editable row is ADD.
+  3: [I("ADD", 0, 14), I("HALT")],
+  4: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
+  // C5 branch-is-data: JZ target corrected to 4.
+  5: [I("JZ", 0, 4), I("LDI", 1, 1), I("STORE", 1, 15), I("HALT"), I("STORE", 1, 15), I("HALT")],
+  // C6 branch-back: JMP target corrected to 0 (the loop's back edge).
+  6: [I("STORE", 1, 14), I("JZ", 1, 4), I("SUB", 1, 15), I("JMP", 0, 0), I("HALT")],
+  // X1 write-an-if.
+  7: [
     I("LOAD", 0, 13),
     I("SUB", 0, 14),
     I("JZ", 0, 6),
@@ -127,7 +133,8 @@ const REFERENCES: Record<number, InstrRow[]> = {
     I("STORE", 1, 15),
     I("HALT"),
   ],
-  4: [
+  // X2 sum-to-n.
+  8: [
     I("LOAD", 0, 14),
     I("JZ", 0, 7),
     I("STORE", 0, 12),
@@ -138,7 +145,8 @@ const REFERENCES: Record<number, InstrRow[]> = {
     I("STORE", 1, 13),
     I("HALT"),
   ],
-  5: [
+  // X2' software-multiply.
+  9: [
     I("LOAD", 0, 14),
     I("JZ", 0, 6),
     I("ADD", 1, 13),
@@ -148,7 +156,8 @@ const REFERENCES: Record<number, InstrRow[]> = {
     I("STORE", 1, 15),
     I("HALT"),
   ],
-  6: [
+  // X3 fewer-cycles.
+  10: [
     I("LOAD", 0, 14),
     I("JZ", 0, 7),
     I("STORE", 0, 12),
@@ -159,7 +168,8 @@ const REFERENCES: Record<number, InstrRow[]> = {
     I("STORE", 1, 13),
     I("HALT"),
   ],
-  7: [I("LOAD", 0, 13), I("ADD", 0, 14), I("STORE", 0, 15), I("STORE", 0, 8), I("JMP", 0, 8)],
+  // X4 self-modify.
+  11: [I("LOAD", 0, 13), I("ADD", 0, 14), I("STORE", 0, 15), I("STORE", 0, 8), I("JMP", 0, 8)],
 };
 
 describe("hidden-case judgement", () => {
@@ -216,7 +226,7 @@ describe("hidden-case judgement", () => {
       expectBranchTaken: true,
       expect: { cycles: 10 },
     };
-    const verdict = judgeCase(REFERENCES[3], testCase, { maxCycles: 10 });
+    const verdict = judgeCase(REFERENCES[7], testCase, { maxCycles: 10 });
     expect(verdict.passed).toBe(false);
     expect(verdict.branchMismatch).toBe(true);
   });
@@ -227,15 +237,17 @@ describe("stage progression", () => {
     expect(cpuStageUnlocked([], 1)).toBe(true);
     expect(cpuStageUnlocked([], 2)).toBe(false);
     expect(cpuStageUnlocked([1], 2)).toBe(true);
-    expect(cpuStageUnlocked([1, 2, 3], 6)).toBe(false);
-    expect(cpuStageUnlocked([1, 2, 3, 4], 6)).toBe(true);
-    expect(cpuStageUnlocked([1, 2, 3, 4, 5], 7)).toBe(true);
+    expect(cpuStageUnlocked([1, 2, 3, 4], 6)).toBe(false);
+    expect(cpuStageUnlocked([1, 2, 3, 4, 5], 6)).toBe(true);
+    // Challenge X1 unlocks on its explicit prerequisite (stage 5), not linearly.
+    expect(cpuStageUnlocked([4], 7)).toBe(false);
+    expect(cpuStageUnlocked([5], 7)).toBe(true);
   });
 
   it("advances to the first unpassed stage then the end marker", () => {
     expect(nextCpuStage([])).toBe(1);
     expect(nextCpuStage([1, 2])).toBe(3);
-    expect(nextCpuStage([1, 2, 3, 4, 5])).toBe(6);
-    expect(nextCpuStage([1, 2, 3, 4, 5, 6, 7])).toBe(8);
+    expect(nextCpuStage([1, 2, 3, 4, 5, 6])).toBe(7);
+    expect(nextCpuStage([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])).toBe(12);
   });
 });

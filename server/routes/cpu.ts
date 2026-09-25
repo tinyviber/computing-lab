@@ -40,7 +40,14 @@ export function cpuRoutes() {
       const key = `${project.userId}|cpu|${stageIndex}`;
       if (judgeLimiter.exceeded(key)) return { error: "rate-limited", status: 429 };
       judgeLimiter.hit(key);
-      return judgeCpuSubmission(db, project, stageIndex, body.draft);
+      const rawAnswers = body.guidedAnswers;
+      const guidedAnswers: Record<string, number> = {};
+      if (rawAnswers && typeof rawAnswers === "object") {
+        for (const [key, value] of Object.entries(rawAnswers as Record<string, unknown>)) {
+          if (typeof value === "number") guidedAnswers[key] = value;
+        }
+      }
+      return judgeCpuSubmission(db, project, stageIndex, body.draft, { guidedAnswers });
     },
   });
 }

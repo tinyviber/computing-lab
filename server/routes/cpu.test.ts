@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
+import { getCpuStage } from "../../src/features/cpu/domain/stages.ts";
 import { hashPassword } from "../auth/password.ts";
 import { createSession } from "../auth/session.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
@@ -46,6 +47,17 @@ const SOLVED_C1 = [
   { op: "STORE", reg: 0, operand: 15 },
   { op: "HALT", reg: 0, operand: 0 },
 ];
+
+/** Every prompt of the stage answered with its correct option index. */
+function guidedAnswersFor(stageIndex: number): Record<string, number> {
+  const stage = getCpuStage(stageIndex)!;
+  return Object.fromEntries(
+    (stage.guided?.prompts ?? []).map((p) => [
+      p.id,
+      p.options.findIndex((o) => o.correct === true),
+    ]),
+  );
+}
 
 const judge = (
   app: Hono<{ Variables: AppVariables }>,
@@ -120,6 +132,7 @@ describe("cpu routes", () => {
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
+      guidedAnswers: guidedAnswersFor(1),
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -131,20 +144,80 @@ describe("cpu routes", () => {
     expect(outcome).toMatchObject({ passed: true, score: outcome.total, currentStage: 2 });
   });
 
+  it("rejects a guided stage until the prompt sequence is complete", async () => {
+    const { app, classId, studentId, cookieFor } = await setup();
+    const res = await judge(app, classId, cookieFor(studentId), {
+      stageIndex: 1,
+      draft: { rows: SOLVED_C1 },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "guided-incomplete" });
+  });
+
+  it("rejects a guided stage when an answer pick is wrong", async () => {
+    const { app, classId, studentId, cookieFor } = await setup();
+    // Every prompt answered — but one pick flipped to a wrong option. The
+    // server re-checks the picks, so a bare complete-looking set fails.
+    const answers = guidedAnswersFor(1);
+    const first = getCpuStage(1)!.guided!.prompts[0];
+    const wrong = first.options.findIndex((o) => o.correct !== true);
+    answers[first.id] = wrong;
+    const res = await judge(app, classId, cookieFor(studentId), {
+      stageIndex: 1,
+      draft: { rows: SOLVED_C1 },
+      guidedAnswers: answers,
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "guided-incomplete" });
+  });
+
+  it("normalizes guided submissions: locked rows in the draft are ignored", async () => {
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    // Creating the project row first so the UPDATE below can see it.
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    // Stage 2 is guided with one editable row (index 1). A hostile draft
+    // mutating the locked LOAD row can't reach the machine — the judge
+    // rebuilds prefill + editable slots.
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1]), studentId, classId);
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 2,
+      draft: {
+        rows: [
+          { op: "HALT", reg: 0, operand: 0 },
+          { op: "STORE", reg: 0, operand: 15 },
+        ],
+      },
+      guidedAnswers: guidedAnswersFor(2),
+    });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as { passed: boolean };
+    expect(outcome.passed).toBe(true);
+  });
+
   it("refuses a locked stage", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 3,
       draft: { rows: SOLVED_C1 },
+      guidedAnswers: guidedAnswersFor(3),
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "stage-locked" });
   });
 
   it("fails an incomplete program without crashing", async () => {
-    const { app, classId, studentId, cookieFor } = await setup();
-    const res = await judge(app, classId, cookieFor(studentId), {
-      stageIndex: 1,
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    // Stage 7 (write-an-if) is a free challenge unlocked after core 5.
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1, 2, 3, 4, 5, 6]), studentId, classId);
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 7,
       draft: { rows: [{ op: "LOAD", reg: 0, operand: 14 }] },
     });
     expect(res.status).toBe(200);
@@ -179,6 +252,7 @@ describe("cpu routes", () => {
       const res = await judge(app, classId, cookie, {
         stageIndex: 1,
         draft: { rows: SOLVED_C1 },
+        guidedAnswers: guidedAnswersFor(1),
       });
       last = res.status;
     }

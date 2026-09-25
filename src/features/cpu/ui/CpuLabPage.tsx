@@ -11,6 +11,7 @@ import { Icon } from "../../../shared/ui/Icon";
 // Cross-feature reuse per issue #58 §6 — do not lift to shared until a third
 // consumer appears. The terms annotator just renders plain text here.
 import { HintDisclosure } from "../../calculator/ui/HintDisclosure";
+import { encodeInstr, opOperandMeaning } from "../domain/isa.ts";
 import { runProgram, type CpuCase, type MachineRun } from "../domain/machine.ts";
 import type {
   CpuCounterexample,
@@ -21,17 +22,25 @@ import type {
 import { seedFor } from "../domain/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
+  answeredPromptIds,
   createCpuLessonState,
+  blankRowSet,
   draftOf,
+  editableRowSet,
+  guidedComplete,
+  nextPrompt,
   programOf,
   stageOf,
   transitionCpuLesson,
   type CpuLessonAction,
 } from "../lesson/state.ts";
 import { publicCasesFor } from "../lesson/publicCases.ts";
-import { BlockDiagram } from "./BlockDiagram.tsx";
+import { BlockDiagram, type CpuPhase } from "./BlockDiagram.tsx";
+import { BytePlayground } from "./BytePlayground.tsx";
 import { CpuStageRail } from "./CpuStageRail.tsx";
 import { CpuTestPanel } from "./CpuTestPanel.tsx";
+import { GuidedPanel } from "./GuidedPanel.tsx";
+import { InstructionShelf } from "./InstructionShelf.tsx";
 import { MemoryGrid } from "./MemoryGrid.tsx";
 import { ProgramEditor } from "./ProgramEditor.tsx";
 import { RegistersPanel } from "./RegistersPanel.tsx";
@@ -69,6 +78,12 @@ function StageBrief({ stage }: { stage: CpuStageDef }) {
   );
 }
 
+const PHASES: { id: CpuPhase; label: string }[] = [
+  { id: "fetch", label: "取指" },
+  { id: "decode", label: "译码" },
+  { id: "exec", label: "执行 · 周期末提交" },
+];
+
 export function CpuLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/cpu" });
   const { status, role, session } = useAuth();
@@ -85,11 +100,16 @@ export function CpuLabPage() {
   // overrides the public-case picker until they pick a public case again.
   const [replayCase, setReplayCase] = useState<CpuCase | null>(null);
   const [cursor, setCursor] = useState(0);
+  // The 3-phase scrub (issue #70 §5.2): a UI-only lens on the pending cycle
+  // — fetch shows PC→mem→IR, decode the IR field split, exec the ghost
+  // values about to commit. All data comes from the same trace row.
+  const [phase, setPhase] = useState<CpuPhase>("fetch");
   const [clock, setClock] = useState<"idle" | "running" | "paused">("idle");
 
   const stage = stageOf(state);
   const draft = draftOf(state);
   const rows = programOf(state);
+  const guided = stage?.guided === undefined ? false : true;
 
   const { loadError } = useLabProject<
     CpuDraft,
@@ -143,18 +163,47 @@ export function CpuLabPage() {
     () => (run ? displayState(run, effectiveCursor) : null),
     [run, effectiveCursor],
   );
+  /** The cycle about to commit — all phase previews read this one row. */
+  const pending = run && effectiveCursor < maxCursor ? run.trace[effectiveCursor] : null;
+  /** Machine state the pending cycle is about to produce (exec ghosts). */
+  const nextDisplay = useMemo(
+    () => (run && pending ? displayState(run, effectiveCursor + 1) : null),
+    [run, pending, effectiveCursor],
+  );
+
+  // Guided prompt gating: the first unanswered `at` prompt whose cycle
+  // threshold has been reached blocks the stepper until answered.
+  const answeredPrompts = useMemo(() => answeredPromptIds(state), [state]);
+  // A prompt that quotes demo data pins the picker to its caseIndex while
+  // unanswered — the question and the machine state can never disagree.
+  const pinnedCaseIndex = nextPrompt(state)?.caseIndex ?? null;
+  const blockingPrompt =
+    stage?.guided?.prompts.find(
+      (p) => !answeredPrompts.has(p.id) && p.at !== undefined && effectiveCursor >= p.at,
+    ) ?? null;
+  const complete = guidedComplete(state);
 
   // A stage switch or case switch restarts the playback.
   useEffect(() => {
     setCaseIndex(0);
     setReplayCase(null);
     setCursor(0);
+    setPhase("fetch");
     setClock("idle");
   }, [state.stageIndex]);
   useEffect(() => {
     setCursor(0);
+    setPhase("fetch");
     setClock("idle");
   }, [caseIndex, replayCase]);
+
+  // While a data-pinned prompt is unanswered the picker follows it — and
+  // switching cases restarts playback, which the effect above handles.
+  useEffect(() => {
+    if (pinnedCaseIndex === null) return;
+    setReplayCase(null);
+    setCaseIndex(pinnedCaseIndex);
+  }, [pinnedCaseIndex]);
 
   // The hidden judge counterexample can be replayed through the same
   // machine view — the run re-executes locally on the student's current
@@ -170,31 +219,59 @@ export function CpuLabPage() {
         expect: { cycles: stage.maxCycles },
       });
       setCursor(0);
+      setPhase("fetch");
       setClock("idle");
     },
     [stage],
   );
 
-  // 2 Hz clock: each tick commits one cycle; editing is locked while it runs.
-  const canStep = run !== null && effectiveCursor < maxCursor;
+  /** One beat: advance the phase lens, and on exec→commit the cycle. */
+  const onBeat = useCallback(() => {
+    if (!pending || blockingPrompt) return;
+    setClock("paused");
+    if (phase === "fetch") setPhase("decode");
+    else if (phase === "decode") setPhase("exec");
+    else {
+      setCursor((c) => Math.min(c + 1, maxCursor));
+      setPhase("fetch");
+    }
+  }, [pending, blockingPrompt, phase, maxCursor]);
+
+  // The clock ticks the machine forward; editing is locked while it runs.
+  // Guided stages tick beat-by-beat (fetch → decode → exec → commit) so
+  // auto-play can never skip the datapath — only challenges get the fast
+  // per-cycle run. A blocking prompt pauses the clock instead of stopping.
+  const canStep = pending !== null && !blockingPrompt;
   useEffect(() => {
     if (clock !== "running") return;
     if (!canStep) {
-      setClock("idle");
+      setClock("paused");
       return;
     }
-    const timer = setInterval(() => {
-      setCursor((c) => {
-        const next = Math.min(c + 1, maxCursor);
-        return next;
-      });
-    }, 500);
+    const timer = setInterval(
+      () => {
+        if (guided) {
+          setPhase((p) => {
+            if (p === "fetch") return "decode";
+            if (p === "decode") return "exec";
+            setCursor((c) => Math.min(c + 1, maxCursor));
+            return "fetch";
+          });
+        } else {
+          setCursor((c) => Math.min(c + 1, maxCursor));
+          setPhase("fetch");
+        }
+      },
+      guided ? 350 : 500,
+    );
     return () => clearInterval(timer);
-  }, [clock, canStep, maxCursor]);
-  // Reaching the trace end stops the clock on its own.
+  }, [clock, canStep, maxCursor, guided]);
+  // Reaching the trace end (or a gate) settles the clock on its own.
   useEffect(() => {
-    if (clock === "running" && effectiveCursor >= maxCursor) setClock("idle");
-  }, [clock, effectiveCursor, maxCursor]);
+    if (clock === "running" && (effectiveCursor >= maxCursor || blockingPrompt)) {
+      setClock(blockingPrompt ? "paused" : "idle");
+    }
+  }, [clock, effectiveCursor, maxCursor, blockingPrompt]);
 
   const onSubmit = useCallback(async () => {
     if (!classId || !stage) return;
@@ -204,6 +281,7 @@ export function CpuLabPage() {
       const outcome = await api.post<CpuJudgeResult>(`/api/classes/${classId}/labs/cpu/judge`, {
         stageIndex: stage.index,
         draft,
+        guidedAnswers: stage.guided ? (state.guidedAnswers[stage.index] ?? {}) : undefined,
       });
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -211,9 +289,15 @@ export function CpuLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft]);
+  }, [classId, stage, draft, state.guidedAnswers]);
 
   const lastOp = display?.lastRow?.decoded.op ?? null;
+  const pendingIsMemRead =
+    pending !== null &&
+    opOperandMeaning(pending.decoded.op) === "mem" &&
+    pending.decoded.op !== "STORE";
+  const editable = editableRowSet(state);
+  const blanks = blankRowSet(state);
 
   return (
     <LabAccessGate
@@ -250,6 +334,8 @@ export function CpuLabPage() {
 
             {stage ? <StageBrief stage={stage} /> : null}
 
+            {stage ? <InstructionShelf ops={stage.ops} /> : null}
+
             {state.message ? (
               <p className="test-error" role="alert">
                 {state.message}
@@ -266,13 +352,38 @@ export function CpuLabPage() {
 
             {stage ? (
               <ProgramEditor
+                activeRow={pending && pending.pc < rows.length ? pending.pc : null}
+                blankRows={blanks}
                 disabled={clock === "running"}
+                editableRows={guided ? editable : undefined}
                 onInsertRow={(index) => dispatch({ type: "insert-row", index })}
                 onMoveRow={(index, dir) => dispatch({ type: "move-row", index, dir })}
                 onRemoveRow={(index) => dispatch({ type: "remove-row", index })}
                 onSetRow={(index, patch) => dispatch({ type: "set-row", index, patch })}
                 ops={stage.ops}
+                rowOps={stage.guided?.rowOps}
                 rows={rows}
+              />
+            ) : null}
+
+            {stage?.guided ? (
+              <GuidedPanel
+                answered={answeredPrompts}
+                blocking={blockingPrompt}
+                currentByte={state.playgroundByte}
+                onAnswer={(promptId, option) =>
+                  dispatch({ type: "answer-prompt", promptId, option })
+                }
+                stage={stage}
+                wrongPick={state.wrongPick}
+              />
+            ) : null}
+
+            {stage?.guided?.bytePlayground ? (
+              <BytePlayground
+                byte={state.playgroundByte}
+                onByte={(value) => dispatch({ type: "set-byte", value })}
+                programBytes={rows.map(encodeInstr)}
               />
             ) : null}
 
@@ -283,13 +394,10 @@ export function CpuLabPage() {
                     <button
                       className="button button-secondary"
                       disabled={!canStep || clock === "running"}
-                      onClick={() => {
-                        setClock("paused");
-                        setCursor((c) => Math.min(c + 1, maxCursor));
-                      }}
+                      onClick={onBeat}
                       type="button"
                     >
-                      单步
+                      {phase === "exec" ? "提交这一周期" : "下一拍"}
                     </button>
                     {clock === "running" ? (
                       <button
@@ -314,6 +422,7 @@ export function CpuLabPage() {
                       onClick={() => {
                         setClock("idle");
                         setCursor(0);
+                        setPhase("fetch");
                       }}
                       type="button"
                     >
@@ -321,14 +430,31 @@ export function CpuLabPage() {
                     </button>
                   </div>
                   <div className="cpu-phasebar" key={effectiveCursor}>
-                    <span className="cpu-phase cpu-phase-fetch">取指</span>
-                    <span className="cpu-phase cpu-phase-decode">译码</span>
-                    <span className="cpu-phase cpu-phase-exec">执行 · 周期末提交</span>
+                    {PHASES.map((p, i) => (
+                      <button
+                        aria-pressed={pending !== null && phase === p.id}
+                        className={`cpu-phase cpu-phase-${p.id}${
+                          pending && phase === p.id ? " is-active" : ""
+                        }`}
+                        disabled={!pending || blockingPrompt !== null}
+                        key={p.id}
+                        onClick={() => setPhase(p.id)}
+                        type="button"
+                      >
+                        {i > 0 ? <span className="cpu-phase-arrow">→</span> : null}
+                        {p.label}
+                      </button>
+                    ))}
                   </div>
                   <label className="cpu-case-picker">
                     演示数据
+                    {pinnedCaseIndex !== null ? (
+                      <span className="cpu-case-pin" role="note">
+                        已锁定到本题的数据
+                      </span>
+                    ) : null}
                     <select
-                      disabled={clock === "running"}
+                      disabled={clock === "running" || pinnedCaseIndex !== null}
                       onChange={(event) => {
                         if (event.target.value === "replay") return;
                         setReplayCase(null);
@@ -353,31 +479,51 @@ export function CpuLabPage() {
                   </span>
                 </div>
 
+                {blockingPrompt ? (
+                  <p className="cpu-block-banner" role="note">
+                    ⏸ 机器停在周期 {effectiveCursor} ——先回答上面「
+                    {blockingPrompt.prompt.slice(0, 18)}…」再继续走。
+                  </p>
+                ) : null}
+
                 <div className="cpu-viz-grid">
                   <RegistersPanel
                     carried={display.lastRow?.carried === true}
-                    ir={display.lastRow?.ir ?? null}
+                    ir={pending && phase !== "fetch" ? pending.ir : null}
+                    irInFlight={pending && phase === "fetch" ? pending.ir : null}
+                    nextCarried={pending && phase === "exec" ? pending.carried === true : null}
+                    nextPc={pending && phase === "exec" ? pending.nextPc : null}
+                    nextRegs={nextDisplay && phase === "exec" ? nextDisplay.regs : null}
                     pc={display.pc}
                     prevPc={display.lastRow?.pc ?? null}
                     prevRegs={display.lastRow?.regsBefore ?? null}
                     regs={display.regs}
                   />
                   <MemoryGrid
-                    fetchCell={display.pc < 16 ? display.pc : -1}
+                    fetchCell={pending && pending.pc < 16 ? pending.pc : -1}
                     mem={display.mem}
+                    pendingWrite={
+                      pending && phase === "exec" && pending.memWrite ? pending.memWrite : null
+                    }
                     programRows={rows.length}
+                    readCell={
+                      pending && phase === "exec" && pendingIsMemRead
+                        ? pending.decoded.operand
+                        : null
+                    }
                     scratchCells={stage.scratchCells}
                     writtenCell={display.lastRow?.memWrite?.addr ?? null}
                   />
                 </div>
 
-                <BlockDiagram op={lastOp} />
+                <BlockDiagram op={lastOp} pending={pending} phase={pending ? phase : null} />
 
                 <TraceTable
                   cursor={effectiveCursor}
                   onScrub={(cycle) => {
                     setClock("paused");
                     setCursor(cycle);
+                    setPhase("fetch");
                   }}
                   run={run}
                 />
@@ -396,14 +542,17 @@ export function CpuLabPage() {
                 </button>
                 <button
                   className="button button-primary"
-                  disabled={submitting || rows.length === 0}
+                  disabled={submitting || rows.length === 0 || (guided && !complete)}
                   onClick={() => void onSubmit()}
+                  title={guided && !complete ? "先完成上面的引导任务" : undefined}
                   type="button"
                 >
                   {submitting ? "判定中…" : "提交判定"}
                 </button>
                 <span className="submit-note">
-                  服务器会用带隐藏数据的用例判定——公开测试只是热身。
+                  {guided && !complete
+                    ? "这一关要先完成上面的引导任务才能提交。"
+                    : "服务器会用带隐藏数据的用例判定——公开测试只是热身。"}
                 </span>
               </div>
             ) : null}

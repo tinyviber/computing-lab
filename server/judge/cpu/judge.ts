@@ -17,7 +17,9 @@ import { seedFor } from "../../../src/features/cpu/domain/rng.ts";
 import {
   cpuStageUnlocked,
   getCpuStage,
+  guidedProgram,
   nextCpuStage,
+  type CpuStageDef,
 } from "../../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../../src/features/cpu/lesson/state.ts";
 import { withTransaction } from "../../db/client.ts";
@@ -36,11 +38,28 @@ function lastBranch(verdict: CaseVerdict): boolean | null {
   return row?.branchTaken ?? null;
 }
 
+/**
+ * Guided stages gate on the prediction walk, not just the program: every
+ * prompt must come back with a correct option index — the server re-checks
+ * each answer rather than trusting a bare "done" flag from the client.
+ */
+function guidedAnswersComplete(
+  stage: CpuStageDef,
+  answers: Record<string, number> | undefined,
+): boolean {
+  if (!stage.guided) return true;
+  if (!answers) return false;
+  return stage.guided.prompts.every(
+    (prompt) => prompt.options[answers[prompt.id] ?? -1]?.correct === true,
+  );
+}
+
 export function judgeCpuSubmission(
   db: DatabaseSync,
   project: ProjectRow<CpuDraft>,
   stageIndex: number,
   rawDraft: unknown,
+  options?: { guidedAnswers?: Record<string, number> },
 ): CpuJudgeResult | LabJudgeError {
   const gated = gateStage(getCpuStage(stageIndex), (stage) =>
     cpuStageUnlocked(project.passedStages, stage.index),
@@ -48,12 +67,19 @@ export function judgeCpuSubmission(
   if ("error" in gated) return gated;
   const stage = gated.stage;
 
+  if (!guidedAnswersComplete(stage, options?.guidedAnswers)) {
+    return { error: "guided-incomplete", status: 400 };
+  }
+
   const draft = sanitizeDraft(rawDraft);
+  // Guided programs are prefill + editable slots — locked rows in the
+  // submission are ignored, exactly like the client-side normalization.
+  const program = stage.guided ? { rows: guidedProgram(stage, draft.rows) } : draft;
 
   const seed = seedFor(project.userId, project.labId, stage.index);
   const cases = hiddenCasesFor(stage.index, seed);
   const verdicts = cases.map((testCase) =>
-    judgeCase(draft.rows, testCase, {
+    judgeCase(program.rows, testCase, {
       scratchCells: stage.scratchCells,
       maxCycles: stage.maxCycles,
       requireSelfModFetch: stage.requireSelfModFetch,
@@ -124,7 +150,7 @@ export function judgeCpuSubmission(
       userId: project.userId,
       labId: project.labId,
       stageIndex,
-      snapshot: draft,
+      snapshot: program,
       score,
       total,
       passed,
