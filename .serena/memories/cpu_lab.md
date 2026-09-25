@@ -38,6 +38,16 @@
   `state.playgroundByte` equals it. `playgroundByte` is lesson state (reset
   via `initialPlaygroundByte` = `encodeInstr(prefillRows[0])`, i.e. the
   program's own first byte 0b00001110 — deliberately not the HALT byte).
+- One viewport per step (#73): `cpu-viz-grid` is 3 columns — the real
+  `ProgramEditor` | registers | memory — inside `.cpu-machine`; `.cpu-program`
+  scrolls internally (`max-height` + `overflow-y`). `.cpu-step-bar` is
+  `position: sticky; top: 0` (page scrolls at document level) and wraps the
+  clock row, block banner, and `CurrentPromptCard` — the live `nextPrompt`
+  rendered between clock and viz; `GuidedPanel` is only a progress overview
+  (next item points at the card, does not duplicate options). `BytePlayground`
+  also lives inside `.cpu-machine` under the step bar.
+- Registers are a flat chip strip (`A=5 B=0 PC=3 IR=… 灯●`); IR keeps its
+  field split inside one row via `.cpu-ir-fieldset`.
 - Auto-run in guided mode walks beat-by-beat fetch → decode → exec → commit
   (~350 ms/beat) — never skips whole instructions; challenge stages keep the
   per-cycle 500 ms run.
@@ -65,6 +75,9 @@
 - Synchronized highlighting keys off the same trace row: editor `is-active`,
   memory `is-read`/`is-pending-write`, register ghost "→ n", diagram wires
   (`EXEC_WIRES` per op, `PHASE_PARTS` per phase).
-- `GuidedPanel` is controlled on `state.playgroundByte` (`currentByte` prop)
-  for byte-gated prompts; `BytePlayground` is a controlled component
-  (`byte`/`onByte`) over the same state.
+- `GuidedPanel` takes only `{stage, answered, blocking}`; `CurrentPromptCard`
+  takes `{prompt, wrongPick, blocking, currentByte, onAnswer}` and is the
+  only interactive copy of the question. `BytePlayground` is controlled
+  (`byte`/`onByte`) over `state.playgroundByte`.
+- `TraceTable` auto-scrolls the current row by nudging `.cpu-trace-scroll`
+  scrollTop from rects — never `scrollIntoView`, so the page can't move.
