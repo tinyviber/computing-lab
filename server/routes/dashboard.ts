@@ -36,8 +36,8 @@ export function dashboardRoutes() {
     const lab = labInfo(labId);
     if (!lab) return jsonError(c, 404, "unknown-lab");
     const db = c.get("db");
-    // Hidden and preview labs stay admin-only on teacher surfaces.
-    if ((isLabHidden(db, labId) || !lab.teacherVisible) && auth.user.role !== "admin") {
+    // Hidden labs stay admin-only on teacher surfaces.
+    if (isLabHidden(db, labId) && auth.user.role !== "admin") {
       return jsonError(c, 403, "lab-not-available");
     }
     const classId = auth.membership.classId;

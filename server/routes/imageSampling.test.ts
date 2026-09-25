@@ -64,13 +64,13 @@ describe("image-sampling routes", () => {
     expect(res.status).toBe(200);
   });
 
-  it("teachers are turned away (admin-preview gate)", async () => {
+  it("class teachers can access the lab", async () => {
     const { app, classId, teacherId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/project"), { headers: { cookie: cookieFor(teacherId) } }),
     );
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "lab-not-available" });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ labId: "image-sampling" });
   });
 
   it("unauthenticated requests get 401", async () => {

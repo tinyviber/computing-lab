@@ -24,25 +24,23 @@ export function SaveIndicator({ status }: { status: SaveStatus }) {
 
 /**
  * Every lab page runs the same entry gates before its workspace mounts:
- * auth still loading → sign-in prompt → admin-preview labs turn teachers
- * away → a class membership is required. Renders `children` once a member
- * (or staff previewer) with a classId reaches the lab.
+ * auth still loading → sign-in prompt → hidden labs turn non-admins away →
+ * a class membership is required. Renders `children` once a member (or staff
+ * previewer) with a classId reaches the lab.
  */
 export function LabAccessGate(props: {
   status: "loading" | "anonymous" | "authenticated";
   role: AccountRole | null;
   classId: string | undefined;
-  /** Shown in the admin-preview notice, e.g. 「空间采样」. */
+  /** Shown in the hidden-lab notice, e.g. 「空间采样」. */
   labName: string;
-  /** When true, class teachers see the preview notice instead of the lab. */
-  adminPreview?: boolean;
   /** Admin-hidden lab: everyone but admins sees the closed notice. */
   hidden?: boolean;
   /** Extra guidance under the "你还没有加入班级" heading. */
   noClassHint?: string;
   children: ReactNode;
 }) {
-  const { status, role, classId, labName, adminPreview, hidden, noClassHint, children } = props;
+  const { status, role, classId, labName, hidden, noClassHint, children } = props;
   if (status === "loading") {
     return (
       <p className="home-loading" role="status">
@@ -72,17 +70,6 @@ export function LabAccessGate(props: {
           <p className="eyebrow">实验 / 已隐藏</p>
           <h1>这个实验暂未开放</h1>
           <p>「{labName}」已被管理员隐藏，开放后再来。</p>
-        </main>
-      </AppPageLayout>
-    );
-  }
-  if (adminPreview && role === "teacher") {
-    return (
-      <AppPageLayout>
-        <main className="not-found" role="status">
-          <p className="eyebrow">实验 / 预览阶段</p>
-          <h1>这个实验暂未开放</h1>
-          <p>「{labName}」实验目前仅对管理员开放预览。</p>
         </main>
       </AppPageLayout>
     );

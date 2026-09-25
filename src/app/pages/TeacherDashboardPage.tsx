@@ -21,25 +21,14 @@ type LabOption = {
   id: string;
   title: string;
   stages: { index: number; englishTitle: string; title: string }[];
-  teacherVisible: boolean;
 };
 
 const LAB_OPTIONS: LabOption[] = [
-  { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES, teacherVisible: true },
-  { id: "cpu", title: "冯诺依曼数据通路", stages: CPU_STAGES, teacherVisible: true },
-  { id: "is-sim", title: "小型信息系统", stages: IS_SIM_STAGES, teacherVisible: true },
-  {
-    id: "image-sampling",
-    title: "空间采样",
-    stages: IMAGE_SAMPLING_STAGES,
-    teacherVisible: false,
-  },
-  {
-    id: "color-quantization",
-    title: "颜色量化",
-    stages: COLOR_QUANT_STAGES,
-    teacherVisible: false,
-  },
+  { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES },
+  { id: "cpu", title: "冯诺依曼数据通路", stages: CPU_STAGES },
+  { id: "is-sim", title: "小型信息系统", stages: IS_SIM_STAGES },
+  { id: "image-sampling", title: "空间采样", stages: IMAGE_SAMPLING_STAGES },
+  { id: "color-quantization", title: "颜色量化", stages: COLOR_QUANT_STAGES },
 ];
 
 type MatrixCell = {
@@ -128,9 +117,7 @@ export function TeacherDashboardPage() {
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
   const catalog = useLabCatalog(status === "authenticated");
   // Hidden labs drop off teacher surfaces too; admins keep full access.
-  const labOptions = LAB_OPTIONS.filter(
-    (l) => (l.teacherVisible || isAdmin) && (isAdmin || catalog?.get(l.id)?.hidden !== true),
-  );
+  const labOptions = LAB_OPTIONS.filter((l) => isAdmin || catalog?.get(l.id)?.hidden !== true);
   const lab = labOptions.find((l) => l.id === search.lab) ?? labOptions[0] ?? LAB_OPTIONS[0];
   const assignment = assignments.find((a) => a.id === search.assignment) ?? assignments[0] ?? null;
 

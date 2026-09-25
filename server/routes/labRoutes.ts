@@ -24,8 +24,6 @@ type LabAuth = { user: SessionUser; membership: Membership };
 type LabSpec<TDraft, TOutcome> = {
   labId: string;
   stageCount: number;
-  /** Admin-preview labs turn class teachers away (students still enter). */
-  adminPreview?: boolean;
   /** Extra top-level fields merged into the GET /project payload. */
   projectExtras?: (db: DatabaseSync, project: ProjectRow<TDraft>) => Record<string, unknown>;
   saveDraft: (
@@ -52,9 +50,6 @@ export function labRoutes<TDraft, TOutcome extends object>(
     if ("error" in auth) return auth;
     // Hidden labs are admin-only until an admin reopens them.
     if (auth.user.role !== "admin" && isLabHidden(c.get("db"), spec.labId)) {
-      return { error: "lab-not-available", status: 403 };
-    }
-    if (spec.adminPreview && auth.user.role === "teacher") {
       return { error: "lab-not-available", status: 403 };
     }
     return auth;

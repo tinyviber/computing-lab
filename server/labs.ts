@@ -14,16 +14,14 @@ import { IS_SIM_STAGES } from "../src/features/is-sim/domain/stages.ts";
 export type LabInfo = {
   id: string;
   stageCount: number;
-  /** Admin-preview labs stay invisible to teacher dashboards. */
-  teacherVisible: boolean;
 };
 
 export const LAB_REGISTRY: LabInfo[] = [
-  { id: "calculator", stageCount: CALCULATOR_STAGES.length, teacherVisible: true },
-  { id: "image-sampling", stageCount: IMAGE_SAMPLING_STAGES.length, teacherVisible: false },
-  { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length, teacherVisible: false },
-  { id: "cpu", stageCount: CPU_STAGES.length, teacherVisible: true },
-  { id: "is-sim", stageCount: IS_SIM_STAGES.length, teacherVisible: true },
+  { id: "calculator", stageCount: CALCULATOR_STAGES.length },
+  { id: "image-sampling", stageCount: IMAGE_SAMPLING_STAGES.length },
+  { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length },
+  { id: "cpu", stageCount: CPU_STAGES.length },
+  { id: "is-sim", stageCount: IS_SIM_STAGES.length },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {
