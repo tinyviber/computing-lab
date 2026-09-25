@@ -16,6 +16,7 @@ export const LAB_TITLES: Record<string, string> = {
   cpu: "冯诺依曼数据通路",
   "image-sampling": "空间采样",
   "color-quantization": "颜色量化",
+  "is-sim": "小型信息系统",
 };
 
 /**
