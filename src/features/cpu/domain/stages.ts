@@ -25,6 +25,18 @@ export type CpuPrompt = {
    * questions that may be answered any time (they still gate submission).
    */
   at?: number;
+  /**
+   * The demo case this prompt's numbers come from: while the prompt is
+   * unanswered the case picker locks to this index, so the question can
+   * never disagree with the machine state in front of the learner.
+   */
+  caseIndex?: number;
+  /**
+   * Byte-playground gate (C4): the prompt's options stay disabled until
+   * the learner has dialed the playground byte to this value — watching a
+   * preset is not enough, they must flip the bits.
+   */
+  requiresByte?: number;
   prompt: string;
   /** Exactly one option is correct; wrong picks can carry a per-option note. */
   options: { label: string; correct?: boolean; note?: string }[];
@@ -309,6 +321,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         {
           id: "predict-sum",
           at: 0,
+          caseIndex: 0,
           prompt: "A 现在是 3，M[14] 是 5：这一拍后 A 是几？",
           options: [
             { label: "8", correct: true },
@@ -382,6 +395,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         },
         {
           id: "byte-224",
+          requiresByte: 0b11100000,
           prompt: "去下面的 bit 开关把字节拨成 11100000——它在数据视图里是几？",
           options: [
             { label: "224", correct: true },
@@ -392,6 +406,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         },
         {
           id: "byte-halt",
+          requiresByte: 0b11100000,
           prompt: "同一个 byte 11100000，在指令视图里译成什么？",
           options: [
             { label: "HALT", correct: true },
@@ -469,6 +484,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         {
           id: "jz-rule",
           at: 0,
+          caseIndex: 0,
           prompt: "JZ A,→a 的意思是：A 为 0 就把 PC 改成 a。A=0 时这一拍后 PC 是几？",
           options: [
             { label: "变成 a——跳到第 a 行", correct: true },
@@ -490,6 +506,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         {
           id: "zero-writes",
           at: 1,
+          caseIndex: 0,
           prompt: "A=0 这一路跳到第 4 行：STORE 会把什么写进 M[15]？",
           options: [
             { label: "B 的值 0——LDI 被跳过了", correct: true },
@@ -500,7 +517,8 @@ export const CPU_STAGES: CpuStageDef[] = [
         },
         {
           id: "nonzero",
-          prompt: "把「演示数据」切成 A=3：JZ 这一拍 PC 会去哪？",
+          caseIndex: 1,
+          prompt: "「演示数据」已切到 A=3：JZ 这一拍 PC 会去哪？",
           options: [
             { label: "顺着到第 1 行", correct: true },
             { label: "跳到第 4 行", note: "A=3≠0，条件不成立。" },
@@ -556,6 +574,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         {
           id: "jz-skip",
           at: 1,
+          caseIndex: 0,
           prompt: "B 现在是 3：JZ B,→4 这一拍会跳吗？",
           options: [
             { label: "不跳——B≠0，PC 顺着到第 2 行", correct: true },
@@ -567,6 +586,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         {
           id: "sub-result",
           at: 2,
+          caseIndex: 0,
           prompt: "SUB B,M[15] 之后，B 会变成几？（M[15] 里是 1）",
           options: [
             { label: "2", correct: true },

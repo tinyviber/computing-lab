@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
+import { getCpuStage } from "../../src/features/cpu/domain/stages.ts";
 import { hashPassword } from "../auth/password.ts";
 import { createSession } from "../auth/session.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
@@ -46,6 +47,17 @@ const SOLVED_C1 = [
   { op: "STORE", reg: 0, operand: 15 },
   { op: "HALT", reg: 0, operand: 0 },
 ];
+
+/** Every prompt of the stage answered with its correct option index. */
+function guidedAnswersFor(stageIndex: number): Record<string, number> {
+  const stage = getCpuStage(stageIndex)!;
+  return Object.fromEntries(
+    (stage.guided?.prompts ?? []).map((p) => [
+      p.id,
+      p.options.findIndex((o) => o.correct === true),
+    ]),
+  );
+}
 
 const judge = (
   app: Hono<{ Variables: AppVariables }>,
@@ -120,7 +132,7 @@ describe("cpu routes", () => {
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
-      guidedComplete: true,
+      guidedAnswers: guidedAnswersFor(1),
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -137,6 +149,23 @@ describe("cpu routes", () => {
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "guided-incomplete" });
+  });
+
+  it("rejects a guided stage when an answer pick is wrong", async () => {
+    const { app, classId, studentId, cookieFor } = await setup();
+    // Every prompt answered — but one pick flipped to a wrong option. The
+    // server re-checks the picks, so a bare complete-looking set fails.
+    const answers = guidedAnswersFor(1);
+    const first = getCpuStage(1)!.guided!.prompts[0];
+    const wrong = first.options.findIndex((o) => o.correct !== true);
+    answers[first.id] = wrong;
+    const res = await judge(app, classId, cookieFor(studentId), {
+      stageIndex: 1,
+      draft: { rows: SOLVED_C1 },
+      guidedAnswers: answers,
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "guided-incomplete" });
@@ -161,7 +190,7 @@ describe("cpu routes", () => {
           { op: "STORE", reg: 0, operand: 15 },
         ],
       },
-      guidedComplete: true,
+      guidedAnswers: guidedAnswersFor(2),
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as { passed: boolean };
@@ -173,7 +202,7 @@ describe("cpu routes", () => {
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 3,
       draft: { rows: SOLVED_C1 },
-      guidedComplete: true,
+      guidedAnswers: guidedAnswersFor(3),
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "stage-locked" });
@@ -223,7 +252,7 @@ describe("cpu routes", () => {
       const res = await judge(app, classId, cookie, {
         stageIndex: 1,
         draft: { rows: SOLVED_C1 },
-        guidedComplete: true,
+        guidedAnswers: guidedAnswersFor(1),
       });
       last = res.status;
     }

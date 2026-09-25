@@ -22,11 +22,13 @@ import type {
 import { seedFor } from "../domain/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
+  answeredPromptIds,
   createCpuLessonState,
   blankRowSet,
   draftOf,
   editableRowSet,
   guidedComplete,
+  nextPrompt,
   programOf,
   stageOf,
   transitionCpuLesson,
@@ -107,6 +109,7 @@ export function CpuLabPage() {
   const stage = stageOf(state);
   const draft = draftOf(state);
   const rows = programOf(state);
+  const guided = stage?.guided === undefined ? false : true;
 
   const { loadError } = useLabProject<
     CpuDraft,
@@ -170,10 +173,10 @@ export function CpuLabPage() {
 
   // Guided prompt gating: the first unanswered `at` prompt whose cycle
   // threshold has been reached blocks the stepper until answered.
-  const answeredPrompts = useMemo(
-    () => new Set(state.guidedAnswers[state.stageIndex] ?? []),
-    [state.guidedAnswers, state.stageIndex],
-  );
+  const answeredPrompts = useMemo(() => answeredPromptIds(state), [state]);
+  // A prompt that quotes demo data pins the picker to its caseIndex while
+  // unanswered — the question and the machine state can never disagree.
+  const pinnedCaseIndex = nextPrompt(state)?.caseIndex ?? null;
   const blockingPrompt =
     stage?.guided?.prompts.find(
       (p) => !answeredPrompts.has(p.id) && p.at !== undefined && effectiveCursor >= p.at,
@@ -193,6 +196,14 @@ export function CpuLabPage() {
     setPhase("fetch");
     setClock("idle");
   }, [caseIndex, replayCase]);
+
+  // While a data-pinned prompt is unanswered the picker follows it — and
+  // switching cases restarts playback, which the effect above handles.
+  useEffect(() => {
+    if (pinnedCaseIndex === null) return;
+    setReplayCase(null);
+    setCaseIndex(pinnedCaseIndex);
+  }, [pinnedCaseIndex]);
 
   // The hidden judge counterexample can be replayed through the same
   // machine view — the run re-executes locally on the student's current
@@ -226,8 +237,10 @@ export function CpuLabPage() {
     }
   }, [pending, blockingPrompt, phase, maxCursor]);
 
-  // 2 Hz clock: each tick commits one cycle; editing is locked while it
-  // runs. A blocking prompt pauses the clock instead of stopping it.
+  // The clock ticks the machine forward; editing is locked while it runs.
+  // Guided stages tick beat-by-beat (fetch → decode → exec → commit) so
+  // auto-play can never skip the datapath — only challenges get the fast
+  // per-cycle run. A blocking prompt pauses the clock instead of stopping.
   const canStep = pending !== null && !blockingPrompt;
   useEffect(() => {
     if (clock !== "running") return;
@@ -235,12 +248,24 @@ export function CpuLabPage() {
       setClock("paused");
       return;
     }
-    const timer = setInterval(() => {
-      setCursor((c) => Math.min(c + 1, maxCursor));
-      setPhase("fetch");
-    }, 500);
+    const timer = setInterval(
+      () => {
+        if (guided) {
+          setPhase((p) => {
+            if (p === "fetch") return "decode";
+            if (p === "decode") return "exec";
+            setCursor((c) => Math.min(c + 1, maxCursor));
+            return "fetch";
+          });
+        } else {
+          setCursor((c) => Math.min(c + 1, maxCursor));
+          setPhase("fetch");
+        }
+      },
+      guided ? 350 : 500,
+    );
     return () => clearInterval(timer);
-  }, [clock, canStep, maxCursor]);
+  }, [clock, canStep, maxCursor, guided]);
   // Reaching the trace end (or a gate) settles the clock on its own.
   useEffect(() => {
     if (clock === "running" && (effectiveCursor >= maxCursor || blockingPrompt)) {
@@ -256,7 +281,7 @@ export function CpuLabPage() {
       const outcome = await api.post<CpuJudgeResult>(`/api/classes/${classId}/labs/cpu/judge`, {
         stageIndex: stage.index,
         draft,
-        guidedComplete: stage.guided ? complete : undefined,
+        guidedAnswers: stage.guided ? (state.guidedAnswers[stage.index] ?? {}) : undefined,
       });
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -264,7 +289,7 @@ export function CpuLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft, complete]);
+  }, [classId, stage, draft, state.guidedAnswers]);
 
   const lastOp = display?.lastRow?.decoded.op ?? null;
   const pendingIsMemRead =
@@ -273,7 +298,6 @@ export function CpuLabPage() {
     pending.decoded.op !== "STORE";
   const editable = editableRowSet(state);
   const blanks = blankRowSet(state);
-  const guided = stage?.guided !== undefined;
 
   return (
     <LabAccessGate
@@ -346,6 +370,7 @@ export function CpuLabPage() {
               <GuidedPanel
                 answered={answeredPrompts}
                 blocking={blockingPrompt}
+                currentByte={state.playgroundByte}
                 onAnswer={(promptId, option) =>
                   dispatch({ type: "answer-prompt", promptId, option })
                 }
@@ -355,7 +380,11 @@ export function CpuLabPage() {
             ) : null}
 
             {stage?.guided?.bytePlayground ? (
-              <BytePlayground programBytes={rows.map(encodeInstr)} />
+              <BytePlayground
+                byte={state.playgroundByte}
+                onByte={(value) => dispatch({ type: "set-byte", value })}
+                programBytes={rows.map(encodeInstr)}
+              />
             ) : null}
 
             {stage && run && display ? (
@@ -419,8 +448,13 @@ export function CpuLabPage() {
                   </div>
                   <label className="cpu-case-picker">
                     演示数据
+                    {pinnedCaseIndex !== null ? (
+                      <span className="cpu-case-pin" role="note">
+                        已锁定到本题的数据
+                      </span>
+                    ) : null}
                     <select
-                      disabled={clock === "running"}
+                      disabled={clock === "running" || pinnedCaseIndex !== null}
                       onChange={(event) => {
                         if (event.target.value === "replay") return;
                         setReplayCase(null);

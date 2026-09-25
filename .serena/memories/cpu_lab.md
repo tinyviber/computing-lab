@@ -8,6 +8,9 @@
   explicit `unlockAfter` (prerequisite stage indices).
 - `nextCpuStage` returns the first unpassed index across the whole list, so
   it walks core → challenges in index order.
+- Stage indices were renumbered vs the pre-#70 lab and `passed_stages` rows
+  are NOT migrated — deploy applies a CPU progress reset
+  (`UPDATE student_projects SET passed_stages='[]' WHERE lab='cpu'`).
 
 ## Guided stages
 
@@ -18,15 +21,31 @@
   guided draft is executed or judged — `draftOf` in `lesson/state.ts` and
   `judgeCpuSubmission` in `server/judge/cpu/judge.ts` both call it. Locked
   rows must stay unreachable even via crafted drafts (tested).
-- Pass gating: a guided submission needs `guidedComplete: true` on the
-  request body (added to `CpuSubmission`); the judge 400s with
-  `guided-incomplete` otherwise. `guidedComplete` means every prompt in
-  `guided.prompts` was answered, not program correctness.
-- Prompts block stepping mid-run: a prompt with `at <= cursor` that is
-  unanswered pauses the clock UI until answered.
+- Pass gating: a guided submission carries `guidedAnswers` (promptId →
+  option index, from `state.guidedAnswers`) in `CpuSubmission`; the judge
+  400s `guided-incomplete` unless every prompt's picked option is correct.
+  It is a learning gate, not security.
+- Prompt flow in `lesson/state.ts`: `answer-prompt` records the option index
+  in `guidedAnswers[stage][promptId]`; a wrong pick sets `wrongPick`
+  ({promptId, option}) and the UI shows only that option's `note` —
+  un-picked options must stay indistinguishable (no pre-click hints).
+- Prompt step-blocking: a prompt with `at <= cursor` unanswered pauses the
+  clock until answered.
+- `prompt.caseIndex` pins the demo-case picker: while that prompt is the
+  next unanswered, `CpuLabPage` force-selects the case, resets the run, and
+  disables the picker. Prompts quote demo data only with a matching pin.
+- `prompt.requiresByte` (C4) disables its options until
+  `state.playgroundByte` equals it. `playgroundByte` is lesson state (reset
+  via `initialPlaygroundByte` = `encodeInstr(prefillRows[0])`, i.e. the
+  program's own first byte 0b00001110 — deliberately not the HALT byte).
+- Auto-run in guided mode walks beat-by-beat fetch → decode → exec → commit
+  (~350 ms/beat) — never skips whole instructions; challenge stages keep the
+  per-cycle 500 ms run.
 - In guided stages the editor never inserts/removes/moves rows; jump
-  retargeting (`set-row` notices "目标指令移动…") only applies to free stages
-  and only to operands with `opOperandMeaning === "addr"` below the row count.
+  retargeting applies to free stages and only to operands with
+  `opOperandMeaning === "addr"` below the row count. Removing a row that is
+  a jump target (`operand === index`) remaps it to the next row and emits a
+  notice (no silent re-point).
 
 ## Hidden cases
 
@@ -35,6 +54,9 @@
   from `domain/fixtures.ts` sprinkles decoys identically for public + hidden.
 - `machine.test.ts` `REFERENCES` must hold the _effective_ program
   (`guidedProgram` output) for guided stages.
+- `server/routes/cpu.test.ts` `guidedAnswersFor(index)` builds a correct
+  answer map from the stage def — reuse it; add a wrong-pick variant to test
+  the 400 path.
 
 ## UI contract
 
@@ -43,3 +65,6 @@
 - Synchronized highlighting keys off the same trace row: editor `is-active`,
   memory `is-read`/`is-pending-write`, register ghost "→ n", diagram wires
   (`EXEC_WIRES` per op, `PHASE_PARTS` per phase).
+- `GuidedPanel` is controlled on `state.playgroundByte` (`currentByte` prop)
+  for byte-gated prompts; `BytePlayground` is a controlled component
+  (`byte`/`onByte`) over the same state.

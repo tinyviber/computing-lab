@@ -1,23 +1,28 @@
-import { useState } from "react";
 import { decodeInstr, encodeInstr, formatInstr, OPCODES, type InstrRow } from "../domain/isa.ts";
 
 const toBin = (byte: number) => byte.toString(2).padStart(8, "0");
 
 /**
  * The byte playground (issue #70 C4): flip bits, see the field split and
- * the decoded instruction — a byte IS an instruction encoding. The
- * program's own bytes are offered as presets so the learner can verify
- * "cell 2 really is 224 = HALT" with their own eyes.
+ * the decoded instruction — a byte IS an instruction encoding. The byte
+ * lives in lesson state so guided prompts can require real manipulation
+ * (`requiresByte`) instead of admiring a preset. The program's own bytes
+ * are offered as presets so the learner can verify "cell 2 really is
+ * 224 = HALT" with their own eyes.
  */
-export function BytePlayground(props: { programBytes: number[] }) {
-  const [byte, setByte] = useState(0b11100000);
+export function BytePlayground(props: {
+  byte: number;
+  onByte: (value: number) => void;
+  programBytes: number[];
+}) {
+  const { byte, onByte } = props;
   const decoded = decodeInstr(byte);
   // All 8 opcode patterns are valid — every byte decodes to something.
   const opName = OPCODES[(byte >> 5) & 0b111];
   const bits = toBin(byte);
   const fieldBits = [bits.slice(0, 3), bits.slice(3, 4), bits.slice(4)];
 
-  const toggle = (bit: number) => setByte((b) => b ^ (1 << bit));
+  const toggle = (bit: number) => onByte(byte ^ (1 << bit));
 
   const built = (row: InstrRow) => encodeInstr(row);
 
@@ -69,7 +74,7 @@ export function BytePlayground(props: { programBytes: number[] }) {
           <button
             className={`cpu-preset${b === byte ? " is-active" : ""}`}
             key={`p${i}`}
-            onClick={() => setByte(b)}
+            onClick={() => onByte(b)}
             type="button"
           >
             程序格{i} = {b}
@@ -77,7 +82,7 @@ export function BytePlayground(props: { programBytes: number[] }) {
         ))}
         <button
           className={`cpu-preset${byte === built({ op: "ADD", reg: 0, operand: 14 }) ? " is-active" : ""}`}
-          onClick={() => setByte(built({ op: "ADD", reg: 0, operand: 14 }))}
+          onClick={() => onByte(built({ op: "ADD", reg: 0, operand: 14 }))}
           type="button"
         >
           ADD A,M[14]

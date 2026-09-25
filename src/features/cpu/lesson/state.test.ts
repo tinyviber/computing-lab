@@ -80,15 +80,38 @@ describe("cpu lesson state", () => {
     expect(state.wrongPick).toBeNull();
     expect(guidedComplete(state)).toBe(true);
     // Re-answering is idempotent.
-    const size = state.guidedAnswers[1].length;
+    const size = Object.keys(state.guidedAnswers[1]).length;
     state = transitionCpuLesson(state, {
       type: "answer-prompt",
       promptId: "first-fetch",
       option: 0,
     });
-    expect(state.guidedAnswers[1]).toHaveLength(size);
+    expect(Object.keys(state.guidedAnswers[1])).toHaveLength(size);
     // Free stages are always complete.
     expect(guidedComplete(freeStage())).toBe(true);
+  });
+
+  it("keeps byte-gated prompts shut until the playground byte is dialed", () => {
+    // C4's playground starts on the program's own first byte, not 224.
+    let state = createCpuLessonState(4);
+    expect(state.playgroundByte).toBe(0b00001110);
+    for (const promptId of ["opcode-field", "decode-000", "operand-field"]) {
+      state = transitionCpuLesson(state, { type: "answer-prompt", promptId, option: 0 });
+    }
+    // byte-224 asks for 11100000 — answers are ignored until then.
+    state = transitionCpuLesson(state, {
+      type: "answer-prompt",
+      promptId: "byte-224",
+      option: 0,
+    });
+    expect(state.guidedAnswers[4]?.["byte-224"]).toBeUndefined();
+    state = transitionCpuLesson(state, { type: "set-byte", value: 0b11100000 });
+    state = transitionCpuLesson(state, {
+      type: "answer-prompt",
+      promptId: "byte-224",
+      option: 0,
+    });
+    expect(state.guidedAnswers[4]["byte-224"]).toBe(0);
   });
 
   it("edits rows and marks the draft dirty on free stages", () => {
@@ -145,6 +168,24 @@ describe("cpu lesson state", () => {
     });
     state = transitionCpuLesson(state, { type: "insert-row", index: 0 });
     expect(draftOf(state).rows[2].operand).toBe(9);
+  });
+
+  it("warns when the deleted row was a jump target", () => {
+    let state = freeStage();
+    // Program: JMP →1, HALT, HALT — deleting row 1 leaves the jump
+    // pointing at what used to be the next row; that must not be silent.
+    for (const [i, patch] of [
+      [0, { op: "JMP", operand: 1 }],
+      [1, { op: "HALT", operand: 0 }],
+      [2, { op: "HALT", operand: 0 }],
+    ] as [number, { op: "JMP" | "HALT"; operand: number }][]) {
+      state = transitionCpuLesson(state, { type: "insert-row", index: i });
+      state = transitionCpuLesson(state, { type: "set-row", index: i, patch });
+    }
+    state = transitionCpuLesson(state, { type: "remove-row", index: 1 });
+    expect(draftOf(state).rows[0].operand).toBe(1); // now the row that followed
+    expect(state.message).toContain("跳转的目标");
+    expect(state.message).toContain("下一行");
   });
 
   it("drops malformed rows at the boundary", () => {

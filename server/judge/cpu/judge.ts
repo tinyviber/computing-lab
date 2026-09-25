@@ -19,6 +19,7 @@ import {
   getCpuStage,
   guidedProgram,
   nextCpuStage,
+  type CpuStageDef,
 } from "../../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../../src/features/cpu/lesson/state.ts";
 import { withTransaction } from "../../db/client.ts";
@@ -37,12 +38,28 @@ function lastBranch(verdict: CaseVerdict): boolean | null {
   return row?.branchTaken ?? null;
 }
 
+/**
+ * Guided stages gate on the prediction walk, not just the program: every
+ * prompt must come back with a correct option index — the server re-checks
+ * each answer rather than trusting a bare "done" flag from the client.
+ */
+function guidedAnswersComplete(
+  stage: CpuStageDef,
+  answers: Record<string, number> | undefined,
+): boolean {
+  if (!stage.guided) return true;
+  if (!answers) return false;
+  return stage.guided.prompts.every(
+    (prompt) => prompt.options[answers[prompt.id] ?? -1]?.correct === true,
+  );
+}
+
 export function judgeCpuSubmission(
   db: DatabaseSync,
   project: ProjectRow<CpuDraft>,
   stageIndex: number,
   rawDraft: unknown,
-  options?: { guidedComplete?: boolean },
+  options?: { guidedAnswers?: Record<string, number> },
 ): CpuJudgeResult | LabJudgeError {
   const gated = gateStage(getCpuStage(stageIndex), (stage) =>
     cpuStageUnlocked(project.passedStages, stage.index),
@@ -50,9 +67,7 @@ export function judgeCpuSubmission(
   if ("error" in gated) return gated;
   const stage = gated.stage;
 
-  // Guided stages gate on the prediction walk, not just the program: the
-  // client asserts it completed the sequence before submitting.
-  if (stage.guided && options?.guidedComplete !== true) {
+  if (!guidedAnswersComplete(stage, options?.guidedAnswers)) {
     return { error: "guided-incomplete", status: 400 };
   }
 

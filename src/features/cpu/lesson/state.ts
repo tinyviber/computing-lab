@@ -13,6 +13,7 @@
 
 import type { SaveStatus } from "../../../shared/api/client";
 import {
+  encodeInstr,
   MAX_PROGRAM_ROWS,
   opOperandMeaning,
   sanitizeProgram,
@@ -59,8 +60,14 @@ export type CpuLessonState = {
   drafts: Record<number, CpuDraft>;
   /** Soft gate: false → show the calculator-first banner (never blocks). */
   calculatorCoreComplete: boolean | null;
-  /** Guided stages: prompt ids already answered correctly, per stage. */
-  guidedAnswers: Record<number, string[]>;
+  /**
+   * Guided stages: promptId → the option index picked correctly, per stage.
+   * Sent to the judge as evidence — the server re-checks each pick against
+   * the stage's prompts rather than trusting a bare "done" flag.
+   */
+  guidedAnswers: Record<number, Record<string, number>>;
+  /** C4 byte playground: the byte currently dialed in (reset per stage). */
+  playgroundByte: number;
   /** Last wrong option pick, for red-marking the button (per stage). */
   wrongPick: { promptId: string; option: number } | null;
   runOutcome: PublicRunOutcome | null;
@@ -83,6 +90,7 @@ export type CpuLessonAction =
   | { type: "remove-row"; index: number }
   | { type: "move-row"; index: number; dir: -1 | 1 }
   | { type: "answer-prompt"; promptId: string; option: number }
+  | { type: "set-byte"; value: number }
   | { type: "run-public-tests"; cases: CpuCase[] }
   | { type: "judge-result"; outcome: CpuJudgeResult }
   | { type: "mark-saving" }
@@ -140,11 +148,16 @@ export function blankRowSet(state: CpuLessonState): Set<number> {
   return blank;
 }
 
+/** Prompt ids already answered correctly in the current stage. */
+export function answeredPromptIds(state: CpuLessonState): Set<string> {
+  return new Set(Object.keys(state.guidedAnswers[state.stageIndex] ?? {}));
+}
+
 /** Every prompt of a guided stage answered — required before submit. */
 export function guidedComplete(state: CpuLessonState): boolean {
   const stage = stageOf(state);
   if (!stage?.guided) return true;
-  const answered = new Set(state.guidedAnswers[state.stageIndex] ?? []);
+  const answered = answeredPromptIds(state);
   return stage.guided.prompts.every((p) => answered.has(p.id));
 }
 
@@ -152,8 +165,18 @@ export function guidedComplete(state: CpuLessonState): boolean {
 export function nextPrompt(state: CpuLessonState) {
   const stage = stageOf(state);
   if (!stage?.guided) return null;
-  const answered = new Set(state.guidedAnswers[state.stageIndex] ?? []);
+  const answered = answeredPromptIds(state);
   return stage.guided.prompts.find((p) => !answered.has(p.id)) ?? null;
+}
+
+/**
+ * C4's playground starts on the program's own first byte (LOAD A,M[14] =
+ * 00001110) so the byte-224 prompts force a real dial, not a glance at the
+ * HALT byte already sitting there.
+ */
+export function initialPlaygroundByte(stage: CpuStageDef | undefined): number {
+  const first = stage?.guided?.bytePlayground ? stage.prefillRows?.[0] : undefined;
+  return first ? encodeInstr(first) : 0;
 }
 
 export function createCpuLessonState(stageIndex = 1): CpuLessonState {
@@ -164,6 +187,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     drafts: {},
     calculatorCoreComplete: null,
     guidedAnswers: {},
+    playgroundByte: initialPlaygroundByte(getCpuStage(stageIndex)),
     wrongPick: null,
     runOutcome: null,
     judgeOutcome: null,
@@ -233,6 +257,7 @@ export function transitionCpuLesson(
       return {
         ...state,
         stageIndex,
+        playgroundByte: initialPlaygroundByte(getCpuStage(stageIndex)),
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
@@ -248,6 +273,7 @@ export function transitionCpuLesson(
       return {
         ...state,
         stageIndex: action.stageIndex,
+        playgroundByte: initialPlaygroundByte(getCpuStage(action.stageIndex)),
         judgeOutcome: null,
         runOutcome: null,
         wrongPick: null,
@@ -286,13 +312,23 @@ export function transitionCpuLesson(
       if (stage?.guided) return state;
       const current = draftOf(state).rows;
       if (action.index < 0 || action.index >= current.length) return state;
+      // A jump that targets the deleted row lands on the instruction that
+      // slides into its slot — keep the address but say so, never silently.
+      const targetHits = current.filter(
+        (row) => opOperandMeaning(row.op) === "addr" && row.operand === action.index,
+      ).length;
       const { rows, changes } = retargetJumps(current, (operand, oldLen) =>
         operand > action.index && operand < oldLen ? operand - 1 : operand,
       );
       rows.splice(action.index, 1);
       const next = withDraft(state, { rows });
-      const notice = retargetNotice(changes);
-      return notice ? { ...next, message: notice } : next;
+      const notices = [
+        targetHits > 0
+          ? `第 ${action.index} 行是 ${targetHits} 处跳转的目标——已删除，这些跳转现在指向原目标的下一行`
+          : null,
+        retargetNotice(changes),
+      ].filter((n): n is string => n !== null);
+      return notices.length > 0 ? { ...next, message: notices.join("；") } : next;
     }
 
     case "move-row": {
@@ -318,19 +354,27 @@ export function transitionCpuLesson(
       if (!stage?.guided || !prompt) return state;
       const option = prompt.options[action.option];
       if (!option) return state;
+      // A byte-gated prompt stays shut until the playground byte is dialed.
+      if (prompt.requiresByte !== undefined && state.playgroundByte !== prompt.requiresByte) {
+        return state;
+      }
       if (!option.correct) {
         return { ...state, wrongPick: { promptId: action.promptId, option: action.option } };
       }
-      const answered = state.guidedAnswers[state.stageIndex] ?? [];
-      if (answered.includes(action.promptId)) return state;
+      const answered = state.guidedAnswers[state.stageIndex] ?? {};
+      if (action.promptId in answered) return state;
       return {
         ...state,
         guidedAnswers: {
           ...state.guidedAnswers,
-          [state.stageIndex]: [...answered, action.promptId],
+          [state.stageIndex]: { ...answered, [action.promptId]: action.option },
         },
         wrongPick: null,
       };
+    }
+
+    case "set-byte": {
+      return { ...state, playgroundByte: action.value & 0xff };
     }
 
     case "run-public-tests": {

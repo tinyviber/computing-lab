@@ -936,6 +936,31 @@
   border-color: var(--accent);
 }
 
+.cpu-guide-option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.cpu-guide-option:disabled:hover {
+  border-color: var(--border);
+}
+
+.cpu-guide-bytegate {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 2px;
+  width: 100%;
+}
+
+.cpu-guide-bytegate code {
+  color: var(--accent);
+}
+
+.cpu-case-pin {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .cpu-guide-option.is-wrong {
   border-color: var(--danger);
   color: var(--danger);
