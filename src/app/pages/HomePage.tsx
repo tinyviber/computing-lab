@@ -8,6 +8,7 @@ import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
+import { NET_CORE_STAGES } from "../../features/network";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -159,6 +160,7 @@ function ClassroomHome() {
 
   const [cpuProject, setCpuProject] = useState<ProjectSummary | null>(null);
   const [isProject, setIsProject] = useState<ProjectSummary | null>(null);
+  const [netProject, setNetProject] = useState<ProjectSummary | null>(null);
 
   useEffect(() => {
     if (!classId || isStaff || catalog === null) return;
@@ -179,6 +181,12 @@ function ClassroomHome() {
         .get<ProjectSummary>(`/api/classes/${classId}/labs/is-sim/project`)
         .then(setIsProject)
         .catch(() => setIsProject(null));
+    }
+    if (!hiddenOf("network")) {
+      void api
+        .get<ProjectSummary>(`/api/classes/${classId}/labs/network/project`)
+        .then(setNetProject)
+        .catch(() => setNetProject(null));
     }
   }, [classId, isStaff, catalog]);
 
@@ -270,12 +278,34 @@ function ClassroomHome() {
                 ) : null}
               </article>
             ) : null}
+            {cardVisible("network") ? (
+              <article className="lab-card">
+                <div className="lab-card-topline">
+                  <span className="category-label">
+                    Lab 04{isAdmin && hiddenOf("network") ? " · 已隐藏" : ""}
+                  </span>
+                </div>
+                <h4>网络寻径</h4>
+                <p>给主机配上地址、给交换机接线、给路由表写下一跳：让分组沿正确的路径抵达。</p>
+                {!isStaff && netProject ? (
+                  <StageProgress
+                    currentStage={netProject.currentStage}
+                    total={NET_CORE_STAGES.length}
+                  />
+                ) : null}
+                {classId ? (
+                  <Link className="button button-primary" to="/labs/network">
+                    {netProject && netProject.currentStage > 1 ? "继续" : "开始"}
+                  </Link>
+                ) : null}
+              </article>
+            ) : null}
             {role === "admin"
               ? ADMIN_PREVIEW_LABS.map((lab, index) => (
                   <article className="lab-card" key={lab.id}>
                     <div className="lab-card-topline">
                       <span className="category-label">
-                        Lab 0{index + 4} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
+                        Lab 0{index + 5} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
                       </span>
                     </div>
                     <h4>{lab.title}</h4>
@@ -294,6 +324,7 @@ function ClassroomHome() {
           {!cardVisible("calculator") &&
           !cardVisible("cpu") &&
           !cardVisible("is-sim") &&
+          !cardVisible("network") &&
           role !== "admin" ? (
             <p className="home-empty">当前没有开放的实验，等管理员开放后再来。</p>
           ) : null}

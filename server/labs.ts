@@ -10,6 +10,7 @@ import { COLOR_QUANT_STAGES } from "../src/features/color-quantization/domain/st
 import { CPU_STAGES } from "../src/features/cpu/domain/stages.ts";
 import { IMAGE_SAMPLING_STAGES } from "../src/features/image-sampling/domain/stages.ts";
 import { IS_SIM_STAGES } from "../src/features/is-sim/domain/stages.ts";
+import { NET_STAGES } from "../src/features/network/domain/stages.ts";
 
 export type LabInfo = {
   id: string;
@@ -24,6 +25,7 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length, teacherVisible: false },
   { id: "cpu", stageCount: CPU_STAGES.length, teacherVisible: true },
   { id: "is-sim", stageCount: IS_SIM_STAGES.length, teacherVisible: true },
+  { id: "network", stageCount: NET_STAGES.length, teacherVisible: true },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {
