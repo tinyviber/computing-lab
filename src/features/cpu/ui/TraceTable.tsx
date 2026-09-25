@@ -2,9 +2,9 @@ import { formatInstr, REG_NAMES } from "../domain/isa.ts";
 import type { MachineRun, RunReason, TraceRow } from "../domain/machine.ts";
 
 export const REASON_LABEL: Record<RunReason, string> = {
-  halted: "停机",
-  "ran-off": "跑出存储器",
-  timeout: "超过周期上限",
+  halted: "正常结束 · 执行了 HALT",
+  "ran-off": "跑飞 · PC 超出 0–15，没有遇到 HALT",
+  timeout: "超时 · 达到周期预算，疑似死循环",
 };
 
 /**

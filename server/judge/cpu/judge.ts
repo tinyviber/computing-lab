@@ -17,6 +17,7 @@ import { seedFor } from "../../../src/features/cpu/domain/rng.ts";
 import {
   cpuStageUnlocked,
   getCpuStage,
+  guidedProgram,
   nextCpuStage,
 } from "../../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../../src/features/cpu/lesson/state.ts";
@@ -41,6 +42,7 @@ export function judgeCpuSubmission(
   project: ProjectRow<CpuDraft>,
   stageIndex: number,
   rawDraft: unknown,
+  options?: { guidedComplete?: boolean },
 ): CpuJudgeResult | LabJudgeError {
   const gated = gateStage(getCpuStage(stageIndex), (stage) =>
     cpuStageUnlocked(project.passedStages, stage.index),
@@ -48,12 +50,21 @@ export function judgeCpuSubmission(
   if ("error" in gated) return gated;
   const stage = gated.stage;
 
+  // Guided stages gate on the prediction walk, not just the program: the
+  // client asserts it completed the sequence before submitting.
+  if (stage.guided && options?.guidedComplete !== true) {
+    return { error: "guided-incomplete", status: 400 };
+  }
+
   const draft = sanitizeDraft(rawDraft);
+  // Guided programs are prefill + editable slots — locked rows in the
+  // submission are ignored, exactly like the client-side normalization.
+  const program = stage.guided ? { rows: guidedProgram(stage, draft.rows) } : draft;
 
   const seed = seedFor(project.userId, project.labId, stage.index);
   const cases = hiddenCasesFor(stage.index, seed);
   const verdicts = cases.map((testCase) =>
-    judgeCase(draft.rows, testCase, {
+    judgeCase(program.rows, testCase, {
       scratchCells: stage.scratchCells,
       maxCycles: stage.maxCycles,
       requireSelfModFetch: stage.requireSelfModFetch,
@@ -124,7 +135,7 @@ export function judgeCpuSubmission(
       userId: project.userId,
       labId: project.labId,
       stageIndex,
-      snapshot: draft,
+      snapshot: program,
       score,
       total,
       passed,

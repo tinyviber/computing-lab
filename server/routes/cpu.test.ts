@@ -120,6 +120,7 @@ describe("cpu routes", () => {
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
+      guidedComplete: true,
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -131,20 +132,63 @@ describe("cpu routes", () => {
     expect(outcome).toMatchObject({ passed: true, score: outcome.total, currentStage: 2 });
   });
 
+  it("rejects a guided stage until the prompt sequence is complete", async () => {
+    const { app, classId, studentId, cookieFor } = await setup();
+    const res = await judge(app, classId, cookieFor(studentId), {
+      stageIndex: 1,
+      draft: { rows: SOLVED_C1 },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "guided-incomplete" });
+  });
+
+  it("normalizes guided submissions: locked rows in the draft are ignored", async () => {
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    // Creating the project row first so the UPDATE below can see it.
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    // Stage 2 is guided with one editable row (index 1). A hostile draft
+    // mutating the locked LOAD row can't reach the machine — the judge
+    // rebuilds prefill + editable slots.
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1]), studentId, classId);
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 2,
+      draft: {
+        rows: [
+          { op: "HALT", reg: 0, operand: 0 },
+          { op: "STORE", reg: 0, operand: 15 },
+        ],
+      },
+      guidedComplete: true,
+    });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as { passed: boolean };
+    expect(outcome.passed).toBe(true);
+  });
+
   it("refuses a locked stage", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 3,
       draft: { rows: SOLVED_C1 },
+      guidedComplete: true,
     });
     expect(res.status).toBe(409);
     expect(await res.json()).toEqual({ error: "stage-locked" });
   });
 
   it("fails an incomplete program without crashing", async () => {
-    const { app, classId, studentId, cookieFor } = await setup();
-    const res = await judge(app, classId, cookieFor(studentId), {
-      stageIndex: 1,
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    // Stage 7 (write-an-if) is a free challenge unlocked after core 5.
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1, 2, 3, 4, 5, 6]), studentId, classId);
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 7,
       draft: { rows: [{ op: "LOAD", reg: 0, operand: 14 }] },
     });
     expect(res.status).toBe(200);
@@ -179,6 +223,7 @@ describe("cpu routes", () => {
       const res = await judge(app, classId, cookie, {
         stageIndex: 1,
         draft: { rows: SOLVED_C1 },
+        guidedComplete: true,
       });
       last = res.status;
     }

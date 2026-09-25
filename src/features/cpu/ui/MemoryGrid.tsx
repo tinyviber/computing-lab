@@ -9,20 +9,26 @@ const toHex = (byte: number) => byte.toString(16).toUpperCase().padStart(2, "0")
  * same byte is either an instruction encoding or a number, which is the
  * whole point of a stored-program machine.
  *
- * Highlights: the cell PC is about to fetch (`is-pc`), the cell written by
- * the last executed STORE (`is-write`), and stage-declared scratch cells.
+ * Synchronized highlights (issue #70 §5.5): the cell the pending cycle
+ * fetches (`is-pc`), the data cell it reads during exec (`is-read`), the
+ * cell it is about to write (`is-pending-write`), and the cell the last
+ * committed cycle wrote (`is-write`).
  */
 export function MemoryGrid(props: {
   mem: number[];
   /** Program size — cells [0, programRows) render as code. */
   programRows: number;
-  /** Cell PC will fetch next (−1 when the run ended). */
+  /** Cell the pending cycle fetches (−1 when the run ended). */
   fetchCell: number;
-  /** Cell written in the last executed cycle, if any. */
+  /** Data cell the pending cycle reads during exec, if any. */
+  readCell?: number | null;
+  /** Cell written in the last committed cycle, if any. */
   writtenCell: number | null;
+  /** Cell the pending cycle will write (STORE exec preview). */
+  pendingWrite?: { addr: number; value: number } | null;
   scratchCells: readonly number[];
 }) {
-  const { mem, programRows, fetchCell, writtenCell, scratchCells } = props;
+  const { mem, programRows, fetchCell, readCell, writtenCell, pendingWrite, scratchCells } = props;
   const [view, setView] = useState<"instr" | "data">("instr");
   const scratch = new Set(scratchCells);
 
@@ -52,11 +58,14 @@ export function MemoryGrid(props: {
       <ol className="cpu-mem-grid">
         {mem.slice(0, MEM_CELLS).map((byte, addr) => {
           const isProgram = addr < programRows;
+          const isPendingWrite = pendingWrite?.addr === addr;
           const classes = [
             "cpu-mem-cell",
             isProgram ? "is-code" : "is-data",
             addr === fetchCell ? "is-pc" : "",
+            addr === readCell ? "is-read" : "",
             addr === writtenCell ? "is-write" : "",
+            isPendingWrite ? "is-pending-write" : "",
             scratch.has(addr) ? "is-scratch" : "",
           ]
             .filter(Boolean)
@@ -65,18 +74,22 @@ export function MemoryGrid(props: {
           return (
             <li className={classes} key={addr}>
               <span className="cpu-mem-addr">
-                {addr === fetchCell ? <em title="PC 下一次取指的位置">→</em> : null}
+                {addr === fetchCell ? <em title="PC 正在取指的格子">→</em> : null}
                 {addr}
               </span>
               <span className="cpu-mem-value">
                 {view === "instr" ? <code>{toHex(byte)}</code> : <strong>{byte}</strong>}
               </span>
               <span className="cpu-mem-label">
-                {view === "instr"
-                  ? formatInstr(decoded)
-                  : isProgram
-                    ? "代码格"
-                    : `数据 ${byte & 0xf}`}
+                {isPendingWrite ? (
+                  <>⇢ 写入 {pendingWrite.value}</>
+                ) : view === "instr" ? (
+                  formatInstr(decoded)
+                ) : isProgram ? (
+                  "代码格"
+                ) : (
+                  `数据 ${byte & 0xf}`
+                )}
               </span>
             </li>
           );

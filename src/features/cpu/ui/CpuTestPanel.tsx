@@ -3,9 +3,9 @@ import type { PublicRunOutcome } from "../lesson/state.ts";
 import { REASON_LABEL, TRACE_HEAD, TraceRows } from "./TraceTable.tsx";
 
 const REASON_TEXT: Record<string, string> = {
-  halted: "停机",
-  "ran-off": "跑出存储器了",
-  timeout: "超过周期上限了",
+  halted: "正常结束（执行了 HALT）",
+  "ran-off": "跑飞了（PC 超出 0–15）",
+  timeout: "超时（达到周期预算）",
 };
 
 function diffText(c: CpuCounterexample): string {

@@ -2,10 +2,10 @@ import { StageLink } from "../../../shared/lab/StageRail";
 import { CPU_CORE_STAGES, CPU_STAGES, type CpuStageDef } from "../domain/stages.ts";
 
 /**
- * The cpu lab rail: the five core stages in order, with each `railAfter`
- * challenge anchored in a collapsible 支线练习 group right behind its core
- * stage (same pattern as the calculator rail). Challenges without an
- * anchor would land in a bottom 选做挑战 group.
+ * The cpu lab rail: the six guided core stages in order, with each
+ * `railAfter` challenge anchored in a collapsible 支线练习 group right
+ * behind its core stage (same pattern as the calculator rail). Challenges
+ * without an anchor would land in a bottom 选做挑战 group.
  */
 export function CpuStageRail(props: {
   stageIndex: number;
@@ -65,7 +65,10 @@ export function CpuStageRail(props: {
   return (
     <aside aria-label="关卡进度" className="lab-rail">
       <p className="eyebrow">
-        冯诺依曼数据通路 <span className="cpu-rail-count">{corePassed} / 5 主线</span>
+        冯诺依曼数据通路{" "}
+        <span className="cpu-rail-count">
+          {corePassed} / {CPU_CORE_STAGES.length} 主线
+        </span>
       </p>
       <ol className="stage-list">
         {CPU_CORE_STAGES.flatMap((stage) => [

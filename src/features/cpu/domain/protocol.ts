@@ -15,6 +15,12 @@ export type CpuDraft = { rows: InstrRow[] };
 export type CpuSubmission = {
   stageIndex: number;
   draft: CpuDraft;
+  /**
+   * Guided stages: the client asserts the prediction sequence is complete.
+   * The server rejects guided submissions without it — passing a guided
+   * stage means finishing the observe/predict walk, not just the program.
+   */
+  guidedComplete?: boolean;
 };
 
 export type CpuCounterexample = {

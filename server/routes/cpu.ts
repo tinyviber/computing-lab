@@ -40,7 +40,9 @@ export function cpuRoutes() {
       const key = `${project.userId}|cpu|${stageIndex}`;
       if (judgeLimiter.exceeded(key)) return { error: "rate-limited", status: 429 };
       judgeLimiter.hit(key);
-      return judgeCpuSubmission(db, project, stageIndex, body.draft);
+      return judgeCpuSubmission(db, project, stageIndex, body.draft, {
+        guidedComplete: body.guidedComplete === true,
+      });
     },
   });
 }
