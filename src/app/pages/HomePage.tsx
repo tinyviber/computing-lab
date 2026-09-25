@@ -21,18 +21,46 @@ type StudentTask = {
   finalTotal: number | null;
 };
 
-const ADMIN_PREVIEW_LABS = [
+const HOME_LABS = [
+  {
+    id: "calculator",
+    title: "实现ALU",
+    description: "从半加器到完整计算器：用逻辑门逐关搭出运算电路。",
+    to: "/labs/calculator",
+    stages: coreStages().length,
+    primary: true,
+  },
+  {
+    id: "cpu",
+    title: "冯诺依曼数据通路",
+    description: "写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。",
+    to: "/labs/cpu",
+    stages: CPU_CORE_STAGES.length,
+    primary: false,
+  },
+  {
+    id: "is-sim",
+    title: "小型信息系统",
+    description: "搭一个传感器、网关、数据库、执行器组成的小系统：在事件的时间线上看数据怎么流动。",
+    to: "/labs/is-sim",
+    stages: IS_SIM_CORE_STAGES.length,
+    primary: false,
+  },
   {
     id: "image-sampling",
     title: "空间采样",
     description: "探索图像分辨率如何影响细节，以及怎样用更少像素保留关键信息。",
     to: "/labs/image-sampling",
+    stages: null,
+    primary: false,
   },
   {
     id: "color-quantization",
     title: "颜色量化",
     description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
     to: "/labs/color-quantization",
+    stages: null,
+    primary: false,
   },
 ] as const;
 
@@ -148,7 +176,7 @@ function StageProgress({ currentStage, total }: { currentStage: number; total: n
 function ClassroomHome() {
   const { status, primaryMembership, role } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
-  const [project, setProject] = useState<ProjectSummary | null>(null);
+  const [projects, setProjects] = useState<Record<string, ProjectSummary | null>>({});
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
   const isAdmin = role === "admin";
@@ -156,29 +184,16 @@ function ClassroomHome() {
   // cards (badged) so they can preview and reopen them.
   const hiddenOf = (labId: string) => catalog?.get(labId)?.hidden === true;
   const cardVisible = (labId: string) => isAdmin || !hiddenOf(labId);
-
-  const [cpuProject, setCpuProject] = useState<ProjectSummary | null>(null);
-  const [isProject, setIsProject] = useState<ProjectSummary | null>(null);
+  const hasVisibleLab = HOME_LABS.some((lab) => cardVisible(lab.id));
 
   useEffect(() => {
     if (!classId || isStaff || catalog === null) return;
-    if (!hiddenOf("calculator")) {
+    for (const lab of HOME_LABS) {
+      if (lab.stages === null || hiddenOf(lab.id)) continue;
       void api
-        .get<ProjectSummary>(`/api/classes/${classId}/labs/calculator/project`)
-        .then(setProject)
-        .catch(() => setProject(null));
-    }
-    if (!hiddenOf("cpu")) {
-      void api
-        .get<ProjectSummary>(`/api/classes/${classId}/labs/cpu/project`)
-        .then(setCpuProject)
-        .catch(() => setCpuProject(null));
-    }
-    if (!hiddenOf("is-sim")) {
-      void api
-        .get<ProjectSummary>(`/api/classes/${classId}/labs/is-sim/project`)
-        .then(setIsProject)
-        .catch(() => setIsProject(null));
+        .get<ProjectSummary>(`/api/classes/${classId}/labs/${lab.id}/project`)
+        .then((project) => setProjects((current) => ({ ...current, [lab.id]: project })))
+        .catch(() => setProjects((current) => ({ ...current, [lab.id]: null })));
     }
   }, [classId, isStaff, catalog]);
 
@@ -202,99 +217,34 @@ function ClassroomHome() {
             </div>
           </div>
 
-          <div className={`lab-card-grid${role === "admin" ? " is-admin-preview" : ""}`}>
-            {cardVisible("calculator") ? (
-              <article className="lab-card is-primary">
-                <div className="lab-card-topline">
-                  <span className="category-label">
-                    Lab 01{isAdmin && hiddenOf("calculator") ? " · 已隐藏" : ""}
-                  </span>
-                </div>
-                <h4>实现ALU</h4>
-                <p>从半加器到完整计算器：用逻辑门逐关搭出运算电路。</p>
-                {!isStaff && project ? (
-                  <StageProgress currentStage={project.currentStage} total={coreStages().length} />
-                ) : null}
-                {classId ? (
-                  <Link className="button button-primary" to="/labs/calculator">
-                    {project && project.currentStage > 1 ? "继续" : "开始"}
-                  </Link>
-                ) : null}
-              </article>
-            ) : null}
-            {cardVisible("cpu") ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">
-                    Lab 02{isAdmin && hiddenOf("cpu") ? " · 已隐藏" : ""}
-                  </span>
-                </div>
-                <h4>冯诺依曼数据通路</h4>
-                <p>
-                  写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。
-                </p>
-                {!isStaff && cpuProject ? (
-                  <StageProgress
-                    currentStage={cpuProject.currentStage}
-                    total={CPU_CORE_STAGES.length}
-                  />
-                ) : null}
-                {classId ? (
-                  <Link className="button button-primary" to="/labs/cpu">
-                    {cpuProject && cpuProject.currentStage > 1 ? "继续" : "开始"}
-                  </Link>
-                ) : null}
-              </article>
-            ) : null}
-            {cardVisible("is-sim") ? (
-              <article className="lab-card">
-                <div className="lab-card-topline">
-                  <span className="category-label">
-                    Lab 03{isAdmin && hiddenOf("is-sim") ? " · 已隐藏" : ""}
-                  </span>
-                </div>
-                <h4>小型信息系统</h4>
-                <p>
-                  搭一个传感器、网关、数据库、执行器组成的小系统：在事件的时间线上看数据怎么流动。
-                </p>
-                {!isStaff && isProject ? (
-                  <StageProgress
-                    currentStage={isProject.currentStage}
-                    total={IS_SIM_CORE_STAGES.length}
-                  />
-                ) : null}
-                {classId ? (
-                  <Link className="button button-primary" to="/labs/is-sim">
-                    {isProject && isProject.currentStage > 1 ? "继续" : "开始"}
-                  </Link>
-                ) : null}
-              </article>
-            ) : null}
-            {role === "admin"
-              ? ADMIN_PREVIEW_LABS.map((lab, index) => (
-                  <article className="lab-card" key={lab.id}>
-                    <div className="lab-card-topline">
-                      <span className="category-label">
-                        Lab 0{index + 4} · 管理员预览{hiddenOf(lab.id) ? " · 已隐藏" : ""}
-                      </span>
-                    </div>
-                    <h4>{lab.title}</h4>
-                    <p>{lab.description}</p>
-                    {classId ? (
-                      <Link className="button button-primary" to={lab.to}>
-                        预览实验
-                      </Link>
-                    ) : (
-                      <p>请先将管理员账号分配到班级，再预览实验。</p>
-                    )}
-                  </article>
-                ))
-              : null}
+          <div className="lab-card-grid lab-catalog-grid">
+            {HOME_LABS.map((lab, index) => {
+              const project = projects[lab.id];
+              return cardVisible(lab.id) ? (
+                <article className={`lab-card${lab.primary ? " is-primary" : ""}`} key={lab.id}>
+                  <div className="lab-card-topline">
+                    <span className="category-label">
+                      Lab {String(index + 1).padStart(2, "0")}
+                      {isAdmin && hiddenOf(lab.id) ? " · 已隐藏" : ""}
+                    </span>
+                  </div>
+                  <h4>{lab.title}</h4>
+                  <p>{lab.description}</p>
+                  {!isStaff && project && lab.stages !== null ? (
+                    <StageProgress currentStage={project.currentStage} total={lab.stages} />
+                  ) : null}
+                  {classId ? (
+                    <Link className="button button-primary" to={lab.to}>
+                      {project && project.currentStage > 1 ? "继续" : "开始实验"}
+                    </Link>
+                  ) : (
+                    <p>请先加入班级，再开始实验。</p>
+                  )}
+                </article>
+              ) : null;
+            })}
           </div>
-          {!cardVisible("calculator") &&
-          !cardVisible("cpu") &&
-          !cardVisible("is-sim") &&
-          role !== "admin" ? (
+          {!hasVisibleLab ? (
             <p className="home-empty">当前没有开放的实验，等管理员开放后再来。</p>
           ) : null}
         </section>

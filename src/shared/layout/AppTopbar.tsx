@@ -65,7 +65,7 @@ export function AppPageLayout({
   return (
     <div className={`page-layout${className ? ` ${className}` : ""}`}>
       <AppTopbar {...topbarProps}>{topbar}</AppTopbar>
-      {children}
+      <div className="page-layout-content">{children}</div>
     </div>
   );
 }

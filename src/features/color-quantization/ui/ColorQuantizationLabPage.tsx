@@ -149,7 +149,6 @@ export function ColorQuantizationLabPage() {
 
   return (
     <LabAccessGate
-      adminPreview
       classId={classId}
       hidden={catalog?.get("color-quantization")?.hidden === true}
       labName="颜色量化"

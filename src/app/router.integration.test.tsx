@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import {
   adminAuthState,
@@ -23,10 +23,29 @@ describe("application router integration", () => {
     expect(screen.getByRole("heading", { name: "实现ALU" })).toBeInTheDocument();
     const calcCard = screen.getByRole("heading", { name: "实现ALU" }).closest("article");
     expect(calcCard).not.toBeNull();
-    expect(within(calcCard as HTMLElement).getByRole("link", { name: "开始" })).toHaveAttribute(
+    expect(within(calcCard as HTMLElement).getByRole("link", { name: "开始实验" })).toHaveAttribute(
       "href",
       "/labs/calculator",
     );
+  });
+
+  it("renders every homepage lab from the same card pattern and action label", async () => {
+    await renderAppAt("/", { auth: teacherAuthState });
+
+    const cards = screen.getAllByRole("article");
+    expect(cards).toHaveLength(5);
+    for (const card of cards) {
+      expect(within(card).getByRole("link", { name: "开始实验" })).toBeInTheDocument();
+    }
+  });
+
+  it("lets teachers enter an open image-sampling lab", async () => {
+    const { router } = await renderAppAt("/labs/image-sampling", { auth: teacherAuthState });
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/classes/c1/labs/image-sampling"),
+    );
+    expect(screen.queryByText(/仅对管理员开放预览/)).not.toBeInTheDocument();
   });
 
   it("shows the calculator lab and account menu to admins", async () => {
@@ -38,6 +57,14 @@ describe("application router integration", () => {
     expect(await screen.findByRole("menuitem", { name: "账号管理" })).toHaveAttribute(
       "href",
       "/admin",
+    );
+    expect(screen.getByRole("menuitem", { name: "班级管理" })).toHaveAttribute(
+      "href",
+      "/admin/classes",
+    );
+    expect(screen.getByRole("menuitem", { name: "实验管理" })).toHaveAttribute(
+      "href",
+      "/admin/labs",
     );
     expect(screen.getByRole("menuitem", { name: "班级看板" })).toBeInTheDocument();
   });

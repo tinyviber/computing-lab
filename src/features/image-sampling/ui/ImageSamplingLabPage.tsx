@@ -151,7 +151,6 @@ export function ImageSamplingLabPage() {
 
   return (
     <LabAccessGate
-      adminPreview
       classId={classId}
       hidden={catalog?.get("image-sampling")?.hidden === true}
       labName="空间采样"

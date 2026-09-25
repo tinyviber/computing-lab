@@ -31,6 +31,36 @@ test("serves the root app, calculator entry, and not-found fallback", async ({ p
   expect(failures, failures.join("\n")).toEqual([]);
 });
 
+test("admin dropdown opens account, class, and lab management as separate pages", async ({
+  page,
+}) => {
+  await page.goto("login", { waitUntil: "networkidle" });
+  await page.getByLabel("学号").fill("admin");
+  await page.getByLabel("密码").fill("admin-dev-password");
+  await page.getByRole("button", { name: "登录" }).click();
+
+  const accountMenu = page.getByRole("button", { name: /管理员/ });
+  await expect(accountMenu).toBeVisible();
+
+  await accountMenu.click();
+  await page.getByRole("menuitem", { name: "账号管理" }).click();
+  await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: "账号管理" })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+
+  await accountMenu.click();
+  await page.getByRole("menuitem", { name: "班级管理" }).click();
+  await expect(page).toHaveURL(/\/admin\/classes$/);
+  await expect(page.getByRole("heading", { name: "班级管理" })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+
+  await accountMenu.click();
+  await page.getByRole("menuitem", { name: "实验管理" }).click();
+  await expect(page).toHaveURL(/\/admin\/labs$/);
+  await expect(page.getByRole("heading", { name: "实验管理" })).toBeVisible();
+  await expect(page.getByRole("tab")).toHaveCount(0);
+});
+
 test("completes the first calculator stage through the real API", async ({ page, request }) => {
   const failures = collectFailures(page);
 
