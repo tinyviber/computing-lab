@@ -214,10 +214,6 @@ export function getIsStage(index: number): IsStageDef | undefined {
   return IS_SIM_STAGES.find((s) => s.index === index);
 }
 
-export function isSimStageCount(): number {
-  return IS_SIM_STAGES.length;
-}
-
 /**
  * Core stages unlock linearly; the challenge (stage 6) needs its explicit
  * prerequisite in unlockAfter.

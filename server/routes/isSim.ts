@@ -1,5 +1,5 @@
 import type { IsDraft, IsJudgeResult } from "../../src/features/is-sim/domain/protocol.ts";
-import { isSimStageCount } from "../../src/features/is-sim/domain/stages.ts";
+import { IS_SIM_STAGES } from "../../src/features/is-sim/domain/stages.ts";
 import { sanitizeDraft } from "../../src/features/is-sim/lesson/state.ts";
 import { SlidingWindowLimiter } from "../auth/rateLimit.ts";
 import { judgeIsSimSubmission } from "../judge/is-sim/judge.ts";
@@ -12,7 +12,7 @@ export function isSimRoutes() {
   const judgeLimiter = new SlidingWindowLimiter(20, 10 * 60 * 1000);
   return labRoutes<IsDraft, IsJudgeResult>({
     labId: "is-sim",
-    stageCount: isSimStageCount,
+    stageCount: IS_SIM_STAGES.length,
     saveDraft: (db, project, stageIndex, body) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
     judge: (db, project, stageIndex, body) => {

@@ -193,10 +193,6 @@ export function getCpuStage(index: number): CpuStageDef | undefined {
   return CPU_STAGES.find((s) => s.index === index);
 }
 
-export function cpuStageCount(): number {
-  return CPU_STAGES.length;
-}
-
 /**
  * Core stages unlock linearly; challenges need their explicit prerequisites.
  * Stage 6 (fewer-cycles) follows stage 4; stage 7 (self-modify) follows 5.

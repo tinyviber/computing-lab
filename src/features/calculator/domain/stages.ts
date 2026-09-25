@@ -366,7 +366,3 @@ export function nextMainlineStage(passedStages: readonly number[]): number {
   );
   return Math.min(highestPassedCore + 1, coreStages().length + 1);
 }
-
-export function stageCount(): number {
-  return CALCULATOR_STAGES.length;
-}

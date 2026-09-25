@@ -31,3 +31,22 @@
 ## Teaching model
 
 Prefer explicit formulas and observable state. A scenario may be encoded in the URL so a teacher can share a reproducible experiment. Validate and clamp user-controlled values at the domain boundary.
+
+## Serena memory maintenance
+
+- Start from `mem:core`, then read only the referenced memories relevant to the task. Treat memories as a compact project map; confirm current behavior in code when needed.
+- Narrow exploration in steps: read the owning module memory, use Serena symbol overviews/references, then inspect the relevant implementation and nearest tests. Consult `docs/architecture.md` for cross-layer flows.
+- Expand to repository-wide search or directory traversal only when the scoped path cannot answer the question or the task crosses boundaries. Avoid rescanning files already inspected unless they changed or the question requires it.
+- Use Serena's symbol tools and targeted local-file reads to understand the relevant code without loading broad, unrelated context.
+- At the end of each coding task, review the code changes and durable discoveries. Update the narrowest relevant memory when architecture, conventions, cross-module behavior, or recurring pitfalls change; make no memory change when the task adds no durable project knowledge.
+- Read `mem:memory_maintenance` before adding, editing, moving, or removing memories.
+- Keep memories concise. Do not record task progress, transient debugging, or facts already easy to find in `README.md`, `AGENTS.md`, or `package.json`.
+- Keep `mem:core` as the entry point and maintain `mem:` references when memories move or are removed. Run `serena memories check` after changing memory references.
+- Include useful memory updates with the related code changes so future agents and worktrees receive them.
+
+## Verification
+
+- During implementation, use the narrowest relevant tests and changed-file lint/format checks. Run typecheck when types or contracts change, or when the feature is complete.
+- Keep the full test suite, build, and Playwright out of the edit/repair loop. Fix issues with focused feedback first; do not repeat a passing expensive check unless relevant code changed afterward.
+- After focused checks pass, run the repository-mandated `bun run format:check`, `bun run lint`, `bun run typecheck`, `bun run test:run`, and `bun run build` before handoff. Run heavy commands serially and follow host-specific rules in `.codex/AGENTS.md`.
+- For changes to browser routes, authentication, API/persistence boundaries, or complete user flows, run one relevant Playwright spec after build. Reserve the full `bun run test:e2e` suite for CI, release validation, or an explicit request.

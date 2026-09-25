@@ -7,7 +7,7 @@
  * ones the observer also needs.
  */
 
-import { stageCount } from "../domain/stages";
+import { CALCULATOR_STAGES } from "../domain/stages";
 import type { CoachView, StepDef } from "./coach";
 
 const isPin = (kind: string) => kind === "input" || kind === "output";
@@ -439,8 +439,8 @@ export const STEP_DEFS: StepDef[] = [
         title: "你获得了一个新元件",
         body: `你刚才搭的电路已经变成了新元件 ${component}，就在左边「我的组件」里——以后不用重搭里面的门，直接用它。`,
         focus: [{ kind: "my-components" }],
-        manualLabel: next <= stageCount() ? `去第 ${next} 关` : "知道了",
-        nextStage: next <= stageCount() ? next : undefined,
+        manualLabel: next <= CALCULATOR_STAGES.length ? `去第 ${next} 关` : "知道了",
+        nextStage: next <= CALCULATOR_STAGES.length ? next : undefined,
       };
     },
   },

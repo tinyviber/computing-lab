@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { coreStages } from "../../src/features/calculator/domain/stages.ts";
 import type { CpuDraft, CpuJudgeResult } from "../../src/features/cpu/domain/protocol.ts";
-import { cpuStageCount } from "../../src/features/cpu/domain/stages.ts";
+import { CPU_STAGES } from "../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../src/features/cpu/lesson/state.ts";
 import { SlidingWindowLimiter } from "../auth/rateLimit.ts";
 import { parseJsonColumn } from "../db/client.ts";
@@ -30,7 +30,7 @@ export function cpuRoutes() {
   const judgeLimiter = new SlidingWindowLimiter(20, 10 * 60 * 1000);
   return labRoutes<CpuDraft, CpuJudgeResult>({
     labId: "cpu",
-    stageCount: cpuStageCount,
+    stageCount: CPU_STAGES.length,
     projectExtras: (db, project) => ({
       calculatorCoreComplete: calculatorCoreComplete(db, project.userId),
     }),

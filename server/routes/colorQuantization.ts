@@ -1,4 +1,4 @@
-import { quantStageCount } from "../../src/features/color-quantization/domain/stages.ts";
+import { COLOR_QUANT_STAGES } from "../../src/features/color-quantization/domain/stages.ts";
 import type { QuantJudgeResult } from "../../src/features/color-quantization/domain/protocol.ts";
 import {
   sanitizeDraft,
@@ -16,7 +16,7 @@ import { labRoutes } from "./labRoutes.ts";
 export function colorQuantizationRoutes() {
   return labRoutes<StageDraft, QuantJudgeResult>({
     labId: "color-quantization",
-    stageCount: quantStageCount,
+    stageCount: COLOR_QUANT_STAGES.length,
     adminPreview: true,
     saveDraft: (db, project, stageIndex, body) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
