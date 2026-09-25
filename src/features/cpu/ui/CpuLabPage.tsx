@@ -39,7 +39,7 @@ import { BlockDiagram, type CpuPhase } from "./BlockDiagram.tsx";
 import { BytePlayground } from "./BytePlayground.tsx";
 import { CpuStageRail } from "./CpuStageRail.tsx";
 import { CpuTestPanel } from "./CpuTestPanel.tsx";
-import { GuidedPanel } from "./GuidedPanel.tsx";
+import { CurrentPromptCard, GuidedPanel } from "./GuidedPanel.tsx";
 import { InstructionShelf } from "./InstructionShelf.tsx";
 import { MemoryGrid } from "./MemoryGrid.tsx";
 import { ProgramEditor } from "./ProgramEditor.tsx";
@@ -176,7 +176,8 @@ export function CpuLabPage() {
   const answeredPrompts = useMemo(() => answeredPromptIds(state), [state]);
   // A prompt that quotes demo data pins the picker to its caseIndex while
   // unanswered — the question and the machine state can never disagree.
-  const pinnedCaseIndex = nextPrompt(state)?.caseIndex ?? null;
+  const livePrompt = nextPrompt(state);
+  const pinnedCaseIndex = livePrompt?.caseIndex ?? null;
   const blockingPrompt =
     stage?.guided?.prompts.find(
       (p) => !answeredPrompts.has(p.id) && p.at !== undefined && effectiveCursor >= p.at,
@@ -350,143 +351,147 @@ export function CpuLabPage() {
               </p>
             ) : null}
 
-            {stage ? (
-              <ProgramEditor
-                activeRow={pending && pending.pc < rows.length ? pending.pc : null}
-                blankRows={blanks}
-                disabled={clock === "running"}
-                editableRows={guided ? editable : undefined}
-                onInsertRow={(index) => dispatch({ type: "insert-row", index })}
-                onMoveRow={(index, dir) => dispatch({ type: "move-row", index, dir })}
-                onRemoveRow={(index) => dispatch({ type: "remove-row", index })}
-                onSetRow={(index, patch) => dispatch({ type: "set-row", index, patch })}
-                ops={stage.ops}
-                rowOps={stage.guided?.rowOps}
-                rows={rows}
-              />
-            ) : null}
-
             {stage?.guided ? (
-              <GuidedPanel
-                answered={answeredPrompts}
-                blocking={blockingPrompt}
-                currentByte={state.playgroundByte}
-                onAnswer={(promptId, option) =>
-                  dispatch({ type: "answer-prompt", promptId, option })
-                }
-                stage={stage}
-                wrongPick={state.wrongPick}
-              />
-            ) : null}
-
-            {stage?.guided?.bytePlayground ? (
-              <BytePlayground
-                byte={state.playgroundByte}
-                onByte={(value) => dispatch({ type: "set-byte", value })}
-                programBytes={rows.map(encodeInstr)}
-              />
+              <GuidedPanel answered={answeredPrompts} blocking={blockingPrompt} stage={stage} />
             ) : null}
 
             {stage && run && display ? (
               <section aria-label="机器运行" className="cpu-machine">
-                <div className="cpu-clock-row">
-                  <div className="cpu-clock-buttons">
-                    <button
-                      className="button button-secondary"
-                      disabled={!canStep || clock === "running"}
-                      onClick={onBeat}
-                      type="button"
-                    >
-                      {phase === "exec" ? "提交这一周期" : "下一拍"}
-                    </button>
-                    {clock === "running" ? (
+                {/* Everything a step needs in one viewport: the sticky bar
+                    keeps clock controls, the blocking banner and the live
+                    prompt card on screen while the student scrolls. */}
+                <div className="cpu-step-bar">
+                  <div className="cpu-clock-row">
+                    <div className="cpu-clock-buttons">
                       <button
                         className="button button-secondary"
-                        onClick={() => setClock("paused")}
+                        disabled={!canStep || clock === "running"}
+                        onClick={onBeat}
                         type="button"
                       >
-                        暂停
+                        {phase === "exec" ? "提交这一周期" : "下一拍"}
                       </button>
-                    ) : (
+                      {clock === "running" ? (
+                        <button
+                          className="button button-secondary"
+                          onClick={() => setClock("paused")}
+                          type="button"
+                        >
+                          暂停
+                        </button>
+                      ) : (
+                        <button
+                          className="button button-secondary"
+                          disabled={!canStep}
+                          onClick={() => setClock("running")}
+                          type="button"
+                        >
+                          {clock === "paused" || effectiveCursor > 0 ? "继续" : "连跑"}
+                        </button>
+                      )}
                       <button
-                        className="button button-secondary"
-                        disabled={!canStep}
-                        onClick={() => setClock("running")}
+                        className="button button-ghost"
+                        onClick={() => {
+                          setClock("idle");
+                          setCursor(0);
+                          setPhase("fetch");
+                        }}
                         type="button"
                       >
-                        {clock === "paused" || effectiveCursor > 0 ? "继续" : "连跑"}
+                        复位
                       </button>
-                    )}
-                    <button
-                      className="button button-ghost"
-                      onClick={() => {
-                        setClock("idle");
-                        setCursor(0);
-                        setPhase("fetch");
-                      }}
-                      type="button"
-                    >
-                      复位
-                    </button>
-                  </div>
-                  <div className="cpu-phasebar" key={effectiveCursor}>
-                    {PHASES.map((p, i) => (
-                      <button
-                        aria-pressed={pending !== null && phase === p.id}
-                        className={`cpu-phase cpu-phase-${p.id}${
-                          pending && phase === p.id ? " is-active" : ""
-                        }`}
-                        disabled={!pending || blockingPrompt !== null}
-                        key={p.id}
-                        onClick={() => setPhase(p.id)}
-                        type="button"
-                      >
-                        {i > 0 ? <span className="cpu-phase-arrow">→</span> : null}
-                        {p.label}
-                      </button>
-                    ))}
-                  </div>
-                  <label className="cpu-case-picker">
-                    演示数据
-                    {pinnedCaseIndex !== null ? (
-                      <span className="cpu-case-pin" role="note">
-                        已锁定到本题的数据
-                      </span>
-                    ) : null}
-                    <select
-                      disabled={clock === "running" || pinnedCaseIndex !== null}
-                      onChange={(event) => {
-                        if (event.target.value === "replay") return;
-                        setReplayCase(null);
-                        setCaseIndex(Number(event.target.value));
-                      }}
-                      value={
-                        replayCase
-                          ? "replay"
-                          : Math.min(caseIndex, Math.max(0, publicCases.length - 1))
-                      }
-                    >
-                      {publicCases.map((testCase, i) => (
-                        <option key={testCase.name} value={i}>
-                          {testCase.name}
-                        </option>
+                    </div>
+                    <div className="cpu-phasebar" key={effectiveCursor}>
+                      {PHASES.map((p, i) => (
+                        <button
+                          aria-pressed={pending !== null && phase === p.id}
+                          className={`cpu-phase cpu-phase-${p.id}${
+                            pending && phase === p.id ? " is-active" : ""
+                          }`}
+                          disabled={!pending || blockingPrompt !== null}
+                          key={p.id}
+                          onClick={() => setPhase(p.id)}
+                          type="button"
+                        >
+                          {i > 0 ? <span className="cpu-phase-arrow">→</span> : null}
+                          {p.label}
+                        </button>
                       ))}
-                      {replayCase ? <option value="replay">{replayCase.name}</option> : null}
-                    </select>
-                  </label>
-                  <span className="cpu-cycle-count">
-                    周期 {effectiveCursor} / {run.trace.length}
-                  </span>
+                    </div>
+                    <label className="cpu-case-picker">
+                      演示数据
+                      {pinnedCaseIndex !== null ? (
+                        <span className="cpu-case-pin" role="note">
+                          已锁定到本题的数据
+                        </span>
+                      ) : null}
+                      <select
+                        disabled={clock === "running" || pinnedCaseIndex !== null}
+                        onChange={(event) => {
+                          if (event.target.value === "replay") return;
+                          setReplayCase(null);
+                          setCaseIndex(Number(event.target.value));
+                        }}
+                        value={
+                          replayCase
+                            ? "replay"
+                            : Math.min(caseIndex, Math.max(0, publicCases.length - 1))
+                        }
+                      >
+                        {publicCases.map((testCase, i) => (
+                          <option key={testCase.name} value={i}>
+                            {testCase.name}
+                          </option>
+                        ))}
+                        {replayCase ? <option value="replay">{replayCase.name}</option> : null}
+                      </select>
+                    </label>
+                    <span className="cpu-cycle-count">
+                      周期 {effectiveCursor} / {run.trace.length}
+                    </span>
+                  </div>
+
+                  {blockingPrompt ? (
+                    <p className="cpu-block-banner" role="note">
+                      ⏸ 机器停在周期 {effectiveCursor} ——答对当前题才能继续走。
+                    </p>
+                  ) : null}
+
+                  {livePrompt ? (
+                    <CurrentPromptCard
+                      blocking={blockingPrompt?.id === livePrompt.id}
+                      currentByte={state.playgroundByte}
+                      onAnswer={(promptId, option) =>
+                        dispatch({ type: "answer-prompt", promptId, option })
+                      }
+                      prompt={livePrompt}
+                      wrongPick={state.wrongPick}
+                    />
+                  ) : null}
                 </div>
 
-                {blockingPrompt ? (
-                  <p className="cpu-block-banner" role="note">
-                    ⏸ 机器停在周期 {effectiveCursor} ——先回答上面「
-                    {blockingPrompt.prompt.slice(0, 18)}…」再继续走。
-                  </p>
+                {stage.guided?.bytePlayground ? (
+                  <BytePlayground
+                    byte={state.playgroundByte}
+                    onByte={(value) => dispatch({ type: "set-byte", value })}
+                    programBytes={rows.map(encodeInstr)}
+                  />
                 ) : null}
 
                 <div className="cpu-viz-grid">
+                  <ProgramEditor
+                    activeRow={pending && pending.pc < rows.length ? pending.pc : null}
+                    blankRows={blanks}
+                    disabled={clock === "running"}
+                    editableRows={guided ? editable : undefined}
+                    onInsertRow={(index) => dispatch({ type: "insert-row", index })}
+                    onMoveRow={(index, dir) => dispatch({ type: "move-row", index, dir })}
+                    onRemoveRow={(index) => dispatch({ type: "remove-row", index })}
+                    onSetRow={(index, patch) => dispatch({ type: "set-row", index, patch })}
+                    ops={stage.ops}
+                    rowOps={stage.guided?.rowOps}
+                    rows={rows}
+                  />
                   <RegistersPanel
                     carried={display.lastRow?.carried === true}
                     ir={pending && phase !== "fetch" ? pending.ir : null}
