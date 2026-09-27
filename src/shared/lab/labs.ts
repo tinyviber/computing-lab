@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 
-/** One row of GET /api/labs — the lab catalog every surface filters by. */
+/** One row of GET /api/labs — the catalog's lab identifiers and hidden state. */
 export type LabVisibility = {
   id: string;
   stageCount: number;
-  /** Admin-preview labs never appear on teacher-facing surfaces. */
-  teacherVisible: boolean;
   /** Admin-toggled: hidden labs are admin-only until reopened. */
   hidden: boolean;
 };

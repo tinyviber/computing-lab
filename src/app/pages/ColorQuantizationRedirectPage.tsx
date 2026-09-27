@@ -5,7 +5,7 @@ import { useLabCatalog } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import "./home.css";
 
-/** Public entry for the color-quantization lab; teachers see a preview notice. */
+/** Public entry for the color-quantization lab; sends members into their class. */
 export function ColorQuantizationRedirectPage() {
   const { status, primaryMembership, role } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
@@ -19,7 +19,7 @@ export function ColorQuantizationRedirectPage() {
       return;
     }
     // Non-admins wait for the catalog so a hidden lab never flashes through.
-    if (classId && role !== "teacher" && (role === "admin" || (catalog !== null && !hidden))) {
+    if (classId && (role === "admin" || (catalog !== null && !hidden))) {
       void navigate({ to: "/classes/$classId/labs/color-quantization", params: { classId } });
     }
   }, [status, classId, role, catalog, hidden, navigate]);
@@ -31,18 +31,6 @@ export function ColorQuantizationRedirectPage() {
           <p className="eyebrow">实验 / 已隐藏</p>
           <h1>这个实验暂未开放</h1>
           <p>「颜色量化」已被管理员隐藏，开放后再来。</p>
-        </main>
-      </AppPageLayout>
-    );
-  }
-
-  if (status === "authenticated" && role === "teacher") {
-    return (
-      <AppPageLayout>
-        <main className="not-found" role="status">
-          <p className="eyebrow">实验 / 预览阶段</p>
-          <h1>这个实验暂未开放</h1>
-          <p>「颜色量化」实验目前仅对管理员开放预览。</p>
         </main>
       </AppPageLayout>
     );

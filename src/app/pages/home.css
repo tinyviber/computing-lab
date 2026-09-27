@@ -179,23 +179,23 @@
   font-size: 11px;
 }
 
-.lab-card-grid.is-admin-preview {
+.lab-card-grid.lab-catalog-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.lab-card-grid.is-admin-preview .lab-card {
+.lab-card-grid.lab-catalog-grid .lab-card {
   min-height: 220px;
 }
 
-.lab-card-grid.is-admin-preview .lab-card.is-primary {
+.lab-card-grid.lab-catalog-grid .lab-card.is-primary {
   grid-column: auto;
 }
 
-.lab-card-grid.is-admin-preview .lab-card h4 {
+.lab-card-grid.lab-catalog-grid .lab-card h4 {
   margin-top: 14px;
 }
 
-.lab-card-grid.is-admin-preview .category-label {
+.lab-card-grid.lab-catalog-grid .category-label {
   display: inline-flex;
   padding: 4px 8px;
   border-radius: 999px;
@@ -206,13 +206,13 @@
 }
 
 @media (max-width: 980px) {
-  .lab-card-grid.is-admin-preview {
+  .lab-card-grid.lab-catalog-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 680px) {
-  .lab-card-grid.is-admin-preview {
+  .lab-card-grid.lab-catalog-grid {
     grid-template-columns: 1fr;
   }
 }

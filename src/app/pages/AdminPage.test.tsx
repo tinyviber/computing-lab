@@ -5,9 +5,9 @@ import { adminAuthState, renderAppAt } from "../../test/router-test-helpers";
 
 const classes = [{ id: "c1", name: "测试班级", inviteCode: "CLASS1", memberCount: 0 }];
 const labs = [
-  { id: "calculator", stageCount: 7, teacherVisible: true, hidden: false },
-  { id: "image-sampling", stageCount: 3, teacherVisible: false, hidden: false },
-  { id: "cpu", stageCount: 5, teacherVisible: true, hidden: true },
+  { id: "calculator", stageCount: 7, hidden: false },
+  { id: "image-sampling", stageCount: 3, hidden: false },
+  { id: "cpu", stageCount: 5, hidden: true },
 ];
 const users = [
   {
@@ -51,21 +51,13 @@ function mockAdminApi() {
 describe("AdminPage", () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it("splits account and class management into tabs", async () => {
+  it("shows account management without management tabs", async () => {
     mockAdminApi();
-    const user = userEvent.setup();
-
     await renderAppAt("/admin", { auth: adminAuthState });
 
-    expect(screen.getByRole("tab", { name: /账号管理/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("heading", { name: "账号管理" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /全部账号/ })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "班级管理" })).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("tab", { name: /班级管理/ }));
-
-    expect(screen.getByRole("tabpanel", { name: /班级管理/ })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "班级管理" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: /全部账号/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("tab")).not.toBeInTheDocument();
   });
 
   it("keeps account controls aligned and confirms deletion", async () => {
@@ -144,34 +136,5 @@ describe("AdminPage", () => {
       ).toBe(true),
     );
     expect(screen.getByText(/第 2 \/ 3 页/)).toBeInTheDocument();
-  });
-
-  it("hides and reopens labs from the labs tab", async () => {
-    const fetchMock = mockAdminApi();
-    const user = userEvent.setup();
-
-    await renderAppAt("/admin", { auth: adminAuthState });
-
-    await user.click(screen.getByRole("tab", { name: /实验管理/ }));
-    expect(screen.getByRole("tabpanel", { name: /实验管理/ })).toBeVisible();
-    expect(screen.getByRole("heading", { name: "实验开放管理" })).toBeInTheDocument();
-
-    // calculator is open -> 隐藏; cpu is hidden -> 恢复开放
-    const hideButtons = screen.getAllByRole("button", { name: "隐藏" });
-    await user.click(hideButtons[0]);
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/labs/calculator/visibility",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify({ hidden: true }) }),
-      ),
-    );
-
-    await user.click(screen.getByRole("button", { name: "恢复开放" }));
-    await waitFor(() =>
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/labs/cpu/visibility",
-        expect.objectContaining({ method: "PUT", body: JSON.stringify({ hidden: false }) }),
-      ),
-    );
   });
 });
