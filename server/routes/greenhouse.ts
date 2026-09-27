@@ -13,7 +13,6 @@ export function greenhouseRoutes() {
   return labRoutes<GhDraft, GhJudgeResult>({
     labId: "greenhouse",
     stageCount: GREENHOUSE_STAGES.length,
-    adminPreview: true,
     saveDraft: (db, project, stageIndex, body) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
     judge: (db, project, stageIndex, body) => {

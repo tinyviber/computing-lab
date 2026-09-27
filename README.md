@@ -1,8 +1,9 @@
 # computing-lab
 
-校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API。已开放的实验是
-「实现ALU」（`calculator`）和「冯诺依曼数据通路」（`cpu`）；「空间采样」
-（`image-sampling`）与「颜色量化」（`color-quantization`）处于管理员预览阶段。
+校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API。包含「实现ALU」
+（`calculator`）、「冯诺依曼数据通路」（`cpu`）、「空间采样」（`image-sampling`）、
+「颜色量化」（`color-quantization`）和「小型信息系统」（`is-sim`）五个实验。管理员可通过
+`/admin/labs` 管理实验开放状态；隐藏后学生和教师无法访问，管理员仍可访问实验。
 另有任务单功能（模板 → 班级布置 → 学生作答 → 批改）。
 
 ## 本地开发
@@ -21,7 +22,8 @@ bun run dev
 学生流程是：管理员创建账号并分配班级 → `/login` 登录 → 首页进入
 `/classes/:classId/labs/<lab>`（如 `calculator`）→ 完成各关卡 → 提交，
 由服务端隐藏用例判定并解锁后续关卡。教师和管理员可在
-`/classes/:classId/dashboard` 查看班级进度，管理员可在 `/admin` 管理账号与班级。
+`/classes/:classId/dashboard` 查看班级进度；管理员分别在 `/admin`、`/admin/classes`、
+`/admin/labs` 管理账号、班级和实验开放状态。
 
 旧实验和 Slidev 在线课件已经从运行时、构建链路和测试中移除；它们的教学 idea 集中
 记录在 [docs/retired-labs.md](docs/retired-labs.md)。

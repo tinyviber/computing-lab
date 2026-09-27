@@ -4,6 +4,7 @@ import { hashPassword } from "../auth/password.ts";
 import { createSession } from "../auth/session.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
+import { setLabHidden } from "../labs.ts";
 import { greenhouseRoutes } from "./greenhouse.ts";
 
 async function setup() {
@@ -103,12 +104,19 @@ describe("greenhouse routes", () => {
     expect(res.status).toBe(200);
   });
 
-  it("teachers are turned away (admin-preview gate)", async () => {
-    const { app, classId, teacherId, cookieFor } = await setup();
+  it("hidden lab turns non-admins away; admins still preview", async () => {
+    const { db, app, classId, teacherId, studentId, adminId, cookieFor } = await setup();
+    setLabHidden(db, "greenhouse", true);
+    for (const userId of [teacherId, studentId]) {
+      const res = await app.fetch(
+        new Request(url(classId, "/project"), { headers: { cookie: cookieFor(userId) } }),
+      );
+      expect(res.status).toBe(403);
+    }
     const res = await app.fetch(
-      new Request(url(classId, "/project"), { headers: { cookie: cookieFor(teacherId) } }),
+      new Request(url(classId, "/project"), { headers: { cookie: cookieFor(adminId) } }),
     );
-    expect(res.status).toBe(403);
+    expect(res.status).toBe(200);
   });
 
   it("saves a draft and reads it back sanitized", async () => {

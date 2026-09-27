@@ -71,14 +71,32 @@ export function AccountMenu() {
             </Link>
           ) : null}
           {session.user.role === "admin" ? (
-            <Link
-              className="account-menu-item"
-              onClick={() => setOpen(false)}
-              role="menuitem"
-              to="/admin"
-            >
-              账号管理
-            </Link>
+            <>
+              <Link
+                className="account-menu-item"
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                to="/admin"
+              >
+                账号管理
+              </Link>
+              <Link
+                className="account-menu-item"
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                to="/admin/classes"
+              >
+                班级管理
+              </Link>
+              <Link
+                className="account-menu-item"
+                onClick={() => setOpen(false)}
+                role="menuitem"
+                to="/admin/labs"
+              >
+                实验管理
+              </Link>
+            </>
           ) : null}
           <Link
             className="account-menu-item"

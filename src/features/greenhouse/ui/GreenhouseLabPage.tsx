@@ -231,7 +231,6 @@ export function GreenhouseLabPage() {
 
   return (
     <LabAccessGate
-      adminPreview
       classId={classId}
       hidden={catalog?.get("greenhouse")?.hidden === true}
       labName="智慧大棚"
