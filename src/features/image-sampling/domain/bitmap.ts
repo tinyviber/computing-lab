@@ -86,6 +86,34 @@ export function imagesEqual(a: BinaryImage, b: BinaryImage): boolean {
   return true;
 }
 
+export type DiffBounds = { x0: number; y0: number; x1: number; y1: number; pixels: number };
+
+/**
+ * Bounding box (source-pixel coords, x1/y1 exclusive) plus count of the
+ * positions where two same-size images differ. Returns null when the images
+ * are identical — which, for this lab's deduplicated galleries, means the
+ * difference detail was never spatial to begin with.
+ */
+export function diffBounds(a: BinaryImage, b: BinaryImage): DiffBounds | null {
+  if (a.width !== b.width || a.height !== b.height) return null;
+  let x0 = a.width;
+  let y0 = a.height;
+  let x1 = -1;
+  let y1 = -1;
+  let pixels = 0;
+  for (let y = 0; y < a.height; y += 1) {
+    for (let x = 0; x < a.width; x += 1) {
+      if (a.cells[y * a.width + x] === b.cells[y * a.width + x]) continue;
+      pixels += 1;
+      if (x < x0) x0 = x;
+      if (x >= x1) x1 = x + 1;
+      if (y < y0) y0 = y;
+      if (y >= y1) y1 = y + 1;
+    }
+  }
+  return pixels ? { x0, y0, x1, y1, pixels } : null;
+}
+
 /** Human-readable rows ("1010…") — handy in tests and fixtures. */
 export function imageToRows(image: BinaryImage): string[] {
   const rows: string[] = [];

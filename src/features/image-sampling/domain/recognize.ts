@@ -13,7 +13,7 @@
  * decides pass/fail.
  */
 
-import { imageToBase64, type BinaryImage } from "./bitmap.ts";
+import { imageToBase64, type BinaryImage, type DiffBounds } from "./bitmap.ts";
 import { downsample } from "./downsample.ts";
 import { chamferSym, hamming } from "./match.ts";
 import type { GalleryEntry } from "./sprites.ts";
@@ -151,13 +151,18 @@ export function sweepResolutions(
   });
 }
 
-/** Serialisable form of a verdict's failing case for the judge payload. */
+/**
+ * Serialisable form of a verdict's failing case for the judge payload.
+ * `difference` localises the lost detail: the bounding box where the query
+ * and a member it collided with disagree at full resolution.
+ */
 export function encodeVerdictDetail(
   query: GalleryEntry,
   predicted: GalleryEntry | null,
   width: number,
   height: number,
   verdict: QueryVerdict,
+  difference: DiffBounds | null = null,
 ) {
   const pack = (entry: GalleryEntry) => {
     const small = downsample(entry.image, width, height);
@@ -177,5 +182,6 @@ export function encodeVerdictDetail(
     predicted: predicted ? pack(predicted) : null,
     ranking: verdict.ranking,
     collidedWith: verdict.collidedWith,
+    difference,
   };
 }

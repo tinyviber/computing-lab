@@ -1,8 +1,11 @@
 /**
  * Stage contracts for the image-sampling lab.
  *
- * Every stage fixes a category, an axis mode (square vs free width/height),
- * an accuracy requirement, and a hard cell budget. A submission passes iff:
+ * The shared frame is a low-bandwidth channel: the sender shrinks each
+ * signal card to a w×h grid; the receiver holds the same atlas and must
+ * tell which member arrived. Every stage fixes a category, an axis mode
+ * (square vs free width/height), an accuracy requirement, and a hard cell
+ * budget. A submission passes iff:
  *
  *   accuracy >= requiredAccuracy  AND  width * height <= cellBudget
  *
@@ -35,8 +38,10 @@ export type SamplingStageDef = {
   requiredAccuracy: number;
   /** Hard cap on width*height; over budget fails regardless of accuracy. */
   cellBudget: number;
-  /** Stage 1 shows the guided cell_value coding exercise first. */
+  /** Stage 1 shows the guided cell_value coding exercise. */
   guided: boolean;
+  /** One-line transmission brief: what is sent and what the receiver must recognize. */
+  mission: string;
   description: string;
   hint: string;
   /** One-line concept recap shown when the stage passes. */
@@ -58,9 +63,11 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 256,
     guided: true,
+    mission:
+      "任务：把这组异星徽章一张张发到低带宽接收端。统一选一个 n×n——对方拿着同一份图谱，只凭收到的格子图认出每一枚是哪一张。",
     description:
-      "这组异星剪影长得几乎一样。给整组图片选一个统一的 n×n，让缩小之后每一张仍然独一无二——小了会撞车，大了会浪费格子。",
-    hint: "先完成上面的格子实验理解多数覆盖，再从扫掠表里找刚好够用的 n。",
+      "这组徽章长得几乎一样，差别只在轮廓凸起和缺口上。n 小了，两枚会糊成同一张格子图；n 大了，带宽白白浪费。先随手试一个，看哪几张最先撞脸。",
+    hint: "先拖几个 n 看哪几张徽章先撞车——被撞掉的差异就是答案的线索；下方练习再让你亲手写下逐格的判定规则。",
     takeaway:
       "采样把连续的图像变成离散的格子：每个格子代表原图的一整块区域，区域里图形过半才算 1。特征小于半个格子时，它就保不住了。",
     probes: squareProbes([4, 6, 8, 10, 12, 14, 16, 20, 24, 32]),
@@ -75,8 +82,10 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 784,
     guided: false,
+    mission:
+      "任务：把这组机器人铭牌发到接收端。它们只在触角、眼睛、嘴和腿上有细小差别——选一个 n×n，让对方仍能分清每台。",
     description:
-      "这组机器人只在触角、眼睛、嘴巴、腿部有细小差别。差别越小，就需要越多的格子才能保住它们。",
+      "差别越小，需要的格子越密。差异藏在哪里、有多大，决定了 n 的下限——先找出哪一对机器人最难区分。",
     hint: "留意眼睛间距和头顶小球的尺寸——这些局部特征最先消失。",
     takeaway:
       "需要的分辨率取决于图库里最细小的差异特征：差异越小，格子就要越密才能保住它。没有脱离任务的“正确分辨率”。",
@@ -92,8 +101,11 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 800,
     guided: false,
-    description: "这组金属牌只在打孔位置和缺口上有区别。孔洞是最容易被格子平均掉的特征。",
-    hint: "孔洞只有半个格子大小时就会被“磨平”——数一数孔洞占几个格子。",
+    mission:
+      "任务：把这组打孔印记牌发到接收端。牌面只在打孔位置和缺口上有区别——孔洞是最容易被格子抹平的特征。",
+    description:
+      "孔洞只有半个格子大小时就会被多数覆盖“磨平”。先找出哪些孔在哪个 n 下先消失，再决定格子数。",
+    hint: "数一数孔洞占几个格子——差异区域的面积决定了它需要多密的采样。",
     takeaway:
       "孔洞、缺口这类“空的部分”也是信息：它们和凸起一样会被多数覆盖磨平。信息丢失不区分特征的形状。",
     probes: squareProbes([8, 12, 16, 20, 22, 24, 26, 28, 32]),
@@ -108,8 +120,10 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 240,
     guided: false,
+    mission:
+      "任务：把这组山脊标志发到接收端。差异全部在水平方向：凸起的左右位置。现在宽和高可以分开选——同样的格子总数，摆错方向照样认不出。",
     description:
-      "这组山脊图的区别全部在水平方向：凸起的左右位置。现在可以分别选宽和高——同样的格子总数，横着放和竖着放结果可能完全不同。",
+      "横着放和竖着放不是一回事：差异在哪个方向，采样密度就该花在哪个方向。比较 16×8 和 8×16 的接收效果。",
     hint: "比较一下 16×8 和 8×16：格子数一样，但只有一个方向采得够密。",
     takeaway: "格子总数相同不等于保留的信息相同：差异在哪一个方向，采样密度就该花在哪个方向。",
     probes: [
@@ -137,9 +151,11 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 240,
     guided: false,
+    mission:
+      "任务：把这组立柱标记发到接收端。差异全部在垂直方向：成对细缝的上下位置。本关要求 高 > 宽——把采样密度花在对的方向上。",
     description:
-      "这组立柱的区别全部在垂直方向：成对细缝的上下位置。本关要求高度大于宽度——两个方向上的采样密度不再相同，找出预算内刚好够用的细长比。",
-    hint: "细缝是成对出现的：行数太少时两条缝会糊成一团。先把高度推到能分开它们，再压宽度。",
+      "细缝成对出现，行数太少时两条缝会糊成一团。先把高度推到能分开它们，再在预算内压宽度。",
+    hint: "先把高度推到能分开成对的细缝，再压宽度。",
     takeaway:
       "采样密度可以按方向分配：这一关差异在垂直方向，所以行数比列数更值钱。分辨率是两个数字，不是一个。",
     probes: [

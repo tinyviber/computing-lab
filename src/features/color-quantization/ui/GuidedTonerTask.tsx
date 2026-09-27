@@ -149,9 +149,10 @@ export function GuidedTonerTask({
 
   return (
     <section aria-labelledby="guided-toner-title" className="quant-guided">
-      <h3 id="guided-toner-title">小练习：一种颜色落到哪种粉</h3>
+      <h3 id="guided-toner-title">小练习：把刚才的规则写成代码</h3>
       <p>
-        打印机只有一条规则：<strong>每种源色落到离它最近的候选色</strong>
+        刚才实验台里的印刷效果，就是这么一个颜色一个颜色算出来的。规则只有一条：
+        <strong>每种源色落到离它最近的候选色</strong>
         ——候选是纸白加上已装的墨粉。距离按 RGB 三个通道的平方差相加计算。
       </p>
       <p>
@@ -266,9 +267,14 @@ export function GuidedTonerTask({
           {running ? "运行中…（首次需加载 Python）" : "运行检查"}
         </button>
         {passed === true ? (
-          <span className="quant-badge is-pass">
-            <Icon name="check" size={12} /> 全部一致
-          </span>
+          <>
+            <span className="quant-badge is-pass">
+              <Icon name="check" size={12} /> 全部一致
+            </span>
+            <span className="quant-guided-next">
+              回实验台把“映射规则”切换成「我写的 nearest_toner」，看它印出的整图。
+            </span>
+          </>
         ) : null}
         {passed === false && !error ? <span className="quant-badge is-fail">还不一致</span> : null}
       </div>

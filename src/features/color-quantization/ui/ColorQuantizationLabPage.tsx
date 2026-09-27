@@ -31,10 +31,12 @@ import "./colorQuantization.css";
 function StageBrief({ stage }: { stage: QuantStageDef }) {
   return (
     <section className="quant-brief">
+      <p className="quant-mission">{stage.mission}</p>
       <p>{stage.description}</p>
       <p className="quant-submit-note">
-        判题方式：把本类的每一台机器人都按你的选择打印，要求打印后仍然各不相同—— 需要 ≥
-        {Math.round(stage.requiredAccuracy * 100)}% 可区分
+        判定方式：图谱里每台机器人（包括你没见过的隐藏成员）都按你的选择印一遍发出去，
+        接收端凭印出的图认人——≥
+        {Math.round(stage.requiredAccuracy * 100)}% 能被认出才算通过
         {stage.mode === "pick"
           ? `，且最多装 ${stage.tonerSlots} 种粉（纸白不计）`
           : `，粉盒固定，映射最多改 ${stage.overrideBudget} 条默认值`}
@@ -43,7 +45,7 @@ function StageBrief({ stage }: { stage: QuantStageDef }) {
       <p className="quant-hidden-note">
         注意：提交时除了你看到的这些，还会混入<strong>没见过的同类机器人</strong>一起判定。
         这是为了检查你的方法是真的理解了规则，而不只是记住了这几张图的答案——
-        在公开图库上全对，不代表隐藏成员也能分开。
+        在公开图谱上全对，不代表隐藏成员也能分开。
       </p>
       <details className="quant-details">
         <summary>提示</summary>
@@ -191,21 +193,22 @@ export function ColorQuantizationLabPage() {
               </p>
             ) : null}
 
-            {stage?.guided ? (
-              <GuidedTonerTask
-                code={draft.code}
-                onCodeChange={(code) => dispatch({ type: "set-code", code })}
-              />
-            ) : null}
-
             {stage ? (
               <>
                 <QuantExplorer
                   draft={draft}
                   onTable={(table) => dispatch({ type: "set-table", table })}
                   onToners={(toners) => dispatch({ type: "set-toners", toners })}
+                  ruleCode={draftOf(state, 1).code}
                   stage={stage}
                 />
+
+                {stage.guided ? (
+                  <GuidedTonerTask
+                    code={draft.code}
+                    onCodeChange={(code) => dispatch({ type: "set-code", code })}
+                  />
+                ) : null}
 
                 {!stage.guided && stage.mode === "pick" ? (
                   <ChooseTonersPanel
@@ -240,10 +243,10 @@ export function ColorQuantizationLabPage() {
                   <span className="quant-submit-note">
                     {stage.mode === "pick"
                       ? draft.toners.length
-                        ? `将以 ${draft.toners.length} 种粉（编号 ${draft.toners.join(", ")}）在含隐藏成员的完整图库上判题。`
+                        ? `将以 ${draft.toners.length} 种粉（编号 ${draft.toners.join(", ")}）把整组图谱印给接收端判定。`
                         : "先选要装哪几种粉。"
                       : draft.table
-                        ? "将以你的映射表在含隐藏成员的完整图库上判题。"
+                        ? "将以你的映射表把整组图谱印给接收端判定。"
                         : "先在下方运行 map_color 生成映射表。"}
                   </span>
                 </div>

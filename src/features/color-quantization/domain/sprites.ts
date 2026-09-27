@@ -29,6 +29,46 @@ export type PartName = (typeof PART_NAMES)[number];
 /** A full color assignment: part name -> source palette index (1..14). */
 export type Parts = Record<PartName, number>;
 
+/** Chinese display names for the parts, used in merged-feature feedback. */
+export const PART_LABELS: Record<PartName, string> = {
+  body: "机身",
+  tip: "头顶球",
+  ear: "耳",
+  leg: "腿",
+  eye: "眼",
+  mouth: "嘴",
+};
+
+/**
+ * A part whose distinguishing colors got merged by the mapping table: `a`
+ * and `b` paint this part with different source colors that both land on
+ * `target` (toner index, or -1 = paper).
+ */
+export type MergedPart = {
+  part: PartName;
+  aIndex: number;
+  bIndex: number;
+  target: number;
+};
+
+/**
+ * The parts where two members' prints became indistinguishable — the
+ * concrete features the current mapping destroyed.
+ */
+export function mergedParts(a: Parts, b: Parts, table: readonly number[]): MergedPart[] {
+  const out: MergedPart[] = [];
+  for (const part of PART_NAMES) {
+    const ai = a[part];
+    const bi = b[part];
+    if (ai === bi) continue;
+    const target = table[ai - 1];
+    if (target === table[bi - 1]) {
+      out.push({ part, aIndex: ai, bIndex: bi, target });
+    }
+  }
+  return out;
+}
+
 /** One mutation axis: a part and the source-color indices it may take. */
 export type ColorAxis = { part: PartName; options: number[] };
 
