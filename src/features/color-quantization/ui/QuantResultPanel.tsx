@@ -7,9 +7,9 @@
 
 import { imageFromBase64 } from "../domain/indexed.ts";
 import { Icon } from "../../../shared/ui/Icon";
-import { sourceCellCss, tonerCellCss } from "../domain/palette.ts";
-import { TONER_RACK } from "../domain/palette.ts";
+import { SOURCE_COLORS, sourceCellCss, TONER_RACK, tonerCellCss } from "../domain/palette.ts";
 import type { PackedImage, QuantJudgeResult } from "../domain/protocol.ts";
+import { PART_LABELS } from "../domain/sprites.ts";
 import type { QuantStageDef } from "../domain/stages.ts";
 import { PaletteCanvas } from "./PaletteCanvas.tsx";
 
@@ -59,7 +59,7 @@ export function QuantResultPanel({
       <h3 id="quant-result-title">判定结果：{outcome.passed ? "通过" : "未通过"}</h3>
       <dl className="quant-verdict-stats">
         <div>
-          <dt>仍能唯一认出</dt>
+          <dt>接收端仍能认出</dt>
           <dd>
             {outcome.identified} / {outcome.total} 张
             <span className="quant-verdict-sub">（要求 ≥ {required} 张）</span>
@@ -84,15 +84,23 @@ export function QuantResultPanel({
       {!outcome.passed && outcome.counterexample ? (
         <div className="quant-counterexample">
           <p className="quant-counterexample-lede">
-            例子：{outcome.counterexample.query.label} 打印出来后
+            例子：{outcome.counterexample.query.label} 印出去后，接收端收到的图和
             {outcome.counterexample.collided
-              ? `和 ${outcome.counterexample.collided.label} 完全分不开`
-              : "不再唯一"}
-            ——看看它们各自丢了什么颜色。
+              ? ` ${outcome.counterexample.collided.label} 一模一样`
+              : "别的图无法区分"}
+            。
+            {outcome.counterexample.merged.length
+              ? ` 丢掉的特征是：${outcome.counterexample.merged
+                  .map(
+                    (m) =>
+                      `${PART_LABELS[m.part]}（${SOURCE_COLORS[m.aIndex - 1]?.name ?? m.aIndex} 与 ${SOURCE_COLORS[m.bIndex - 1]?.name ?? m.bIndex} 都印成了 ${m.target < 0 ? "纸白" : TONER_RACK[m.target].name}）`,
+                  )
+                  .join("、")}。`
+              : ""}
           </p>
           <div className="quant-triptych">
             <PackedFigure
-              caption={`原稿 ${outcome.counterexample.query.label}`}
+              caption={`发送原稿 ${outcome.counterexample.query.label}`}
               packed={outcome.counterexample.query.source}
               space="source"
             />
@@ -100,7 +108,7 @@ export function QuantResultPanel({
               <Icon name="arrow-right" size={18} />
             </span>
             <PackedFigure
-              caption={`${outcome.counterexample.query.label} 打印结果`}
+              caption={`${outcome.counterexample.query.label} 印出结果`}
               packed={outcome.counterexample.query.printed}
               space="printed"
             />
@@ -110,12 +118,12 @@ export function QuantResultPanel({
                   ≡
                 </span>
                 <PackedFigure
-                  caption={`${outcome.counterexample.collided.label} 打印结果`}
+                  caption={`${outcome.counterexample.collided.label} 印出结果`}
                   packed={outcome.counterexample.collided.printed}
                   space="printed"
                 />
                 <PackedFigure
-                  caption={`原稿 ${outcome.counterexample.collided.label}`}
+                  caption={`发送原稿 ${outcome.counterexample.collided.label}`}
                   packed={outcome.counterexample.collided.source}
                   space="source"
                 />
@@ -127,7 +135,7 @@ export function QuantResultPanel({
 
       {outcome.confusionPairs.length > 0 ? (
         <p className="quant-collisions-line">
-          这次映射下还有 {outcome.confusionPairs.length} 组碰撞：
+          这次映射下还有 {outcome.confusionPairs.length} 对分不开：
           {outcome.confusionPairs
             .slice(0, 4)
             .map((p) => `${p.aLabel}≡${p.bLabel}`)

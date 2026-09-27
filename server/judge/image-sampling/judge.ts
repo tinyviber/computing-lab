@@ -5,6 +5,7 @@
  */
 
 import type { DatabaseSync } from "node:sqlite";
+import { diffBounds } from "../../../src/features/image-sampling/domain/bitmap.ts";
 import { sanitizeResolution } from "../../../src/features/image-sampling/domain/downsample.ts";
 import type { SamplingJudgeResult } from "../../../src/features/image-sampling/domain/protocol.ts";
 import {
@@ -56,15 +57,21 @@ export function judgeImageSubmission(
   const passed = withinBudget && report.accuracy >= stage.requiredAccuracy;
 
   const failing = report.verdicts.find((v) => !v.ok);
-  const counterexample = failing
-    ? encodeVerdictDetail(
-        gallery.find((e) => e.id === failing.queryId)!,
-        gallery.find((e) => e.id === failing.predictedId) ?? null,
-        resolution.width,
-        resolution.height,
-        failing,
-      )
+  const failingQuery = failing ? gallery.find((e) => e.id === failing.queryId)! : null;
+  const collidedEntry = failing?.collidedWith.length
+    ? (gallery.find((e) => e.id === failing.collidedWith[0].id) ?? null)
     : null;
+  const counterexample =
+    failing && failingQuery
+      ? encodeVerdictDetail(
+          failingQuery,
+          gallery.find((e) => e.id === failing.predictedId) ?? null,
+          resolution.width,
+          resolution.height,
+          failing,
+          collidedEntry ? diffBounds(failingQuery.image, collidedEntry.image) : null,
+        )
+      : null;
   const pairs = confusionPairs(gallery, resolution.width, resolution.height).slice(0, 6);
 
   const result: SamplingJudgeResult = {
