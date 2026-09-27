@@ -34,6 +34,12 @@ const ADMIN_PREVIEW_LABS = [
     description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
     to: "/labs/color-quantization",
   },
+  {
+    id: "greenhouse",
+    title: "智慧大棚",
+    description: "给虚拟大棚写「读数→动作」规则表，观察反馈控制如何稳住温度。",
+    to: "/labs/greenhouse",
+  },
 ] as const;
 
 const TASK_STATUS: Record<StudentTask["status"], string> = {
