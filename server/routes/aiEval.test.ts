@@ -194,12 +194,15 @@ describe("ai-eval routes", () => {
     }
   });
 
-  it("turns teachers away (admin preview)", async () => {
-    const { app, classId, teacherId, cookieFor } = await setup();
-    const res = await app.fetch(
-      new Request(url(classId, "/project"), { headers: { cookie: cookieFor(teacherId) } }),
-    );
-    expect(res.status).toBe(403);
+  it("locks non-admins out while the lab is hidden", async () => {
+    const { app, db, classId, studentId, teacherId, cookieFor } = await setup();
+    db.prepare("INSERT INTO lab_settings (lab_id, hidden) VALUES (?, 1)").run("ai-eval");
+    for (const userId of [studentId, teacherId]) {
+      const res = await app.fetch(
+        new Request(url(classId, "/project"), { headers: { cookie: cookieFor(userId) } }),
+      );
+      expect(res.status).toBe(403);
+    }
   });
 
   it("serves draws that never leak flags/entryId", async () => {

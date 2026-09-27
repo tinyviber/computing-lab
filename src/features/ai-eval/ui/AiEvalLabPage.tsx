@@ -363,7 +363,6 @@ export function AiEvalLabPage() {
 
   return (
     <LabAccessGate
-      adminPreview
       classId={classId}
       hidden={catalog?.get("ai-eval")?.hidden === true}
       labName="测一测AI"

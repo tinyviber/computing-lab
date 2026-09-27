@@ -2,7 +2,7 @@
   padding: 0 var(--page-gutter) 32px;
 }
 
-.auth-page > .auth-card {
+.auth-page .auth-card {
   margin: 8vh auto 0;
 }
 

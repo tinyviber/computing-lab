@@ -25,6 +25,8 @@ import { TaskSheetListPage } from "./pages/TaskSheetListPage";
 import { TaskAssignmentPage } from "./pages/TaskAssignmentPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
+import { AdminClassesPage } from "./pages/AdminClassesPage";
+import { AdminLabsPage } from "./pages/AdminLabsPage";
 
 function RootLayout() {
   return <Outlet />;
@@ -65,6 +67,16 @@ const adminRoute = createRoute({
   path: "/admin",
   component: AdminPage,
 });
+const adminLabsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/labs",
+  component: AdminLabsPage,
+});
+const adminClassesRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/admin/classes",
+  component: AdminClassesPage,
+});
 
 /** Public entry point; forwards a signed-in member to their own class. */
 const calculatorEntryRoute = createRoute({
@@ -82,7 +94,7 @@ const calculatorLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
-/** Admin preview: the page itself turns teachers away. */
+/** Public entry for image sampling; forwards members to their own class. */
 const imageSamplingEntryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/image-sampling",
@@ -99,7 +111,7 @@ const imageSamplingLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
-/** Admin preview: the page itself turns teachers away. */
+/** Public entry for color quantization; forwards members to their own class. */
 const colorQuantizationEntryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/color-quantization",
@@ -213,6 +225,8 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   profileRoute,
   adminRoute,
+  adminClassesRoute,
+  adminLabsRoute,
   calculatorEntryRoute,
   calculatorLabRoute,
   imageSamplingEntryRoute,

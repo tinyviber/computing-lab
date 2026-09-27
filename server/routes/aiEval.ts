@@ -44,7 +44,6 @@ export function aiEvalRoutes() {
   return labRoutes<AiEvalDraft, AiEvalJudgeResult>({
     labId: "ai-eval",
     stageCount: AI_EVAL_STAGES.length,
-    adminPreview: true,
     projectExtras: (_db, project) => projectExtras(project),
     actions: {
       draws: (db, project, stageIndex, body) => {

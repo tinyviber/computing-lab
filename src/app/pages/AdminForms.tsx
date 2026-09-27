@@ -7,7 +7,7 @@
 import { useState, type FormEvent } from "react";
 import { api, describeApiError, API_ERROR_MESSAGES } from "../../shared/api/client";
 import type { AccountRole } from "../../shared/auth";
-import type { AdminClass, ImportSummary } from "./AdminPage";
+import type { AdminClass, ImportSummary } from "./AdminTypes";
 
 const IMPORT_HINT =
   "每行一个账号：学号,姓名,密码[,角色][,班级邀请码]。角色可选 学生/教师/管理员，留空默认为学生；也支持粘贴 JSON 数组。";
