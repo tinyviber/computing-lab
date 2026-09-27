@@ -127,14 +127,14 @@ export function GuidedCellTask({
 
   return (
     <section aria-labelledby="guided-cell-title" className="guided-cell-task">
-      <h3 id="guided-cell-title">小练习：一个格子怎么决定</h3>
+      <h3 id="guided-cell-title">小练习：把刚才的规则写成代码</h3>
       <p>
-        缩小图片时，每个目标格子对应原图的一小块区域。规则只有一条：
-        <strong>这块区域里至少一半的像素是图形（1），这个格子才是 1。</strong>
+        刚才实验台里的格子图，就是这么一格一格算出来的。规则只有一条：
+        <strong>一个格子盖住的区域里至少一半是图形（1），这个格子才发 1。</strong>
       </p>
       <p>
-        先别看代码——下面是 6 块真实待判定的区域。数一数每块里有多少个图形像素， 点上你判断的 0 或
-        1，再让代码做同样的判断。
+        下面是 6 块从信号图上取下来的真实区域。先别看代码——数一数每块里有多少个图形像素，
+        点上你判断的 0 或 1，再让代码做同样的判断。
       </p>
 
       <div className="region-strip">
@@ -246,9 +246,14 @@ export function GuidedCellTask({
           {running ? "运行中…（首次需加载 Python）" : "运行检查"}
         </button>
         {passed === true ? (
-          <span className="badge badge-pass">
-            <Icon name="check" size={12} /> 全部一致
-          </span>
+          <>
+            <span className="badge badge-pass">
+              <Icon name="check" size={12} /> 全部一致
+            </span>
+            <span className="guided-next">
+              回实验台把“接收端规则”切换成「我写的 cell_value」，看它生成的格子图。
+            </span>
+          </>
         ) : null}
         {passed === false && !error ? <span className="badge badge-fail">还不一致</span> : null}
       </div>

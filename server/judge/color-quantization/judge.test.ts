@@ -82,6 +82,14 @@ describe("color-quantization judge", () => {
     expect(outcome.passed).toBe(false);
     expect(outcome.counterexample).not.toBeNull();
     expect(outcome.counterexample!.collidedWith.length).toBeGreaterThan(0);
+    // The payload names the merged features: parts whose distinct source
+    // colors landed on the same toner.
+    const merged = outcome.counterexample!.merged;
+    expect(merged.length).toBeGreaterThan(0);
+    for (const m of merged) {
+      expect(m.aIndex).not.toBe(m.bIndex);
+      expect(m.target).toBeGreaterThanOrEqual(-1);
+    }
   });
 
   it("rejects malformed toner picks but accepts any well-formed subset", () => {

@@ -1,10 +1,12 @@
 /**
  * Stage contracts for the color-quantization lab.
  *
- * The printer can hold only a few toner cartridges; the rack has eight. A
- * submission is judged by printing the whole gallery (public + hidden
- * members) through the student's choice and checking that every print stays
- * unique. Two modes:
+ * The shared frame is the same low-bandwidth channel as the sampling lab:
+ * the sender prints each card through a printer that holds only a few
+ * toner cartridges; the rack has eight. The receiver holds the same atlas
+ * and must tell which member arrived. A submission is judged by printing
+ * the whole gallery (public + hidden members) through the student's choice
+ * and checking that every print stays unique. Two modes:
  *
  *   "pick": choose which toners to load (<= tonerSlots). The printer maps
  *           each source color to its nearest loaded toner — fixed rule.
@@ -35,8 +37,10 @@ export type QuantStageDef = {
   fixedLoadout: number[] | null;
   /** free mode: max entries differing from the default nearest-toner table. */
   overrideBudget: number | null;
-  /** Stage 1 shows the guided nearest_toner coding exercise first. */
+  /** Stage 1 shows the guided nearest_toner coding exercise. */
   guided: boolean;
+  /** One-line transmission brief: what is sent and what the receiver must recognize. */
+  mission: string;
   description: string;
   hint: string;
   /** One-line concept recap shown when the stage passes. */
@@ -61,9 +65,11 @@ export const COLOR_QUANT_STAGES: QuantStageDef[] = [
     fixedLoadout: null,
     overrideBudget: null,
     guided: true,
+    mission:
+      "任务：把这批学员机器人的原稿印出来发给接收端——对方拿着同一份图谱，只凭印出的图认出每台是哪一台。",
     description:
-      "这台墨粉打印机有 8 个粉槽，粉架上正好 8 种粉。先弄懂打印机的映射规则——每种原色落到最近的粉上——再把粉装满，看打印结果。",
-    hint: "先完成上面的映射实验理解最近色规则，再把 8 种粉全部装上提交。",
+      "这台墨粉打印机有 8 个粉槽，粉架上正好 8 种粉。先随手装几种粉看看：每种源色会落到离它最近的已装粉（或纸白）上——两个源色落进同一只粉，印出来就再也分不开。",
+    hint: "先在实验台里抽掉几种粉看哪个部件的颜色先被合并，下方练习再让你亲手写下“最近色”这条规则。",
     takeaway:
       "量化把许多颜色压进少数几个槽位：每种源色落到最近的墨粉。两个不同的源色如果落到同一种粉，打印出来就再也分不开。",
     probes: [{ label: "装满 8 种粉", toners: [0, 1, 2, 3, 4, 5, 6, 7] }],
@@ -80,9 +86,10 @@ export const COLOR_QUANT_STAGES: QuantStageDef[] = [
     fixedLoadout: null,
     overrideBudget: null,
     guided: false,
-    description:
-      "巡逻机器人小队只靠配色区分。打印机只能装 4 种粉——装上哪 4 种，决定了哪些颜色差异能活下来。",
-    hint: "直觉的“红黄蓝黑”并不好用：看看每个部件上实际出现过哪些颜色，哪些颜色对必须分开。",
+    mission:
+      "任务：巡逻小队的铭牌只能靠 4 个粉槽印出去。装哪 4 种，决定接收端还能不能分清每台机器人。",
+    description: "直觉的“红黄蓝黑”并不好用：看看每个部件上实际出现过哪些颜色、哪些颜色对必须分开。",
+    hint: "先找哪一对成员最难分开——把它们分开所需要的颜色，就是必须装的粉。",
     takeaway: "选哪些粉等于选保住哪些差异：槽位不够时，要拆开的颜色对决定了必须装的粉。",
     probes: [
       { label: "三原色+黑", toners: [0, 1, 3, 6] },
@@ -102,8 +109,10 @@ export const COLOR_QUANT_STAGES: QuantStageDef[] = [
     fixedLoadout: null,
     overrideBudget: null,
     guided: false,
+    mission:
+      "任务：货运机器人的配色散在整个色环上，4 个粉槽保不住全部差异。选清楚牺牲哪几对，让至少 3/4 的成员印出去后仍能被认出。",
     description:
-      "货运机器人的配色分散在整个色环上——4 个粉槽无论如何都保不住全部差异。目标不是满分，而是选清楚牺牲哪几对。",
+      "目标不是满分：哪一对成员的区分最“贵”（需要两种冷门粉同时在线），就考虑放弃它去保全其余。",
     hint: "找出哪一对成员的区分最“贵”（需要两种冷门粉同时在线），考虑放弃它去保全其余。",
     takeaway: "编码预算不够时，问题从“怎么保住一切”变成“放弃哪一部分损失最小”——牺牲是可以选择的。",
     probes: [
@@ -124,8 +133,9 @@ export const COLOR_QUANT_STAGES: QuantStageDef[] = [
     fixedLoadout: null,
     overrideBudget: null,
     guided: false,
-    description:
-      "侦察机器人的耳部配色只有紫罗兰和酒红两种。粉架上的洋红看起来是为它们准备的——但装上它，两种颜色都会落进洋红里。",
+    mission:
+      "任务：侦察机器人的耳部配色只有紫罗兰和酒红两种。粉架上的洋红像是为它们准备的——小心：装上它，两对耳朵会印成同一种颜色。",
+    description: "不装洋红时，紫罗兰只能去蓝色、酒红只能去红色——反而被分开了。有些粉是诱饵。",
     hint: "不装洋红时，紫罗兰只能去蓝色、酒红只能去红色——反而被分开了。有些粉是诱饵。",
     takeaway:
       "更多的粉不总是更好：一个新粉可能把原本被迫分开的颜色重新合并。量化看的是结果是否可区分，不是颜色是否“更接近”。",
@@ -147,9 +157,11 @@ export const COLOR_QUANT_STAGES: QuantStageDef[] = [
     fixedLoadout: [1, 2, 4, 6],
     overrideBudget: 4,
     guided: false,
+    mission:
+      "任务：还是货运机器人，但这台打印机的粉盒焊死了：红、橙、绿、蓝。默认映射只有三成能认出——你可以改写映射表，但最多改 4 条，让每张图接收端都能认出。",
     description:
-      "还是货运机器人，但这台打印机的粉盒焊死了：红、橙、绿、蓝。默认按最近色映射只有三成能认出——你可以改写映射表，但最多只能改 4 条。",
-    hint: "先用默认映射跑一遍，看实验台列出哪几对机器人打印后一模一样——每一对都是某个颜色差异被吃掉了。然后问：把其中一方的源色“发配”到一个空闲的粉（哪怕它不最近），能不能拆开这对？一条改动可能同时拆开好几对。目标是用最少的改动换最多的区分。",
+      "先用默认映射跑一遍，看实验台列出哪几对机器人印成一样——每一对都是某个颜色差异被吃掉了。",
+    hint: "把其中一方的源色“发配”到一个空闲的粉（哪怕它不最近），能不能拆开这对？一条改动可能同时拆开好几对。目标是用最少的改动换最多的区分。",
     takeaway:
       "最接近的颜色不一定是正确的选择：映射规则服务于任务。当“像不像”和“分不分得开”冲突时，保真度由任务定义。",
     probes: [],

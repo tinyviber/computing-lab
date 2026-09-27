@@ -67,6 +67,13 @@ describe("image-sampling judge", () => {
     expect(outcome.counterexample).not.toBeNull();
     expect(outcome.counterexample!.query.small.width).toBe(4);
     expect(outcome.counterexample!.collidedWith.length).toBeGreaterThan(0);
+    // The payload localises the lost detail: a bounding box of the pixels
+    // where the query and the member it collided with differ at full size.
+    const diff = outcome.counterexample!.difference;
+    expect(diff).not.toBeNull();
+    expect(diff!.pixels).toBeGreaterThan(0);
+    expect(diff!.x1).toBeLessThanOrEqual(64);
+    expect(diff!.y1).toBeLessThanOrEqual(64);
   });
 
   it("rejects non-square answers on square stages", () => {

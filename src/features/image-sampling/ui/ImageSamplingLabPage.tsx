@@ -35,11 +35,13 @@ import "./imageSampling.css";
 function StageBrief({ stage }: { stage: SamplingStageDef }) {
   return (
     <section className="stage-brief">
+      <p className="stage-mission">{stage.mission}</p>
       <p>{stage.description}</p>
       <p className="submit-note">
-        判题方式：把本类的每一张图（包括你没见过的隐藏成员）都缩到你选的分辨率，
-        要求缩小后仍然各不相同——需要 ≥{Math.round(stage.requiredAccuracy * 100)}% 可区分， 且格子数
-        ≤ {stage.cellBudget}。
+        判定方式：你选的 {stage.mode === "square" ? "n×n" : "宽×高"}
+        会套用到完整图谱上（包括你没见过的隐藏成员）。接收端凭格子图认人——≥
+        {Math.round(stage.requiredAccuracy * 100)}% 的成员仍能被认出才算通过，且格子数 ≤
+        {stage.cellBudget}。
         {stage.mode === "square"
           ? "本关只允许正方形（宽=高）。"
           : stage.mode === "tall"
@@ -193,23 +195,24 @@ export function ImageSamplingLabPage() {
               </p>
             ) : null}
 
-            {stage?.guided ? (
-              <GuidedCellTask
-                code={draft.code}
-                onCodeChange={(code) => dispatch({ type: "set-code", code })}
-              />
-            ) : null}
-
             {stage ? (
               <>
                 <DownsampleExplorer
                   height={previewHeight}
                   onCellPick={(cell) => dispatch({ type: "select-cell", cell })}
                   onResolution={(w, h) => dispatch({ type: "set-resolution", width: w, height: h })}
+                  ruleCode={draftOf(state, 1).code}
                   selectedCell={state.selectedCell}
                   stage={stage}
                   width={previewWidth}
                 />
+
+                {stage.guided ? (
+                  <GuidedCellTask
+                    code={draft.code}
+                    onCodeChange={(code) => dispatch({ type: "set-code", code })}
+                  />
+                ) : null}
 
                 {!stage.guided ? (
                   <ChooseSizePanel
@@ -234,7 +237,7 @@ export function ImageSamplingLabPage() {
                   </button>
                   <span className="submit-note">
                     {resolution
-                      ? `将以 ${resolution.width}×${resolution.height}（${resolution.width * resolution.height} 格）在含隐藏成员的完整图库上判题。`
+                      ? `将以 ${resolution.width}×${resolution.height}（${resolution.width * resolution.height} 格）把整组信号发给接收端判定。`
                       : "先选一个分辨率。"}
                   </span>
                 </div>

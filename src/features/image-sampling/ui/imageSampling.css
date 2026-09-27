@@ -141,6 +141,75 @@
   font-size: 13px;
 }
 
+.rule-toggle {
+  align-items: center;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  margin: 0 0 12px;
+}
+
+.rule-toggle button {
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+  padding: 3px 10px;
+}
+
+.rule-toggle button.is-active {
+  background: #eef2ff;
+  border-color: #6366f1;
+  color: #3730a3;
+}
+
+.rule-running {
+  color: #64748b;
+}
+
+.rule-error {
+  background: #fff7ed;
+  border: 1px solid #fdba7466;
+  border-radius: 8px;
+  color: #9a3412;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+.pair-link {
+  background: none;
+  border: none;
+  color: #92400e;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.pair-link.is-active {
+  font-weight: 600;
+}
+
+.pair-diff-note {
+  color: #92400e;
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+
+.guided-next {
+  color: #475569;
+  font-size: 12px;
+}
+
+.stage-mission {
+  background: #eef2ff;
+  border: 1px solid #6366f133;
+  border-radius: 8px;
+  font-weight: 500;
+  padding: 10px 12px;
+}
+
 .preview-pair {
   align-items: flex-start;
   display: flex;

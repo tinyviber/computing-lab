@@ -25,13 +25,13 @@ const ADMIN_PREVIEW_LABS = [
   {
     id: "image-sampling",
     title: "空间采样",
-    description: "探索图像分辨率如何影响细节，以及怎样用更少像素保留关键信息。",
+    description: "把信号图压成格子发到低带宽接收端：格子数越少越省，但差异特征会先被抹平。",
     to: "/labs/image-sampling",
   },
   {
     id: "color-quantization",
     title: "颜色量化",
-    description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
+    description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
     to: "/labs/color-quantization",
   },
 ] as const;
