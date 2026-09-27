@@ -4,6 +4,7 @@
  * snapshot kept for review. Student code is never executed server-side.
  */
 
+import type { DiffBounds } from "./bitmap.ts";
 import type { Resolution } from "./downsample.ts";
 import type { CandidateDistance } from "./recognize.ts";
 
@@ -23,6 +24,12 @@ export type SamplingCounterexample = {
   predicted: { id: string; label: string; full: PackedImage; small: PackedImage } | null;
   collidedWith: { id: string; label: string }[];
   ranking: CandidateDistance[];
+  /**
+   * Where the query and a member it collided with differ at full resolution
+   * (source-pixel bounding box + differing-pixel count) — the spatial detail
+   * the chosen grid smoothed away. Null when there is no exact collision.
+   */
+  difference: DiffBounds | null;
 };
 
 export type SamplingJudgeResult = {

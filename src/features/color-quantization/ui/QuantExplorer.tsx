@@ -3,9 +3,15 @@
  * (free stage), a gallery member strip, the source → printed preview pair,
  * and the live collision report — all evaluated against the public gallery
  * with the same rules the server uses.
+ *
+ * When the student's stage-1 `nearest_toner` source exists, a preview-rule
+ * toggle (pick stages) runs it over every source color against the loaded
+ * cartridges to derive the effective mapping table — so the rule they
+ * wrote literally produces the print the receiver sees. Collisions name
+ * the merged feature: which part's colors folded into one toner.
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../../shared/ui/Icon";
 import { publicGalleryFor } from "../domain/fixtures.ts";
 import {
@@ -18,9 +24,11 @@ import {
 } from "../domain/palette.ts";
 import { countOverrides, nnTable, quantizeImage, usedToners } from "../domain/quantize.ts";
 import { confusionPairs, judgeMapping } from "../domain/recognize.ts";
+import { mergedParts, PART_LABELS, type MergedPart } from "../domain/sprites.ts";
 import type { QuantStageDef } from "../domain/stages.ts";
 import type { StageDraft } from "../lesson/state.ts";
 import { PaletteCanvas } from "./PaletteCanvas.tsx";
+import { runNearestToner } from "./pyodideRunner.ts";
 
 function tonerName(index: number): string {
   return index < 0 ? "纸白" : TONER_RACK[index].name;
@@ -28,6 +36,13 @@ function tonerName(index: number): string {
 
 function tonerCss(index: number): string {
   return rgbCss(index < 0 ? PAPER : TONER_RACK[index].rgb);
+}
+
+/** "耳：violet 和 wine 都印成 magenta" — one merged feature, human-readable. */
+function mergedPartText(m: MergedPart): string {
+  const a = SOURCE_COLORS[m.aIndex - 1]?.name ?? `#${m.aIndex}`;
+  const b = SOURCE_COLORS[m.bIndex - 1]?.name ?? `#${m.bIndex}`;
+  return `${PART_LABELS[m.part]}：${a}(${m.aIndex}号) 和 ${b}(${m.bIndex}号) 都印成了 ${tonerName(m.target)}`;
 }
 
 /** Numbered swatch button for one rack toner. */
@@ -65,15 +80,24 @@ export function QuantExplorer({
   draft,
   onToners,
   onTable,
+  ruleCode,
 }: {
   stage: QuantStageDef;
   draft: StageDraft;
   onToners: (toners: number[]) => void;
   onTable: (table: number[]) => void;
+  /** Student's stage-1 nearest_toner source; enables the "用我的规则" preview. */
+  ruleCode?: string;
 }) {
   const gallery = useMemo(() => publicGalleryFor(stage.category), [stage.category]);
   const [memberIndex, setMemberIndex] = useState(0);
   const member = gallery[Math.min(memberIndex, gallery.length - 1)];
+  const [inspectedPairId, setInspectedPairId] = useState<string | null>(null);
+  const [useMyRule, setUseMyRule] = useState(false);
+  const [myTable, setMyTable] = useState<number[] | null>(null);
+  const [myError, setMyError] = useState<string | null>(null);
+  const [myRunning, setMyRunning] = useState(false);
+  const runSeq = useRef(0);
 
   const defaultTable = useMemo(
     () => (stage.fixedLoadout ? nnTable(stage.fixedLoadout) : null),
@@ -81,10 +105,65 @@ export function QuantExplorer({
   );
 
   /** The mapping the printer would apply under the current draft. */
-  const effectiveTable = useMemo(() => {
+  const builtinTable = useMemo(() => {
     if (stage.mode === "pick") return nnTable(draft.toners);
     return draft.table ?? defaultTable ?? [];
   }, [stage.mode, draft.toners, draft.table, defaultTable]);
+
+  // Pick stages: run the student's nearest_toner over the source palette
+  // against the loaded cartridges to derive the mapping table they wrote.
+  useEffect(() => {
+    if (stage.mode !== "pick" || !useMyRule || !ruleCode?.trim()) {
+      setMyTable(null);
+      setMyError(null);
+      return;
+    }
+    const candidates = [PAPER, ...draft.toners.map((i) => TONER_RACK[i].rgb)];
+    const seq = (runSeq.current += 1);
+    setMyRunning(true);
+    const timer = setTimeout(() => {
+      void runNearestToner(
+        ruleCode,
+        SOURCE_COLORS.map((c) => [...c.rgb]),
+        candidates.map((c) => [...c]),
+      )
+        .then((results) => {
+          if (runSeq.current !== seq) return;
+          const table: number[] = [];
+          const bad: string[] = [];
+          results.forEach((raw, i) => {
+            const v = Number(raw);
+            if (Number.isInteger(v) && v >= 0 && v < candidates.length) {
+              table[i] = v === 0 ? -1 : draft.toners[v - 1];
+            } else {
+              table[i] = -1;
+              if (bad.length < 3) {
+                bad.push(
+                  `${i + 1}号 ${SOURCE_COLORS[i].name} 返回了 ${raw === null ? "None" : JSON.stringify(raw)}`,
+                );
+              }
+            }
+          });
+          setMyTable(table);
+          setMyError(
+            bad.length
+              ? `nearest_toner 必须返回候选编号（0=纸白, 1..${candidates.length - 1}=已装的粉）——${bad.join("；")}，已按纸白处理。`
+              : null,
+          );
+        })
+        .catch((err: unknown) => {
+          if (runSeq.current !== seq) return;
+          setMyTable(null);
+          setMyError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (runSeq.current === seq) setMyRunning(false);
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [stage.mode, useMyRule, ruleCode, draft.toners]);
+
+  const effectiveTable = stage.mode === "pick" && useMyRule && myTable ? myTable : builtinTable;
 
   const report = useMemo(
     () => (effectiveTable.length ? judgeMapping(gallery, effectiveTable) : null),
@@ -117,6 +196,17 @@ export function QuantExplorer({
     return set;
   }, [report]);
 
+  /** A clicked collision pair: member A shown, merged parts listed. */
+  const inspectedPair = useMemo(() => {
+    if (!inspectedPairId || !effectiveTable.length) return null;
+    const pair = pairs.find((p) => `${p.aId}-${p.bId}` === inspectedPairId);
+    if (!pair) return null;
+    const a = gallery.find((e) => e.id === pair.aId);
+    const b = gallery.find((e) => e.id === pair.bId);
+    if (!a || !b) return null;
+    return { pair, merged: mergedParts(a.parts, b.parts, effectiveTable) };
+  }, [inspectedPairId, pairs, gallery, effectiveTable]);
+
   const toggleToner = (index: number) => {
     const next = draft.toners.includes(index)
       ? draft.toners.filter((i) => i !== index)
@@ -136,6 +226,12 @@ export function QuantExplorer({
     onTable(nextTable);
   };
 
+  const inspectPair = (pairKey: string, aId: string) => {
+    const index = gallery.findIndex((e) => e.id === aId);
+    if (index >= 0) setMemberIndex(index);
+    setInspectedPairId(pairKey);
+  };
+
   const overSlots = stage.mode === "pick" && tonersUsed.length > (stage.tonerSlots ?? 0);
   const overOverrides =
     stage.mode === "free" && overrides !== null && overrides > (stage.overrideBudget ?? 0);
@@ -143,7 +239,7 @@ export function QuantExplorer({
   return (
     <section aria-labelledby="quant-explorer-title" className="quant-explorer">
       <h3 id="quant-explorer-title">
-        打印实验台（公开图库 {gallery.length} 张 · {stage.category === "cadet" ? "训练" : ""}
+        印刷实验台（公开图谱 {gallery.length} 张 · {stage.category === "cadet" ? "学员" : ""}
         {stage.category === "patrol" ? "巡逻" : ""}
         {stage.category === "cargo" ? "货运" : ""}
         {stage.category === "recon" ? "侦察" : ""}机器人）
@@ -184,6 +280,35 @@ export function QuantExplorer({
               ))}
             </div>
           ) : null}
+
+          {ruleCode?.trim() ? (
+            <div aria-label="印刷使用的映射规则" className="quant-rule-toggle" role="group">
+              <span>映射规则：</span>
+              <button
+                aria-pressed={!useMyRule}
+                className={!useMyRule ? "is-active" : ""}
+                onClick={() => setUseMyRule(false)}
+                type="button"
+              >
+                内置最近色
+              </button>
+              <button
+                aria-pressed={useMyRule}
+                className={useMyRule ? "is-active" : ""}
+                onClick={() => setUseMyRule(true)}
+                type="button"
+              >
+                我写的 nearest_toner
+              </button>
+              {myRunning ? <span className="quant-rule-running">运行中…</span> : null}
+            </div>
+          ) : null}
+          {useMyRule && myError ? (
+            <p className="quant-rule-error" role="alert">
+              {myError}
+              {myTable ? "" : "（预览暂用内置规则）"}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="quant-rack-block">
@@ -198,7 +323,7 @@ export function QuantExplorer({
 
       <div className="quant-columns">
         <div className="quant-left">
-          <div aria-label="选择图库成员" className="quant-member-strip" role="listbox">
+          <div aria-label="选择要印的原稿" className="quant-member-strip" role="listbox">
             {gallery.map((entry, index) => (
               <button
                 aria-label={`查看 ${entry.label}`}
@@ -207,7 +332,10 @@ export function QuantExplorer({
                   collidedIds.has(entry.id) ? " is-collided" : ""
                 }`}
                 key={entry.id}
-                onClick={() => setMemberIndex(index)}
+                onClick={() => {
+                  setMemberIndex(index);
+                  setInspectedPairId(null);
+                }}
                 role="option"
                 type="button"
               >
@@ -226,29 +354,50 @@ export function QuantExplorer({
             <p
               className={`quant-verdict-line${report.identified === report.total ? " is-ok" : ""}`}
             >
-              当前{stage.mode === "pick" ? "装法" : "映射"}下，公开图库{" "}
+              当前{stage.mode === "pick" ? "装法" : "映射"}下，接收端还能认出{" "}
               <strong>
                 {report.identified} / {report.total}
               </strong>{" "}
-              张打印后仍可区分
-              {report.identified === report.total ? <Icon name="check" size={13} /> : null}
+              张{report.identified === report.total ? <Icon name="check" size={13} /> : null}
             </p>
           ) : null}
 
           {pairs.length > 0 ? (
             <div className="quant-collisions" role="note">
-              <strong>{pairs.length} 对成员打印后一模一样：</strong>
+              <strong>接收端会分不清这 {pairs.length} 对：</strong>
               <ul>
-                {pairs.slice(0, 5).map((pair) => (
-                  <li key={`${pair.aId}-${pair.bId}`}>
-                    {pair.aLabel} ≡ {pair.bLabel}
-                  </li>
-                ))}
+                {pairs.slice(0, 5).map((pair) => {
+                  const key = `${pair.aId}-${pair.bId}`;
+                  return (
+                    <li key={key}>
+                      <button
+                        className={`quant-pair-link${inspectedPairId === key ? " is-active" : ""}`}
+                        onClick={() => inspectPair(key, pair.aId)}
+                        type="button"
+                      >
+                        {pair.aLabel} ≡ {pair.bLabel}
+                      </button>
+                    </li>
+                  );
+                })}
                 {pairs.length > 5 ? <li>…还有 {pairs.length - 5} 对</li> : null}
               </ul>
+              {inspectedPair ? (
+                inspectedPair.merged.length ? (
+                  <ul className="quant-merged-list">
+                    {inspectedPair.merged.map((m) => (
+                      <li key={m.part}>{mergedPartText(m)}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="quant-merged-note">两台机器人原稿完全相同。</p>
+                )
+              ) : (
+                <p className="quant-merged-note">点一对，看是哪个部件的颜色被合并了。</p>
+              )}
             </div>
           ) : effectiveTable.length ? (
-            <p className="quant-clear">当前映射下，公开图库里每一张都能被唯一认出。</p>
+            <p className="quant-clear">当前映射下，图谱里每一张接收端都能认出。</p>
           ) : null}
         </div>
 
@@ -260,18 +409,20 @@ export function QuantExplorer({
                 colorOf={sourceCellCss}
                 image={member.image}
               />
-              <figcaption>原稿 {member.label}</figcaption>
+              <figcaption>发送原稿 {member.label}</figcaption>
             </figure>
             <span aria-hidden="true" className="quant-arrow">
               <Icon name="arrow-right" size={18} />
             </span>
             <figure>
               <PaletteCanvas
-                ariaLabel={`${member.label} 打印结果`}
+                ariaLabel={`${member.label} 印出结果`}
                 colorOf={tonerCellCss}
                 image={printed}
               />
-              <figcaption>打印结果（当前映射）</figcaption>
+              <figcaption>
+                接收端所见{useMyRule && stage.mode === "pick" ? "（你的规则）" : ""}
+              </figcaption>
             </figure>
           </div>
 
@@ -281,7 +432,7 @@ export function QuantExplorer({
               <thead>
                 <tr>
                   <th>源色</th>
-                  <th>打印为</th>
+                  <th>印为</th>
                 </tr>
               </thead>
               <tbody>

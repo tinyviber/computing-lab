@@ -8,13 +8,21 @@ import { Icon } from "../../../shared/ui/Icon";
 import { imageFromBase64 } from "../domain/bitmap.ts";
 import type { PackedImage, SamplingJudgeResult } from "../domain/protocol.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
-import { BitmapCanvas } from "./BitmapCanvas.tsx";
+import { BitmapCanvas, type CellRect } from "./BitmapCanvas.tsx";
 
-function PackedFigure({ packed, caption }: { packed: PackedImage; caption: string }) {
+function PackedFigure({
+  packed,
+  caption,
+  region,
+}: {
+  packed: PackedImage;
+  caption: string;
+  region?: CellRect | null;
+}) {
   const image = imageFromBase64(packed.width, packed.height, packed.b64);
   return (
     <figure>
-      <BitmapCanvas ariaLabel={caption} image={image} />
+      <BitmapCanvas ariaLabel={caption} image={image} region={region} />
       <figcaption>{caption}</figcaption>
     </figure>
   );
@@ -45,14 +53,14 @@ export function RecognitionPanel({
       </h3>
       <dl className="verdict-stats">
         <div>
-          <dt>仍能唯一认出</dt>
+          <dt>接收端仍能认出</dt>
           <dd>
             {outcome.identified} / {outcome.total} 张
             <span className="verdict-sub">（要求 ≥ {required} 张）</span>
           </dd>
         </div>
         <div>
-          <dt>你用了</dt>
+          <dt>占用了</dt>
           <dd className={outcome.withinBudget ? "" : "over-budget"}>
             {outcome.resolution.cells} 个格子
             <span className="verdict-sub">
@@ -81,24 +89,29 @@ export function RecognitionPanel({
       {!outcome.passed && outcome.counterexample ? (
         <div className="counterexample">
           <p className="counterexample-lede">
-            例子：{outcome.counterexample.query.label} 在你选的分辨率下变成了
+            例子：{outcome.counterexample.query.label} 以{outcome.resolution.width}×
+            {outcome.resolution.height} 发出去之后，
             {outcome.counterexample.collidedWith.length > 0
-              ? `和 ${outcome.counterexample.collidedWith
+              ? `接收端收到的格子图和 ${outcome.counterexample.collidedWith
                   .map((c) => c.label)
-                  .join("、")} 完全相同的格子`
-              : `最接近 ${outcome.counterexample.predicted?.label ?? "?"}`}
+                  .join("、")} 一模一样`
+              : `接收端最可能认成 ${outcome.counterexample.predicted?.label ?? "?"}`}
             。
+            {outcome.counterexample.difference
+              ? `丢掉的差别在原图 x∈[${outcome.counterexample.difference.x0}, ${outcome.counterexample.difference.x1})、y∈[${outcome.counterexample.difference.y0}, ${outcome.counterexample.difference.y1}) 的 ${outcome.counterexample.difference.pixels} 个像素里（原图已框出）——它们摊不满一个格子，就被抹平了。`
+              : ""}
           </p>
           <div className="counterexample-triptych">
             <PackedFigure
-              caption={`原图 ${outcome.counterexample.query.label}`}
+              caption={`发送端原图 ${outcome.counterexample.query.label}`}
               packed={outcome.counterexample.query.full}
+              region={outcome.counterexample.difference}
             />
             <span aria-hidden="true" className="preview-arrow">
               <Icon name="arrow-right" size={18} />
             </span>
             <PackedFigure
-              caption={`压缩后（${outcome.resolution.width}×${outcome.resolution.height}）`}
+              caption={`接收端所见 ${outcome.resolution.width}×${outcome.resolution.height}`}
               packed={outcome.counterexample.query.small}
             />
             <span aria-hidden="true" className="preview-arrow">
@@ -136,7 +149,7 @@ export function RecognitionPanel({
 
       {outcome.confusionPairs.length > 0 ? (
         <p className="confusion-callout">
-          该分辨率下还有 {outcome.confusionPairs.length} 组碰撞：
+          该分辨率下还有 {outcome.confusionPairs.length} 对分不开：
           {outcome.confusionPairs
             .slice(0, 4)
             .map((p) => `${p.aLabel}≡${p.bLabel}`)

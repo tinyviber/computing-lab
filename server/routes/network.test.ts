@@ -87,13 +87,16 @@ describe("network-sim routes", () => {
     });
   });
 
-  it("turns class teachers away while the lab is admin-preview", async () => {
-    const { app, classId, teacherId, cookieFor } = await setup();
-    const res = await app.fetch(
-      new Request(url(classId, "/project"), { headers: { cookie: cookieFor(teacherId) } }),
-    );
-    expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({ error: "lab-not-available" });
+  it("turns non-admins away while the lab is hidden", async () => {
+    const { db, app, classId, studentId, teacherId, cookieFor } = await setup();
+    db.prepare("INSERT INTO lab_settings (lab_id, hidden) VALUES ('network-sim', 1)").run();
+    for (const uid of [studentId, teacherId]) {
+      const res = await app.fetch(
+        new Request(url(classId, "/project"), { headers: { cookie: cookieFor(uid) } }),
+      );
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({ error: "lab-not-available" });
+    }
   });
 
   it("saves a draft and reads it back sanitized", async () => {

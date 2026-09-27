@@ -6,6 +6,7 @@
  */
 
 import type { QuantMode } from "./stages.ts";
+import type { MergedPart } from "./sprites.ts";
 
 /** A palette-indexed image in transport form: width, height, 1 byte/cell b64. */
 export type PackedImage = { width: number; height: number; b64: string };
@@ -24,6 +25,11 @@ export type QuantCounterexample = {
   query: { id: string; label: string; source: PackedImage; printed: PackedImage };
   collided: { id: string; label: string; source: PackedImage; printed: PackedImage } | null;
   collidedWith: { id: string; label: string }[];
+  /**
+   * The features this mapping merged: parts where the query and the member
+   * it collided with had different source colors that now share a toner.
+   */
+  merged: MergedPart[];
 };
 
 export type QuantJudgeResult = {

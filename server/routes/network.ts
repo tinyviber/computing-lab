@@ -13,7 +13,6 @@ export function networkRoutes() {
   return labRoutes<NetDraft, NetJudgeResult>({
     labId: "network-sim",
     stageCount: NET_STAGES.length,
-    adminPreview: true,
     saveDraft: (db, project, stageIndex, body) =>
       saveStageDraft(db, project, stageIndex, sanitizeTopology(body.draft ?? {})),
     judge: (db, project, stageIndex, body) => {

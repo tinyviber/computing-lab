@@ -1,7 +1,6 @@
 .calculator-lab {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
 .calculator-identity {

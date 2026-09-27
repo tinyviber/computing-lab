@@ -13,7 +13,7 @@
 
 import { imageSignature, imageToBase64, type IndexedImage } from "./indexed.ts";
 import { quantizeImage } from "./quantize.ts";
-import type { GalleryEntry } from "./sprites.ts";
+import { mergedParts, type GalleryEntry } from "./sprites.ts";
 
 export type QueryVerdict = {
   queryId: string;
@@ -94,7 +94,8 @@ export function confusionPairs(
 /**
  * Serialisable form of a failing case for the judge payload: the source
  * artwork and the printed result for the query plus one member it collides
- * with — concrete evidence of what the mapping destroyed.
+ * with — concrete evidence of what the mapping destroyed. `merged` names
+ * the specific features (parts) whose colors were folded together.
  */
 export function encodeVerdictDetail(
   query: GalleryEntry,
@@ -119,5 +120,6 @@ export function encodeVerdictDetail(
     query: pack(query),
     collided: collided ? pack(collided) : null,
     collidedWith: verdict.collidedWith,
+    merged: collided ? mergedParts(query.parts, collided.parts, table) : [],
   };
 }

@@ -1,11 +1,17 @@
 /**
- * Downsample explorer: pick a gallery member and a resolution, watch the
- * compressed grid, zoom into one cell's source region, and scan the
- * resolution sweep table — all against the public gallery.
+ * Downsample explorer: pick a signal card and a resolution, watch what the
+ * receiver sees, zoom into one cell's source region, and scan the
+ * resolution sweep table — all against the public atlas.
+ *
+ * When the student's stage-1 `cell_value` source exists, a preview-rule
+ * toggle runs it over every cell of the displayed member, so the rule they
+ * wrote is literally what produces the received image (the built-in
+ * majority rule stays the fallback and is labelled as such).
  */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "../../../shared/ui/Icon";
+import { diffBounds, makeImage, type BinaryImage } from "../domain/bitmap.ts";
 import { cellBounds, cellRegion, cellStats, type Resolution } from "../domain/downsample.ts";
 import { downsample } from "../domain/downsample.ts";
 import { publicGalleryFor } from "../domain/fixtures.ts";
@@ -14,6 +20,7 @@ import { SOURCE_SIZE } from "../domain/sprites.ts";
 import type { SamplingStageDef } from "../domain/stages.ts";
 import type { CellPick } from "../lesson/state.ts";
 import { BitmapCanvas } from "./BitmapCanvas.tsx";
+import { runCellValue } from "./pyodideRunner.ts";
 
 type ExplorerProps = {
   stage: SamplingStageDef;
@@ -22,6 +29,8 @@ type ExplorerProps = {
   selectedCell: CellPick | null;
   onResolution: (width: number, height: number) => void;
   onCellPick: (cell: CellPick | null) => void;
+  /** Student's stage-1 cell_value source; enables the "用我的规则" preview. */
+  ruleCode?: string;
 };
 
 function ResolutionInputs({
@@ -85,6 +94,17 @@ function ResolutionInputs({
   );
 }
 
+/** Every target cell of member.image at (w,h) as a 2D region list. */
+function allRegions(image: BinaryImage, width: number, height: number): number[][][] {
+  const regions: number[][][] = [];
+  for (let cy = 0; cy < height; cy += 1) {
+    for (let cx = 0; cx < width; cx += 1) {
+      regions.push(cellRegion(image, width, height, cx, cy));
+    }
+  }
+  return regions;
+}
+
 export function DownsampleExplorer({
   stage,
   width,
@@ -92,15 +112,72 @@ export function DownsampleExplorer({
   selectedCell,
   onResolution,
   onCellPick,
+  ruleCode,
 }: ExplorerProps) {
   const gallery = useMemo(() => publicGalleryFor(stage.category), [stage.category]);
   const [memberIndex, setMemberIndex] = useState(0);
   const member = gallery[Math.min(memberIndex, gallery.length - 1)];
+  const [inspectedPairId, setInspectedPairId] = useState<string | null>(null);
+  const [useMyRule, setUseMyRule] = useState(false);
+  const [myGrid, setMyGrid] = useState<BinaryImage | null>(null);
+  const [myRuleError, setMyRuleError] = useState<string | null>(null);
+  const [myRuleRunning, setMyRuleRunning] = useState(false);
+  const runSeq = useRef(0);
 
-  const compressed = useMemo(
+  const builtinCompressed = useMemo(
     () => downsample(member.image, width, height),
     [member, width, height],
   );
+
+  // Run the student's cell_value over every cell of the displayed member.
+  useEffect(() => {
+    if (!useMyRule || !ruleCode?.trim()) {
+      setMyGrid(null);
+      setMyRuleError(null);
+      return;
+    }
+    const seq = (runSeq.current += 1);
+    setMyRuleRunning(true);
+    const timer = setTimeout(() => {
+      void runCellValue(ruleCode, allRegions(member.image, width, height))
+        .then((results) => {
+          if (runSeq.current !== seq) return;
+          const grid = makeImage(width, height);
+          const bad: string[] = [];
+          for (let i = 0; i < results.length && i < width * height; i += 1) {
+            const v = Number(results[i]);
+            if (v === 0 || v === 1) {
+              grid.cells[i] = v;
+            } else {
+              const cx = i % width;
+              const cy = (i / width) | 0;
+              if (bad.length < 3) {
+                bad.push(
+                  `(${cx},${cy}) 返回了 ${results[i] === null ? "None" : JSON.stringify(results[i])}`,
+                );
+              }
+            }
+          }
+          setMyGrid(grid);
+          setMyRuleError(
+            bad.length
+              ? `cell_value 必须返回 0 或 1——格子 ${bad.join("、")} 的返回值无效，已按 0 画出。`
+              : null,
+          );
+        })
+        .catch((err: unknown) => {
+          if (runSeq.current !== seq) return;
+          setMyGrid(null);
+          setMyRuleError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          if (runSeq.current === seq) setMyRuleRunning(false);
+        });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [useMyRule, ruleCode, member, width, height]);
+
+  const compressed = useMyRule && myGrid ? myGrid : builtinCompressed;
 
   const sweep = useMemo(
     () =>
@@ -134,27 +211,77 @@ export function DownsampleExplorer({
     };
   }, [member, width, height, selectedCell, compressed]);
 
-  const previewRes = useMemo(() => ({ width, height }), [width, height]);
+  /** A clicked confusion pair: member A shown, diff bbox outlined on the source. */
+  const inspectedPair = useMemo(() => {
+    if (!inspectedPairId) return null;
+    const pair = pairs.find((p) => `${p.aId}-${p.bId}` === inspectedPairId);
+    if (!pair) return null;
+    const a = gallery.find((e) => e.id === pair.aId);
+    const b = gallery.find((e) => e.id === pair.bId);
+    if (!a || !b) return null;
+    return { pair, a, b, bounds: diffBounds(a.image, b.image) };
+  }, [inspectedPairId, pairs, gallery]);
+
+  const sourceRegion = inspectedPair?.bounds ?? inspection?.bounds ?? null;
+
+  const pickMember = (index: number) => {
+    setMemberIndex(index);
+    setInspectedPairId(null);
+    onCellPick(null);
+  };
+
+  const inspectPair = (pairKey: string, aId: string) => {
+    const index = gallery.findIndex((e) => e.id === aId);
+    if (index >= 0) setMemberIndex(index);
+    setInspectedPairId(pairKey);
+    onCellPick(null);
+  };
 
   return (
     <section aria-labelledby="explorer-title" className="downsample-explorer">
-      <h3 id="explorer-title">分辨率实验台（公开图库 {gallery.length} 张）</h3>
+      <h3 id="explorer-title">发信实验台（公开图谱 {gallery.length} 张）</h3>
 
       <ResolutionInputs height={height} onResolution={onResolution} stage={stage} width={width} />
 
+      {ruleCode?.trim() ? (
+        <div aria-label="预览使用的规则" className="rule-toggle" role="group">
+          <span>接收端规则：</span>
+          <button
+            aria-pressed={!useMyRule}
+            className={!useMyRule ? "is-active" : ""}
+            onClick={() => setUseMyRule(false)}
+            type="button"
+          >
+            内置多数规则
+          </button>
+          <button
+            aria-pressed={useMyRule}
+            className={useMyRule ? "is-active" : ""}
+            onClick={() => setUseMyRule(true)}
+            type="button"
+          >
+            我写的 cell_value
+          </button>
+          {myRuleRunning ? <span className="rule-running">运行中…</span> : null}
+        </div>
+      ) : null}
+      {useMyRule && myRuleError ? (
+        <p className="rule-error" role="alert">
+          {myRuleError}
+          {myGrid ? "" : "（预览暂用内置规则）"}
+        </p>
+      ) : null}
+
       <div className="explorer-columns">
         <div className="explorer-left">
-          <div aria-label="选择图库成员" className="member-strip" role="listbox">
+          <div aria-label="选择要发送的信号" className="member-strip" role="listbox">
             {gallery.map((entry, index) => (
               <button
                 aria-label={`查看 ${entry.label}`}
                 aria-selected={index === memberIndex}
                 className={`member-chip${index === memberIndex ? " is-active" : ""}`}
                 key={entry.id}
-                onClick={() => {
-                  setMemberIndex(index);
-                  onCellPick(null);
-                }}
+                onClick={() => pickMember(index)}
                 role="option"
                 type="button"
               >
@@ -165,12 +292,12 @@ export function DownsampleExplorer({
           </div>
 
           <table className="sweep-table">
-            <caption>扫掠表：这个图库在各分辨率下有多少成员仍然独一无二</caption>
+            <caption>扫掠表：这组信号在各分辨率下，接收端还能分清多少张</caption>
             <thead>
               <tr>
                 <th>分辨率</th>
                 <th>格子数</th>
-                <th>可区分</th>
+                <th>可辨认</th>
               </tr>
             </thead>
             <tbody>
@@ -202,19 +329,37 @@ export function DownsampleExplorer({
           {pairs.length > 0 ? (
             <div className="confusion-callout" role="note">
               <strong>
-                在 {previewRes.width}×{previewRes.height} 下有 {pairs.length} 对图变得一模一样：
+                在 {width}×{height} 下接收端会分不清这 {pairs.length} 对：
               </strong>
               <ul>
-                {pairs.slice(0, 5).map((pair) => (
-                  <li key={`${pair.aId}-${pair.bId}`}>
-                    {pair.aLabel} ≡ {pair.bLabel}
-                  </li>
-                ))}
+                {pairs.slice(0, 5).map((pair) => {
+                  const key = `${pair.aId}-${pair.bId}`;
+                  return (
+                    <li key={key}>
+                      <button
+                        className={`pair-link${inspectedPairId === key ? " is-active" : ""}`}
+                        onClick={() => inspectPair(key, pair.aId)}
+                        type="button"
+                      >
+                        {pair.aLabel} ≡ {pair.bLabel}
+                      </button>
+                    </li>
+                  );
+                })}
                 {pairs.length > 5 ? <li>…还有 {pairs.length - 5} 对</li> : null}
               </ul>
+              {inspectedPair ? (
+                <p className="pair-diff-note">
+                  {inspectedPair.bounds
+                    ? `${inspectedPair.pair.aLabel} 与 ${inspectedPair.pair.bLabel} 的差别只在原图 x∈[${inspectedPair.bounds.x0}, ${inspectedPair.bounds.x1})、y∈[${inspectedPair.bounds.y0}, ${inspectedPair.bounds.y1}) 的 ${inspectedPair.bounds.pixels} 个像素里（原图上的虚线框）——当前网格把它抹平了。`
+                    : `${inspectedPair.pair.aLabel} 与 ${inspectedPair.pair.bLabel} 原图完全相同。`}
+                </p>
+              ) : (
+                <p className="pair-diff-note">点一对，看它们的差别被哪个区域的格子抹掉了。</p>
+              )}
             </div>
           ) : (
-            <p className="confusion-clear">当前分辨率下，公开图库里每一张都能被唯一认出。</p>
+            <p className="confusion-clear">当前分辨率下，图谱里每一张接收端都能认出。</p>
           )}
         </div>
 
@@ -224,10 +369,10 @@ export function DownsampleExplorer({
               <BitmapCanvas
                 ariaLabel={`原图 ${member.label}`}
                 image={member.image}
-                region={inspection?.bounds ?? null}
+                region={sourceRegion}
               />
               <figcaption>
-                原图 {member.label} · {member.image.width}×{member.image.height}
+                发送端原图 {member.label} · {member.image.width}×{member.image.height}
               </figcaption>
             </figure>
             <span aria-hidden="true" className="preview-arrow">
@@ -235,20 +380,22 @@ export function DownsampleExplorer({
             </span>
             <figure>
               <BitmapCanvas
-                ariaLabel={`${width}×${height} 压缩结果`}
+                ariaLabel={`接收端看到的 ${width}×${height} 格子图`}
                 grid
                 highlight={selectedCell}
                 image={compressed}
-                onCellClick={(cx, cy) =>
+                onCellClick={(cx, cy) => {
+                  setInspectedPairId(null);
                   onCellPick(
                     selectedCell && selectedCell.cx === cx && selectedCell.cy === cy
                       ? null
                       : { cx, cy },
-                  )
-                }
+                  );
+                }}
               />
               <figcaption>
-                压缩后 {width}×{height}（点一个格子看它怎么决定）
+                接收端所见 {width}×{height}
+                {useMyRule ? "（你的规则）" : ""}（点一个格子看它怎么决定）
               </figcaption>
             </figure>
           </div>
@@ -261,10 +408,10 @@ export function DownsampleExplorer({
               覆盖原图区域 x∈[{inspection.bounds.x0}, {inspection.bounds.x1}), y∈[
               {inspection.bounds.y0}, {inspection.bounds.y1})，共 {inspection.total} 个像素， 其中{" "}
               {inspection.on} 个是图形 → {Math.round((inspection.on / inspection.total) * 100)}% ≥
-              50% → 输出 <strong>{inspection.output}</strong>
+              50% → 收到 <strong>{inspection.output}</strong>
             </div>
           ) : (
-            <p className="cell-inspector-hint">点击右侧压缩图里的格子，看它在原图里对应哪一块。</p>
+            <p className="cell-inspector-hint">点接收端图里的格子，看它盖住了原图的哪一块。</p>
           )}
         </div>
       </div>

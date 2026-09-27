@@ -166,7 +166,6 @@ export function NetworkLabPage() {
 
   return (
     <LabAccessGate
-      adminPreview
       classId={classId}
       hidden={catalog?.get(NET_LAB_ID)?.hidden === true}
       labName="网络模拟器"
