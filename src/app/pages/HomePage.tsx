@@ -34,6 +34,12 @@ const ADMIN_PREVIEW_LABS = [
     description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
     to: "/labs/color-quantization",
   },
+  {
+    id: "network-sim",
+    title: "网络模拟器",
+    description: "发一笔 ping，看主机、交换机、路由器各自凭什么决定下一跳。",
+    to: "/labs/network-sim",
+  },
 ] as const;
 
 const TASK_STATUS: Record<StudentTask["status"], string> = {
