@@ -20,7 +20,11 @@ export function PhrasingMatrix(props: {
   onPredict: (dim: PhrasingDim, value: boolean) => void;
   /** Persist predictions; must resolve before draws are enabled. */
   onSavePredictions: () => Promise<boolean>;
+  /** Clear saved predictions (only legal before the first draw). */
+  onResetPredictions: () => void;
   predictionsLocked: boolean;
+  /** Sealed predictions may still be reset — no draws issued yet. */
+  predictionsResettable: boolean;
   matrix: Record<string, string[]>;
   drawsById: Record<string, DrawPayload>;
   onRunColumn: (column: MatrixColumn) => void;
@@ -31,7 +35,9 @@ export function PhrasingMatrix(props: {
     predictions,
     onPredict,
     onSavePredictions,
+    onResetPredictions,
     predictionsLocked,
+    predictionsResettable,
     matrix,
     drawsById,
     onRunColumn,
@@ -46,7 +52,11 @@ export function PhrasingMatrix(props: {
       <p className="eyebrow">第一步 · 先预测</p>
       <p className="ae-hint">
         问题：{question.text}。对每种变体勾一个判断：换一种问法，答案里的硬信息会不会变？
-        {predictionsLocked ? "（已开始探测——预测已封存，再改判分不认。）" : ""}
+        {predictionsLocked
+          ? predictionsResettable
+            ? "（预测已保存。想改可以清空重填——一旦开始探测就封存了。）"
+            : "（已开始探测——预测已封存，再改判分不认。）"
+          : ""}
       </p>
       <div className="ae-pred-row" role="group" aria-label="变体预测">
         {PHRASING_DIMS.map((d) => (
@@ -84,6 +94,18 @@ export function PhrasingMatrix(props: {
             保存预测并开始探测
           </button>
           {!allPredicted ? <span className="ae-hint">五种变体都要先表态。</span> : null}
+        </div>
+      ) : null}
+      {predictionsResettable ? (
+        <div className="ae-row">
+          <button
+            className="button button-secondary"
+            disabled={busy}
+            onClick={onResetPredictions}
+            type="button"
+          >
+            重新填写预测
+          </button>
         </div>
       ) : null}
 

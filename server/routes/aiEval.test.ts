@@ -410,6 +410,47 @@ describe("ai-eval routes", () => {
     expect(outcome.testSummary.error).toBe("prediction-after-draw");
   });
 
+  it("resets C2 predictions until the first draw, then seals them", async () => {
+    const { app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    const s1 = await solveStage1(app, classId, cookie, studentId);
+    await judge(app, classId, cookie, 1, s1);
+    const q = c2Question(stageSeedFor(studentId, 2));
+    const predictions = { order: false, polite: true, qualifier: false, synonym: false };
+    expect((await putDraft(app, classId, cookie, 2, { predictions })).status).toBe(200);
+
+    // Wrong stage is rejected by the action itself.
+    expect((await post(app, classId, cookie, "/reset-predictions", { stageIndex: 1 })).status).toBe(
+      400,
+    );
+
+    // Pre-draw reset clears the seal and puts /draws back to 409.
+    const reset = await post(app, classId, cookie, "/reset-predictions", { stageIndex: 2 });
+    expect(reset.status).toBe(200);
+    const project = (await (
+      await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }))
+    ).json()) as { drafts: Record<string, AiEvalDraft> };
+    expect(project.drafts["2"].predictions).toEqual({});
+    expect(project.drafts["2"].predictedAt).toBeNull();
+    expect(
+      (await draw(app, classId, cookie, 2, [{ questionId: q.id, phrasing: [], k: 0 }])).status,
+    ).toBe(409);
+
+    // Once a draw is issued the evidence is sealed — reset is refused.
+    await putDraft(app, classId, cookie, 2, { predictions });
+    expect(
+      (await draw(app, classId, cookie, 2, [{ questionId: q.id, phrasing: [], k: 0 }])).status,
+    ).toBe(200);
+    const late = await post(app, classId, cookie, "/reset-predictions", { stageIndex: 2 });
+    expect(late.status).toBe(409);
+    expect(await late.json()).toEqual({ error: "draws-issued" });
+    const sealed = (await (
+      await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }))
+    ).json()) as { drafts: Record<string, AiEvalDraft> };
+    expect(sealed.drafts["2"].predictions).toEqual(predictions);
+    expect(sealed.drafts["2"].predictedAt).not.toBeNull();
+  });
+
   it("dispenses stage-3 draws sequentially and enforces the verify quota", async () => {
     const { app, classId, studentId, cookieFor, db } = await setup();
     const cookie = cookieFor(studentId);

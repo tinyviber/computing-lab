@@ -153,6 +153,19 @@ export type VerifyResponse = {
   quotaLeft: number;
 };
 
+/**
+ * Canonical slot fingerprint of a draw — sorted `fieldId=value` pairs.
+ * `fieldId` embeds the entry id (`entry.slot`), so this is exactly the
+ * judge's per-question answer identity modulo wording; use it anywhere the
+ * UI needs the same "distinct answers" count as the judge.
+ */
+export function slotKeyOf(slots: { fieldId: string; value: string }[]): string {
+  return slots
+    .map((s) => `${s.fieldId}=${s.value}`)
+    .sort()
+    .join(";");
+}
+
 /* ------------------------------ judge-free constants ---------------- */
 
 /** What GET /project exposes to the client under `extras.aiEval`. */

@@ -33,6 +33,7 @@ import {
   C3_MAX_FALSE_FLAG,
   C3_MIN_RECALL,
   RATING_LABELS,
+  slotKeyOf,
   VOLATILE_RATIO,
   type AiEvalCategory,
   type AiEvalCounterexample,
@@ -142,10 +143,8 @@ function gradeC1(userId: string, seed: number, draft: AiEvalDraft): StageGrade {
   for (const row of draft.transcript) {
     const payload = produceDraw(userId, 1, row.probe);
     if (!payload) return fail(plan.length, "transcript-mismatch", null);
-    const key = `${payload.questionId}|${payload.slots
-      .map((s) => `${s.fieldId}=${s.value}`)
-      .sort()
-      .join(";")}`;
+    // Same canonicalization the C1 board shows: sorted fieldId=value pairs.
+    const key = slotKeyOf(payload.slots);
     const arr = obsByQuestion.get(row.probe.questionId) ?? [];
     arr.push(key);
     obsByQuestion.set(row.probe.questionId, arr);

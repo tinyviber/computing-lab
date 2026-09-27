@@ -240,6 +240,28 @@ export function AiEvalLabPage() {
     }
   }, [labPath, state]);
 
+  const onResetPredictions = useCallback(async () => {
+    // Server clears predictions + predictedAt; refused once draws exist.
+    setBusy(true);
+    try {
+      await api.post(`${labPath}/reset-predictions`, { stageIndex: 2 });
+      dispatch({
+        type: "load-project",
+        currentStage: state.currentStage,
+        passedStages: state.passedStages,
+        drafts: {
+          ...state.drafts,
+          2: { ...draftOf(state, 2), predictions: {}, predictedAt: null },
+        },
+        extras: state.extras,
+      });
+    } catch (error) {
+      setSubmitError(describeApiError(error));
+    } finally {
+      setBusy(false);
+    }
+  }, [labPath, state]);
+
   const onRunColumn = useCallback(
     (column: MatrixColumn) => {
       const q = c2QuestionBrief;
@@ -422,10 +444,12 @@ export function AiEvalLabPage() {
                 drawsById={state.drawsById}
                 matrix={draft.matrix}
                 onPredict={(dim, value) => dispatch({ type: "set-prediction", dim, value })}
+                onResetPredictions={() => void onResetPredictions()}
                 onRunColumn={onRunColumn}
                 onSavePredictions={onSavePredictions}
                 predictions={draft.predictions}
                 predictionsLocked={predictionsLocked || c2DrawsLocked}
+                predictionsResettable={predictionsLocked && !c2DrawsLocked}
                 question={c2QuestionBrief}
               />
             ) : null}

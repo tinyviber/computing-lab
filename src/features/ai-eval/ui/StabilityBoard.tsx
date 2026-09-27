@@ -5,7 +5,7 @@
  */
 
 import type { AiEvalQuestionBrief, DrawPayload, StabilityRating } from "../domain/protocol.ts";
-import { RATING_LABELS, STABILITY_RATINGS } from "../domain/protocol.ts";
+import { RATING_LABELS, slotKeyOf, STABILITY_RATINGS } from "../domain/protocol.ts";
 
 /** Char-level highlight of `text` vs every sibling string in `others`. */
 function DiffText({ text, others }: { text: string; others: string[] }) {
@@ -39,12 +39,15 @@ export function StabilityBoard(props: {
         {questions.map((q) => {
           const draws = collectedFor(q.id);
           const slotSets = draws.map((d) => d.slots.map((s) => s.value).join(" · "));
+          // Same canonicalization the judge replays: sorted fieldId=value
+          // pairs — wording swaps don't inflate the distinct count.
+          const distinct = new Set(draws.map((d) => slotKeyOf(d.slots))).size;
           const rating = ratings[q.id];
           return (
             <div className="ae-board-item" key={q.id}>
               <strong>{q.text}</strong>
               <span className="ae-hint">
-                已收集 {draws.length} 条 · 不同答案 {new Set(slotSets).size} 个
+                已收集 {draws.length} 条 · 不同答案 {distinct} 个
               </span>
               {draws.map((d, i) => {
                 const mine = slotSets[i];

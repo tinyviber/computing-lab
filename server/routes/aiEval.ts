@@ -8,6 +8,7 @@ import { judgeAiEvalSubmission } from "../judge/ai-eval/judge.ts";
 import {
   issueDraws,
   projectExtras,
+  resetPredictions,
   stampPredictionChange,
   verifySlot,
 } from "../judge/ai-eval/hiddenBank.ts";
@@ -59,6 +60,7 @@ export function aiEvalRoutes() {
         if (probes.some((p) => p === null)) return { error: "invalid-probe", status: 400 };
         return issueDraws(db, project, stageIndex, probes as Probe[]);
       },
+      "reset-predictions": (db, project, stageIndex) => resetPredictions(db, project, stageIndex),
       verify: (db, project, stageIndex, body) => {
         if (verifyLimiter.exceeded(key(project.userId, stageIndex))) {
           return { error: "rate-limited", status: 429 };

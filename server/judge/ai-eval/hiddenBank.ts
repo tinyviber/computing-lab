@@ -821,6 +821,31 @@ export function issueDraws(
 }
 
 /**
+ * POST /reset-predictions: clear persisted C2 predictions + predictedAt so a
+ * misclick isn't a permanent seal. Only legal before the first draw of the
+ * stage — once `firstDrawSeq` exists the prediction→draw ordering is
+ * evidence and must stay on file.
+ */
+export function resetPredictions(
+  db: DatabaseSync,
+  project: ProjectRow<AiEvalDraft>,
+  stageIndex: number,
+): { ok: true } | LabJudgeError {
+  if (stageIndex !== 2) return { error: "invalid-stage", status: 400 };
+  const stored = project.drafts[String(stageIndex)];
+  const srv = marksOf(stored);
+  if (srv.firstDrawSeq !== null || srv.issued.length > 0) {
+    return { error: "draws-issued", status: 409 };
+  }
+  saveStageDraft(db, project, stageIndex, {
+    ...(stored ?? emptyAiEvalDraft()),
+    predictions: {},
+    predictedAt: null,
+  });
+  return { ok: true };
+}
+
+/**
  * POST /verify: reveal the truth of one slot of an issued draw. Counts a
  * per-(user,lab,stage) quota of VERIFY_QUOTA calls and appends the fieldId
  * to the draft's verifyLog — the judge only accepts cited fieldIds from it.
