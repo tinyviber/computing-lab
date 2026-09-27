@@ -9,6 +9,8 @@
  * all/any group shape stays reserved for later stages.
  */
 
+import { useState } from "react";
+
 import {
   ACTUATOR_LABEL,
   SENSOR_LABEL,
@@ -30,6 +32,50 @@ import {
 } from "../domain/rules.ts";
 
 const LEAF: CondLeaf = { kind: "leaf", sensor: "airTemp", op: "<", value: 200 };
+
+function LeafValueInput(props: {
+  lo: number;
+  hi: number;
+  value: number;
+  disabled?: boolean;
+  onCommit: (value: number) => void;
+}) {
+  const { lo, hi, value, disabled, onCommit } = props;
+  // While focused we own the text; the numeric leaf updates only for
+  // complete numbers, so typing "27.5" is never reformatted mid-edit.
+  const [text, setText] = useState<string | null>(null);
+
+  const commit = (raw: string) => {
+    const v = Number(raw);
+    if (Number.isFinite(v) && raw.trim() !== "") {
+      // Keep thresholds strictly inside the sensor's open range so the
+      // row survives sanitizeRules instead of being silently dropped.
+      onCommit(Math.min(hi - 1, Math.max(lo + 1, Math.round(v * 10))));
+    }
+    setText(null);
+  };
+
+  return (
+    <input
+      disabled={disabled}
+      max={fmtFixed(hi)}
+      min={fmtFixed(lo)}
+      onBlur={(e) => commit(e.target.value)}
+      onChange={(e) => {
+        const t = e.target.value;
+        setText(t);
+        const v = Number(t);
+        if (t.trim() !== "" && Number.isFinite(v)) onCommit(Math.round(v * 10));
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+      step={0.5}
+      type="number"
+      value={text ?? fmtFixed(value)}
+    />
+  );
+}
 
 function rowPreview(rules: RuleRow[], actuator: ActuatorId, read: Readings): "on" | "off" | "hold" {
   const hit = rules.find((r) => r.actuator === actuator && holds(r.when, read));
@@ -151,17 +197,12 @@ export function RuleTableEditor(props: {
                           </option>
                         ))}
                       </select>
-                      <input
+                      <LeafValueInput
                         disabled={disabled}
-                        max={fmtFixed(hi)}
-                        min={fmtFixed(lo)}
-                        onChange={(e) => {
-                          const v = Number(e.target.value);
-                          if (Number.isFinite(v)) patchLeaf(i, { value: Math.round(v * 10) });
-                        }}
-                        step={0.5}
-                        type="number"
-                        value={fmtFixed(leaf.value)}
+                        hi={hi}
+                        lo={lo}
+                        onCommit={(v) => patchLeaf(i, { value: v })}
+                        value={leaf.value}
                       />
                       <span className="gh-unit">{SENSOR_UNIT[leaf.sensor]}</span>
                     </span>
