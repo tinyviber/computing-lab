@@ -6,7 +6,7 @@
  */
 
 import type { CpuCase } from "./machine.ts";
-import { makeRng } from "./rng.ts";
+import { makeRng } from "../../../shared/rng.ts";
 
 /**
  * Sprinkle seeded decoy values into the stage's `decoyCells` pool: about

@@ -16,7 +16,7 @@
  */
 
 import { fillEllipse, fillRect, imageToRows, makeImage, type BinaryImage } from "./bitmap.ts";
-import { makeRng, rngInt, type Rng } from "./rng.ts";
+import { makeUint32Rng, rngInt, type Uint32Rng } from "../../../shared/rng.ts";
 
 export const SOURCE_SIZE = 64;
 
@@ -329,7 +329,7 @@ function signature(image: BinaryImage): string {
  * ~55% of the time, and a third ~20% — keeps variants single-feature-legible
  * while widening the reachable pool enough for a large hidden gallery.
  */
-function sampleParams(def: CategoryDef, rng: Rng): Params {
+function sampleParams(def: CategoryDef, rng: Uint32Rng): Params {
   const params = { ...def.base };
   const mutate = () => {
     const feature = def.features[rng() % def.features.length];
@@ -349,7 +349,7 @@ function sampleParams(def: CategoryDef, rng: Rng): Params {
  */
 export function galleryFor(category: CategoryId, seed: number, count: number): GalleryEntry[] {
   const def = CATEGORIES[category];
-  const rng = makeRng(seed);
+  const rng = makeUint32Rng(seed);
   const seen = new Set<string>();
   const out: GalleryEntry[] = [];
   const push = (params: Params) => {

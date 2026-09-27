@@ -22,7 +22,7 @@
 
 import type { IsCase, IsEventKind, ScriptEvent } from "./scenario.ts";
 import { sanitizeTopology, type IsNode, type IsTopology } from "./model.ts";
-import { makeRng } from "./rng.ts";
+import { makeRng } from "../../../shared/rng.ts";
 
 export const MAX_EVENTS = 512;
 const LINK_TICK = 1;

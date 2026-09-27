@@ -34,6 +34,12 @@ const ADMIN_PREVIEW_LABS = [
     description: "为图像选择有限颜色编码，观察颜色预算如何影响图像区分度。",
     to: "/labs/color-quantization",
   },
+  {
+    id: "ai-eval",
+    title: "测一测AI",
+    description: "给「校园百事通」做黑盒评测：连问、换问法、抓胡编——用证据说话。",
+    to: "/labs/ai-eval",
+  },
 ] as const;
 
 const TASK_STATUS: Record<StudentTask["status"], string> = {

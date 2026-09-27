@@ -24,7 +24,7 @@ import type {
   IsProjectPayload,
   IsCounterexample,
 } from "../domain/protocol.ts";
-import { seedFor } from "../domain/rng.ts";
+import { seedFor } from "../../../shared/rng.ts";
 import type { IsCase } from "../domain/scenario.ts";
 import { isSimStageUnlocked, type IsStageDef } from "../domain/stages.ts";
 import type { DeviceView, SimRun } from "../domain/sim.ts";

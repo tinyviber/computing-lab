@@ -6,7 +6,7 @@
  */
 
 import type { IsCase, ScriptEvent } from "../domain/scenario.ts";
-import { makeRng } from "../domain/rng.ts";
+import { makeRng } from "../../../shared/rng.ts";
 
 const on = (
   at: number,

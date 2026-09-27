@@ -11,7 +11,7 @@ import type {
   IsJudgeResult,
   IsTestSummary,
 } from "../../../src/features/is-sim/domain/protocol.ts";
-import { seedFor } from "../../../src/features/is-sim/domain/rng.ts";
+import { seedFor } from "../../../src/shared/rng.ts";
 import { judgeCase } from "../../../src/features/is-sim/domain/scenario.ts";
 import {
   getIsStage,

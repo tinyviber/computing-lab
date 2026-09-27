@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { decodeInstr, encodeInstr, formatInstr, sanitizeProgram, type InstrRow } from "./isa.ts";
 import { initialState, judgeCase, runProgram, type CpuCase } from "./machine.ts";
-import { seedFor } from "./rng.ts";
+import { seedFor } from "../../../shared/rng.ts";
 import { getCpuStage, cpuStageUnlocked, nextCpuStage } from "./stages.ts";
 import { hiddenCasesFor } from "../../../../server/judge/cpu/hiddenSet.ts";
 

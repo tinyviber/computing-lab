@@ -5,6 +5,7 @@
  */
 
 import type { DatabaseSync } from "node:sqlite";
+import { AI_EVAL_STAGES } from "../src/features/ai-eval/domain/stages.ts";
 import { CALCULATOR_STAGES } from "../src/features/calculator/domain/stages.ts";
 import { COLOR_QUANT_STAGES } from "../src/features/color-quantization/domain/stages.ts";
 import { CPU_STAGES } from "../src/features/cpu/domain/stages.ts";
@@ -24,6 +25,7 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length, teacherVisible: false },
   { id: "cpu", stageCount: CPU_STAGES.length, teacherVisible: true },
   { id: "is-sim", stageCount: IS_SIM_STAGES.length, teacherVisible: true },
+  { id: "ai-eval", stageCount: AI_EVAL_STAGES.length, teacherVisible: false },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {

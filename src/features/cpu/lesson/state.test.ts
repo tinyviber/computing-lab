@@ -9,7 +9,7 @@ import {
   type CpuLessonState,
 } from "./state.ts";
 import type { CpuDraft } from "../domain/protocol.ts";
-import { seedFor } from "../domain/rng.ts";
+import { seedFor } from "../../../shared/rng.ts";
 
 const base = (): CpuLessonState => createCpuLessonState(1);
 /** A free (non-guided) challenge stage for editing tests. */
