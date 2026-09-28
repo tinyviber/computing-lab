@@ -5,6 +5,7 @@ import { isStaffRole, useAuth } from "../../shared/auth";
 import { useLabCatalog } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
+import { AI_EVAL_STAGES } from "../../features/ai-eval";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
@@ -60,6 +61,14 @@ const HOME_LABS = [
     description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
     to: "/labs/color-quantization",
     stages: null,
+    primary: false,
+  },
+  {
+    id: "ai-eval",
+    title: "测一测AI",
+    description: "给「校园百事通」做黑盒评测：连问、换问法、抓胡编——用证据说话。",
+    to: "/labs/ai-eval",
+    stages: AI_EVAL_STAGES.length,
     primary: false,
   },
 ] as const;

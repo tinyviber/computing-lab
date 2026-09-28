@@ -19,7 +19,7 @@ import type {
   CpuJudgeResult,
   CpuProjectPayload,
 } from "../domain/protocol.ts";
-import { seedFor } from "../domain/rng.ts";
+import { seedFor } from "../../../shared/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
   answeredPromptIds,

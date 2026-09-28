@@ -1,8 +1,13 @@
 /**
  * Shared lab pipeline: every lab exposes GET /project, PUT /draft, and
  * POST /judge under /api/classes/:classId/labs/<lab>. Each route file only
- * declares its stage contract and the three data functions — access control,
+ * declares its stage contract and the data functions — access control,
  * stage validation, and payload shape live here once.
+ *
+ * Labs may additionally declare `actions`: extra POST endpoints mounted at
+ * `/<name>` (e.g. ai-eval's `/draws` and `/verify`). An action inherits
+ * `requireAccess` and the same stageIndex validation as the built-ins, so
+ * the lab only writes its handler — rate limiting stays the handler's job.
  */
 
 import { Hono, type Context } from "hono";
@@ -26,6 +31,20 @@ type LabSpec<TDraft, TOutcome> = {
   stageCount: number;
   /** Extra top-level fields merged into the GET /project payload. */
   projectExtras?: (db: DatabaseSync, project: ProjectRow<TDraft>) => Record<string, unknown>;
+  /**
+   * Extra POST endpoints mounted at `/<name>`; each inherits `requireAccess`
+   * and stageIndex validation. Returns the JSON payload or a LabJudgeError.
+   * Names must be lowercase slugs and may not shadow the fixed endpoints.
+   */
+  actions?: Record<
+    string,
+    (
+      db: DatabaseSync,
+      project: ProjectRow<TDraft>,
+      stageIndex: number,
+      body: Record<string, unknown>,
+    ) => Record<string, unknown> | LabJudgeError
+  >;
   saveDraft: (
     db: DatabaseSync,
     project: ProjectRow<TDraft>,
@@ -39,6 +58,13 @@ type LabSpec<TDraft, TOutcome> = {
     body: Record<string, unknown>,
   ) => TOutcome | LabJudgeError;
 };
+
+function isLabError(outcome: Record<string, unknown> | LabJudgeError): outcome is LabJudgeError {
+  return typeof outcome === "object" && outcome !== null && "error" in outcome;
+}
+
+/** Action names share one URL space with the built-in endpoints. */
+const RESERVED_ACTIONS = new Set(["project", "draft", "judge"]);
 
 export function labRoutes<TDraft, TOutcome extends object>(
   spec: LabSpec<TDraft, TOutcome>,
@@ -88,6 +114,23 @@ export function labRoutes<TDraft, TOutcome extends object>(
     spec.saveDraft(db, projectOf(db, auth), stageIndex, body as Record<string, unknown>);
     return c.json({ ok: true, savedAt: new Date().toISOString() });
   });
+
+  for (const [name, handler] of Object.entries(spec.actions ?? {})) {
+    if (!/^[a-z][a-z0-9-]*$/.test(name) || RESERVED_ACTIONS.has(name)) {
+      throw new Error(`labRoutes: invalid action name "${name}"`);
+    }
+    app.post(`/${name}`, async (c) => {
+      const auth = requireAccess(c);
+      if ("error" in auth) return jsonError(c, auth.status, auth.error);
+      const body = await c.req.json().catch(() => null);
+      const stageIndex = stageIndexOf(body);
+      if (stageIndex === null) return jsonError(c, 400, "invalid-stage");
+      const db = c.get("db");
+      const outcome = handler(db, projectOf(db, auth), stageIndex, body as Record<string, unknown>);
+      if (isLabError(outcome)) return jsonError(c, outcome.status, outcome.error);
+      return c.json(outcome);
+    });
+  }
 
   app.post("/judge", async (c) => {
     const auth = requireAccess(c);

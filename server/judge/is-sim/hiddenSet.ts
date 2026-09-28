@@ -10,7 +10,7 @@
  */
 
 import type { IsCase, ScriptEvent } from "../../../src/features/is-sim/domain/scenario.ts";
-import { makeRng } from "../../../src/features/is-sim/domain/rng.ts";
+import { makeRng } from "../../../src/shared/rng.ts";
 
 const on = (
   at: number,

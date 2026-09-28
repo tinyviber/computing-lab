@@ -1,0 +1,243 @@
+/* ai-eval lab styles — follows the other labs' class vocabulary. */
+
+.ae-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 220px) 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.ae-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.ae-panel {
+  border: 1px solid var(--line, #e4e0ee);
+  border-radius: 12px;
+  padding: 16px 18px;
+  background: var(--surface, #fff);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.ae-panel > .eyebrow {
+  margin: 0;
+}
+
+.ae-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.ae-hint {
+  color: var(--ink-weak, #6b6478);
+  font-size: 13px;
+  margin: 0;
+}
+
+/* Answer card: question + rendered answer with slot chips. */
+.ae-answer {
+  border: 1px solid var(--line, #e4e0ee);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #fbfaff;
+}
+
+.ae-answer-q {
+  font-size: 13px;
+  color: var(--ink-weak, #6b6478);
+}
+
+.ae-answer-text {
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.ae-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cfc7ea;
+  border-radius: 999px;
+  padding: 0 8px;
+  margin: 0 2px;
+  font-size: 13px;
+  font-family: inherit;
+  background: #fff;
+  cursor: pointer;
+  line-height: 1.8;
+}
+
+.ae-chip.is-verified-ok {
+  border-color: #2f9e44;
+  background: #ebfbee;
+}
+
+.ae-chip.is-verified-bad {
+  border-color: #e03131;
+  background: #fff5f5;
+  text-decoration: line-through;
+}
+
+.ae-chip:disabled {
+  cursor: default;
+}
+
+.ae-chip-label {
+  color: var(--ink-weak, #6b6478);
+  font-size: 11px;
+  margin-right: 4px;
+}
+
+.ae-cites {
+  font-size: 12px;
+  color: var(--ink-weak, #6b6478);
+}
+
+/* Stability board: per-question diff columns. */
+.ae-board {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.ae-board-item {
+  border: 1px solid var(--line, #e4e0ee);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ae-diff-cell {
+  font-size: 13px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #f6f4fb;
+}
+
+.ae-diff-cell.is-diff {
+  background: #fff3bf;
+  outline: 1px dashed #e8b80e;
+}
+
+.ae-diff-cell mark {
+  background: #ffe08a;
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
+/* Rating picker: three-way segmented control. */
+.ae-rating {
+  display: inline-flex;
+  border: 1px solid var(--line, #e4e0ee);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.ae-rating button {
+  border: 0;
+  background: #fff;
+  padding: 4px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ae-rating button + button {
+  border-left: 1px solid var(--line, #e4e0ee);
+}
+
+.ae-rating button.is-active {
+  background: var(--accent, #6d5bd0);
+  color: #fff;
+}
+
+/* C2 matrix. */
+.ae-matrix {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+}
+
+.ae-matrix th,
+.ae-matrix td {
+  border: 1px solid var(--line, #e4e0ee);
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.ae-matrix th {
+  background: #f6f4fb;
+  font-weight: 600;
+}
+
+.ae-matrix td .ae-answer {
+  border: 0;
+  padding: 4px 0;
+  background: transparent;
+}
+
+.ae-matrix .is-changed {
+  background: #fff3bf;
+}
+
+.ae-pred-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.ae-pred-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+}
+
+/* C3 verdict board. */
+.ae-verdict {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.ae-verdict label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.ae-quota {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  color: var(--ink-weak, #6b6478);
+}
+
+.ae-verify-line {
+  font-size: 12px;
+  color: var(--ink-weak, #6b6478);
+}
+
+/* Test panel counterexample rows. */
+.ae-fielddiff {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+}
+
+@media (max-width: 860px) {
+  .ae-layout {
+    grid-template-columns: 1fr;
+  }
+}

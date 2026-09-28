@@ -7,7 +7,7 @@
 
 import { decorateCases } from "../../../src/features/cpu/domain/fixtures.ts";
 import type { CpuCase } from "../../../src/features/cpu/domain/machine.ts";
-import { makeRng } from "../../../src/features/cpu/domain/rng.ts";
+import { makeRng } from "../../../src/shared/rng.ts";
 import { getCpuStage } from "../../../src/features/cpu/domain/stages.ts";
 
 const mem = (entries: Record<number, number>) => entries;

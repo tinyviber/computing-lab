@@ -13,7 +13,7 @@ import type {
   CpuJudgeResult,
   CpuTestSummary,
 } from "../../../src/features/cpu/domain/protocol.ts";
-import { seedFor } from "../../../src/features/cpu/domain/rng.ts";
+import { seedFor } from "../../../src/shared/rng.ts";
 import {
   cpuStageUnlocked,
   getCpuStage,

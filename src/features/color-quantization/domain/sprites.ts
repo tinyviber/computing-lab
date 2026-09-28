@@ -16,7 +16,7 @@
  */
 
 import { fillRect, imageSignature, makeImage, type IndexedImage } from "./indexed.ts";
-import { makeRng, type Rng } from "./rng.ts";
+import { makeUint32Rng, type Uint32Rng } from "../../../shared/rng.ts";
 
 export const SOURCE_SIZE = 64;
 
@@ -232,7 +232,7 @@ function partsKey(p: Parts): string {
  * second ~60% of the time, and a third ~30% — keeps variants legible while
  * widening the reachable pool enough for a large hidden gallery.
  */
-function sampleParts(def: CategoryDef, rng: Rng): Parts {
+function sampleParts(def: CategoryDef, rng: Uint32Rng): Parts {
   const parts = { ...def.base };
   const mutate = () => {
     const axis = def.axes[rng() % def.axes.length];
@@ -252,7 +252,7 @@ function sampleParts(def: CategoryDef, rng: Rng): Parts {
  */
 export function galleryFor(category: CategoryId, seed: number, count: number): GalleryEntry[] {
   const def = CATEGORIES[category];
-  const rng = makeRng(seed);
+  const rng = makeUint32Rng(seed);
   const seen = new Set<string>();
   const out: GalleryEntry[] = [];
   const push = (parts: Parts) => {

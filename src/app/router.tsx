@@ -18,6 +18,7 @@ import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { CpuRedirectPage } from "./pages/CpuRedirectPage";
 import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
+import { AiEvalRedirectPage } from "./pages/AiEvalRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
 import { TaskSheetListPage } from "./pages/TaskSheetListPage";
@@ -160,6 +161,22 @@ const isSimLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+/** Admin preview: the page itself turns teachers away. */
+const aiEvalEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/ai-eval",
+  component: AiEvalRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const aiEvalLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/ai-eval",
+  validateSearch: passThroughSearch,
+  component: lazyRouteComponent(() => import("../features/ai-eval"), "AiEvalLabPage"),
+  errorComponent: LabErrorPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/dashboard",
@@ -220,6 +237,8 @@ const routeTree = rootRoute.addChildren([
   cpuLabRoute,
   isSimEntryRoute,
   isSimLabRoute,
+  aiEvalEntryRoute,
+  aiEvalLabRoute,
   dashboardRoute,
   studentLabPreviewRoute,
   taskSheetListRoute,
