@@ -7,6 +7,7 @@ import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
+import { GREENHOUSE_CORE_STAGES } from "../../features/greenhouse";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
 import "./home.css";
 
@@ -60,6 +61,14 @@ const HOME_LABS = [
     description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
     to: "/labs/color-quantization",
     stages: null,
+    primary: false,
+  },
+  {
+    id: "greenhouse",
+    title: "智慧大棚",
+    description: "给虚拟大棚写「读数→动作」规则表，观察反馈控制如何稳住温度。",
+    to: "/labs/greenhouse",
+    stages: GREENHOUSE_CORE_STAGES.length,
     primary: false,
   },
 ] as const;

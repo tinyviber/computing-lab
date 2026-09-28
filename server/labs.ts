@@ -8,6 +8,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { CALCULATOR_STAGES } from "../src/features/calculator/domain/stages.ts";
 import { COLOR_QUANT_STAGES } from "../src/features/color-quantization/domain/stages.ts";
 import { CPU_STAGES } from "../src/features/cpu/domain/stages.ts";
+import { GREENHOUSE_STAGES } from "../src/features/greenhouse/domain/stages.ts";
 import { IMAGE_SAMPLING_STAGES } from "../src/features/image-sampling/domain/stages.ts";
 import { IS_SIM_STAGES } from "../src/features/is-sim/domain/stages.ts";
 
@@ -22,6 +23,7 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length },
   { id: "cpu", stageCount: CPU_STAGES.length },
   { id: "is-sim", stageCount: IS_SIM_STAGES.length },
+  { id: "greenhouse", stageCount: GREENHOUSE_STAGES.length },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {
