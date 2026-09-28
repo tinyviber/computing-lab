@@ -8,6 +8,7 @@ import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
+import { NET_CORE_STAGES } from "../../features/network";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -60,6 +61,14 @@ const HOME_LABS = [
     description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
     to: "/labs/color-quantization",
     stages: null,
+    primary: false,
+  },
+  {
+    id: "network-sim",
+    title: "网络模拟器",
+    description: "发一笔 ping，看主机、交换机、路由器各自凭什么决定下一跳。",
+    to: "/labs/network-sim",
+    stages: NET_CORE_STAGES.length,
     primary: false,
   },
 ] as const;

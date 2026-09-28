@@ -1,0 +1,456 @@
+/* 网络模拟器 lab: canvas + probe console + trace + device tables. `net-` prefix scopes it. */
+
+.net-layout {
+  align-items: start;
+  display: grid;
+  gap: var(--space-6);
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.net-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.net-edit-grid {
+  align-items: start;
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+/* ---- canvas ---- */
+
+.net-canvas-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-3);
+}
+
+.net-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.net-link {
+  stroke: var(--secondary);
+  stroke-width: 2;
+}
+
+.net-link-bad {
+  stroke: var(--danger);
+  stroke-dasharray: 5 4;
+}
+
+.net-port-tag {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+}
+
+.net-subnet-tag {
+  fill: var(--accent);
+  font-size: 10px;
+  text-anchor: middle;
+}
+
+.net-subnet-bad {
+  fill: var(--danger);
+  font-weight: 600;
+}
+
+.net-node rect {
+  fill: var(--surface);
+  stroke: var(--border);
+  stroke-width: 1.5;
+  transition:
+    stroke 120ms,
+    fill 120ms;
+}
+
+.net-node {
+  cursor: pointer;
+}
+
+.net-node-host rect {
+  fill: #fbfcfe;
+}
+.net-node-switch rect {
+  fill: var(--accent-soft);
+}
+.net-node-router rect {
+  fill: #fef7ec;
+}
+
+.net-node.net-selected rect {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.net-node.net-visited rect {
+  stroke: var(--secondary);
+}
+
+.net-node.net-active rect {
+  stroke: var(--accent);
+  fill: var(--accent-soft);
+}
+
+.net-node-label {
+  fill: var(--primary);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.net-node-kind {
+  fill: var(--muted);
+  font-size: 10px;
+}
+
+.net-node-addr {
+  fill: var(--secondary);
+  font-size: 10px;
+  font-family: ui-monospace, monospace;
+}
+
+.net-node-need {
+  fill: var(--warning);
+  font-size: 10px;
+}
+
+.net-canvas-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: var(--space-2) 0 0;
+}
+
+/* ---- inspector ---- */
+
+.net-inspector {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.net-inspector-empty,
+.net-inspector-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.net-inspector-head {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.net-kind-chip {
+  background: var(--subtle);
+  border-radius: 999px;
+  color: var(--secondary);
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.net-port-block {
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.net-port-title {
+  align-items: baseline;
+  display: flex;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin: 0;
+}
+
+.net-port-need {
+  color: var(--warning);
+  font-size: 11px;
+}
+
+.net-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.net-field > span {
+  color: var(--secondary);
+}
+
+.net-field input,
+.net-field select {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  padding: 6px 8px;
+}
+
+.net-route-row {
+  align-items: center;
+  display: grid;
+  gap: 6px;
+  grid-template-columns: 1fr auto 1fr auto;
+}
+
+.net-route-row input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 7px;
+  width: 100%;
+}
+
+.net-route-via {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.net-route-del {
+  padding: 4px 8px;
+}
+
+/* ---- probe console ---- */
+
+.net-probe {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.net-probe-controls {
+  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.net-probe-src {
+  width: 120px;
+}
+
+.net-probe-dst {
+  flex: 1;
+  min-width: 180px;
+}
+
+.net-probe-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.net-probe-log li {
+  align-items: baseline;
+  background: var(--subtle);
+  border-radius: var(--radius-control);
+  display: flex;
+  gap: var(--space-3);
+  padding: 6px 10px;
+}
+
+.net-probe-ok span {
+  color: var(--success);
+}
+.net-probe-bad span {
+  color: var(--danger);
+}
+
+.net-probe-hint {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+/* ---- trace ---- */
+
+.net-trace {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+}
+
+.net-trace-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.net-trace-head {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.net-player {
+  align-items: center;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.net-player .button {
+  padding: 4px 10px;
+}
+
+.net-player-count {
+  color: var(--muted);
+  font-size: 12px;
+  min-width: 48px;
+  text-align: right;
+}
+
+.net-trace-table {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+}
+
+.net-trace-row {
+  align-items: baseline;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--subtle);
+  cursor: pointer;
+  display: grid;
+  font: inherit;
+  font-size: 12px;
+  gap: var(--space-2);
+  grid-template-columns: 32px 40px 56px 48px minmax(80px, 1fr) 36px minmax(160px, 2fr);
+  padding: 5px 10px;
+  text-align: left;
+  width: 100%;
+}
+
+.net-trace-headrow {
+  background: var(--subtle);
+  color: var(--secondary);
+  cursor: default;
+  font-weight: 600;
+}
+
+.net-trace-rows {
+  list-style: none;
+  margin: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.net-trace-row.net-future {
+  opacity: 0.45;
+}
+
+.net-trace-row.net-current {
+  background: var(--accent-soft);
+}
+
+.net-act-drop {
+  color: var(--danger);
+}
+.net-act-flood {
+  color: var(--warning);
+}
+.net-act-deliver {
+  color: var(--success);
+}
+.net-act-ignore {
+  color: var(--muted);
+}
+
+/* ---- device tables ---- */
+
+.net-tables {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+}
+
+.net-table-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  flex: 1;
+  min-width: 240px;
+  padding: var(--space-4);
+}
+
+.net-table-block h4 {
+  margin: 0 0 var(--space-2);
+}
+
+.net-table-block table {
+  border-collapse: collapse;
+  font-size: 12px;
+  width: 100%;
+}
+
+.net-table-block th,
+.net-table-block td {
+  border-bottom: 1px solid var(--subtle);
+  padding: 5px 8px;
+  text-align: left;
+}
+
+.net-table-block th {
+  color: var(--secondary);
+  font-weight: 600;
+}
+
+.net-table-empty {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+.net-route-direct td {
+  color: var(--muted);
+}
+
+/* ---- submit row ---- */
+
+.net-submit-row {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: flex-end;
+}
+
+.net-case-replay {
+  font-size: 11px;
+  margin-left: var(--space-2);
+  padding: 2px 8px;
+}
+
+@media (max-width: 900px) {
+  .net-layout,
+  .net-edit-grid {
+    grid-template-columns: 1fr;
+  }
+}
