@@ -48,6 +48,7 @@ type RunRequest =
     };
 
 type RunResponse =
+  | { id: number; phase: "executing" }
   | { id: number; ok: true; results: unknown[]; helperFailed?: boolean }
   | { id: number; ok: false; error: string };
 
@@ -70,6 +71,10 @@ function getPyodide(): Promise<PyodideInterface> {
   }
   return pyodideReady;
 }
+
+// Start the ~13 MB runtime download as soon as the worker spawns — a student
+// run's timeout should cover their code, not the vendored download.
+getPyodide().catch(() => undefined);
 
 function mustFn(globals: ReturnType<PyodideInterface["toPy"]>, name: string, sig: string) {
   const fn = globals.get(name);
@@ -225,6 +230,9 @@ self.onmessage = (event: MessageEvent<RunRequest>) => {
   const request = event.data;
   void (async (): Promise<RunResponse> => {
     const pyodide = await getPyodide();
+    // Ack before running student code: the caller switches from the load
+    // budget to the run budget, and a timeout now means the code itself.
+    self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
     const outcome =
       request.kind === "toner"
         ? { results: await runToner(pyodide, request.code, request.colors, request.toners) }
