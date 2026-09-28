@@ -29,6 +29,7 @@ import { parseSamplingScenario } from "../lesson/scenario.ts";
 import { ChooseSizePanel } from "./ChooseSizePanel.tsx";
 import { DownsampleExplorer } from "./DownsampleExplorer.tsx";
 import { GuidedCellTask } from "./GuidedCellTask.tsx";
+import { warmPyodide } from "./pyodideRunner.ts";
 import { RecognitionPanel } from "./RecognitionPanel.tsx";
 import "./imageSampling.css";
 
@@ -70,6 +71,10 @@ export function ImageSamplingLabPage() {
 
   const stage = stageOf(state);
   const draft = draftOf(state);
+
+  // Start downloading the vendored Python runtime as soon as the lab opens,
+  // so the first run doesn't spend its load budget on the fetch itself.
+  useEffect(() => warmPyodide(), []);
 
   const { projectLoaded, loadError } = useLabProject<
     StageDraft,

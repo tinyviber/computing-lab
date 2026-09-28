@@ -24,6 +24,7 @@ import { parseQuantScenario } from "../lesson/scenario.ts";
 import { ChooseTonersPanel } from "./ChooseTonersPanel.tsx";
 import { FreeMapPanel } from "./FreeMapPanel.tsx";
 import { GuidedTonerTask } from "./GuidedTonerTask.tsx";
+import { warmPyodide } from "./pyodideRunner.ts";
 import { QuantExplorer } from "./QuantExplorer.tsx";
 import { QuantResultPanel } from "./QuantResultPanel.tsx";
 import "./colorQuantization.css";
@@ -69,6 +70,10 @@ export function ColorQuantizationLabPage() {
 
   const stage = stageOf(state);
   const draft = draftOf(state);
+
+  // Start downloading the vendored Python runtime as soon as the lab opens,
+  // so the first run doesn't spend its load budget on the fetch itself.
+  useEffect(() => warmPyodide(), []);
 
   const { projectLoaded, loadError } = useLabProject<
     StageDraft,

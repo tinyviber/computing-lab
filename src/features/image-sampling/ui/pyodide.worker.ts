@@ -23,7 +23,9 @@ type RunRequest =
   | { id: number; kind: "size"; code: string; images: number[][][]; helpers?: string };
 
 type RunResponse =
-  { id: number; ok: true; results: unknown[] } | { id: number; ok: false; error: string };
+  | { id: number; phase: "executing" }
+  | { id: number; ok: true; results: unknown[] }
+  | { id: number; ok: false; error: string };
 
 type PyodideModule = {
   loadPyodide: (options: { indexURL: string }) => Promise<PyodideInterface>;
@@ -44,6 +46,10 @@ function getPyodide(): Promise<PyodideInterface> {
   }
   return pyodideReady;
 }
+
+// Start the ~13 MB runtime download as soon as the worker spawns — a student
+// run's timeout should cover their code, not the vendored download.
+getPyodide().catch(() => undefined);
 
 async function runCell(
   pyodide: PyodideInterface,
@@ -139,6 +145,9 @@ self.onmessage = (event: MessageEvent<RunRequest>) => {
   const request = event.data;
   void (async (): Promise<RunResponse> => {
     const pyodide = await getPyodide();
+    // Ack before running student code: the caller switches from the load
+    // budget to the run budget, and a timeout now means the code itself.
+    self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
     const results =
       request.kind === "cell"
         ? await runCell(pyodide, request.code, request.regions)

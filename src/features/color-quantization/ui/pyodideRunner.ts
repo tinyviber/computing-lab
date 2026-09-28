@@ -1,8 +1,13 @@
 /**
  * Main-thread handle for the Pyodide worker. Lazily spawned, one request at a
- * time per call site is fine — calls are queued through a simple id map and a
- * hard timeout terminates the worker (dead Python code can't be interrupted,
- * so the whole runtime is discarded and will cold-load on the next run).
+ * time per call site is fine — calls are queued through a simple id map.
+ *
+ * Timeouts are two-phase: a generous budget while the vendored runtime
+ * (~13 MB) is still downloading, then `timeoutMs` once the worker acks that
+ * student code is executing. An execution timeout terminates the worker
+ * (dead Python code can't be interrupted, so the whole runtime is discarded
+ * and will cold-load on the next run); a load timeout only rejects that
+ * request — the download continues in the background and a retry reuses it.
  */
 
 type RunPayload = { results: unknown[]; helperFailed?: boolean };
@@ -11,9 +16,14 @@ type Pending = {
   resolve: (payload: RunPayload) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
+  /** True once the worker acked it started running student code. */
+  executing: boolean;
+  /** Budget applied to the execution phase after the load phase. */
+  timeoutMs: number;
 };
 
 const DEFAULT_TIMEOUT_MS = 15_000;
+const LOAD_TIMEOUT_MS = 90_000;
 
 let worker: Worker | null = null;
 let seq = 0;
@@ -29,23 +39,41 @@ function killWorker(): void {
   pending.clear();
 }
 
+function onTimeout(id: number): void {
+  const entry = pending.get(id);
+  if (!entry) return;
+  if (entry.executing) {
+    killWorker();
+    return;
+  }
+  pending.delete(id);
+  entry.reject(new Error("首次加载 Python 运行环境超时（需下载约 13MB）——请检查网络后再试一次。"));
+}
+
 function ensureWorker(): Worker {
   if (worker) return worker;
   worker = new Worker(new URL("./pyodide.worker.ts", import.meta.url), { type: "module" });
   worker.onmessage = (event: MessageEvent) => {
-    const { id, ok, results, error, helperFailed } = event.data as {
+    const data = event.data as {
       id: number;
-      ok: boolean;
+      phase?: string;
+      ok?: boolean;
       results?: unknown[];
       error?: string;
       helperFailed?: boolean;
     };
-    const entry = pending.get(id);
+    const entry = pending.get(data.id);
     if (!entry) return;
-    pending.delete(id);
+    if (data.phase === "executing") {
+      entry.executing = true;
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => onTimeout(data.id), entry.timeoutMs);
+      return;
+    }
+    pending.delete(data.id);
     clearTimeout(entry.timer);
-    if (ok) entry.resolve({ results: results ?? [], helperFailed });
-    else entry.reject(new Error(error ?? "运行失败"));
+    if (data.ok) entry.resolve({ results: data.results ?? [], helperFailed: data.helperFailed });
+    else entry.reject(new Error(data.error ?? "运行失败"));
   };
   worker.onerror = () => killWorker();
   return worker;
@@ -58,10 +86,17 @@ function run(message: Record<string, unknown>, timeoutMs: number): Promise<RunPa
     pending.set(id, {
       resolve,
       reject,
-      timer: setTimeout(() => killWorker(), timeoutMs),
+      timer: setTimeout(() => onTimeout(id), LOAD_TIMEOUT_MS),
+      executing: false,
+      timeoutMs,
     });
     w.postMessage({ id, ...message });
   });
+}
+
+/** Spawn the worker now so the vendored runtime downloads before the first run. */
+export function warmPyodide(): void {
+  ensureWorker();
 }
 
 export class PythonRunError extends Error {
