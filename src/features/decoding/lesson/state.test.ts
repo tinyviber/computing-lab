@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DECODING_STAGES, getDecodingStage } from "../domain/stages.ts";
+import {
+  DECODING_CORE_STAGES,
+  DECODING_STAGES,
+  decodingStageUnlocked,
+  getDecodingStage,
+  nextDecodingStage,
+} from "../domain/stages.ts";
 import {
   allPromptsAnswered,
   createDecodingLessonState,
@@ -144,12 +150,22 @@ describe("decoding lesson state", () => {
 });
 
 describe("stage table", () => {
-  it("keeps core stages 1-4 and side stages 5-6 anchored after stage 3/4", () => {
+  it("keeps core stages 1-3 and side stages 4-6 all anchored after stage 3", () => {
     expect(DECODING_STAGES.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(DECODING_STAGES.filter((s) => s.track === "core").map((s) => s.index)).toEqual([
-      1, 2, 3, 4,
-    ]);
+    expect(DECODING_CORE_STAGES.map((s) => s.index)).toEqual([1, 2, 3]);
+    expect(getDecodingStage(4)!.railAfter).toBe(3);
     expect(getDecodingStage(5)!.railAfter).toBe(3);
-    expect(getDecodingStage(6)!.railAfter).toBe(4);
+    expect(getDecodingStage(6)!.railAfter).toBe(3);
+    expect(decodingStageUnlocked([1, 2], 4)).toBe(false);
+    expect(decodingStageUnlocked([1, 2, 3], 4)).toBe(true);
+  });
+
+  it("walks the mainline pointer through core first, then into side stages", () => {
+    expect(nextDecodingStage([])).toBe(1);
+    expect(nextDecodingStage([1, 2])).toBe(3);
+    // Mainline done at 3 — the pointer flows into the first unpassed challenge.
+    expect(nextDecodingStage([1, 2, 3])).toBe(4);
+    expect(nextDecodingStage([1, 2, 3, 5])).toBe(4);
+    expect(nextDecodingStage([1, 2, 3, 4, 5, 6])).toBe(7);
   });
 });

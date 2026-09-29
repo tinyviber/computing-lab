@@ -6,12 +6,14 @@
   artifact; the artifact IS the submission (students never submit code to be
   run — server never executes student code; Python runs browser-only in the
   Pyodide worker, code snapshot is saved for teacher review).
-- Stages in `domain/stages.ts` (`DECODING_STAGES`, indices 1–6). Core 1–4:
-  codes (字码→词), bits (8 位→句), bmp (按约定填空格排像素矩阵),
-  files (三份文件按 meta 选解码器). Challenges 5 (bmp-script, R 通道隐写)
-  and 6 (bmp, 修坏解码器——注释标出同事错写的版本，五处空各对一种错法)
-  sit on `track:"challenge"` rails anchored by `railAfter`; `unlockAfter`
-  lists prerequisites.
+- Stages in `domain/stages.ts` (`DECODING_STAGES`, indices 1–6). Mainline
+  is 1–3 only (15-20 min 课堂练习口径): codes (字码→词), bits (8 位→句),
+  bmp (按约定填空格排像素矩阵). All side stages sit on
+  `track:"challenge"` rails anchored `railAfter:3`, `unlockAfter:[3]`:
+  4 (files, 三份文件按 meta 选解码器), 5 (bmp-script, R 通道隐写),
+  6 (bmp, 修坏解码器——注释标出同事错写的版本，五处空各对一种错法).
+  `nextDecodingStage` walks `DECODING_CORE_STAGES` first (主线只数 core),
+  then falls to the first unpassed challenge.
 - `kind` describes stage rules; `payload.kind` describes data ("bmp-script"
   stage carries a "bmp" payload). Starter code is a `__(n)__` cloze template
   (`domain/cloze.ts`): the UI renders it read-only with an inline text

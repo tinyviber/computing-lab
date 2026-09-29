@@ -324,7 +324,9 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     id: "whose-bytes",
     title: "同一串 bytes",
     englishTitle: "Whose Bytes Are These",
-    track: "core",
+    track: "challenge",
+    railAfter: 3,
+    unlockAfter: [3],
     kind: "files",
     mission:
       "三个没有扩展名的片段摆在面前。手里有两个现成的 decoder：decode_as_text 和 decode_as_image。",
@@ -429,7 +431,7 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     title: "修好坏掉的 decoder",
     englishTitle: "Fix the Decoder",
     track: "challenge",
-    railAfter: 4,
+    railAfter: 3,
     unlockAfter: [3],
     kind: "bmp",
     mission:
@@ -502,8 +504,15 @@ export function decodingStageUnlocked(passedStages: readonly number[], index: nu
   return index === 1 || passedStages.includes(index - 1);
 }
 
-/** Next stage to work on: first unpassed index, capped past the last stage. */
+/**
+ * Next stage to work on: the main line walks core stages only — passing 1-3
+ * finishes the classwork. Once the main line is done, the pointer flows
+ * into the first unpassed side stage so the rail never dead-ends.
+ */
 export function nextDecodingStage(passedStages: readonly number[]): number {
+  for (const stage of DECODING_CORE_STAGES) {
+    if (!passedStages.includes(stage.index)) return stage.index;
+  }
   for (const stage of DECODING_STAGES) {
     if (!passedStages.includes(stage.index)) return stage.index;
   }
