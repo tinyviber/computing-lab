@@ -72,14 +72,19 @@ function runData(payload: LabPayload): unknown {
 
 type RunResult = { text: string } | { pixels: PixelMatrix } | null;
 
-/** Same-shape pixel matrices → number of cells that differ. */
+/** Cell-wise difference over the union of both matrices' bounds — missing
+ * cells count as different too, so a shrunken matrix can't report 0. */
 function pixelDiffCount(a: PixelMatrix, b: PixelMatrix): number {
   let n = 0;
-  for (let y = 0; y < a.length; y += 1) {
-    for (let x = 0; x < (a[y]?.length ?? 0); x += 1) {
+  const height = Math.max(a.length, b.length);
+  const width = Math.max(...a.map((r) => r.length), ...b.map((r) => r.length), 0);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const got = a[y]?.[x];
       const want = b[y]?.[x];
-      const [r, g, bl] = a[y][x];
-      if (!want || want[0] !== r || want[1] !== g || want[2] !== bl) n += 1;
+      if (!got || !want || got[0] !== want[0] || got[1] !== want[1] || got[2] !== want[2]) {
+        n += 1;
+      }
     }
   }
   return n;
@@ -305,18 +310,25 @@ export function DecodingLabPage() {
       : draft.code.trim() || template
     : "";
 
+  // Async runs resolve seconds later (Pyodide cold start up to ~90s): a
+  // result started on stage N must never land on stage M's lastRun/error.
+  const stageIndexRef = useRef(state.stageIndex);
+  stageIndexRef.current = state.stageIndex;
+
   const run = useCallback(async () => {
     if (!stage || !payload || payload.kind === "files") return;
     if (hasCloze(template) && !clozeComplete(template, draft.fills)) {
       setRunError("还有空没填上——每个空都要填。");
       return;
     }
+    const stageIdx = stage.index;
     setRunning(true);
     setRunError(null);
     setLastRun(null);
     try {
       const preamble = stage.kind === "bmp-script" ? BMP_HELPER : undefined;
       const result = await runDecode(source, runData(payload), { preamble });
+      if (stageIndexRef.current !== stageIdx) return;
       if (stage.kind === "bmp") {
         const pixels = sanitizePixels(result);
         if (!pixels)
@@ -328,14 +340,16 @@ export function DecodingLabPage() {
         setLastRun({ text });
       }
     } catch (error) {
+      if (stageIndexRef.current !== stageIdx) return;
       setRunError(friendlyRunError(error instanceof Error ? error.message : String(error)));
     } finally {
       setRunning(false);
     }
-  }, [stage, payload, source]);
+  }, [stage, payload, source, template, draft.fills]);
 
   const runPreview = useCallback(async () => {
     if (!payload || payload.kind !== "bmp" || stage?.kind !== "bmp-script") return;
+    const stageIdx = stage.index;
     setRunning(true);
     setRunError(null);
     try {
@@ -343,10 +357,12 @@ export function DecodingLabPage() {
         preamble: BMP_HELPER,
         call: "decode_bmp(data)",
       });
+      if (stageIndexRef.current !== stageIdx) return;
       const clean = sanitizePixels(pixels);
       if (!clean) throw new Error("预览解码没有得到合法的像素列表。");
       setPreview(clean);
     } catch (error) {
+      if (stageIndexRef.current !== stageIdx) return;
       setRunError(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
@@ -355,6 +371,7 @@ export function DecodingLabPage() {
 
   const printExampleData = useCallback(async () => {
     if (!stage?.example?.run) return;
+    const stageIdx = stage.index;
     setRunning(true);
     setSamplePrintout(null);
     setSamplePrintError(null);
@@ -364,11 +381,13 @@ export function DecodingLabPage() {
         captureStdout: true,
         useCodeData: true,
       });
+      if (stageIndexRef.current !== stageIdx) return;
       if (typeof result !== "object" || result === null || !("stdout" in result)) {
         throw new Error("没有捕获到 print 输出。");
       }
       setSamplePrintout(String(result.stdout));
     } catch (error) {
+      if (stageIndexRef.current !== stageIdx) return;
       setSamplePrintError(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
@@ -379,6 +398,9 @@ export function DecodingLabPage() {
   const submitBlocker = (): string | null => {
     if (!stage || !payload) return "数据还没载入，稍等。";
     if (!allPromptsAnswered(state)) return "概念题还没答完。";
+    if (hasCloze(template) && !clozeComplete(template, draft.fills)) {
+      return "还有空没填上——每个空都要填。";
+    }
     switch (stage.kind) {
       case "files":
         return payload.kind === "files" &&
@@ -431,7 +453,7 @@ export function DecodingLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, payload, state, draft, lastRun]);
+  }, [classId, stage, payload, state, draft, lastRun, template, source]);
 
   const blocker = stage ? submitBlocker() : null;
 
@@ -482,8 +504,14 @@ export function DecodingLabPage() {
               <>
                 {payload.kind === "files" ? (
                   <FilesPanel
-                    onVerdict={(fileIndex, verdict) =>
-                      dispatch({ type: "set-verdict", fileIndex, verdict })
+                    onVerdict={(fileIndex, verdict, expectDecoder) =>
+                      dispatch({
+                        type: "set-verdict",
+                        fileIndex,
+                        stageIndex: state.stageIndex,
+                        verdict,
+                        expectDecoder,
+                      })
                     }
                     payload={payload}
                     verdicts={draft.verdicts}

@@ -21,6 +21,8 @@ export function FilesPanel(props: {
   onVerdict: (
     fileIndex: number,
     verdict: { decoder: DecoderChoice; text?: string; pixels?: PixelMatrix } | null,
+    /** Run-completion sync: writes only if the pinned verdict still picks this. */
+    expectDecoder?: DecoderChoice,
   ) => void;
 }) {
   const { payload, verdicts, onVerdict } = props;
@@ -46,10 +48,10 @@ export function FilesPanel(props: {
       const text = typeof result === "string" ? result : String(result);
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], text } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
-      // A pinned verdict on this decoder tracks the fresh run output.
-      if (props.verdicts[index]?.decoder === "text") {
-        onVerdict(index, { decoder: "text", text });
-      }
+      // A pinned verdict on this decoder tracks the fresh run output —
+      // expectDecoder makes the write conditional on the CURRENT pin, so a
+      // re-pin during the run isn't silently rolled back.
+      onVerdict(index, { decoder: "text", text }, "text");
     } catch (error) {
       setErrors((prev) => ({
         ...prev,
@@ -82,9 +84,7 @@ export function FilesPanel(props: {
       const pixels = result as PixelMatrix;
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], pixels } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
-      if (props.verdicts[index]?.decoder === "image") {
-        onVerdict(index, { decoder: "image", pixels });
-      }
+      onVerdict(index, { decoder: "image", pixels }, "image");
     } catch (error) {
       setErrors((prev) => ({
         ...prev,

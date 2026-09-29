@@ -103,13 +103,19 @@ const transpose = (p: PixelMatrix): PixelMatrix => p[0].map((_, x) => p.map((row
  * Name the common decoder bug that produced this matrix before falling back
  * to the first-mismatch position — "how it's wrong" beats "where it's wrong".
  */
-function pixelsDetail(actual: PixelMatrix, expected: PixelMatrix): string {
+function pixelsDetail(
+  actual: PixelMatrix,
+  expected: PixelMatrix,
+  /** Storage convention worth naming when the image flips — top-down files
+   * have no such convention to point at. */
+  flipHint = "核对像素行的排列顺序",
+): string {
   if (actual.length !== expected.length || actual[0]?.length !== expected[0]?.length) {
     return `尺寸不符：提交了 ${actual[0]?.length ?? 0}×${actual.length}，应是 ${expected[0]?.length ?? 0}×${expected.length}`;
   }
   if (pixelsEqual(actual, expected)) return "";
   if (pixelsEqual(flipRows(actual), expected)) {
-    return "画面上下颠倒了——核对行序约定（图像最下面一行存在最前面）";
+    return `画面上下颠倒了——${flipHint}`;
   }
   if (pixelsEqual(swapChannels(actual), expected)) {
     return "形状对了但颜色反了——核对 B、G、R 的通道顺序";
@@ -134,8 +140,12 @@ export function checkText(actual: string, expected: string, label = "解码出�
   return { id: "text", label, ok: detail === "", detail: detail || null };
 }
 
-export function checkPixels(actual: PixelMatrix, expected: PixelMatrix): PartVerdict {
-  const detail = pixelsDetail(actual, expected);
+export function checkPixels(
+  actual: PixelMatrix,
+  expected: PixelMatrix,
+  flipHint?: string,
+): PartVerdict {
+  const detail = pixelsDetail(actual, expected, flipHint);
   return { id: "pixels", label: "像素矩阵", ok: detail === "", detail: detail || null };
 }
 
@@ -165,7 +175,9 @@ export function verifyArtifact(
       if (pixels === null) {
         parts.push({ id: "pixels", label: "像素矩阵", ok: false, detail: "格式不符" });
       } else {
-        parts.push(checkPixels(pixels, exp.pixels));
+        parts.push(
+          checkPixels(pixels, exp.pixels, "核对行序约定（BMP 里图像最下面一行存在最前面）"),
+        );
       }
       return parts;
     }

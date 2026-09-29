@@ -101,9 +101,27 @@ describe("decoding lesson state", () => {
     state = transitionDecodingLesson(state, {
       type: "set-verdict",
       fileIndex: 0,
+      stageIndex: 4,
       verdict: { decoder: "text", text: "OK" },
     });
     expect(draftOf(state).verdicts[0]).toEqual({ decoder: "text", text: "OK" });
+    // A run finishing after the stage switch must not write into it.
+    const after = transitionDecodingLesson(state, {
+      type: "set-verdict",
+      fileIndex: 0,
+      stageIndex: 5,
+      verdict: { decoder: "image" },
+    });
+    expect(after).toBe(state);
+    // Sync writes land only while the pin still matches the ran decoder.
+    const repinned = transitionDecodingLesson(state, {
+      type: "set-verdict",
+      fileIndex: 0,
+      stageIndex: 4,
+      verdict: { decoder: "text", text: "STALE" },
+      expectDecoder: "image",
+    });
+    expect(repinned).toBe(state);
   });
 
   it("advances currentStage on a passed judge result", () => {

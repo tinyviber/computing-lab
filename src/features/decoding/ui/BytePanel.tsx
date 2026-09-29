@@ -67,10 +67,9 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
 
       {payload.kind === "bmp" ? (
         <p className="byte-legend">
-          <span className="byte-chip is-header byte-legend-chip">66</span> 前{" "}
+          <span aria-hidden className="byte-chip is-header byte-legend-chip" /> 前{" "}
           {BMP_PROFILE.pixelOffset} 字节是文件头——里面写着「怎么读剩下部分」（每段 4 字节，小端）：#
-          10–13 = 像素起点（{bytes[10]}）、# 18–21 = 宽（{bytes[18]}
-          ）、# 22–25 = 高（{bytes[22]}）。
+          10–13 = 像素起点、# 18–21 = 宽、# 22–25 = 高（值去高亮段里读）。
         </p>
       ) : null}
 

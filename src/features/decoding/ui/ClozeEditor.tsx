@@ -28,6 +28,7 @@ export function ClozeEditor({
             aria-label={`空 ${part.id}`}
             className="cloze-blank"
             key={i}
+            maxLength={300}
             onChange={(e) => onFill(part.id, e.target.value)}
             spellCheck={false}
             style={{ width: `${Math.max(5, (fills[part.id] ?? "").length + 2)}ch` }}

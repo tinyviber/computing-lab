@@ -73,10 +73,16 @@
   bottom-up rows, `width*3%4==0` (encoder throws otherwise) — the X2 buggy
   decoder's three bugs live exactly in offset/通道序/行序. BytePanel marks
   the three 4-byte header fields the stages use (#10–13 起点, #18–21 宽,
-  #22–25 高); a pinned files-stage verdict re-syncs to the fresh run output
-  when the same decoder is re-run.
+  #22–25 高 — the legend names the fields but does NOT inline their values,
+  so the cloze answers aren't copyable); a pinned files-stage verdict
+  re-syncs to the fresh run output only while the pin still matches the ran
+  decoder (`set-verdict.expectDecoder`).
 - Stage-4 ambiguity file: asciiSafe palette keeps image bytes printable so
   a text decode also "runs" — meta decides (the lesson, not a bug).
 - `?stage=N` deep link applied once after project load (`stageLinkApplied`);
-  refresh restores `currentStage` via load-project preferring
-  `action.currentStage` over `state.stageIndex`.
+  refresh restores `currentStage` via load-project; an out-of-range pointer
+  (all passed) clamps to the last stage.
+- Async run results are stage-bound: `stageIndexRef` guards every post-await
+  write (run/preview/print), `set-verdict.stageIndex` drops verdicts that
+  land after a stage switch, and submit re-checks `clozeComplete` so a stale
+  lastRun can't pass a cloze stage.
