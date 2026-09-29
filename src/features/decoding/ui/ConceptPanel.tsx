@@ -23,7 +23,6 @@ export function ConceptPanel(props: {
   return (
     <section aria-label="概念检查" className="decoding-guide">
       <div className="decoding-panel-heading">
-        <h3>先想清楚，再动手</h3>
         <p className="decoding-panel-note">
           答对 {answered.size} / {prompts.length} ——全部答对才能提交判定。
         </p>

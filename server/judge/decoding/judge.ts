@@ -22,7 +22,6 @@ import {
 } from "../../../src/features/decoding/domain/stages.ts";
 import {
   sanitizePixels,
-  sanitizeSignature,
   sanitizeText,
   sanitizeVerdicts,
   verifyArtifact,
@@ -51,7 +50,7 @@ function promptsComplete(
 
 type CleanArtifact =
   | { text: string }
-  | { signature?: string; pixels: PixelMatrix }
+  | { pixels: PixelMatrix }
   | { verdicts: NonNullable<ReturnType<typeof sanitizeVerdicts>> };
 
 /**
@@ -73,13 +72,9 @@ function cleanArtifact(
       return { text };
     }
     case "bmp": {
-      const signature = sanitizeSignature(artifact.signature);
       const pixels = sanitizePixels(artifact.pixels);
       if (!pixels) return { error: "malformed-artifact", status: 400 };
-      if (stage.requiresSignature && !signature) {
-        return { error: "malformed-artifact", status: 400 };
-      }
-      return { signature: signature ?? undefined, pixels };
+      return { pixels };
     }
     case "files": {
       const verdicts = sanitizeVerdicts(artifact.verdicts);

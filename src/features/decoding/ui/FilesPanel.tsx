@@ -92,10 +92,6 @@ export function FilesPanel(props: {
     <section aria-label="文件列表" className="files-panel">
       <div className="decoding-panel-heading">
         <h3>档案室 · 三个文件</h3>
-        <p className="decoding-panel-note">
-          规则一样：先读 meta，再决定用哪个解码器。两个解码器随用随试——
-          但你的判定只认你最后选定的那一种。
-        </p>
       </div>
       <ol className="files-list">
         {payload.files.map((file, i) => {

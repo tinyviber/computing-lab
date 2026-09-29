@@ -74,14 +74,16 @@ function StageBrief({ stage, passed }: { stage: DecodingStageDef; passed: boolea
   return (
     <section className="stage-brief">
       <p className="stage-mission">{stage.mission}</p>
-      <p>{stage.description}</p>
+      {stage.description ? <p>{stage.description}</p> : null}
       <p className="stage-task">{stage.task}</p>
       <p className="submit-note">{stage.judgeNote}</p>
       {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
-      <details className="stage-details">
-        <summary>提示</summary>
-        <p>{stage.hint}</p>
-      </details>
+      {stage.hint ? (
+        <details className="stage-details">
+          <summary>提示</summary>
+          <p>{stage.hint}</p>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -92,21 +94,45 @@ function DecodeEditor({
   running,
   onCodeChange,
   onRun,
+  onPrintExample,
 }: {
   stage: DecodingStageDef;
   code: string;
   running: boolean;
   onCodeChange: (code: string) => void;
   onRun: () => void;
+  onPrintExample: () => void;
 }) {
   return (
     <section aria-label="解码器" className="decode-editor">
       <div className="decoding-panel-heading">
         <h3>你的解码器</h3>
-        <p className="decoding-panel-note">
-          写一个 <code>decode(data)</code>：data 就是左边的原始数据，返回你还原出的结果。
-        </p>
       </div>
+      <p className="decoding-panel-note decode-editor-note">
+        写一个 <code>decode(data)</code>，返回对原始数据的解码结果。
+      </p>
+      {stage.example ? (
+        <aside aria-label="样例输入" className="decode-example">
+          <div className="decode-example-heading">
+            <h4>样例输入</h4>
+            {stage.example.run ? (
+              <button
+                aria-label="运行样例并打印 data"
+                className="decode-example-play"
+                disabled={running}
+                onClick={onPrintExample}
+                title="打印 data"
+                type="button"
+              >
+                ▶
+              </button>
+            ) : null}
+          </div>
+          <pre>
+            <code>{stage.example.input}</code>
+          </pre>
+        </aside>
+      ) : null}
       <CodeMirror
         aria-label="decode 代码"
         basicSetup={{
@@ -182,6 +208,8 @@ export function DecodingLabPage() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<RunResult>(null);
+  const [samplePrintout, setSamplePrintout] = useState<string | null>(null);
+  const [samplePrintError, setSamplePrintError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PixelMatrix | null>(null);
   const [wrongPick, setWrongPick] = useState<{ promptId: string; option: number } | null>(null);
 
@@ -226,6 +254,8 @@ export function DecodingLabPage() {
   // Switching stage drops the working result — each stage's artifact is its own.
   useEffect(() => {
     setLastRun(null);
+    setSamplePrintout(null);
+    setSamplePrintError(null);
     setPreview(null);
     setRunError(null);
     setWrongPick(null);
@@ -289,10 +319,32 @@ export function DecodingLabPage() {
     }
   }, [payload, stage]);
 
+  const printExampleData = useCallback(async () => {
+    if (!stage?.example?.run) return;
+    setRunning(true);
+    setSamplePrintout(null);
+    setSamplePrintError(null);
+    try {
+      const result = await runDecode(stage.example.input, null, {
+        call: "None",
+        captureStdout: true,
+        useCodeData: true,
+      });
+      if (typeof result !== "object" || result === null || !("stdout" in result)) {
+        throw new Error("没有捕获到 print 输出。");
+      }
+      setSamplePrintout(String(result.stdout));
+    } catch (error) {
+      setSamplePrintError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  }, [stage]);
+
   /** What blocks the 提交判定 button, as a student-readable reason. */
   const submitBlocker = (): string | null => {
     if (!stage || !payload) return "数据还没载入，稍等。";
-    if (!allPromptsAnswered(state)) return "先把「先想清楚」的概念题答完。";
+    if (!allPromptsAnswered(state)) return "概念题还没答完。";
     switch (stage.kind) {
       case "files":
         return payload.kind === "files" &&
@@ -301,8 +353,6 @@ export function DecodingLabPage() {
           : "每个文件都要先给出判定。";
       case "bmp":
         if (!lastRun || !("pixels" in lastRun)) return "先运行你的 decode，得到像素结果。";
-        if (stage.requiresSignature && !draft.signature.trim())
-          return "先填上你从文件头读出的签名。";
         return null;
       default:
         return lastRun && "text" in lastRun ? null : "先运行你的 decode，得到解码结果。";
@@ -324,7 +374,6 @@ export function DecodingLabPage() {
           ? { verdicts: draft.verdicts }
           : stage.kind === "bmp"
             ? {
-                signature: draft.signature.trim() || undefined,
                 pixels: lastRun && "pixels" in lastRun ? lastRun.pixels : [],
               }
             : { text: lastRun && "text" in lastRun ? lastRun.text : "" };
@@ -411,6 +460,7 @@ export function DecodingLabPage() {
                     <DecodeEditor
                       code={source}
                       onCodeChange={(code) => dispatch({ type: "set-code", code })}
+                      onPrintExample={() => void printExampleData()}
                       onRun={() => void run()}
                       running={running}
                       stage={stage}
@@ -429,6 +479,21 @@ export function DecodingLabPage() {
                           </button>
                         ) : null}
                       </div>
+                      {stage.example ? (
+                        <div className="decode-example-output">
+                          <h4>样例输出</h4>
+                          <pre>
+                            <code>
+                              {samplePrintout ?? stage.example.output ?? "运行样例后显示"}
+                            </code>
+                          </pre>
+                          {samplePrintError ? (
+                            <p className="decode-example-error" role="alert">
+                              {samplePrintError}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {runError ? (
                         <pre className="python-error" role="alert">
                           {runError}
@@ -455,20 +520,6 @@ export function DecodingLabPage() {
                       ) : null}
                       {!lastRun && !runError && !preview ? (
                         <p className="output-empty">运行 decode 后，结果会出现在这里。</p>
-                      ) : null}
-                      {stage.requiresSignature ? (
-                        <label className="signature-field">
-                          你从文件头读出的签名
-                          <input
-                            autoComplete="off"
-                            maxLength={8}
-                            onChange={(e) =>
-                              dispatch({ type: "set-signature", signature: e.target.value })
-                            }
-                            placeholder="比如 AB"
-                            value={draft.signature}
-                          />
-                        </label>
                       ) : null}
                     </section>
                   </div>

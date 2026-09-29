@@ -24,8 +24,6 @@ export type LabPayload =
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type DecodingDraft = {
   code: string;
-  /** Stage 3: the signature the student read out of the file header. */
-  signature: string;
   /** promptId → picked option index (verified server-side at judge time). */
   conceptAnswers: Record<string, number>;
   /** Stage 4: per-file decoder choice + the artifact that decoder produced. */
@@ -37,7 +35,7 @@ export type DecodingSubmission = {
   /**
    * Stage-specific decoded result:
    *   codes/bits/bmp-script → { text }
-   *   bmp                   → { signature?, pixels }
+   *   bmp                   → { pixels }
    *   files                 → { verdicts: FileVerdict-shaped list }
    */
   artifact: unknown;
@@ -46,7 +44,7 @@ export type DecodingSubmission = {
   conceptAnswers?: Record<string, number>;
 };
 
-/** One checked part of a submission — signature, pixels, a file's choice… */
+/** One checked part of a submission — pixels, a file's choice… */
 export type PartVerdict = {
   id: string;
   label: string;

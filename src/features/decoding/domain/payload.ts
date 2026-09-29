@@ -55,7 +55,7 @@ export function extractChannelMessage(pixels: PixelMatrix): string {
 
 function makeBmpPayload(rng: () => number): {
   payload: LabPayload;
-  expected: { signature: string; pixels: PixelMatrix };
+  expected: { pixels: PixelMatrix };
 } {
   const pixels = spritePixels(rng);
   return {
@@ -65,7 +65,7 @@ function makeBmpPayload(rng: () => number): {
       width: SPRITE_SIZE,
       height: SPRITE_SIZE,
     },
-    expected: { signature: "BM", pixels },
+    expected: { pixels },
   };
 }
 

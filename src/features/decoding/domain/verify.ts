@@ -10,7 +10,6 @@ import type { DecodingStageDef } from "./stages.ts";
 
 export type Expected =
   | { text: string }
-  | { signature: string; pixels: PixelMatrix }
   | { pixels: PixelMatrix }
   | { verdicts: { decoder: DecoderChoice; text?: string; pixels?: PixelMatrix }[] };
 
@@ -44,13 +43,6 @@ export function sanitizePixels(raw: unknown): PixelMatrix | null {
     matrix.push(outRow);
   }
   return matrix;
-}
-
-export function sanitizeSignature(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const sig = raw.trim().toUpperCase();
-  if (sig.length === 0 || sig.length > 8) return null;
-  return sig;
 }
 
 export function sanitizeVerdicts(
@@ -115,15 +107,6 @@ export function checkText(actual: string, expected: string, label = "解码出�
   return { id: "text", label, ok: detail === "", detail: detail || null };
 }
 
-export function checkSignature(actual: string, expected: string): PartVerdict {
-  return {
-    id: "signature",
-    label: "文件签名",
-    ok: actual === expected,
-    detail: actual === expected ? null : "签名读得不对——再用字符表解释前两个字节",
-  };
-}
-
 export function checkPixels(actual: PixelMatrix, expected: PixelMatrix): PartVerdict {
   const detail = pixelsDetail(actual, expected);
   return { id: "pixels", label: "像素矩阵", ok: detail === "", detail: detail || null };
@@ -150,15 +133,7 @@ export function verifyArtifact(
     }
     case "bmp": {
       const parts: PartVerdict[] = [];
-      const exp = expected as { signature: string; pixels: PixelMatrix };
-      if (stage.requiresSignature) {
-        const sig = sanitizeSignature((artifact as { signature?: unknown })?.signature);
-        if (sig === null) {
-          parts.push({ id: "signature", label: "文件签名", ok: false, detail: "格式不符" });
-        } else {
-          parts.push(checkSignature(sig, exp.signature));
-        }
-      }
+      const exp = expected as { pixels: PixelMatrix };
       const pixels = sanitizePixels((artifact as { pixels?: unknown })?.pixels);
       if (pixels === null) {
         parts.push({ id: "pixels", label: "像素矩阵", ok: false, detail: "格式不符" });

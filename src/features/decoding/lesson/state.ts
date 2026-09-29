@@ -1,5 +1,5 @@
 /**
- * Decoding lesson state: which stage, the draft per stage (code, signature,
+ * Decoding lesson state: which stage, the draft per stage (code,
  * concept answers, per-file verdicts), and the last judge verdict. Pure
  * transitions — no React, no network.
  */
@@ -44,7 +44,6 @@ export type DecodingLessonAction =
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "set-code"; code: string }
-  | { type: "set-signature"; signature: string }
   | { type: "answer-prompt"; promptId: string; option: number }
   | {
       type: "set-verdict";
@@ -59,7 +58,7 @@ export type DecodingLessonAction =
   | { type: "message"; text: string };
 
 export function emptyDraft(): DecodingDraft {
-  return { code: "", signature: "", conceptAnswers: {}, verdicts: [] };
+  return { code: "", conceptAnswers: {}, verdicts: [] };
 }
 
 export function draftOf(state: DecodingLessonState, stageIndex = state.stageIndex): DecodingDraft {
@@ -145,9 +144,6 @@ export function transitionDecodingLesson(
     case "set-code":
       return touchDraft(state, { ...draftOf(state), code: action.code });
 
-    case "set-signature":
-      return touchDraft(state, { ...draftOf(state), signature: action.signature });
-
     case "answer-prompt": {
       const draft = draftOf(state);
       const stage = stageOf(state);
@@ -192,9 +188,8 @@ export function transitionDecodingLesson(
 /** Bound a restored draft at the domain edge; junk fields drop to defaults. */
 export function sanitizeDraft(raw: unknown): DecodingDraft {
   if (!raw || typeof raw !== "object") return emptyDraft();
-  const { code, signature, conceptAnswers, verdicts } = raw as {
+  const { code, conceptAnswers, verdicts } = raw as {
     code?: unknown;
-    signature?: unknown;
     conceptAnswers?: unknown;
     verdicts?: unknown;
   };
@@ -230,7 +225,6 @@ export function sanitizeDraft(raw: unknown): DecodingDraft {
   }
   return {
     code: typeof code === "string" ? code.slice(0, 12000) : "",
-    signature: typeof signature === "string" ? signature.slice(0, 8) : "",
     conceptAnswers: answers,
     verdicts: verdictList,
   };

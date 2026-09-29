@@ -109,7 +109,6 @@ describe("decoding lesson state", () => {
   it("sanitizes a restored draft at the boundary", () => {
     expect(sanitizeDraft(null)).toEqual({
       code: "",
-      signature: "",
       conceptAnswers: {},
       verdicts: [],
     });
@@ -120,7 +119,6 @@ describe("decoding lesson state", () => {
       verdicts: [{ decoder: "text", text: "hi" }, { decoder: "nope" }, null, "junk"],
     });
     expect(draft.code.length).toBe(12000);
-    expect(draft.signature).toBe("BM");
     expect(draft.conceptAnswers).toEqual({ a: 0, d: 2 });
     expect(draft.verdicts[0]).toEqual({ decoder: "text", text: "hi" });
     expect(draft.verdicts.slice(1)).toEqual([null, null, null]);

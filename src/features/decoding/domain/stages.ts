@@ -36,17 +36,16 @@ export type DecodingStageDef = {
   railAfter?: number;
   unlockAfter?: number[];
   kind: DecodingKind;
-  /** The submission needs a signature string alongside the decode result. */
-  requiresSignature?: boolean;
   mission: string;
-  description: string;
+  description?: string;
   /** What a submission is judged on, shown up front. */
   task: string;
-  hint: string;
+  hint?: string;
   judgeNote: string;
   /** One-line concept recap shown when the stage passes. */
   takeaway: string;
   starterCode: string;
+  example?: { input: string; output?: string; run?: boolean };
   prompts?: DecodingPrompt[];
 };
 
@@ -61,18 +60,19 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "codes",
     mission:
       "桌上有一张纸条，只留下一串数字——没有署名，没有单词。旁边贴着课堂上那张字符编码表。它到底在说什么？",
-    description:
-      "先别急着写代码：拿编码表把前两个数还原成字符，确认这串数确实在「说话」。然后补全 decode(data)——data 就是这串整数——让它返回还原出的字符串。",
     task: "提交 decode(data) 还原出的单词。每个人的密码纸都不一样，它随你的账号生成。",
-    hint: "编码表是「数 → 字符」的约定；循环做的事就是把查表自动化。Python 里 chr(code) 就是这张表。",
+    hint: "Python 的 chr(code) 返回 code 对应的字符。",
     judgeNote: "判定比对你提交的字符串与本关为你生成的那张密码纸——别人抄不了你的答案。",
     takeaway: "字符编码是「字符 ↔ 数值」的约定：一串数看不懂，配上约定就变成了单词。",
+    example: {
+      input: "data = [67, 65, 84]\ndecode(data)",
+      output: '"CAT"',
+    },
     starterCode: `def decode(data):
     # data: 一串十进制整数, 每个数对应编码表里的一个字符
     answer = ""
     for code in data:
-        # TODO: 把 code 变成字符 (用 chr(code), 或自己查表)
-        answer += "?"
+        answer += __(1)__
     return answer
 `,
     prompts: [
@@ -105,20 +105,22 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "bits",
     mission:
       "第二张密码纸上全是 0 和 1。发送方留言：还是同一张编码表，只是把每个数换成了二进制写法。",
-    description:
-      "每 8 位是一个字节。先手工把第一组二进制转成十进制、再查表确认它是字符——然后让 decode 一口气处理整段。",
+    description: "每 8 位是一个字节。int(s, 2) 可以把二进制字符串 s 转成十进制数。",
     task: "提交 decode(data) 还原出的整句话。data 是一组 8 位 0/1 字符串。",
-    hint: 'int("01001000", 2) 会把 8 位二进制转成十进制 72——之后走的还是第一关那张表。',
     judgeNote: "判定比对你提交的句子与本关密文；概念题也必须全部答对。",
     takeaway:
       "二进制和十进制是同一个数的两种写法，不是两套编码——数怎么写是一层，数对应哪个字符是另一层。",
+    example: {
+      input: 'data = ["01001000", "01101001"]\ndecode(data)',
+      output: '"Hi"',
+    },
     starterCode: `def decode(data):
     # data: 8 位一组的 0/1 字符串, 例如 ["01001000", "01101001"]
     answer = ""
-    for group in data:
-        n = int(group, 2)   # 先把 8 位二进制转成十进制
-        # TODO: n -> 字符 (第一关用过的那张表)
-        answer += "?"
+    for s in data:
+        # s 是一个二进制字符串
+        n = int(s, 2)
+        answer += __(1)__
     return answer
 `,
     prompts: [
@@ -165,15 +167,26 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     englishTitle: "Rescue the Bitmap",
     track: "core",
     kind: "bmp",
-    requiresSignature: true,
     mission:
-      "收到一个没有扩展名的文件：一长串字节，来源不明。传说这类文件会在开头写下自己的「签名」——用字符规则先把最前面的字节读出来。",
-    description:
-      "前两个字节按字符表一读，就能看出该用什么规则解释剩下的字节。确认签名之后，按下方给出的格式约定把字节组织成像素——真正的挑战是把 bytes 排对，不是背文件格式。",
-    task: "提交你读出的签名 + decode(data) 还原出的像素矩阵。",
+      "收到一个没有扩展名的文件：一长串字节，来源不明。传说这类文件会在开头写下自己的「签名」。",
+    task: "用 decode(data) 还原出像素矩阵。",
     hint: "格式约定：前 54 字节是文件头；像素数据从 data[54] 开始；每个像素 3 字节，按 B、G、R 排列；图像最下面一行存在最前面。",
-    judgeNote: "判定比对你的签名与整张像素矩阵——通道顺序、行序错一个都会露馅。",
+    judgeNote: "判定比对整张像素矩阵。",
     takeaway: "你一个字节都没改：数据没变，换的是解释规则——不同的 decoder 恢复出不同的信息。",
+    example: {
+      input: [
+        "data = [0] * 54",
+        "data[0:2] = [66, 77]  # 'BM'",
+        "data += [",
+        "    channel",
+        "    for y in reversed(range(8))",
+        "    for x in range(8)",
+        "    for channel in (100, y, x)",
+        "]",
+        "print(data)",
+      ].join("\n"),
+      run: true,
+    },
     starterCode: `def decode(data):
     # data: 一个 BMP 文件的全部字节
     # 已确认的格式约定:
@@ -183,9 +196,6 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     width = 8
     height = 8
     pixels = []
-    # TODO: 从 data[54:] 每 3 个字节读一个像素,
-    #       按 B,G,R 换成 R,G,B, 再按宽分行;
-    #       最后别忘了处理行序
     return pixels
 `,
     prompts: [
@@ -233,9 +243,7 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     track: "core",
     kind: "files",
     mission:
-      "三个没有扩展名的片段摆在面前。手里有两个现成的 decoder：decode_as_text 和 decode_as_image。每一段都试试看——只有配上正确的解释规则，结果才有意义。",
-    description:
-      "对每个文件分别用两种解释跑一遍：一边可能产出单词，一边可能产出图案——也可能两边都「能跑」。最后对照元数据卡片下结论。",
+      "三个没有扩展名的片段摆在面前。手里有两个现成的 decoder：decode_as_text 和 decode_as_image。",
     task: "为每个文件选定正确的 decoder，并提交该 decoder 的真实输出。",
     hint: "两个 decoder 用在错误的输入上「也能跑」——跑得出结果不代表解释对了。元数据是发送方留下的提示。",
     judgeNote: "判定核对每个文件的 decoder 选择与对应的解码输出。",
@@ -269,21 +277,35 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     railAfter: 3,
     unlockAfter: [3],
     kind: "bmp-script",
-    mission:
-      "这张 BMP 看着和第 3 关没什么不同，但情报说：发送方每隔一个像素，就往 R 通道里藏了一个字符编码，用 0 收尾。",
-    description:
-      "现成的 decode_bmp(data) 已经备好——它返回像素矩阵。把藏在 R 通道里的编码值取出来，再走一次字符解码：颜色背后藏着一句话。",
+    mission: "这张 BMP 看着和第 3 关没什么不同。",
+    description: "现成的 decode_bmp(data) 已经备好——它返回像素矩阵。",
     task: "提交 decode(data) 还原出的那句话。",
-    hint: "按行优先把像素摊平，从第 0 个像素起每隔一个取一个 R 值；取出的是编码，还得查一次表。",
     judgeNote: "判定比对提取出的字符串。",
     takeaway: "同一份文件里，不同区域可以有不同解释规则——decoder 是可以串起来用的。",
+    example: {
+      input: [
+        "data = [0] * 54",
+        "data[0:2] = [66, 77]  # 'BM'",
+        "data[10] = 54  # 像素数据起始位置",
+        "data[18] = data[22] = 8  # 宽和高",
+        "pixels = [[[0, 0, 0] for _ in range(8)] for _ in range(8)]",
+        "pixels[0][0][0] = 72  # 'H'",
+        "pixels[0][2][0] = 105  # 'i'",
+        "pixels[0][4][0] = 0  # 结束标记",
+        "data += [",
+        "    channel",
+        "    for row in reversed(pixels)",
+        "    for pixel in row",
+        "    for channel in (pixel[2], pixel[1], pixel[0])",
+        "]",
+        "decode(data)",
+      ].join("\n"),
+      output: '"Hi"',
+    },
     starterCode: `def decode(data):
     # 提供了 decode_bmp(data): 返回像素矩阵 [[[r, g, b], ...], ...]
     pixels = decode_bmp(data)
     message = ""
-    # 情报: 发送方把字符编码藏进了 R 通道 ——
-    # 从第 0 个像素起每隔一个像素取一个 R 值, 遇到 0 结束
-    # TODO: 取出藏着的编码, 变回一句话
     return message
 `,
   },
@@ -300,12 +322,23 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "bmp",
     mission:
       "同事留下的 decoder 信誓旦旦能解 BMP——跑出来的却是一团乱。代码就在编辑器里，逐行找出它哪里读错了。",
-    description:
-      "对照第 3 关确认的格式约定排查：像素数据从第几个字节开始？通道什么顺序？行怎么排？改好后先跑一遍看图像是否正常，再提交。",
     task: "提交修好的 decode(data) 跑出的像素矩阵。",
-    hint: "已知有 3 处错误：一个在文件头长度、一个在通道顺序、一个在行序。",
     judgeNote: "判定比对整张像素矩阵——三处错误缺一不可。",
     takeaway: "decoder 里每个常量都是一条约定——写错任何一条，同一份数据就变成乱码。",
+    example: {
+      input: [
+        "data = [0] * 54",
+        "data[0:2] = [66, 77]  # 'BM'",
+        "data += [",
+        "    channel",
+        "    for y in reversed(range(8))",
+        "    for x in range(8)",
+        "    for channel in (100, y, x)",
+        "]",
+        "decode(data)[0][0]",
+      ].join("\n"),
+      output: "[0, 0, 100]",
+    },
     starterCode: `def decode(data):
     # data: 一个 BMP 文件的全部字节
     width = 8

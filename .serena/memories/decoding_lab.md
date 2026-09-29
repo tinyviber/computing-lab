@@ -40,6 +40,8 @@
 - `runDecode(code, data, {preamble, call})`; preamble hooks: `BMP_HELPER`
   (decode_bmp) for stage 5, `FILE_HELPERS` (decode_as_text/image) for
   stage 4.
+- Decoder results may be native JS scalars or PyProxy; call `toJs` and
+  `destroy` only when available (string results are used by stages 1, 2, and 5).
 
 ## Constraints worth knowing
 
