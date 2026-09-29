@@ -52,8 +52,7 @@ function getPyodide(): Promise<PyodideInterface> {
 // run's timeout should cover their code, not the vendored download.
 getPyodide().catch(() => undefined);
 
-async function runRequest(request: RunRequest): Promise<unknown> {
-  const pyodide = await getPyodide();
+async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promise<unknown> {
   const globals = pyodide.toPy({});
   try {
     if (request.preamble?.trim()) {
@@ -82,10 +81,12 @@ async function runRequest(request: RunRequest): Promise<unknown> {
 self.onmessage = (event: MessageEvent<RunRequest>) => {
   const request = event.data;
   void (async (): Promise<RunResponse> => {
-    // Ack before running student code: the caller switches from the load
-    // budget to the run budget, and a timeout now means the code itself.
+    const pyodide = await getPyodide();
+    // Ack once the runtime is loaded, before running student code: the
+    // caller switches from the load budget to the run budget, and a
+    // timeout now means the code itself — never the vendored download.
     self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
-    const result = await runRequest(request);
+    const result = await runRequest(pyodide, request);
     return { id: request.id, ok: true, result };
   })()
     .then((response) => self.postMessage(response))

@@ -117,8 +117,8 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     answer = ""
     for group in data:
         n = int(group, 2)   # 先把 8 位二进制转成十进制
-        # TODO: n -> 字符
-        answer += chr(n)
+        # TODO: n -> 字符 (第一关用过的那张表)
+        answer += "?"
     return answer
 `,
     prompts: [

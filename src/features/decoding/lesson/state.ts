@@ -118,9 +118,13 @@ export function transitionDecodingLesson(
       for (const [key, draft] of Object.entries(action.drafts)) {
         drafts[Number(key)] = sanitizeDraft(draft);
       }
-      const stageIndex = decodingStageUnlocked(action.passedStages, state.stageIndex)
-        ? state.stageIndex
-        : action.currentStage;
+      // Resume where the server's mainline pointer says, provided it's still
+      // unlocked (a challenge can sit ahead of it in the rail).
+      const stageIndex = decodingStageUnlocked(action.passedStages, action.currentStage)
+        ? action.currentStage
+        : decodingStageUnlocked(action.passedStages, state.stageIndex)
+          ? state.stageIndex
+          : 1;
       return {
         ...state,
         stageIndex,

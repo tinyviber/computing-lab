@@ -12,7 +12,9 @@ import { byteToBits, CHAR_TABLE } from "../domain/encoding.ts";
 import type { LabPayload } from "../domain/protocol.ts";
 
 export function BytePanel({ payload }: { payload: LabPayload }) {
-  const [asBinary, setAsBinary] = useState(false);
+  // Bits stages open on the binary view — it's what the file contains;
+  // the 十进制/二进制 toggle is exactly the C2 lesson: same bytes, two suits.
+  const [asBinary, setAsBinary] = useState(payload.kind === "bits");
 
   if (payload.kind === "files") return null; // files render inside FilesPanel
 
@@ -29,33 +31,31 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
     <section aria-label="原始数据" className="byte-panel">
       <div className="byte-panel-head">
         <h3>原始数据</h3>
-        {!showBitGroups ? (
-          <div aria-label="数值表示方式" className="rep-toggle" role="group">
-            <button
-              aria-pressed={!asBinary}
-              className={asBinary ? "" : "is-active"}
-              onClick={() => setAsBinary(false)}
-              type="button"
-            >
-              十进制
-            </button>
-            <button
-              aria-pressed={asBinary}
-              className={asBinary ? "is-active" : ""}
-              onClick={() => setAsBinary(true)}
-              type="button"
-            >
-              二进制
-            </button>
-          </div>
-        ) : null}
+        <div aria-label="数值表示方式" className="rep-toggle" role="group">
+          <button
+            aria-pressed={!asBinary}
+            className={asBinary ? "" : "is-active"}
+            onClick={() => setAsBinary(false)}
+            type="button"
+          >
+            十进制
+          </button>
+          <button
+            aria-pressed={asBinary}
+            className={asBinary ? "is-active" : ""}
+            onClick={() => setAsBinary(true)}
+            type="button"
+          >
+            二进制
+          </button>
+        </div>
       </div>
 
       {showBitGroups ? (
         <ol className="bit-stream">
           {payload.groups.map((group, i) => (
             <li className="bit-group" key={i}>
-              <code>{group}</code>
+              <code>{asBinary ? group : String(Number.parseInt(group, 2))}</code>
               <span className="bit-index">#{i}</span>
             </li>
           ))}

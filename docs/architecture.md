@@ -47,8 +47,8 @@ POST judge 跑隐藏用例并推进 `passedStages`。每个实验只提供 spec�
 
 ## 删除决策
 
-除当前保留的 `calculator`、`cpu`、`image-sampling`、`color-quantization` 和 `is-sim`
-五个实验外，其他旧实验的 feature 目录、路由、实验 API、专属资产、e2e/单测和 Slidev
+除当前保留的 `calculator`、`cpu`、`image-sampling`、`color-quantization`、`is-sim` 和
+`decoding` 六个实验外，其他旧实验的 feature 目录、路由、实验 API、专属资产、e2e/单测和 Slidev
 构建/编辑链路都已退役。数据库仍使用通用的 `lab_id` 字段，以便保留旧部署数据的可读性，
 但当前应用不会再读取或写入已删除实验的记录；本次没有做破坏性数据迁移。
 

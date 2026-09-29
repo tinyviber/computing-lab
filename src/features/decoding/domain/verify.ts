@@ -187,12 +187,7 @@ export function verifyArtifact(
             id: `file-${i}-decoder`,
             label: `文件 ${i + 1} 的解释方式`,
             ok: got.decoder === want.decoder,
-            detail:
-              got.decoder === want.decoder
-                ? null
-                : want.decoder === "text"
-                  ? "这份应该按字符解码"
-                  : "这份应该按图像解码",
+            detail: got.decoder === want.decoder ? null : "解码方式与这份文件说的内容不符",
           },
         ];
         if (got.decoder === want.decoder) {

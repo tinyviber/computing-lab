@@ -9,13 +9,13 @@
  * in the browser's Pyodide worker.
  */
 
-import { useParams } from "@tanstack/react-router";
+import { useParams, useSearch } from "@tanstack/react-router";
 import CodeMirror from "@uiw/react-codemirror";
 import { python } from "@codemirror/lang-python";
 import { indentUnit } from "@codemirror/language";
 import { keymap } from "@codemirror/view";
 import { indentWithTab } from "@codemirror/commands";
-import { useCallback, useEffect, useReducer, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
@@ -39,6 +39,7 @@ import {
   answeredPromptIds,
   createDecodingLessonState,
   draftOf,
+  isStageUnlocked,
   stageOf,
   transitionDecodingLesson,
   type DecodingLessonAction,
@@ -170,6 +171,7 @@ function TextResult({ text, stage }: { text: string; stage: DecodingStageDef }) 
 
 export function DecodingLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/decoding" });
+  const search = useSearch({ strict: false }) as Record<string, unknown>;
   const { status, role } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionDecodingLesson, undefined, () =>
@@ -189,7 +191,7 @@ export function DecodingLabPage() {
 
   useEffect(() => warmPyodide(), []);
 
-  const { loadError } = useLabProject<
+  const { projectLoaded, loadError } = useLabProject<
     DecodingDraft,
     { payloads: Record<number, LabPayload> },
     DecodingLessonAction
@@ -228,6 +230,18 @@ export function DecodingLabPage() {
     setRunError(null);
     setWrongPick(null);
   }, [state.stageIndex]);
+
+  // A shared ?stage=N link opens that stage once, after the project loads
+  // (locked or out-of-range targets fall through to the saved position).
+  const stageLinkApplied = useRef(false);
+  useEffect(() => {
+    if (stageLinkApplied.current || !projectLoaded) return;
+    stageLinkApplied.current = true;
+    const wanted = Number(search.stage);
+    if (Number.isInteger(wanted) && isStageUnlocked(state, wanted)) {
+      dispatch({ type: "select-stage", stageIndex: wanted });
+    }
+  }, [projectLoaded]);
 
   const source = draft.code.trim() ? draft.code : (stage?.starterCode ?? "");
 
