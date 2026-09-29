@@ -17,6 +17,7 @@ import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { CpuRedirectPage } from "./pages/CpuRedirectPage";
+import { DecodingRedirectPage } from "./pages/DecodingRedirectPage";
 import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
@@ -145,6 +146,22 @@ const cpuLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+const decodingEntryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/decoding",
+  component: DecodingRedirectPage,
+  errorComponent: LabErrorPage,
+});
+
+const decodingLabRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/labs/decoding",
+  validateSearch: passThroughSearch,
+  // Lazy: keeps the CodeMirror editor + lab UI out of the main bundle.
+  component: lazyRouteComponent(() => import("../features/decoding"), "DecodingLabPage"),
+  errorComponent: LabErrorPage,
+});
+
 const isSimEntryRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/is-sim",
@@ -218,6 +235,8 @@ const routeTree = rootRoute.addChildren([
   colorQuantizationLabRoute,
   cpuEntryRoute,
   cpuLabRoute,
+  decodingEntryRoute,
+  decodingLabRoute,
   isSimEntryRoute,
   isSimLabRoute,
   dashboardRoute,

@@ -7,6 +7,7 @@ import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
+import { DECODING_CORE_STAGES } from "../../features/decoding";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
 import "./home.css";
 
@@ -36,6 +37,15 @@ const HOME_LABS = [
     description: "写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。",
     to: "/labs/cpu",
     stages: CPU_CORE_STAGES.length,
+    primary: false,
+  },
+  {
+    id: "decoding",
+    title: "解码侦探",
+    description:
+      "同一串数字是什么，全看约定的解码规则：从字码到二进制位，再到读懂一张 BMP 图片的文件头。",
+    to: "/labs/decoding",
+    stages: DECODING_CORE_STAGES.length,
     primary: false,
   },
   {
