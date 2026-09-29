@@ -10,7 +10,7 @@
  */
 
 import { useParams, useSearch } from "@tanstack/react-router";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
@@ -69,6 +69,30 @@ function runData(payload: LabPayload): unknown {
 }
 
 type RunResult = { text: string } | { pixels: PixelMatrix } | null;
+
+/** Same-shape pixel matrices → number of cells that differ. */
+function pixelDiffCount(a: PixelMatrix, b: PixelMatrix): number {
+  let n = 0;
+  for (let y = 0; y < a.length; y += 1) {
+    for (let x = 0; x < (a[y]?.length ?? 0); x += 1) {
+      const want = b[y]?.[x];
+      const [r, g, bl] = a[y][x];
+      if (!want || want[0] !== r || want[1] !== g || want[2] !== bl) n += 1;
+    }
+  }
+  return n;
+}
+
+/** Student-facing version of a raw Python/worker error message. */
+function friendlyRunError(raw: string): string {
+  const syntax = /SyntaxError:.*line (\d+)/.exec(raw);
+  if (syntax) return `第 ${syntax[1]} 行附近语法写错了——检查括号、引号和冒号。（${raw}）`;
+  if (/IndexError/.test(raw)) return `下标越界了——检查像素起点和位置计算。（${raw}）`;
+  const name = /NameError: name '(\w+)' is not defined/.exec(raw);
+  if (name) return `名字 ${name[1]} 没有定义过——是不是拼错或顺序放反了？（${raw}）`;
+  if (/TypeError/.test(raw)) return `类型用错了——检查取到的是数还是列表。（${raw}）`;
+  return raw;
+}
 
 function StageBrief({ stage, passed }: { stage: DecodingStageDef; passed: boolean }) {
   return (
@@ -260,6 +284,11 @@ export function DecodingLabPage() {
     }
   }, [projectLoaded]);
 
+  const targetPixels = useMemo(
+    () => (payload?.kind === "bmp" ? decodeBmp(payload.bytes) : null),
+    [payload],
+  );
+
   const source = stage?.starterCode
     ? hasCloze(stage.starterCode)
       ? assembleCloze(stage.starterCode, draft.fills)
@@ -289,7 +318,7 @@ export function DecodingLabPage() {
         setLastRun({ text });
       }
     } catch (error) {
-      setRunError(error instanceof Error ? error.message : String(error));
+      setRunError(friendlyRunError(error instanceof Error ? error.message : String(error)));
     } finally {
       setRunning(false);
     }
@@ -455,7 +484,10 @@ export function DecodingLabPage() {
                     <DecodeEditor
                       code={stage.starterCode}
                       fills={draft.fills}
-                      onFill={(blankId, value) => dispatch({ type: "set-fill", blankId, value })}
+                      onFill={(blankId, value) => {
+                        setLastRun(null);
+                        dispatch({ type: "set-fill", blankId, value });
+                      }}
                       onPrintExample={() => void printExampleData()}
                       onRun={() => void run()}
                       running={running}
@@ -506,19 +538,28 @@ export function DecodingLabPage() {
                       {lastRun && "text" in lastRun ? (
                         <TextResult stage={stage} text={lastRun.text} />
                       ) : null}
-                      {stage.kind === "bmp" && payload.kind === "bmp" ? (
+                      {stage.kind === "bmp" && targetPixels ? (
                         <div className="pixel-compare">
                           <figure>
-                            <PixelCanvas ariaLabel="目标图案" pixels={decodeBmp(payload.bytes)} />
+                            <PixelCanvas ariaLabel="目标图案" pixels={targetPixels} />
                             <figcaption>目标图案</figcaption>
                           </figure>
                           <figure>
                             {lastRun && "pixels" in lastRun ? (
-                              <PixelCanvas ariaLabel="你的解码结果" pixels={lastRun.pixels} />
+                              <PixelCanvas
+                                ariaLabel="你的解码结果"
+                                diffAgainst={targetPixels}
+                                pixels={lastRun.pixels}
+                              />
                             ) : (
                               <div className="pixel-compare-empty">?</div>
                             )}
-                            <figcaption>你的解码结果</figcaption>
+                            <figcaption>
+                              你的解码结果
+                              {lastRun && "pixels" in lastRun
+                                ? ` · ${pixelDiffCount(lastRun.pixels, targetPixels)} 个像素不同`
+                                : ""}
+                            </figcaption>
                           </figure>
                         </div>
                       ) : null}

@@ -11,6 +11,13 @@ import { BMP_PROFILE } from "../domain/bmp.ts";
 import { CHAR_TABLE } from "../domain/encoding.ts";
 import type { LabPayload } from "../domain/protocol.ts";
 
+/** Header fields the stage-3 conventions live in (little-endian first byte). */
+const BMP_FIELDS: Record<number, string> = {
+  10: "像素起点",
+  18: "宽",
+  22: "高",
+};
+
 export function BytePanel({ payload }: { payload: LabPayload }) {
   if (payload.kind === "files") return null; // files render inside FilesPanel
 
@@ -40,13 +47,15 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
         <ol className="byte-stream">
           {bytes.map((byte, i) => {
             const inHeader = payload.kind === "bmp" && i < BMP_PROFILE.pixelOffset;
+            const field = payload.kind === "bmp" ? BMP_FIELDS[i] : undefined;
             return (
               <li
-                className={`byte-chip${inHeader ? " is-header" : ""}`}
+                className={`byte-chip${inHeader ? " is-header" : ""}${field ? " is-field" : ""}`}
                 key={i}
-                title={`#${i}${inHeader ? " · 文件头" : ""}`}
+                title={`#${i}${field ? ` · ${field}` : inHeader ? " · 文件头" : ""}`}
               >
                 {byte}
+                {field ? <span className="byte-chip-field">{field}</span> : null}
               </li>
             );
           })}
@@ -56,7 +65,8 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
       {payload.kind === "bmp" ? (
         <p className="byte-legend">
           <span className="byte-chip is-header byte-legend-chip">66</span> 前{" "}
-          {BMP_PROFILE.pixelOffset} 字节是文件头——里面藏着「怎么读剩下部分」的约定。
+          {BMP_PROFILE.pixelOffset} 字节是文件头——里面写着「怎么读剩下部分」：# 10 = 像素起点（
+          {bytes[10]}）、# 18 = 宽（{bytes[18]}）、# 22 = 高（{bytes[22]}）。
         </p>
       ) : null}
 

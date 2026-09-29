@@ -86,9 +86,37 @@ function textDetail(actual: string, expected: string): string {
   return "";
 }
 
+function pixelsEqual(a: PixelMatrix, b: PixelMatrix): boolean {
+  if (a.length !== b.length || a[0]?.length !== b[0]?.length) return false;
+  return a.every((row, y) => row.every((px, x) => px.every((v, c) => v === b[y][x][c])));
+}
+
+/** R↔B channel swap — reading bytes as R,G,B instead of B,G,R. */
+const swapChannels = (p: PixelMatrix): PixelMatrix =>
+  p.map((row) => row.map(([r, g, b]) => [b, g, r] as typeof row[number]));
+/** Bottom-up still stored as top-down — the missing pixels.reverse(). */
+const flipRows = (p: PixelMatrix): PixelMatrix => [...p].reverse();
+/** Row/column transpose — i = (x * height + y) instead of (y * width + x). */
+const transpose = (p: PixelMatrix): PixelMatrix =>
+  p[0].map((_, x) => p.map((row) => row[x]));
+
+/**
+ * Name the common decoder bug that produced this matrix before falling back
+ * to the first-mismatch position — "how it's wrong" beats "where it's wrong".
+ */
 function pixelsDetail(actual: PixelMatrix, expected: PixelMatrix): string {
   if (actual.length !== expected.length || actual[0]?.length !== expected[0]?.length) {
     return `尺寸不符：提交了 ${actual[0]?.length ?? 0}×${actual.length}，应是 ${expected[0]?.length ?? 0}×${expected.length}`;
+  }
+  if (pixelsEqual(actual, expected)) return "";
+  if (pixelsEqual(flipRows(actual), expected)) {
+    return "画面上下颠倒了——核对行序约定（图像最下面一行存在最前面）";
+  }
+  if (pixelsEqual(swapChannels(actual), expected)) {
+    return "形状对了但颜色反了——核对 B、G、R 的通道顺序";
+  }
+  if (pixelsEqual(transpose(actual), expected)) {
+    return "行和列对调了——检查像素位置是 (y * width + x)";
   }
   for (let y = 0; y < expected.length; y += 1) {
     for (let x = 0; x < expected[y].length; x += 1) {

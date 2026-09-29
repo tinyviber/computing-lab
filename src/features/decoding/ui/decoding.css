@@ -750,3 +750,17 @@
 .judge-next {
   margin-top: var(--space-2);
 }
+
+.byte-chip.is-field {
+  border-color: var(--color-accent, #5b48c9);
+  position: relative;
+  flex-direction: column;
+  display: inline-flex;
+}
+
+.byte-chip-field {
+  display: block;
+  font-size: 9px;
+  line-height: 1.2;
+  color: var(--color-accent, #5b48c9);
+}

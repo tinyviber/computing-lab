@@ -183,6 +183,36 @@ describe("verify", () => {
     expect(verdict.detail).not.toContain("HELLO");
   });
 
+  it("names the decoder bug behind a wrong pixel matrix", () => {
+    const stage = getDecodingStage(3)!;
+    const { expected } = generatePayload(stage, 5);
+    const want = (expected as { pixels: PixelMatrix }).pixels;
+
+    // Missing pixels.reverse() → rows still bottom-up.
+    const upsideDown = verifyArtifact(stage, { pixels: [...want].reverse() }, expected);
+    expect(upsideDown[0].detail).toContain("上下颠倒");
+
+    // Read as R,G,B instead of B,G,R → R↔B swapped.
+    const swapped = want.map((row) => row.map(([r, g, b]) => [b, g, r]));
+    expect(
+      verifyArtifact(stage, { pixels: swapped }, expected)[0].detail,
+    ).toContain("颜色反了");
+
+    // i = (x * height + y) → transposed.
+    const transposed = want[0].map((_, x) => want.map((row) => row[x]));
+    expect(
+      verifyArtifact(stage, { pixels: transposed }, expected)[0].detail,
+    ).toContain("行和列对调");
+
+    // Anything else falls back to the first mismatch position.
+    const off = want.map((row, y) =>
+      row.map((px, x) => (y === 3 && x === 3 ? [0, 0, 0] : px)),
+    );
+    expect(verifyArtifact(stage, { pixels: off }, expected)[0].detail).toContain(
+      "第 4 行第 4 个像素不符",
+    );
+  });
+
   it("checks a files-stage verdict set per file", () => {
     const stage = getDecodingStage(4)!;
     const { expected } = generatePayload(stage, 9);

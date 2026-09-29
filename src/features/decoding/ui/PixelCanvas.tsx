@@ -12,12 +12,15 @@ export function PixelCanvas({
   pixelSize,
   grid = true,
   ariaLabel,
+  diffAgainst,
 }: {
   pixels: PixelMatrix;
   /** CSS px per cell; default scales the image into a ~200px box. */
   pixelSize?: number;
   grid?: boolean;
   ariaLabel?: string;
+  /** When given, mismatched cells get a bright outline. */
+  diffAgainst?: PixelMatrix;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const height = pixels.length;
@@ -37,6 +40,19 @@ export function PixelCanvas({
         ctx.fillRect(x * px, y * px, px, px);
       }
     }
+    if (diffAgainst) {
+      ctx.strokeStyle = "rgba(220, 38, 38, 0.95)";
+      ctx.lineWidth = Math.max(2, Math.round(px / 10));
+      for (let y = 0; y < height; y += 1) {
+        for (let x = 0; x < width; x += 1) {
+          const want = diffAgainst[y]?.[x];
+          const [r, g, b] = pixels[y][x];
+          if (!want || want[0] !== r || want[1] !== g || want[2] !== b) {
+            ctx.strokeRect(x * px + 1, y * px + 1, px - 2, px - 2);
+          }
+        }
+      }
+    }
     if (grid && px >= 6) {
       ctx.strokeStyle = "rgba(90, 108, 128, 0.3)";
       ctx.lineWidth = 1;
@@ -51,7 +67,7 @@ export function PixelCanvas({
       }
       ctx.stroke();
     }
-  }, [pixels, px, grid, width, height]);
+  }, [pixels, px, grid, width, height, diffAgainst]);
 
   return (
     <canvas
