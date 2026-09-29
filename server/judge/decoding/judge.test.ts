@@ -54,7 +54,7 @@ function correctArtifact(userId: string, stageIndex: number): unknown {
   const { payload, expected } = generatePayload(stage, seedFor(userId, "decoding", stageIndex));
   switch (stage.kind) {
     case "bmp":
-      return expected; // { signature, pixels }
+      return expected; // { pixels }
     case "files":
       return expected; // { verdicts }
     default:
@@ -126,9 +126,9 @@ describe("decoding judge", () => {
     expect(result).toEqual({ error: "stage-locked", status: 409 });
   });
 
-  it("stage 3 needs signature plus the pixel matrix", () => {
+  it("stage 3 judges the pixel matrix alone", () => {
     const { db, project, userId } = setup([1, 2]);
-    const good = correctArtifact(userId, 3) as { signature: string; pixels: PixelMatrix };
+    const good = correctArtifact(userId, 3) as { pixels: PixelMatrix };
     const result = judgeDecodingSubmission(db, project, 3, {
       artifact: good,
       conceptAnswers: conceptAnswersFor(3),
@@ -136,15 +136,17 @@ describe("decoding judge", () => {
     expect("passed" in result && result.passed).toBe(true);
 
     const { db: db2, project: project2, userId: userId2 } = setup([1, 2]);
-    const good2 = correctArtifact(userId2, 3) as { signature: string; pixels: PixelMatrix };
+    const good2 = correctArtifact(userId2, 3) as { pixels: PixelMatrix };
+    const wrongPixels = good2.pixels.map((row, y) =>
+      row.map((px, x) => (y === 0 && x === 0 ? ([0, 0, 0] as const) : px)),
+    );
     const bad = judgeDecodingSubmission(db2, project2, 3, {
-      artifact: { signature: "ZZ", pixels: good2.pixels },
+      artifact: { pixels: wrongPixels },
       conceptAnswers: conceptAnswersFor(3),
     });
     expect("passed" in bad && bad.passed).toBe(false);
     if ("passed" in bad) {
-      expect(bad.parts.find((p) => p.id === "signature")?.ok).toBe(false);
-      expect(bad.parts.find((p) => p.id === "pixels")?.ok).toBe(true);
+      expect(bad.parts.find((p) => p.id === "pixels")?.ok).toBe(false);
     }
   });
 

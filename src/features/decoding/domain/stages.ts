@@ -168,9 +168,10 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     track: "core",
     kind: "bmp",
     mission:
-      "收到一个没有扩展名的文件：一长串字节，来源不明。传说这类文件会在开头写下自己的「签名」。",
-    task: "用 decode(data) 还原出像素矩阵。",
-    hint: "格式约定：前 54 字节是文件头；像素数据从 data[54] 开始；每个像素 3 字节，按 B、G、R 排列；图像最下面一行存在最前面。",
+      "收到一个没有扩展名的文件：一长串字节，来源不明。前两个字节按字符表一读是 'BM'——这是张 BMP 图，目标就是右边那只猫。",
+    description: "不用从零写：把格式约定逐条对到代码里的空上。",
+    task: "补全 decode(data) 里的空，提交它还原出的像素矩阵。",
+    hint: "格式约定：前 54 字节是文件头；像素数据从 data[54] 开始；每个像素 3 字节，按 B、G、R 排列；图像最下面一行存在最前面。Python 里翻转列表用 xs.reverse()。",
     judgeNote: "判定比对整张像素矩阵。",
     takeaway: "你一个字节都没改：数据没变，换的是解释规则——不同的 decoder 恢复出不同的信息。",
     example: {
@@ -195,7 +196,18 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     #   宽 8 高 8, 图像最下面一行存在最前面
     width = 8
     height = 8
+    body = data[__(1)__:]
     pixels = []
+    for y in range(height):
+        row = []
+        for x in range(width):
+            i = (y * width + x) * 3
+            b = body[i]
+            g = body[i + 1]
+            r = body[__(2)__]
+            row.append([r, g, b])
+        pixels.append(row)
+    pixels.__(3)__
     return pixels
 `,
     prompts: [
@@ -277,9 +289,11 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     railAfter: 3,
     unlockAfter: [3],
     kind: "bmp-script",
-    mission: "这张 BMP 看着和第 3 关没什么不同。",
-    description: "现成的 decode_bmp(data) 已经备好——它返回像素矩阵。",
-    task: "提交 decode(data) 还原出的那句话。",
+    mission:
+      "这张 BMP 看着和第 3 关没什么不同——但情报说：发送方每隔一个像素，就往 R 通道里藏了一个字符编码，用 0 收尾。",
+    description: "现成的 decode_bmp(data) 已经备好——它返回像素矩阵。你要做的只是取出藏着的情报。",
+    task: "补全 decode(data) 里的空，提交它还原出的那句话。",
+    hint: "像素矩阵先按行摊平；R 是 [r, g, b] 里的第 0 个分量；取出的编码值用 chr() 变回字符。",
     judgeNote: "判定比对提取出的字符串。",
     takeaway: "同一份文件里，不同区域可以有不同解释规则——decoder 是可以串起来用的。",
     example: {
@@ -305,7 +319,16 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     starterCode: `def decode(data):
     # 提供了 decode_bmp(data): 返回像素矩阵 [[[r, g, b], ...], ...]
     pixels = decode_bmp(data)
+    flat = []
+    for row in pixels:
+        for pixel in row:
+            flat.append(pixel)
     message = ""
+    for i in range(0, len(flat), __(1)__):   # 每隔一个像素取一个
+        code = flat[i][__(2)__]              # R 是 [r, g, b] 里的第几个分量?
+        if code == 0:
+            break
+        message += chr(__(3)__)
     return message
 `,
   },
@@ -322,7 +345,9 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "bmp",
     mission:
       "同事留下的 decoder 信誓旦旦能解 BMP——跑出来的却是一团乱。代码就在编辑器里，逐行找出它哪里读错了。",
-    task: "提交修好的 decode(data) 跑出的像素矩阵。",
+    description: "和第 3 关确认的格式约定逐行对照——带 ← 的行都值得怀疑。",
+    task: "修好 decode(data)，提交它跑出的像素矩阵——还原出的应该还是那只猫。",
+    hint: "已知有 3 处错误：一个在像素数据的起点、一个在通道顺序、一个在行序。",
     judgeNote: "判定比对整张像素矩阵——三处错误缺一不可。",
     takeaway: "decoder 里每个常量都是一条约定——写错任何一条，同一份数据就变成乱码。",
     example: {
@@ -343,18 +368,18 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     # data: 一个 BMP 文件的全部字节
     width = 8
     height = 8
-    body = data[45:]
+    body = data[45:]          # ← 像素数据真的是从这里开始的吗?
     pixels = []
     for y in range(height):
         row = []
         for x in range(width):
             i = (y * width + x) * 3
-            r = body[i]
+            r = body[i]       # ← 三个字节按什么顺序读才是 R, G, B?
             g = body[i + 1]
             b = body[i + 2]
             row.append([r, g, b])
         pixels.append(row)
-    return pixels
+    return pixels             # ← 行序处理了吗?
 `,
   },
 ];

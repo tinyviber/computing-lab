@@ -7,13 +7,19 @@
   run — server never executes student code; Python runs browser-only in the
   Pyodide worker, code snapshot is saved for teacher review).
 - Stages in `domain/stages.ts` (`DECODING_STAGES`, indices 1–6). Core 1–4:
-  codes (字码→词), bits (8 位→句), bmp (先读 'BM' 签名再写解码器),
+  codes (字码→词), bits (8 位→句), bmp (按约定填空格排像素矩阵),
   files (三份文件按 meta 选解码器). Challenges 5 (bmp-script, R 通道隐写)
-  and 6 (bmp, 修坏解码器) sit on `track:"challenge"` rails anchored by
-  `railAfter`; `unlockAfter` lists prerequisites.
+  and 6 (bmp, 修坏解码器——带 ← 标注的三处错误) sit on `track:"challenge"`
+  rails anchored by `railAfter`; `unlockAfter` lists prerequisites.
 - `kind` describes stage rules; `payload.kind` describes data ("bmp-script"
-  stage carries a "bmp" payload). `requiresSignature: true` means the
-  submission must include the discovered 'BM' signature.
+  stage carries a "bmp" payload). Starter code uses `__(n)__` fill-in
+  blanks — running without replacing them is a Python syntax error.
+- Every bmp payload is the SAME fixed 8×8 cat (`catPixels()` in
+  domain/sprites.ts) — a recognizable target makes channel/row-order bugs
+  visible. The UI shows 目标图案 beside 解码结果 (`.pixel-compare`) and the
+  target pixels are never shipped in the payload (that IS the answer); the
+  client renders `catPixels()` directly. Stage-4 files keep random
+  `spritePixels(rng)`.
 
 ## Judging
 

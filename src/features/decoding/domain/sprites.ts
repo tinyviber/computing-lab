@@ -45,6 +45,28 @@ const ASCII_SAFE_PALETTES: readonly Palette[] = [
   { bg: [90, 88, 66], ink: [66, 70, 72] },
 ];
 
+/**
+ * The fixed cat every BMP stage decodes. One recognizable target gives the
+ * decode a concrete goal and makes channel-order and row-order bugs visible
+ * at a glance — a wrong decoder can't accidentally look like a cat.
+ */
+const CAT_GLYPH: readonly string[] = [
+  "..#..#..",
+  ".##..##.",
+  ".######.",
+  ".#.##.#.",
+  ".######.",
+  "..####..",
+  ".######.",
+  "..#..#..",
+];
+
+export function catPixels(): PixelMatrix {
+  const bg: Pixel = [255, 247, 237];
+  const ink: Pixel = [234, 88, 12];
+  return CAT_GLYPH.map((row) => [...row].map((ch) => [...(ch === "#" ? ink : bg)] as Pixel));
+}
+
 export function spritePixels(
   rng: () => number,
   options: { asciiSafe?: boolean } = {},

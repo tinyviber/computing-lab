@@ -26,6 +26,7 @@ import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
 import type { PixelMatrix } from "../domain/bmp.ts";
 import { CHAR_TABLE } from "../domain/encoding.ts";
+import { catPixels } from "../domain/sprites.ts";
 import type {
   DecodingDraft,
   DecodingJudgeResult,
@@ -53,6 +54,9 @@ import { BMP_HELPER, runDecode, warmPyodide } from "./pyodideRunner.ts";
 import "./decoding.css";
 
 const EDITOR_EXTENSIONS = [python(), indentUnit.of("    "), keymap.of([indentWithTab])];
+
+/** Every BMP stage decodes the same fixed cat — the visible decode target. */
+const TARGET_PIXELS = catPixels();
 
 /** The value the student's `decode(data)` receives for this stage. */
 function runData(payload: LabPayload): unknown {
@@ -510,15 +514,23 @@ export function DecodingLabPage() {
                       {lastRun && "text" in lastRun ? (
                         <TextResult stage={stage} text={lastRun.text} />
                       ) : null}
-                      {lastRun && "pixels" in lastRun ? (
-                        <div className="preview-block">
-                          <PixelCanvas ariaLabel="解码出的图像" pixels={lastRun.pixels} />
-                          <p className="preview-note">
-                            {lastRun.pixels.length}×{lastRun.pixels[0]?.length ?? 0} 像素
-                          </p>
+                      {stage.kind === "bmp" ? (
+                        <div className="pixel-compare">
+                          <figure>
+                            <PixelCanvas ariaLabel="目标图案" pixels={TARGET_PIXELS} />
+                            <figcaption>目标图案</figcaption>
+                          </figure>
+                          <figure>
+                            {lastRun && "pixels" in lastRun ? (
+                              <PixelCanvas ariaLabel="你的解码结果" pixels={lastRun.pixels} />
+                            ) : (
+                              <div className="pixel-compare-empty">?</div>
+                            )}
+                            <figcaption>你的解码结果</figcaption>
+                          </figure>
                         </div>
                       ) : null}
-                      {!lastRun && !runError && !preview ? (
+                      {!lastRun && !runError && !preview && stage.kind !== "bmp" ? (
                         <p className="output-empty">运行 decode 后，结果会出现在这里。</p>
                       ) : null}
                     </section>

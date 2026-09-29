@@ -412,6 +412,44 @@
   color: var(--color-text-3, #6b7280);
 }
 
+/* ---- target vs decoded comparison (bmp stages) ---- */
+
+.pixel-compare {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.pixel-compare figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+.pixel-compare canvas {
+  border: 1px solid var(--color-line, #d9dee7);
+  border-radius: 4px;
+}
+
+.pixel-compare figcaption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-3, #6b7280);
+}
+
+.pixel-compare-empty {
+  width: 200px;
+  height: 200px;
+  border: 1px dashed var(--color-line, #d9dee7);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-3, #6b7280);
+  font-size: var(--font-size-lg, 18px);
+}
+
 .helper-note-inline {
   font-size: var(--font-size-xs);
   color: var(--color-text-3, #6b7280);
