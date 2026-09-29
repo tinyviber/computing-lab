@@ -45,6 +45,8 @@ export type DecodingStageDef = {
   /** One-line concept recap shown when the stage passes. */
   takeaway: string;
   starterCode: string;
+  /** Alternate cloze templates, picked per user — same concepts, different fills. */
+  starterVariants?: readonly string[];
   example?: { input: string; output?: string; run?: boolean };
   prompts?: DecodingPrompt[];
 };
@@ -75,6 +77,15 @@ export const DECODING_STAGES: DecodingStageDef[] = [
         answer += __(1)__
     return answer
 `,
+    starterVariants: [
+      `def decode(data):
+    # data: 一串十进制整数, 每个数对应编码表里的一个字符
+    answer = ""
+    for n in data:
+        answer += __(1)__
+    return answer
+`,
+    ],
     prompts: [
       {
         id: "what-is-encoding",
@@ -124,6 +135,17 @@ export const DECODING_STAGES: DecodingStageDef[] = [
         answer += __(1)__
     return answer
 `,
+    starterVariants: [
+      `def decode(data):
+    # data: 8 位一组的 0/1 字符串, 例如 ["01001000", "01101001"]
+    answer = ""
+    for s in data:
+        # s 是一个二进制字符串
+        n = __(1)__
+        answer += chr(n)
+    return answer
+`,
+    ],
     prompts: [
       {
         id: "repr-vs-encoding",
@@ -214,6 +236,52 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     pixels.__(3)__
     return pixels
 `,
+    starterVariants: [
+      `def decode(data):
+    # data: 一个 BMP 文件的全部字节
+    # BMP 约定:
+    #   - 像素数据的起点写在文件头里 —— data[10] 开始的字节存着一个整数
+    #   - 每个像素 3 个字节, 顺序是 B, G, R
+    #   - 最下面一行存在最前面
+    width = 8
+    height = 8
+    body = data[__(1)__:]
+    pixels = []
+    for y in range(height):
+        row = []
+        for x in range(width):
+            i = (y * width + x) * 3
+            b = body[i]
+            g = body[__(2)__]
+            r = body[i + 2]
+            row.append([r, g, b])
+        pixels.append(row)
+    pixels.__(3)__
+    return pixels
+`,
+      `def decode(data):
+    # data: 一个 BMP 文件的全部字节
+    # BMP 约定:
+    #   - 像素数据的起点写在文件头里 —— data[10] 开始的字节存着一个整数
+    #   - 每个像素 3 个字节, 顺序是 B, G, R
+    #   - 最下面一行存在最前面
+    width = 8
+    height = 8
+    body = data[data[10]:]
+    pixels = []
+    for y in range(height):
+        row = []
+        for x in range(width):
+            i = (y * width + x) * 3
+            b = __(1)__
+            g = body[i + 1]
+            r = __(2)__
+            row.append([r, g, b])
+        pixels.append(row)
+    __(3)__
+    return pixels
+`,
+    ],
     prompts: [
       {
         id: "signature-meaning",
@@ -335,6 +403,23 @@ export const DECODING_STAGES: DecodingStageDef[] = [
         message += chr(__(3)__)
     return message
 `,
+    starterVariants: [
+      `def decode(data):
+    # 提供了 decode_bmp(data): 返回像素矩阵 [[[r, g, b], ...], ...]
+    pixels = decode_bmp(data)
+    flat = []
+    for row in pixels:
+        for pixel in row:
+            flat.append(pixel)
+    message = ""
+    for i in range(0, len(flat), 2):        # 每隔一个像素取一个
+        code = flat[i][0]                    # R 分量
+        if code == __(1)__:
+            break
+        message += __(2)__
+    return message
+`,
+    ],
   },
 
   // ---------- X2 — 修好坏掉的 decoder ----------
@@ -397,6 +482,16 @@ export const DECODING_CORE_STAGES = DECODING_STAGES.filter((s) => s.track === "c
 
 export function getDecodingStage(index: number): DecodingStageDef | undefined {
   return DECODING_STAGES.find((s) => s.index === index);
+}
+
+/**
+ * Which cloze template this user gets: the canonical starter plus its
+ * variants, picked deterministically by seed so neighbours can't read the
+ * blanks off each other's screens.
+ */
+export function starterCodeFor(stage: DecodingStageDef, seed: number): string {
+  const pool = [stage.starterCode, ...(stage.starterVariants ?? [])];
+  return pool[seed % pool.length];
 }
 
 /** Core stages unlock linearly; challenges need their explicit prerequisites. */

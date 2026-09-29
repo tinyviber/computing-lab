@@ -93,12 +93,11 @@ function pixelsEqual(a: PixelMatrix, b: PixelMatrix): boolean {
 
 /** R↔B channel swap — reading bytes as R,G,B instead of B,G,R. */
 const swapChannels = (p: PixelMatrix): PixelMatrix =>
-  p.map((row) => row.map(([r, g, b]) => [b, g, r] as typeof row[number]));
+  p.map((row) => row.map(([r, g, b]) => [b, g, r] as (typeof row)[number]));
 /** Bottom-up still stored as top-down — the missing pixels.reverse(). */
 const flipRows = (p: PixelMatrix): PixelMatrix => [...p].reverse();
 /** Row/column transpose — i = (x * height + y) instead of (y * width + x). */
-const transpose = (p: PixelMatrix): PixelMatrix =>
-  p[0].map((_, x) => p.map((row) => row[x]));
+const transpose = (p: PixelMatrix): PixelMatrix => p[0].map((_, x) => p.map((row) => row[x]));
 
 /**
  * Name the common decoder bug that produced this matrix before falling back

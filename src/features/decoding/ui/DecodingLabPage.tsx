@@ -28,10 +28,12 @@ import type {
   DecodingSubmission,
   LabPayload,
 } from "../domain/protocol.ts";
+import { seedFor } from "../domain/rng.ts";
 import {
   decodingStageUnlocked,
   getDecodingStage,
   nextDecodingStage,
+  starterCodeFor,
   type DecodingStageDef,
 } from "../domain/stages.ts";
 import { sanitizePixels, sanitizeText } from "../domain/verify.ts";
@@ -209,7 +211,7 @@ function TextResult({ text, stage }: { text: string; stage: DecodingStageDef }) 
 export function DecodingLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/decoding" });
   const search = useSearch({ strict: false }) as Record<string, unknown>;
-  const { status, role } = useAuth();
+  const { status, role, session } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionDecodingLesson, undefined, () =>
     createDecodingLessonState(1),
@@ -289,15 +291,23 @@ export function DecodingLabPage() {
     [payload],
   );
 
-  const source = stage?.starterCode
-    ? hasCloze(stage.starterCode)
-      ? assembleCloze(stage.starterCode, draft.fills)
-      : draft.code.trim() || stage.starterCode
+  // Same seed stream as the payload, namespaced: neighbours see different
+  // cloze templates, so a copied fill doesn't fit the next desk's blanks.
+  const userId = session?.user.id ?? "";
+  const template =
+    stage && userId
+      ? starterCodeFor(stage, seedFor(userId, "decoding-cloze", stage.index))
+      : (stage?.starterCode ?? "");
+
+  const source = template
+    ? hasCloze(template)
+      ? assembleCloze(template, draft.fills)
+      : draft.code.trim() || template
     : "";
 
   const run = useCallback(async () => {
     if (!stage || !payload || payload.kind === "files") return;
-    if (hasCloze(stage.starterCode) && !clozeComplete(stage.starterCode, draft.fills)) {
+    if (hasCloze(template) && !clozeComplete(template, draft.fills)) {
       setRunError("还有空没填上——每个空都要填。");
       return;
     }
@@ -404,7 +414,7 @@ export function DecodingLabPage() {
       const submission: DecodingSubmission = {
         stageIndex: stage.index,
         artifact,
-        code: hasCloze(stage.starterCode) ? source : draft.code || undefined,
+        code: hasCloze(template) ? source : draft.code || undefined,
         conceptAnswers:
           stage.prompts && stage.prompts.length > 0 ? draft.conceptAnswers : undefined,
       };
@@ -482,7 +492,7 @@ export function DecodingLabPage() {
                   <div className="decoder-console">
                     <BytePanel key={payload.kind} payload={payload} />
                     <DecodeEditor
-                      code={stage.starterCode}
+                      code={template}
                       fills={draft.fills}
                       onFill={(blankId, value) => {
                         setLastRun(null);

@@ -99,13 +99,24 @@ describe("decoding judge", () => {
     }
   });
 
-  it("requires all concept answers — no bare 'done' flag", () => {
+  it("records wrong concept picks as parts — no bare 'done' flag, no opaque 400", () => {
     const { db, project, userId } = setup();
     const result = judgeDecodingSubmission(db, project, 1, {
       artifact: correctArtifact(userId, 1),
       conceptAnswers: {},
     });
-    expect(result).toEqual({ error: "guided-incomplete", status: 400 });
+    expect("parts" in result && result.parts).toBeDefined();
+    if (!("parts" in result)) return;
+    expect(result.passed).toBe(false);
+    const promptPart = result.parts.find((p) => p.id.startsWith("prompt-"));
+    expect(promptPart?.ok).toBe(false);
+    // The artifact still got verified, so debugging info is not withheld.
+    expect(result.parts.find((p) => p.id === "text")?.ok).toBe(true);
+    // The pick set is in the snapshot for teacher review.
+    const row = db
+      .prepare("SELECT snapshot_graph FROM submissions WHERE project_id = ?")
+      .get(project.id) as { snapshot_graph: string };
+    expect(JSON.parse(row.snapshot_graph).conceptAnswers).toEqual({});
   });
 
   it("rejects malformed artifacts", () => {

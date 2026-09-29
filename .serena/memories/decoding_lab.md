@@ -19,6 +19,9 @@
   fills live in `DecodingDraft.fills` via the `set-fill` action, and
   `assembleCloze` rebuilds runnable Python; `run` blocks with a Chinese
   message until `clozeComplete`. There is no free-form editor on this page.
+  Stages may also ship `starterVariants` — same exercise with different
+  blank positions/identifiers; `starterCodeFor(stage, seed)` picks per user
+  (`seedFor(userId,"decoding-cloze",idx)`) so copied fills don't transfer.
 - Every bmp payload is the same cat GLYPH with a per-user seeded palette
   (`catPixels(pick(rng, CAT_PALETTES))` in domain/sprites.ts) — a
   recognizable target that still makes channel/row-order bugs visible, but
@@ -36,12 +39,16 @@
   is deterministic — `GET /project` ships it via `projectExtras.payloads`
   and the judge regenerates the identical one, then `verifyArtifact`
   compares artifact vs reference decode. Failure detail reports only the
-  first mismatch position; never name the right answer (stage 4 wrong
-  decoder says "与 meta 不符", not which decoder).
-- Stage prompts are concept checks: `promptsComplete` server-side re-checks
-  every picked option is `correct` → else 400 `guided-incomplete`. UI only
-  records correct picks (`answer-prompt` ignores wrong ones and flags
-  `wrongPick`).
+  first mismatch position OR a named convention bug when the matrix exactly
+  matches a common mistake (行翻转→上下颠倒, R↔B→颜色反了, 转置→行列对调);
+  never name the right answer (stage 4 wrong decoder says "与 meta 不符",
+  not which decoder).
+- Stage prompts are concept checks re-checked server-side: each prompt is a
+  `prompt-<id>` part in the verdict list (fail → recorded submission, never
+  an opaque 400), and `conceptAnswers` go into the submission snapshot for
+  the teacher. UI only records correct picks (`answer-prompt` ignores wrong
+  ones and flags `wrongPick`) and still gates the submit button on all
+  correct.
 - Files-stage can't be passed by decoder choice alone — the artifact must
   match the reference decode; `SlidingWindowLimiter` (12/10min/stage)
   guards guessing.
@@ -62,7 +69,10 @@
 
 - BMP profile is deliberately constrained: 54-byte header, 24bpp, BGR,
   bottom-up rows, `width*3%4==0` (encoder throws otherwise) — the X2 buggy
-  decoder's three bugs live exactly in offset/通道序/行序.
+  decoder's three bugs live exactly in offset/通道序/行序. BytePanel marks
+  the three 4-byte header fields the stages use (#10–13 起点, #18–21 宽,
+  #22–25 高); a pinned files-stage verdict re-syncs to the fresh run output
+  when the same decoder is re-run.
 - Stage-4 ambiguity file: asciiSafe palette keeps image bytes printable so
   a text decode also "runs" — meta decides (the lesson, not a bug).
 - `?stage=N` deep link applied once after project load (`stageLinkApplied`);

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { assembleCloze, clozeComplete, hasCloze, parseCloze } from "./cloze.ts";
-import { DECODING_STAGES } from "./stages.ts";
+import { DECODING_STAGES, starterCodeFor } from "./stages.ts";
 
 describe("cloze parsing", () => {
   const code = "a = __(1)__\nb = __(2)__ + __(1)__\n";
@@ -33,12 +33,27 @@ describe("cloze parsing", () => {
 describe("stage templates", () => {
   it("every write-code stage starter is a well-formed cloze template", () => {
     for (const stage of DECODING_STAGES) {
-      if (!stage.starterCode) continue;
-      expect(hasCloze(stage.starterCode), `stage ${stage.index}`).toBe(true);
-      const ids = parseCloze(stage.starterCode)
-        .filter((p) => p.kind === "blank")
-        .map((p) => (p.kind === "blank" ? p.id : ""));
-      expect(new Set(ids).size, `stage ${stage.index} duplicate ids`).toBe(ids.length);
+      for (const [v, template] of [stage.starterCode, ...(stage.starterVariants ?? [])].entries()) {
+        if (!template) continue;
+        expect(hasCloze(template), `stage ${stage.index} variant ${v}`).toBe(true);
+        const ids = parseCloze(template)
+          .filter((p) => p.kind === "blank")
+          .map((p) => (p.kind === "blank" ? p.id : ""));
+        expect(new Set(ids).size, `stage ${stage.index} variant ${v} duplicate ids`).toBe(
+          ids.length,
+        );
+      }
     }
+  });
+
+  it("starterCodeFor picks deterministically across the variant pool", () => {
+    const stage = DECODING_STAGES.find((s) => s.index === 3)!;
+    const pool = [stage.starterCode, ...(stage.starterVariants ?? [])];
+    expect(starterCodeFor(stage, 0)).toBe(stage.starterCode);
+    expect(starterCodeFor(stage, pool.length)).toBe(stage.starterCode);
+    expect(starterCodeFor(stage, 1)).toBe(pool[1]);
+    // A stage without variants always returns its starter.
+    const noVariants = DECODING_STAGES.find((s) => s.index === 6)!;
+    expect(starterCodeFor(noVariants, 7)).toBe(noVariants.starterCode);
   });
 });

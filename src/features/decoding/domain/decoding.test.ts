@@ -194,20 +194,16 @@ describe("verify", () => {
 
     // Read as R,G,B instead of B,G,R → R↔B swapped.
     const swapped = want.map((row) => row.map(([r, g, b]) => [b, g, r]));
-    expect(
-      verifyArtifact(stage, { pixels: swapped }, expected)[0].detail,
-    ).toContain("颜色反了");
+    expect(verifyArtifact(stage, { pixels: swapped }, expected)[0].detail).toContain("颜色反了");
 
     // i = (x * height + y) → transposed.
     const transposed = want[0].map((_, x) => want.map((row) => row[x]));
-    expect(
-      verifyArtifact(stage, { pixels: transposed }, expected)[0].detail,
-    ).toContain("行和列对调");
+    expect(verifyArtifact(stage, { pixels: transposed }, expected)[0].detail).toContain(
+      "行和列对调",
+    );
 
     // Anything else falls back to the first mismatch position.
-    const off = want.map((row, y) =>
-      row.map((px, x) => (y === 3 && x === 3 ? [0, 0, 0] : px)),
-    );
+    const off = want.map((row, y) => row.map((px, x) => (y === 3 && x === 3 ? [0, 0, 0] : px)));
     expect(verifyArtifact(stage, { pixels: off }, expected)[0].detail).toContain(
       "第 4 行第 4 个像素不符",
     );

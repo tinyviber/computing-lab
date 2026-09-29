@@ -46,6 +46,10 @@ export function FilesPanel(props: {
       const text = typeof result === "string" ? result : String(result);
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], text } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
+      // A pinned verdict on this decoder tracks the fresh run output.
+      if (props.verdicts[index]?.decoder === "text") {
+        onVerdict(index, { decoder: "text", text });
+      }
     } catch (error) {
       setErrors((prev) => ({
         ...prev,
@@ -78,6 +82,9 @@ export function FilesPanel(props: {
       const pixels = result as PixelMatrix;
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], pixels } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
+      if (props.verdicts[index]?.decoder === "image") {
+        onVerdict(index, { decoder: "image", pixels });
+      }
     } catch (error) {
       setErrors((prev) => ({
         ...prev,

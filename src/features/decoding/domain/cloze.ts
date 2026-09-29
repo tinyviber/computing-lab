@@ -24,7 +24,8 @@ export function parseCloze(code: string): ClozePart[] {
 }
 
 export function hasCloze(code: string): boolean {
-  return BLANK_RE.test(code);
+  // Not BLANK_RE: a /g regex test() advances lastIndex across calls.
+  return /__\(\d+\)__/.test(code);
 }
 
 /** Substitute fills into the template; an unfilled blank becomes `?` (a syntax error on run). */
