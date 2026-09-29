@@ -154,7 +154,7 @@ export function CalculatorLabPage() {
         }
         topbarProps={{
           subtitle: stage ? <AnnotatedText text={stage.englishTitle} /> : undefined,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "实现ALU",
+          title: stage?.title ?? "实现ALU",
         }}
       >
         <CalculatorLabWorkspace

@@ -183,7 +183,7 @@ export function ImageSamplingLabPage() {
         topbar={<SaveIndicator status={state.saveStatus} />}
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "空间采样",
+          title: stage?.title ?? "空间采样",
         }}
       >
         <div className="page-content sampling-layout">

@@ -273,7 +273,7 @@ export function StudentLabPreviewPage() {
       topbarProps={{
         subtitle: stage ? <AnnotatedText text={stage.englishTitle} /> : undefined,
         title: student
-          ? `${student.studentNo} ${student.name} · ${String(state.stageIndex).padStart(2, "0")} ${stage?.title ?? ""}`
+          ? `${student.studentNo} ${student.name} · ${stage?.title ?? ""}`
           : "学生画布预览",
       }}
     >
