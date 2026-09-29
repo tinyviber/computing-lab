@@ -29,6 +29,12 @@
 - Invalid returns are collected per cell/color (shown as 0/-1 with an
   inline error line); worker errors fall back to the built-in rule with a
   visible notice. Never let the toggle silently lie about whose rule ran.
+- Sampling stage 2 is `requiresChooseSize`: its resolution comes only from a
+  successful `choose_size(images)` run. Hide the receiver-rule toggle and all
+  manual resolution/probe controls there; editing the code invalidates the old
+  resolution, and the server requires a non-empty code snapshot for submission.
+- The stage-1 `cell_value` exercise teaches ordinary Python `if/else`; its code
+  blanks start empty and must not expose answer placeholders.
 
 ## Failure names the lost feature
 

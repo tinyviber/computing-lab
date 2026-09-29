@@ -155,10 +155,17 @@ export function transitionSamplingLesson(
 
     case "set-code": {
       const draft = draftOf(state);
+      const stage = stageOf(state);
+      const next: StageDraft = {
+        ...draft,
+        code: action.code,
+        ...(stage?.requiresChooseSize ? { width: null, height: null } : {}),
+      };
       return {
         ...state,
-        drafts: { ...state.drafts, [state.stageIndex]: { ...draft, code: action.code } },
+        drafts: { ...state.drafts, [state.stageIndex]: next },
         saveStatus: "dirty",
+        judgeOutcome: stage?.requiresChooseSize ? null : state.judgeOutcome,
       };
     }
 

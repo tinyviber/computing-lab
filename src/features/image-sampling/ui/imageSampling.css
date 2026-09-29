@@ -49,6 +49,16 @@
   font-size: 13px;
 }
 
+.resolution-code-status {
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.resolution-code-status span {
+  color: #475569;
+  font-size: 13px;
+}
+
 .explorer-columns {
   display: grid;
   gap: 24px;
@@ -373,10 +383,6 @@
 .code-blank:focus {
   border-bottom-color: #fbbf24;
   outline: none;
-}
-
-.code-blank::placeholder {
-  color: #64748b;
 }
 
 .region-pair {

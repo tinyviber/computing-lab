@@ -42,6 +42,10 @@ export function judgeImageSubmission(
   if ("error" in gated) return gated;
   const stage = gated.stage;
 
+  if (stage.requiresChooseSize && (typeof rawCode !== "string" || !rawCode.trim())) {
+    return { error: "choose-size-required", status: 400 };
+  }
+
   const resolution = sanitizeResolution(rawResolution);
   if (!resolution) return { error: "invalid-resolution", status: 400 };
   if (stage.mode === "square" && resolution.width !== resolution.height) {

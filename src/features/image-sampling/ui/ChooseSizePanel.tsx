@@ -59,6 +59,7 @@ export function ChooseSizePanel({
   onCodeChange: (code: string) => void;
   onResolution: (width: number, height: number) => void;
 }) {
+  const required = stage.requiresChooseSize;
   const [error, setError] = useState<string | null>(null);
   const [applied, setApplied] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
@@ -104,11 +105,11 @@ export function ChooseSizePanel({
 
   return (
     <section aria-labelledby="choose-size-title" className="choose-size-panel">
-      <h3 id="choose-size-title">把策略写成代码（可选）</h3>
+      <h3 id="choose-size-title">把策略写成代码{required ? "" : "（可选）"}</h3>
       <p>
-        写一个 <code>choose_size(images)</code> 函数：它会拿到上面公开图库的全部 {images.length}{" "}
-        张图（每张 64×64 的 0/1 列表），由你的代码算出分辨率并填入上方—— 注意它对整个 category
-        只返回一个尺寸。
+        {required ? "本关必须" : "写一个"} <code>choose_size(images)</code>{" "}
+        函数：它会拿到上面公开图库的全部 {images.length} 张图（每张 64×64 的 0/1
+        列表），由你的代码算出分辨率并填入上方——注意它对整个 category 只返回一个尺寸。
       </p>
       <p className="helper-note">
         前面关卡写的函数可以直接用：<code>cell_value(region)</code>（第 1 关你的判定规则）和{" "}

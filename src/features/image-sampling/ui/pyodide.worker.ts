@@ -88,7 +88,10 @@ const HELPERS_PREAMBLE = `def cell_value(region):
         for v in row:
             total += 1
             ink += v
-    return 1 if ink * 2 >= total else 0
+    if ink * 2 >= total:
+        return 1
+    else:
+        return 0
 
 def downsample(image, w, h):
     H = len(image)

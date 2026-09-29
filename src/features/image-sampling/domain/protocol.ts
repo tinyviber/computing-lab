@@ -15,7 +15,7 @@ export type SamplingSubmission = {
   stageIndex: number;
   width: number;
   height: number;
-  /** Optional snapshot of the student's choose_size source; never executed. */
+  /** Snapshot of choose_size when required by the stage; never executed. */
   code?: string;
 };
 

@@ -1,7 +1,8 @@
 /**
- * Downsample explorer: pick a signal card and a resolution, watch what the
- * receiver sees, zoom into one cell's source region, and scan the
- * resolution sweep table — all against the public atlas.
+ * Downsample explorer: pick a signal card, inspect what the receiver sees,
+ * zoom into one cell's source region, and scan the resolution sweep table —
+ * all against the public atlas. Code-driven stages get their resolution from
+ * the choose_size panel instead of this explorer.
  *
  * When the student's stage-1 `cell_value` source exists, a preview-rule
  * toggle runs it over every cell of the displayed member, so the rule they
@@ -26,6 +27,8 @@ type ExplorerProps = {
   stage: SamplingStageDef;
   width: number;
   height: number;
+  /** Whether choose_size has produced the current preview resolution. */
+  resolutionReady: boolean;
   selectedCell: CellPick | null;
   onResolution: (width: number, height: number) => void;
   onCellPick: (cell: CellPick | null) => void;
@@ -37,8 +40,22 @@ function ResolutionInputs({
   stage,
   width,
   height,
+  resolutionReady,
   onResolution,
-}: Pick<ExplorerProps, "stage" | "width" | "height" | "onResolution">) {
+}: Pick<ExplorerProps, "stage" | "width" | "height" | "onResolution" | "resolutionReady">) {
+  if (stage.requiresChooseSize) {
+    return (
+      <div className="resolution-inputs resolution-code-status" role="status">
+        <strong>分辨率由 choose_size(images) 决定</strong>
+        <span>
+          {resolutionReady
+            ? `当前结果：${width} × ${height}（${width * height} 个格子）`
+            : "先运行下方代码，生成本关的分辨率。"}
+        </span>
+      </div>
+    );
+  }
+
   const setDim = (dim: "w" | "h", raw: string) => {
     const n = Number(raw);
     if (!Number.isFinite(n)) return;
@@ -112,6 +129,7 @@ export function DownsampleExplorer({
   selectedCell,
   onResolution,
   onCellPick,
+  resolutionReady,
   ruleCode,
 }: ExplorerProps) {
   const gallery = useMemo(() => publicGalleryFor(stage.category), [stage.category]);
@@ -131,7 +149,8 @@ export function DownsampleExplorer({
 
   // Run the student's cell_value over every cell of the displayed member.
   useEffect(() => {
-    if (!useMyRule || !ruleCode?.trim()) {
+    if (stage.requiresChooseSize || !useMyRule || !ruleCode?.trim()) {
+      runSeq.current += 1;
       setMyGrid(null);
       setMyRuleError(null);
       return;
@@ -175,9 +194,9 @@ export function DownsampleExplorer({
         });
     }, 250);
     return () => clearTimeout(timer);
-  }, [useMyRule, ruleCode, member, width, height]);
+  }, [stage.requiresChooseSize, useMyRule, ruleCode, member, width, height]);
 
-  const compressed = useMyRule && myGrid ? myGrid : builtinCompressed;
+  const compressed = !stage.requiresChooseSize && useMyRule && myGrid ? myGrid : builtinCompressed;
 
   const sweep = useMemo(
     () =>
@@ -241,9 +260,15 @@ export function DownsampleExplorer({
     <section aria-labelledby="explorer-title" className="downsample-explorer">
       <h3 id="explorer-title">发信实验台（公开图谱 {gallery.length} 张）</h3>
 
-      <ResolutionInputs height={height} onResolution={onResolution} stage={stage} width={width} />
+      <ResolutionInputs
+        height={height}
+        onResolution={onResolution}
+        resolutionReady={resolutionReady}
+        stage={stage}
+        width={width}
+      />
 
-      {ruleCode?.trim() ? (
+      {!stage.requiresChooseSize && ruleCode?.trim() ? (
         <div aria-label="预览使用的规则" className="rule-toggle" role="group">
           <span>接收端规则：</span>
           <button
@@ -306,15 +331,24 @@ export function DownsampleExplorer({
                 return (
                   <tr className={active ? "is-active" : ""} key={`${row.width}x${row.height}`}>
                     <td>
-                      <button
-                        className="probe-link"
-                        onClick={() =>
-                          onResolution(row.width, stage.mode === "square" ? row.width : row.height)
-                        }
-                        type="button"
-                      >
-                        {row.width}×{row.height}
-                      </button>
+                      {stage.requiresChooseSize ? (
+                        <span>
+                          {row.width}×{row.height}
+                        </span>
+                      ) : (
+                        <button
+                          className="probe-link"
+                          onClick={() =>
+                            onResolution(
+                              row.width,
+                              stage.mode === "square" ? row.width : row.height,
+                            )
+                          }
+                          type="button"
+                        >
+                          {row.width}×{row.height}
+                        </button>
+                      )}
                     </td>
                     <td>{row.cells}</td>
                     <td>

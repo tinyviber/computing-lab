@@ -40,13 +40,15 @@ export type SamplingStageDef = {
   cellBudget: number;
   /** Stage 1 shows the guided cell_value coding exercise. */
   guided: boolean;
+  /** Stage 2 must get its resolution from the student's choose_size code. */
+  requiresChooseSize: boolean;
   /** One-line transmission brief: what is sent and what the receiver must recognize. */
   mission: string;
   description: string;
   hint: string;
   /** One-line concept recap shown when the stage passes. */
   takeaway: string;
-  /** Resolutions offered as one-click probes in the sweep view. */
+  /** Resolutions listed as probes in the sweep view. */
   probes: Resolution[];
 };
 
@@ -63,6 +65,7 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 256,
     guided: true,
+    requiresChooseSize: false,
     mission:
       "任务：把这组异星徽章一张张发到低带宽接收端。统一选一个 n×n——对方拿着同一份图谱，只凭收到的格子图认出每一枚是哪一张。",
     description:
@@ -82,11 +85,12 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 784,
     guided: false,
+    requiresChooseSize: true,
     mission:
-      "任务：把这组机器人铭牌发到接收端。它们只在触角、眼睛、嘴和腿上有细小差别——选一个 n×n，让对方仍能分清每台。",
+      "任务：把这组机器人铭牌发到接收端。它们只在触角、眼睛、嘴和腿上有细小差别——写一个 choose_size(images)，让它算出一个 n×n，使对方仍能分清每台。",
     description:
-      "差别越小，需要的格子越密。差异藏在哪里、有多大，决定了 n 的下限——先找出哪一对机器人最难区分。",
-    hint: "留意眼睛间距和头顶小球的尺寸——这些局部特征最先消失。",
+      "你的函数会拿到整组机器人图。差别越小，需要的格子越密；差异藏在哪里、有多大，决定了 n 的下限——先找出哪一对机器人最难区分，再让程序算出足够的分辨率。",
+    hint: "留意眼睛间距和头顶小球的尺寸——这些局部特征最先消失。把判断写进 choose_size(images)，不要手动填一个 n。",
     takeaway:
       "需要的分辨率取决于图库里最细小的差异特征：差异越小，格子就要越密才能保住它。没有脱离任务的“正确分辨率”。",
     probes: squareProbes([8, 12, 16, 20, 22, 24, 26, 28, 32]),
@@ -101,6 +105,7 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 800,
     guided: false,
+    requiresChooseSize: false,
     mission:
       "任务：把这组打孔印记牌发到接收端。牌面只在打孔位置和缺口上有区别——孔洞是最容易被格子抹平的特征。",
     description:
@@ -120,6 +125,7 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 240,
     guided: false,
+    requiresChooseSize: false,
     mission:
       "任务：把这组山脊标志发到接收端。差异全部在水平方向：凸起的左右位置。现在宽和高可以分开选——同样的格子总数，摆错方向照样认不出。",
     description:
@@ -151,6 +157,7 @@ export const IMAGE_SAMPLING_STAGES: SamplingStageDef[] = [
     requiredAccuracy: 1,
     cellBudget: 240,
     guided: false,
+    requiresChooseSize: false,
     mission:
       "任务：把这组立柱标记发到接收端。差异全部在垂直方向：成对细缝的上下位置。本关要求 高 > 宽——把采样密度花在对的方向上。",
     description:
