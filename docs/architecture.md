@@ -4,14 +4,14 @@
 
 仓库是一个 Vite 包和一个 Node API 进程。前端入口是 `src/main.tsx`，应用路由集中在
 `src/app/router.tsx`；课程 feature 有 `calculator`、`cpu`、`image-sampling`、
-`color-quantization`、`is-sim` 五个，另有跨课程的 `task-sheets`（任务单）功能。
+`color-quantization`、`is-sim`、`decoding` 六个，另有跨课程的 `task-sheets`（任务单）功能。
 
 ```text
 src/app
   ├─ 页面编排、认证入口和课程路由
   └─ 非课程页面（登录、资料、管理、班级看板）
 
-src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is-sim）
+src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is-sim / decoding）
   ├─ domain：关卡、判题协议与纯计算（前端与服务端共享契约）
   ├─ lesson：URL/课程状态、引导和公开用例
   └─ ui：画布、控制器、提示和提交界面

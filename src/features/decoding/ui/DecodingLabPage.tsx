@@ -407,7 +407,7 @@ export function DecodingLabPage() {
                   />
                 ) : (
                   <div className="decoder-console">
-                    <BytePanel payload={payload} />
+                    <BytePanel key={payload.kind} payload={payload} />
                     <DecodeEditor
                       code={source}
                       onCodeChange={(code) => dispatch({ type: "set-code", code })}
