@@ -2,7 +2,8 @@
 
 校内信息技术实验运行时：一个 Vite + React SPA，加一个极简 Node API。包含「实现ALU」
 （`calculator`）、「冯诺依曼数据通路」（`cpu`）、「空间采样」（`image-sampling`）、
-「颜色量化」（`color-quantization`）和「小型信息系统」（`is-sim`）五个实验。管理员可通过
+「颜色量化」（`color-quantization`）、「小型信息系统」（`is-sim`）和「解码侦探」
+（`decoding`）六个实验。管理员可通过
 `/admin/labs` 管理实验开放状态；隐藏后学生和教师无法访问，管理员仍可访问实验。
 另有任务单功能（模板 → 班级布置 → 学生作答 → 批改）。
 

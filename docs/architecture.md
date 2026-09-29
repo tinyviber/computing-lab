@@ -4,14 +4,14 @@
 
 仓库是一个 Vite 包和一个 Node API 进程。前端入口是 `src/main.tsx`，应用路由集中在
 `src/app/router.tsx`；课程 feature 有 `calculator`、`cpu`、`image-sampling`、
-`color-quantization`、`is-sim` 五个，另有跨课程的 `task-sheets`（任务单）功能。
+`color-quantization`、`is-sim`、`decoding` 六个，另有跨课程的 `task-sheets`（任务单）功能。
 
 ```text
 src/app
   ├─ 页面编排、认证入口和课程路由
   └─ 非课程页面（登录、资料、管理、班级看板）
 
-src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is-sim）
+src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is-sim / decoding）
   ├─ domain：关卡、判题协议与纯计算（前端与服务端共享契约）
   ├─ lesson：URL/课程状态、引导和公开用例
   └─ ui：画布、控制器、提示和提交界面
@@ -47,8 +47,8 @@ POST judge 跑隐藏用例并推进 `passedStages`。每个实验只提供 spec�
 
 ## 删除决策
 
-除当前保留的 `calculator`、`cpu`、`image-sampling`、`color-quantization` 和 `is-sim`
-五个实验外，其他旧实验的 feature 目录、路由、实验 API、专属资产、e2e/单测和 Slidev
+除当前保留的 `calculator`、`cpu`、`image-sampling`、`color-quantization`、`is-sim` 和
+`decoding` 六个实验外，其他旧实验的 feature 目录、路由、实验 API、专属资产、e2e/单测和 Slidev
 构建/编辑链路都已退役。数据库仍使用通用的 `lab_id` 字段，以便保留旧部署数据的可读性，
 但当前应用不会再读取或写入已删除实验的记录；本次没有做破坏性数据迁移。
 
