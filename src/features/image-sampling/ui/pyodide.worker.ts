@@ -135,9 +135,10 @@ async function runSize(
     }
     const out = pyodide.runPython("choose_size(images)", { globals });
     try {
-      return out.toJs() as unknown[];
+      const result = typeof out?.toJs === "function" ? out.toJs() : out;
+      return Array.isArray(result) ? result : [result];
     } finally {
-      out.destroy();
+      if (typeof out?.destroy === "function") out.destroy();
     }
   } finally {
     globals.destroy();
