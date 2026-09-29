@@ -9,17 +9,26 @@
 - Stages in `domain/stages.ts` (`DECODING_STAGES`, indices 1–6). Core 1–4:
   codes (字码→词), bits (8 位→句), bmp (按约定填空格排像素矩阵),
   files (三份文件按 meta 选解码器). Challenges 5 (bmp-script, R 通道隐写)
-  and 6 (bmp, 修坏解码器——带 ← 标注的三处错误) sit on `track:"challenge"`
-  rails anchored by `railAfter`; `unlockAfter` lists prerequisites.
+  and 6 (bmp, 修坏解码器——注释标出同事错写的版本，五处空各对一种错法)
+  sit on `track:"challenge"` rails anchored by `railAfter`; `unlockAfter`
+  lists prerequisites.
 - `kind` describes stage rules; `payload.kind` describes data ("bmp-script"
-  stage carries a "bmp" payload). Starter code uses `__(n)__` fill-in
-  blanks — running without replacing them is a Python syntax error.
-- Every bmp payload is the SAME fixed 8×8 cat (`catPixels()` in
-  domain/sprites.ts) — a recognizable target makes channel/row-order bugs
-  visible. The UI shows 目标图案 beside 解码结果 (`.pixel-compare`) and the
-  target pixels are never shipped in the payload (that IS the answer); the
-  client renders `catPixels()` directly. Stage-4 files keep random
-  `spritePixels(rng)`.
+  stage carries a "bmp" payload). Starter code is a `__(n)__` cloze template
+  (`domain/cloze.ts`): the UI renders it read-only with an inline text
+  input per blank (`ui/ClozeEditor.tsx`, `.cloze-code`/`.cloze-blank`),
+  fills live in `DecodingDraft.fills` via the `set-fill` action, and
+  `assembleCloze` rebuilds runnable Python; `run` blocks with a Chinese
+  message until `clozeComplete`. There is no free-form editor on this page.
+- Every bmp payload is the same cat GLYPH with a per-user seeded palette
+  (`catPixels(pick(rng, CAT_PALETTES))` in domain/sprites.ts) — a
+  recognizable target that still makes channel/row-order bugs visible, but
+  expected matrices can't be copied across users/stages. The UI shows
+  目标图案 beside 解码结果 (`.pixel-compare`) by decoding the payload bytes
+  with domain `decodeBmp`; target pixels are never shipped in the payload
+  (that IS the answer). Stage-4 files keep random `spritePixels(rng)`.
+- BMP stages read the pixel offset FROM the header (`data[__(1)__:]` blank
+  answer `data[10]`) — "the file describes how to read it" is exercised,
+  not just stated. `decodeBmp` reads offset/width/height from the header.
 
 ## Judging
 

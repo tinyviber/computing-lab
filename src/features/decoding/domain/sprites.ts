@@ -46,9 +46,11 @@ const ASCII_SAFE_PALETTES: readonly Palette[] = [
 ];
 
 /**
- * The fixed cat every BMP stage decodes. One recognizable target gives the
- * decode a concrete goal and makes channel-order and row-order bugs visible
- * at a glance — a wrong decoder can't accidentally look like a cat.
+ * The fixed cat glyph every BMP stage decodes. One recognizable shape gives
+ * the decode a concrete goal and makes channel-order and row-order bugs
+ * visible at a glance — a wrong decoder can't accidentally look like a cat.
+ * The palette is seeded per user: same cat, different colors, so the expected
+ * pixel matrix can't be copied from a neighbor.
  */
 const CAT_GLYPH: readonly string[] = [
   "..#..#..",
@@ -61,10 +63,18 @@ const CAT_GLYPH: readonly string[] = [
   "..#..#..",
 ];
 
-export function catPixels(): PixelMatrix {
-  const bg: Pixel = [255, 247, 237];
-  const ink: Pixel = [234, 88, 12];
-  return CAT_GLYPH.map((row) => [...row].map((ch) => [...(ch === "#" ? ink : bg)] as Pixel));
+export const CAT_PALETTES: readonly Palette[] = [
+  { bg: [255, 247, 237], ink: [234, 88, 12] },
+  { bg: [248, 250, 252], ink: [37, 99, 235] },
+  { bg: [240, 253, 244], ink: [22, 163, 74] },
+  { bg: [250, 245, 255], ink: [147, 51, 234] },
+  { bg: [255, 241, 242], ink: [225, 29, 72] },
+];
+
+export function catPixels(palette: Palette = CAT_PALETTES[0]): PixelMatrix {
+  return CAT_GLYPH.map((row) =>
+    [...row].map((ch) => [...(ch === "#" ? palette.ink : palette.bg)] as Pixel),
+  );
 }
 
 export function spritePixels(

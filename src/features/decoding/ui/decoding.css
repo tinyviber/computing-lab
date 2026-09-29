@@ -250,11 +250,6 @@
   color: var(--color-accent, #5b48c9);
 }
 
-.byte-stream[data-rep="bin"] .byte-chip {
-  min-width: 6.4em;
-  letter-spacing: 0.06em;
-}
-
 .byte-legend {
   display: flex;
   align-items: center;
@@ -707,4 +702,51 @@
 .judge-result li span {
   color: var(--color-text-3, #6b7280);
   font-size: var(--font-size-xs);
+}
+
+/* ---- cloze decoder editor ---- */
+
+.cloze-code {
+  margin: 0;
+  padding: var(--space-2);
+  max-height: 300px;
+  overflow: auto;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-alt, #f3f4f8);
+  color: var(--color-text, #1f2430);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.cloze-blank {
+  appearance: none;
+  border: none;
+  border-bottom: 1.5px solid var(--color-accent, #5b48c9);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-accent, #5b48c9);
+  font: inherit;
+  line-height: inherit;
+  letter-spacing: inherit;
+  padding: 0 2px;
+  margin: 0 1px;
+  text-align: center;
+}
+
+.cloze-blank:focus {
+  outline: none;
+  border-bottom-color: var(--color-accent-strong, #4a38b0);
+  background: var(--color-accent-soft, #e8e4fb);
+}
+
+.file-verdict-hint {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-3, #6b7280);
+}
+
+.judge-next {
+  margin-top: var(--space-2);
 }

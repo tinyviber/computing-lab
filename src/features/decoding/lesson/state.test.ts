@@ -79,6 +79,16 @@ describe("decoding lesson state", () => {
     ).toBe(1);
   });
 
+  it("stores cloze fills in the draft", () => {
+    let state = loaded();
+    state = transitionDecodingLesson(state, {
+      type: "set-fill",
+      blankId: "1",
+      value: "chr(code)",
+    });
+    expect(draftOf(state).fills).toEqual({ "1": "chr(code)" });
+  });
+
   it("stores per-file verdicts in the draft", () => {
     let state = loaded([1, 2, 3]);
     state = transitionDecodingLesson(state, { type: "select-stage", stageIndex: 4 });
@@ -109,6 +119,7 @@ describe("decoding lesson state", () => {
   it("sanitizes a restored draft at the boundary", () => {
     expect(sanitizeDraft(null)).toEqual({
       code: "",
+      fills: {},
       conceptAnswers: {},
       verdicts: [],
     });
@@ -122,6 +133,13 @@ describe("decoding lesson state", () => {
     expect(draft.conceptAnswers).toEqual({ a: 0, d: 2 });
     expect(draft.verdicts[0]).toEqual({ decoder: "text", text: "hi" });
     expect(draft.verdicts.slice(1)).toEqual([null, null, null]);
+  });
+
+  it("sanitizes cloze fills at the boundary", () => {
+    const draft = sanitizeDraft({
+      fills: { "1": "  ok  ", "this-id-is-way-too-long": "x", bad: 7 },
+    });
+    expect(draft.fills).toEqual({ "1": "  ok  ", "this-id-is-way-t": "x" });
   });
 });
 

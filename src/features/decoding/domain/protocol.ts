@@ -24,6 +24,8 @@ export type LabPayload =
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type DecodingDraft = {
   code: string;
+  /** Cloze stages: blankId → student's fill; assembled back into code at run/submit. */
+  fills: Record<string, string>;
   /** promptId → picked option index (verified server-side at judge time). */
   conceptAnswers: Record<string, number>;
   /** Stage 4: per-file decoder choice + the artifact that decoder produced. */

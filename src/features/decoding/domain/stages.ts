@@ -105,7 +105,8 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "bits",
     mission:
       "第二张密码纸上全是 0 和 1。发送方留言：还是同一张编码表，只是把每个数换成了二进制写法。",
-    description: "每 8 位是一个字节。int(s, 2) 可以把二进制字符串 s 转成十进制数。",
+    description:
+      "每 8 位是一个字节。比如 01001000 写成十进制是 72、对应字符 'H'；int(s, 2) 可以把二进制字符串 s 转成十进制数。",
     task: "提交 decode(data) 还原出的整句话。data 是一组 8 位 0/1 字符串。",
     judgeNote: "判定比对你提交的句子与本关密文；概念题也必须全部答对。",
     takeaway:
@@ -171,13 +172,16 @@ export const DECODING_STAGES: DecodingStageDef[] = [
       "收到一个没有扩展名的文件：一长串字节，来源不明。前两个字节按字符表一读是 'BM'——这是张 BMP 图，目标就是右边那只猫。",
     description: "不用从零写：把格式约定逐条对到代码里的空上。",
     task: "补全 decode(data) 里的空，提交它还原出的像素矩阵。",
-    hint: "格式约定：前 54 字节是文件头；像素数据从 data[54] 开始；每个像素 3 字节，按 B、G、R 排列；图像最下面一行存在最前面。Python 里翻转列表用 xs.reverse()。",
+    hint: "像素数据的起点不用背——它写在文件头里：data[10] 开始存着一个整数。约定本身（B、G、R 顺序、最下面一行在最前面）都写在代码注释里，逐条对上去；翻转列表用 xs.reverse()。",
     judgeNote: "判定比对整张像素矩阵。",
     takeaway: "你一个字节都没改：数据没变，换的是解释规则——不同的 decoder 恢复出不同的信息。",
     example: {
       input: [
         "data = [0] * 54",
         "data[0:2] = [66, 77]  # 'BM'",
+        "data[10] = 54         # 文件头写着: 像素数据从第 54 字节开始",
+        "data[18] = 8          # 宽 = 8",
+        "data[22] = 8          # 高 = 8",
         "data += [",
         "    channel",
         "    for y in reversed(range(8))",
@@ -191,7 +195,7 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     starterCode: `def decode(data):
     # data: 一个 BMP 文件的全部字节
     # 已确认的格式约定:
-    #   前 54 字节是文件头, 像素数据从 data[54] 开始
+    #   像素数据的起点写在文件头里 —— data[10] 开始的字节存着一个整数
     #   每个像素 3 字节, 顺序是 B, G, R
     #   宽 8 高 8, 图像最下面一行存在最前面
     width = 8
@@ -345,15 +349,18 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     kind: "bmp",
     mission:
       "同事留下的 decoder 信誓旦旦能解 BMP——跑出来的却是一团乱。代码就在编辑器里，逐行找出它哪里读错了。",
-    description: "和第 3 关确认的格式约定逐行对照——带 ← 的行都值得怀疑。",
+    description: "和第 3 关确认的格式约定逐行对照——注释里是同事写错的版本。",
     task: "修好 decode(data)，提交它跑出的像素矩阵——还原出的应该还是那只猫。",
-    hint: "已知有 3 处错误：一个在像素数据的起点、一个在通道顺序、一个在行序。",
-    judgeNote: "判定比对整张像素矩阵——三处错误缺一不可。",
+    hint: "同事的错法各不相同：起点写死了、行列对调了、读错了数组、通道顺序记反了、行序漏了——每个空都对回第 3 关的约定。",
+    judgeNote: "判定比对整张像素矩阵——每个空都不能错。",
     takeaway: "decoder 里每个常量都是一条约定——写错任何一条，同一份数据就变成乱码。",
     example: {
       input: [
         "data = [0] * 54",
         "data[0:2] = [66, 77]  # 'BM'",
+        "data[10] = 54         # 文件头写着: 像素数据从第 54 字节开始",
+        "data[18] = 8          # 宽 = 8",
+        "data[22] = 8          # 高 = 8",
         "data += [",
         "    channel",
         "    for y in reversed(range(8))",
@@ -366,20 +373,22 @@ export const DECODING_STAGES: DecodingStageDef[] = [
     },
     starterCode: `def decode(data):
     # data: 一个 BMP 文件的全部字节
+    # 同事的版本解出来是乱图 —— 注释里是他写错的写法, 把空填对
     width = 8
     height = 8
-    body = data[45:]          # ← 像素数据真的是从这里开始的吗?
+    body = data[__(1)__:]      # 同事写的是 45
     pixels = []
     for y in range(height):
         row = []
         for x in range(width):
-            i = (y * width + x) * 3
-            r = body[i]       # ← 三个字节按什么顺序读才是 R, G, B?
+            i = (__(2)__) * 3  # 同事写的是 (x * height + y) —— 行列对调了
+            b = __(3)__        # 同事写的是 data[i] —— 读进文件头里了
             g = body[i + 1]
-            b = body[i + 2]
+            r = __(4)__        # 同事写的是 body[i] —— 他记成了 R, G, B
             row.append([r, g, b])
         pixels.append(row)
-    return pixels             # ← 行序处理了吗?
+    __(5)__                    # 同事什么都没写 —— 想想行序约定
+    return pixels
 `,
   },
 ];

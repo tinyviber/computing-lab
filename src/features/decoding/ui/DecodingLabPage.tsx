@@ -10,11 +10,6 @@
  */
 
 import { useParams, useSearch } from "@tanstack/react-router";
-import CodeMirror from "@uiw/react-codemirror";
-import { python } from "@codemirror/lang-python";
-import { indentUnit } from "@codemirror/language";
-import { keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
@@ -24,16 +19,21 @@ import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
-import type { PixelMatrix } from "../domain/bmp.ts";
+import { decodeBmp, type PixelMatrix } from "../domain/bmp.ts";
+import { assembleCloze, clozeComplete, hasCloze } from "../domain/cloze.ts";
 import { CHAR_TABLE } from "../domain/encoding.ts";
-import { catPixels } from "../domain/sprites.ts";
 import type {
   DecodingDraft,
   DecodingJudgeResult,
   DecodingSubmission,
   LabPayload,
 } from "../domain/protocol.ts";
-import { decodingStageUnlocked, type DecodingStageDef } from "../domain/stages.ts";
+import {
+  decodingStageUnlocked,
+  getDecodingStage,
+  nextDecodingStage,
+  type DecodingStageDef,
+} from "../domain/stages.ts";
 import { sanitizePixels, sanitizeText } from "../domain/verify.ts";
 import {
   allPromptsAnswered,
@@ -46,17 +46,13 @@ import {
   type DecodingLessonAction,
 } from "../lesson/state.ts";
 import { BytePanel } from "./BytePanel.tsx";
+import { ClozeEditor } from "./ClozeEditor.tsx";
 import { ConceptPanel } from "./ConceptPanel.tsx";
 import { DecodingStageRail } from "./DecodingStageRail.tsx";
 import { FilesPanel } from "./FilesPanel.tsx";
 import { PixelCanvas } from "./PixelCanvas.tsx";
 import { BMP_HELPER, runDecode, warmPyodide } from "./pyodideRunner.ts";
 import "./decoding.css";
-
-const EDITOR_EXTENSIONS = [python(), indentUnit.of("    "), keymap.of([indentWithTab])];
-
-/** Every BMP stage decodes the same fixed cat — the visible decode target. */
-const TARGET_PIXELS = catPixels();
 
 /** The value the student's `decode(data)` receives for this stage. */
 function runData(payload: LabPayload): unknown {
@@ -95,15 +91,17 @@ function StageBrief({ stage, passed }: { stage: DecodingStageDef; passed: boolea
 function DecodeEditor({
   stage,
   code,
+  fills,
   running,
-  onCodeChange,
+  onFill,
   onRun,
   onPrintExample,
 }: {
   stage: DecodingStageDef;
   code: string;
+  fills: Record<string, string>;
   running: boolean;
-  onCodeChange: (code: string) => void;
+  onFill: (blankId: string, value: string) => void;
   onRun: () => void;
   onPrintExample: () => void;
 }) {
@@ -113,7 +111,7 @@ function DecodeEditor({
         <h3>你的解码器</h3>
       </div>
       <p className="decoding-panel-note decode-editor-note">
-        写一个 <code>decode(data)</code>，返回对原始数据的解码结果。
+        把每个空填上，你的 <code>decode(data)</code> 就写好了。
       </p>
       {stage.example ? (
         <aside aria-label="样例输入" className="decode-example">
@@ -137,22 +135,7 @@ function DecodeEditor({
           </pre>
         </aside>
       ) : null}
-      <CodeMirror
-        aria-label="decode 代码"
-        basicSetup={{
-          lineNumbers: false,
-          foldGutter: false,
-          highlightActiveLine: false,
-          highlightActiveLineGutter: false,
-          autocompletion: false,
-        }}
-        className="code-editor"
-        extensions={EDITOR_EXTENSIONS}
-        height="220px"
-        onChange={onCodeChange}
-        theme="dark"
-        value={code}
-      />
+      <ClozeEditor code={code} fills={fills} onFill={onFill} />
       <div className="guided-actions">
         <button
           className="button button-secondary"
@@ -277,10 +260,18 @@ export function DecodingLabPage() {
     }
   }, [projectLoaded]);
 
-  const source = draft.code.trim() ? draft.code : (stage?.starterCode ?? "");
+  const source = stage?.starterCode
+    ? hasCloze(stage.starterCode)
+      ? assembleCloze(stage.starterCode, draft.fills)
+      : draft.code.trim() || stage.starterCode
+    : "";
 
   const run = useCallback(async () => {
     if (!stage || !payload || payload.kind === "files") return;
+    if (hasCloze(stage.starterCode) && !clozeComplete(stage.starterCode, draft.fills)) {
+      setRunError("还有空没填上——每个空都要填。");
+      return;
+    }
     setRunning(true);
     setRunError(null);
     setLastRun(null);
@@ -384,7 +375,7 @@ export function DecodingLabPage() {
       const submission: DecodingSubmission = {
         stageIndex: stage.index,
         artifact,
-        code: draft.code || undefined,
+        code: hasCloze(stage.starterCode) ? source : draft.code || undefined,
         conceptAnswers:
           stage.prompts && stage.prompts.length > 0 ? draft.conceptAnswers : undefined,
       };
@@ -462,8 +453,9 @@ export function DecodingLabPage() {
                   <div className="decoder-console">
                     <BytePanel key={payload.kind} payload={payload} />
                     <DecodeEditor
-                      code={source}
-                      onCodeChange={(code) => dispatch({ type: "set-code", code })}
+                      code={stage.starterCode}
+                      fills={draft.fills}
+                      onFill={(blankId, value) => dispatch({ type: "set-fill", blankId, value })}
                       onPrintExample={() => void printExampleData()}
                       onRun={() => void run()}
                       running={running}
@@ -514,10 +506,10 @@ export function DecodingLabPage() {
                       {lastRun && "text" in lastRun ? (
                         <TextResult stage={stage} text={lastRun.text} />
                       ) : null}
-                      {stage.kind === "bmp" ? (
+                      {stage.kind === "bmp" && payload.kind === "bmp" ? (
                         <div className="pixel-compare">
                           <figure>
-                            <PixelCanvas ariaLabel="目标图案" pixels={TARGET_PIXELS} />
+                            <PixelCanvas ariaLabel="目标图案" pixels={decodeBmp(payload.bytes)} />
                             <figcaption>目标图案</figcaption>
                           </figure>
                           <figure>
@@ -572,6 +564,20 @@ export function DecodingLabPage() {
                     className={`judge-result${state.judgeOutcome.passed ? " is-passed" : ""}`}
                   >
                     <h3>{state.judgeOutcome.passed ? "判定通过 ✓" : "判定未通过"}</h3>
+                    {state.judgeOutcome.passed
+                      ? (() => {
+                          const next = nextDecodingStage(state.passedStages);
+                          return getDecodingStage(next) ? (
+                            <button
+                              className="button button-primary judge-next"
+                              onClick={() => dispatch({ type: "select-stage", stageIndex: next })}
+                              type="button"
+                            >
+                              前往下一关 →
+                            </button>
+                          ) : null;
+                        })()
+                      : null}
                     <ol>
                       {state.judgeOutcome.parts.map((part) => (
                         <li className={part.ok ? "is-ok" : "is-bad"} key={part.id}>

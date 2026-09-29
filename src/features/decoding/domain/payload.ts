@@ -16,7 +16,7 @@ import {
   WORDS,
 } from "./encoding.ts";
 import { makeRng } from "./rng.ts";
-import { catPixels, SPRITE_SIZE, spritePixels } from "./sprites.ts";
+import { CAT_PALETTES, catPixels, SPRITE_SIZE, spritePixels } from "./sprites.ts";
 import type { LabPayload } from "./protocol.ts";
 import type { DecodingStageDef } from "./stages.ts";
 import type { Expected } from "./verify.ts";
@@ -53,12 +53,12 @@ export function extractChannelMessage(pixels: PixelMatrix): string {
   return decodeText(codes);
 }
 
-/** BMP stages all decode the same fixed cat — see sprites.ts for why. */
-function makeBmpPayload(): {
+/** BMP stages decode the same cat glyph with a per-user palette — see sprites.ts. */
+function makeBmpPayload(rng: () => number): {
   payload: LabPayload;
   expected: { pixels: PixelMatrix };
 } {
-  const pixels = catPixels();
+  const pixels = catPixels(pick(rng, CAT_PALETTES));
   return {
     payload: {
       kind: "bmp",
@@ -88,13 +88,13 @@ export function generatePayload(stage: DecodingStageDef, seed: number): Generate
       };
     }
     case "bmp": {
-      return makeBmpPayload();
+      return makeBmpPayload(rng);
     }
     case "bmp-script": {
       // X1: the same cat as stage 3 (the mission says so), plus a message
       // written into the R channel of every other pixel, zero-terminated.
       const message = pick(rng, HIDDEN_MESSAGES);
-      const pixels = catPixels();
+      const pixels = catPixels(pick(rng, CAT_PALETTES));
       const flat = pixels.flat();
       const codes = encodeText(message);
       for (let slot = 0; slot < flat.length / 2; slot += 1) {

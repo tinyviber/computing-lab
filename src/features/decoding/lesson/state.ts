@@ -44,6 +44,7 @@ export type DecodingLessonAction =
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "set-code"; code: string }
+  | { type: "set-fill"; blankId: string; value: string }
   | { type: "answer-prompt"; promptId: string; option: number }
   | {
       type: "set-verdict";
@@ -58,7 +59,7 @@ export type DecodingLessonAction =
   | { type: "message"; text: string };
 
 export function emptyDraft(): DecodingDraft {
-  return { code: "", conceptAnswers: {}, verdicts: [] };
+  return { code: "", fills: {}, conceptAnswers: {}, verdicts: [] };
 }
 
 export function draftOf(state: DecodingLessonState, stageIndex = state.stageIndex): DecodingDraft {
@@ -144,6 +145,14 @@ export function transitionDecodingLesson(
     case "set-code":
       return touchDraft(state, { ...draftOf(state), code: action.code });
 
+    case "set-fill": {
+      const draft = draftOf(state);
+      return touchDraft(state, {
+        ...draft,
+        fills: { ...draft.fills, [action.blankId]: action.value },
+      });
+    }
+
     case "answer-prompt": {
       const draft = draftOf(state);
       const stage = stageOf(state);
@@ -188,11 +197,18 @@ export function transitionDecodingLesson(
 /** Bound a restored draft at the domain edge; junk fields drop to defaults. */
 export function sanitizeDraft(raw: unknown): DecodingDraft {
   if (!raw || typeof raw !== "object") return emptyDraft();
-  const { code, conceptAnswers, verdicts } = raw as {
+  const { code, fills, conceptAnswers, verdicts } = raw as {
     code?: unknown;
+    fills?: unknown;
     conceptAnswers?: unknown;
     verdicts?: unknown;
   };
+  const fillMap: Record<string, string> = {};
+  if (fills && typeof fills === "object") {
+    for (const [key, value] of Object.entries(fills as Record<string, unknown>).slice(0, 32)) {
+      if (typeof value === "string") fillMap[key.slice(0, 16)] = value.slice(0, 300);
+    }
+  }
   const answers: Record<string, number> = {};
   if (conceptAnswers && typeof conceptAnswers === "object") {
     for (const [key, value] of Object.entries(conceptAnswers as Record<string, unknown>)) {
@@ -225,6 +241,7 @@ export function sanitizeDraft(raw: unknown): DecodingDraft {
   }
   return {
     code: typeof code === "string" ? code.slice(0, 12000) : "",
+    fills: fillMap,
     conceptAnswers: answers,
     verdicts: verdictList,
   };

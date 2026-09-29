@@ -194,6 +194,9 @@ export function FilesPanel(props: {
                   一张图像
                 </label>
                 {verdict ? <span className="file-verdict-done">已记下判定 ✓</span> : null}
+                {run.text === undefined || !run.pixels ? (
+                  <span className="file-verdict-hint">先点对应的「解码」跑一遍才能选</span>
+                ) : null}
               </div>
             </li>
           );
