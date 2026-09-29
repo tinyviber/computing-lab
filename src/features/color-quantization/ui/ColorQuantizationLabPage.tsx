@@ -167,7 +167,7 @@ export function ColorQuantizationLabPage() {
         topbar={<SaveIndicator status={state.saveStatus} />}
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "颜色量化",
+          title: stage?.title ?? "颜色量化",
         }}
       >
         <div className="page-content quant-layout">

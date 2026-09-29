@@ -73,6 +73,26 @@ describe("sampling lesson state", () => {
     expect(state.stageIndex).toBe(1);
     expect(state.drafts[2]).toEqual({ width: 24, height: 24, code: "x" });
   });
+
+  it("editing choose_size invalidates a stage 2 resolution", () => {
+    let state = transitionSamplingLesson(base(), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [1],
+      drafts: { 2: { width: 24, height: 24, code: "return 24" } },
+    });
+    state = transitionSamplingLesson(state, { type: "select-stage", stageIndex: 2 });
+    state = transitionSamplingLesson(state, {
+      type: "set-code",
+      code: "def choose_size(images):\n    return 28",
+    });
+    expect(state.drafts[2]).toEqual({
+      width: null,
+      height: null,
+      code: "def choose_size(images):\n    return 28",
+    });
+    expect(draftResolution(state)).toBeNull();
+  });
 });
 
 describe("sanitizeDraft", () => {

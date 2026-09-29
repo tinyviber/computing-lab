@@ -109,4 +109,27 @@ describe("image-sampling routes", () => {
     expect(outcome.passed).toBe(true);
     expect(outcome.accuracy).toBe(1);
   });
+
+  it("requires choose_size code when judging stage 2", async () => {
+    const { app, classId, studentId, cookieFor, db } = await setup();
+    await app.fetch(
+      new Request(url(classId, "/project"), { headers: { cookie: cookieFor(studentId) } }),
+    );
+    const project = db
+      .prepare("SELECT id FROM student_projects WHERE user_id = ? AND class_id = ?")
+      .get(studentId, classId) as { id: string };
+    db.prepare("UPDATE student_projects SET passed_stages = ?, current_stage = 2 WHERE id = ?").run(
+      JSON.stringify([1]),
+      project.id,
+    );
+    const res = await app.fetch(
+      new Request(url(classId, "/judge"), {
+        method: "POST",
+        headers: { cookie: cookieFor(studentId), "content-type": "application/json" },
+        body: JSON.stringify({ stageIndex: 2, width: 24, height: 24 }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "choose-size-required" });
+  });
 });

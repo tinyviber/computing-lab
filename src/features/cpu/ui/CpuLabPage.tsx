@@ -312,9 +312,7 @@ export function CpuLabPage() {
         topbar={<SaveIndicator status={state.saveStatus} />}
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage
-            ? `${String(stage.index).padStart(2, "0")} ${stage.title}`
-            : "冯诺依曼数据通路",
+          title: stage?.title ?? "冯诺依曼数据通路",
         }}
       >
         <div className="page-content cpu-layout">

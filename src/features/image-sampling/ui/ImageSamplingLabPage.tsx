@@ -34,20 +34,25 @@ import { RecognitionPanel } from "./RecognitionPanel.tsx";
 import "./imageSampling.css";
 
 function StageBrief({ stage }: { stage: SamplingStageDef }) {
+  const resolutionSource = stage.requiresChooseSize ? "choose_size(images) 算出的" : "你选的";
+  const axisNote =
+    stage.mode === "square"
+      ? "本关只允许正方形（宽=高）。"
+      : stage.mode === "tall"
+        ? "本关要求高度大于宽度（高 > 宽）。"
+        : "本关宽和高可以不同。";
   return (
     <section className="stage-brief">
       <p className="stage-mission">{stage.mission}</p>
       <p>{stage.description}</p>
       <p className="submit-note">
-        判定方式：你选的 {stage.mode === "square" ? "n×n" : "宽×高"}
+        判定方式：{resolutionSource} {stage.mode === "square" ? "n×n" : "宽×高"}
         会套用到完整图谱上（包括你没见过的隐藏成员）。接收端凭格子图认人——≥
         {Math.round(stage.requiredAccuracy * 100)}% 的成员仍能被认出才算通过，且格子数 ≤
         {stage.cellBudget}。
-        {stage.mode === "square"
-          ? "本关只允许正方形（宽=高）。"
-          : stage.mode === "tall"
-            ? "本关要求高度大于宽度（高 > 宽）。"
-            : "本关宽和高可以不同。"}
+        {stage.requiresChooseSize
+          ? `本关必须先写并运行 choose_size(images)，不能手动指定分辨率。${axisNote}`
+          : axisNote}
       </p>
       <details className="stage-details">
         <summary>提示</summary>
@@ -128,8 +133,17 @@ export function ImageSamplingLabPage() {
   const onSubmit = useCallback(async () => {
     if (!classId || !stage) return;
     const resolution = draftResolution(state, stage);
+    if (stage.requiresChooseSize && !draft.code.trim()) {
+      dispatch({ type: "message", text: "本关必须先填写并运行 choose_size(images)。" });
+      return;
+    }
     if (!resolution) {
-      dispatch({ type: "message", text: "先选一个分辨率再提交。" });
+      dispatch({
+        type: "message",
+        text: stage.requiresChooseSize
+          ? "先运行 choose_size(images) 生成分辨率。"
+          : "先选一个分辨率再提交。",
+      });
       return;
     }
     setSubmitting(true);
@@ -169,7 +183,7 @@ export function ImageSamplingLabPage() {
         topbar={<SaveIndicator status={state.saveStatus} />}
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "空间采样",
+          title: stage?.title ?? "空间采样",
         }}
       >
         <div className="page-content sampling-layout">
@@ -206,6 +220,7 @@ export function ImageSamplingLabPage() {
                   onCellPick={(cell) => dispatch({ type: "select-cell", cell })}
                   onResolution={(w, h) => dispatch({ type: "set-resolution", width: w, height: h })}
                   ruleCode={draftOf(state, 1).code}
+                  resolutionReady={resolution != null}
                   selectedCell={state.selectedCell}
                   stage={stage}
                   width={previewWidth}
@@ -233,7 +248,9 @@ export function ImageSamplingLabPage() {
                 <div className="submit-row">
                   <button
                     className="button button-primary"
-                    disabled={submitting || !resolution}
+                    disabled={
+                      submitting || !resolution || (stage.requiresChooseSize && !draft.code.trim())
+                    }
                     onClick={() => void onSubmit()}
                     type="button"
                   >
@@ -241,8 +258,12 @@ export function ImageSamplingLabPage() {
                   </button>
                   <span className="submit-note">
                     {resolution
-                      ? `将以 ${resolution.width}×${resolution.height}（${resolution.width * resolution.height} 格）把整组信号发给接收端判定。`
-                      : "先选一个分辨率。"}
+                      ? stage.requiresChooseSize && !draft.code.trim()
+                        ? "先填写并运行 choose_size(images)。"
+                        : `将以 ${resolution.width}×${resolution.height}（${resolution.width * resolution.height} 格）把整组信号发给接收端判定。`
+                      : stage.requiresChooseSize
+                        ? "先运行 choose_size(images) 生成分辨率。"
+                        : "先选一个分辨率。"}
                   </span>
                 </div>
 

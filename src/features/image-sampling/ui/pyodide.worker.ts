@@ -88,7 +88,10 @@ const HELPERS_PREAMBLE = `def cell_value(region):
         for v in row:
             total += 1
             ink += v
-    return 1 if ink * 2 >= total else 0
+    if ink * 2 >= total:
+        return 1
+    else:
+        return 0
 
 def downsample(image, w, h):
     H = len(image)
@@ -132,9 +135,10 @@ async function runSize(
     }
     const out = pyodide.runPython("choose_size(images)", { globals });
     try {
-      return out.toJs() as unknown[];
+      const result = typeof out?.toJs === "function" ? out.toJs() : out;
+      return Array.isArray(result) ? result : [result];
     } finally {
-      out.destroy();
+      if (typeof out?.destroy === "function") out.destroy();
     }
   } finally {
     globals.destroy();

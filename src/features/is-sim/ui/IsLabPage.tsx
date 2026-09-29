@@ -202,7 +202,7 @@ export function IsLabPage() {
         topbar={<SaveIndicator status={state.saveStatus} />}
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "小型信息系统",
+          title: stage?.title ?? "小型信息系统",
         }}
       >
         <div className="page-content is-layout">

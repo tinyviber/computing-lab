@@ -15,8 +15,6 @@ import { publicGalleryFor } from "../domain/fixtures.ts";
 import { BitmapCanvas } from "./BitmapCanvas.tsx";
 import { runCellValue } from "./pyodideRunner.ts";
 
-const BLANK_INK_DEFAULT = "v";
-
 /** Assemble runnable Python from the two blanks. */
 function assemble(inkExpr: string, condExpr: string): string {
   return `def cell_value(region):
@@ -27,14 +25,17 @@ function assemble(inkExpr: string, condExpr: string): string {
         for v in row:
             total += 1
             ink += ${inkExpr}
-    return 1 if ${condExpr} else 0
+    if ${condExpr}:
+        return 1
+    else:
+        return 0
 `;
 }
 
 /** Recover the two blanks from a previously saved source, if it still fits. */
 function parseBlanks(code: string): [string, string] | null {
   const ink = /ink\s*\+=\s*(.+)/.exec(code);
-  const cond = /return\s+1\s+if\s+(.+?)\s+else\s+0/.exec(code);
+  const cond = /^\s*if\s+(.+?):\s*$/m.exec(code) ?? /return\s+1\s+if\s+(.+?)\s+else\s+0/.exec(code);
   return ink && cond ? [ink[1].trim(), cond[1].trim()] : null;
 }
 
@@ -67,7 +68,7 @@ export function GuidedCellTask({
 }) {
   const { regions, expected } = useMemo(buildRegions, []);
   const initial = useMemo(() => parseBlanks(code), []); // mount-time only
-  const [blankInk, setBlankInk] = useState(initial?.[0] ?? BLANK_INK_DEFAULT);
+  const [blankInk, setBlankInk] = useState(initial?.[0] ?? "");
   const [blankCond, setBlankCond] = useState(initial?.[1] ?? "");
   const [guesses, setGuesses] = useState<(0 | 1 | null)[]>(() => regions.map(() => null));
   const [rows, setRows] = useState<CheckRow[] | null>(null);
@@ -215,23 +216,24 @@ export function GuidedCellTask({
               aria-label="空 1：ink 累加什么"
               className="code-blank"
               onChange={(event) => updateBlank("ink", event.target.value)}
-              placeholder="v"
               size={Math.max(4, blankInk.length + 1)}
               spellCheck={false}
               value={blankInk}
             />
             {"\n"}
-            {"    return 1 if "}
+            {"    if "}
             <input
               aria-label="空 2：什么条件下这个格子是 1"
               className="code-blank is-wide"
               onChange={(event) => updateBlank("cond", event.target.value)}
-              placeholder="ink * 2 >= total"
               size={Math.max(14, blankCond.length + 1)}
               spellCheck={false}
               value={blankCond}
             />
-            {" else 0\n"}
+            {":\n"}
+            {"        return 1\n"}
+            {"    else:\n"}
+            {"        return 0\n"}
           </code>
         </pre>
       </div>

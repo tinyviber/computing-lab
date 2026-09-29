@@ -82,6 +82,12 @@ describe("image-sampling judge", () => {
     expect(outcome).toEqual({ error: "square-resolution-required", status: 400 });
   });
 
+  it("requires choose_size source on stage 2", () => {
+    const { db, project } = setupProject([1]);
+    const outcome = judgeImageSubmission(db, project, 2, { width: 24, height: 24 });
+    expect(outcome).toEqual({ error: "choose-size-required", status: 400 });
+  });
+
   it("enforces stage order: stage 3 locked until 2 passes", () => {
     const { db, project } = setupProject([1]);
     const outcome = judgeImageSubmission(db, project, 3, { width: 24, height: 24 });
