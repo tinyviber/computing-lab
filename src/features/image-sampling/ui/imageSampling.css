@@ -1,11 +1,5 @@
 /* Image-sampling lab — feature-local styles. */
 
-.sampling-layout {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
 .sampling-workspace {
   display: flex;
   flex-direction: column;
@@ -496,10 +490,6 @@
 }
 
 @media (max-width: 960px) {
-  .sampling-layout {
-    grid-template-columns: 1fr;
-  }
-
   .explorer-columns {
     grid-template-columns: 1fr;
   }

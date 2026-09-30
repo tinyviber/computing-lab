@@ -24,13 +24,6 @@
   --space-5: 20px;
 }
 
-.decoding-layout {
-  display: grid;
-  grid-template-columns: 220px minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-}
-
 .decoding-workspace {
   display: flex;
   flex-direction: column;
@@ -110,10 +103,6 @@
 }
 
 @media (max-width: 1080px) {
-  .decoding-layout {
-    grid-template-columns: 1fr;
-  }
-
   .decoder-console {
     grid-template-columns: 1fr;
   }
@@ -234,7 +223,7 @@
 
 .decode-example pre,
 .decode-example-output pre {
-  max-height: 180px;
+  max-height: min(36dvh, 320px);
   overflow: auto;
   margin: 0;
   padding: var(--space-2);
@@ -925,6 +914,12 @@
 }
 
 /* ---- cloze decoder editor ---- */
+
+/* The student's decoder gets viewport-relative room — the classroom complaint
+   was scrolling to read code; the sample generator aside keeps the small cap. */
+.decode-editor > .cloze-code {
+  max-height: min(56dvh, 560px);
+}
 
 .cloze-code {
   margin: 0;

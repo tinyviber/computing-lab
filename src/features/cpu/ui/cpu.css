@@ -1,11 +1,5 @@
 /* CPU lab — feature-local styles on top of the shared design tokens. */
 
-.cpu-layout {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
 .cpu-workspace {
   display: flex;
   flex-direction: column;
@@ -787,10 +781,6 @@
 }
 
 @media (max-width: 900px) {
-  .cpu-layout {
-    grid-template-columns: 1fr;
-  }
-
   .cpu-viz-grid {
     grid-template-columns: 1fr;
   }

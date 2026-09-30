@@ -35,17 +35,12 @@
 }
 
 .calculator-layout {
-  display: grid;
   flex: 1;
-  grid-template-columns: 232px minmax(0, 1fr);
-  align-items: start;
   padding: 0 var(--page-gutter);
 }
 
 /* Stage progression rail */
 .stage-rail {
-  position: sticky;
-  top: 0;
   display: flex;
   flex-direction: column;
   gap: 18px;
@@ -1464,12 +1459,7 @@ path.wire.coach-focus {
 }
 
 @media (max-width: 900px) {
-  .calculator-layout {
-    grid-template-columns: 1fr;
-  }
-
   .stage-rail {
-    position: static;
     border-right: 0;
     border-bottom: 1px solid var(--border);
   }
