@@ -28,7 +28,7 @@ const payload = {
       visibleClassIds: ["c1"],
       classes: [
         { classId: "c1", adminAllowed: true, teacherOpen: true, open: true },
-        { classId: "c2", adminAllowed: false, teacherOpen: true, open: false },
+        { classId: "c2", adminAllowed: false, teacherOpen: false, open: false },
       ],
     },
   ],
@@ -85,11 +85,20 @@ describe("TeacherLabsPage", () => {
     await waitFor(() => expect(calc.getByText("1 个班开放")).toBeInTheDocument());
     expect(calc.getByRole("checkbox", { name: "二班" })).not.toBeChecked();
 
-    // A class outside the admin scope is blocked — the teacher cannot
-    // reopen it for students.
+    // A class outside the admin scope starts unchecked but stays
+    // changeable — the teacher can open it to their own students anyway.
     const cpu = labRow("冯诺依曼数据通路");
     expect(cpu.getByText("1 个班开放")).toBeInTheDocument();
     expect(cpu.getByRole("checkbox", { name: "一班" })).toBeChecked();
-    expect(cpu.getByRole("checkbox", { name: "二班" })).toBeDisabled();
+    const outOfScope = cpu.getByRole("checkbox", { name: "二班" });
+    expect(outOfScope).toBeEnabled();
+    expect(outOfScope).not.toBeChecked();
+    await user.click(outOfScope);
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/teacher/labs/cpu/classes/c2/open",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ open: true }) }),
+      ),
+    );
   });
 });
