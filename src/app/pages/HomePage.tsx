@@ -207,9 +207,11 @@ function ClassroomHome() {
   useEffect(() => {
     if (!classId || isStaff || catalog === null) return;
     for (const lab of HOME_LABS) {
-      if (lab.stages === null || entryOf(lab.id)?.visible === false) continue;
+      const entry = entryOf(lab.id);
+      if (lab.stages === null || entry?.visible === false) continue;
+      const projectClassId = entry?.visibleClassIds?.[0] ?? classId;
       void api
-        .get<ProjectSummary>(`/api/classes/${classId}/labs/${lab.id}/project`)
+        .get<ProjectSummary>(`/api/classes/${projectClassId}/labs/${lab.id}/project`)
         .then((project) => setProjects((current) => ({ ...current, [lab.id]: project })))
         .catch(() => setProjects((current) => ({ ...current, [lab.id]: null })));
     }

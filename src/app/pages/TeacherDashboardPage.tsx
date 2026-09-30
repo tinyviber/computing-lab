@@ -119,12 +119,12 @@ export function TeacherDashboardPage() {
   const kind: DashKind = search.kind === "task" ? "task" : "lab";
   const catalog = useLabCatalog(status === "authenticated");
   // The dashboard reports one class's progress, so only labs open to THIS
-  // class stay in the picker; admins keep full access.
+  // class's students stay in the picker; admins keep full access.
   const labOptions = LAB_OPTIONS.filter((l) => {
     if (isAdmin) return true;
     const entry = catalog?.get(l.id);
     if (entry?.visible === false) return false;
-    return !entry?.openClassIds || !classId || entry.openClassIds.includes(classId);
+    return !entry?.visibleClassIds || !classId || entry.visibleClassIds.includes(classId);
   });
   const lab = labOptions.find((l) => l.id === search.lab) ?? labOptions[0] ?? LAB_OPTIONS[0];
   const assignment = assignments.find((a) => a.id === search.assignment) ?? assignments[0] ?? null;

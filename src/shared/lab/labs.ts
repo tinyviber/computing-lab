@@ -14,6 +14,27 @@ export type LabVisibility = {
   openClassIds: string[] | null;
   /** Server-computed access verdict for the signed-in user. */
   visible: boolean;
+  /**
+   * The caller's own classes whose students may take the lab — entry
+   * redirects and the dashboard picker use it to land on an open class.
+   */
+  visibleClassIds: string[];
+};
+
+/** One class cell of GET /api/teacher/labs — the teacher's own switch. */
+export type TeacherLabClassGate = {
+  classId: string;
+  /** The admin scope admits this class (hidden labs admit none). */
+  adminAllowed: boolean;
+  /** The teacher's stored switch for this class; defaults to open. */
+  teacherOpen: boolean;
+  /** What this class's students experience. */
+  open: boolean;
+};
+
+/** One row of GET /api/teacher/labs. */
+export type TeacherLabView = Omit<LabVisibility, "visible"> & {
+  classes: TeacherLabClassGate[];
 };
 
 export const LAB_TITLES: Record<string, string> = {

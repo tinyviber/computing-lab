@@ -27,6 +27,7 @@ import { ProfilePage } from "./pages/ProfilePage";
 import { AdminPage } from "./pages/AdminPage";
 import { AdminClassesPage } from "./pages/AdminClassesPage";
 import { AdminLabsPage } from "./pages/AdminLabsPage";
+import { TeacherLabsPage } from "./pages/TeacherLabsPage";
 
 function RootLayout() {
   return <Outlet />;
@@ -76,6 +77,13 @@ const adminClassesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/admin/classes",
   component: AdminClassesPage,
+});
+
+/** Teacher-scoped lab management: per-own-class open switches only. */
+const teacherLabsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/teacher/labs",
+  component: TeacherLabsPage,
 });
 
 /** Public entry point; forwards a signed-in member to their own class. */
@@ -227,6 +235,7 @@ const routeTree = rootRoute.addChildren([
   adminRoute,
   adminClassesRoute,
   adminLabsRoute,
+  teacherLabsRoute,
   calculatorEntryRoute,
   calculatorLabRoute,
   imageSamplingEntryRoute,

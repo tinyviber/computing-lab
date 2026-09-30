@@ -351,6 +351,11 @@
   cursor: pointer;
 }
 
+.admin-lab-class.is-blocked {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
 .admin-lab-class-empty {
   color: var(--muted);
   font-size: 12px;

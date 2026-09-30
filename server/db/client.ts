@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 7;
+export const SCHEMA_VERSION = 8;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -192,6 +192,18 @@ export function migrate(db: DatabaseSync): void {
       if (!hasColumn(db, "lab_settings", "open_class_ids")) {
         db.exec("ALTER TABLE lab_settings ADD COLUMN open_class_ids TEXT");
       }
+    }
+    // v7 -> v8: lab_class_settings — teacher-level per-class lab switch
+    // layered under the admin scope; open = 0 closes the lab for that
+    // class's students.
+    if (version < 8) {
+      db.exec(`CREATE TABLE IF NOT EXISTS lab_class_settings (
+        lab_id     TEXT NOT NULL,
+        class_id   TEXT NOT NULL REFERENCES classes (id),
+        open       INTEGER NOT NULL DEFAULT 1,
+        updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (lab_id, class_id)
+      )`);
     }
     // Never stamp a newer database down to an older version.
     if (version < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

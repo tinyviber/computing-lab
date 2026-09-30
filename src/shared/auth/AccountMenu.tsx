@@ -70,6 +70,16 @@ export function AccountMenu() {
               任务单
             </Link>
           ) : null}
+          {session.user.role === "teacher" ? (
+            <Link
+              className="account-menu-item"
+              onClick={() => setOpen(false)}
+              role="menuitem"
+              to="/teacher/labs"
+            >
+              实验管理
+            </Link>
+          ) : null}
           {session.user.role === "admin" ? (
             <>
               <Link
