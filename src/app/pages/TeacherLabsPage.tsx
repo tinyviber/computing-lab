@@ -143,15 +143,17 @@ export function TeacherLabsPage() {
                         <div className="admin-lab-classes">
                           {lab.classes.map((gate) => (
                             <label
-                              className={`admin-lab-class${gate.adminAllowed ? "" : " is-blocked"}`}
+                              className="admin-lab-class"
                               key={gate.classId}
-                              title={gate.adminAllowed ? undefined : "管理员未对这个班开放"}
+                              title={
+                                gate.adminAllowed
+                                  ? undefined
+                                  : "管理员未勾选这个班，勾选即对本班学生开放"
+                              }
                             >
                               <input
                                 checked={gate.teacherOpen}
-                                disabled={
-                                  !gate.adminAllowed || busy.has(gateKey(lab.id, gate.classId))
-                                }
+                                disabled={busy.has(gateKey(lab.id, gate.classId))}
                                 onChange={() => void toggle(lab, gate.classId, !gate.teacherOpen)}
                                 type="checkbox"
                               />
