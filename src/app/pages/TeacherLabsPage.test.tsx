@@ -23,11 +23,11 @@ const payload = {
     {
       id: "cpu",
       stageCount: 5,
-      hidden: true,
-      openClassIds: null,
-      visibleClassIds: [],
+      hidden: false,
+      openClassIds: ["c1"],
+      visibleClassIds: ["c1"],
       classes: [
-        { classId: "c1", adminAllowed: false, teacherOpen: true, open: false },
+        { classId: "c1", adminAllowed: true, teacherOpen: true, open: true },
         { classId: "c2", adminAllowed: false, teacherOpen: true, open: false },
       ],
     },
@@ -85,10 +85,11 @@ describe("TeacherLabsPage", () => {
     await waitFor(() => expect(calc.getByText("1 个班开放")).toBeInTheDocument());
     expect(calc.getByRole("checkbox", { name: "二班" })).not.toBeChecked();
 
-    // A hidden lab's switches are all disabled — the teacher cannot reopen it.
+    // A class outside the admin scope is blocked — the teacher cannot
+    // reopen it for students.
     const cpu = labRow("冯诺依曼数据通路");
-    expect(cpu.getByText("已隐藏")).toBeInTheDocument();
-    expect(cpu.getByRole("checkbox", { name: "一班" })).toBeDisabled();
+    expect(cpu.getByText("1 个班开放")).toBeInTheDocument();
+    expect(cpu.getByRole("checkbox", { name: "一班" })).toBeChecked();
     expect(cpu.getByRole("checkbox", { name: "二班" })).toBeDisabled();
   });
 });
