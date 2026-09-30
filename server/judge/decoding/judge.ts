@@ -11,6 +11,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type {
   DecodingDraft,
   DecodingJudgeResult,
+  PartVerdict,
 } from "../../../src/features/decoding/domain/protocol.ts";
 import { generatePayload } from "../../../src/features/decoding/domain/payload.ts";
 import { seedFor } from "../../../src/features/decoding/domain/rng.ts";
@@ -22,7 +23,6 @@ import {
 } from "../../../src/features/decoding/domain/stages.ts";
 import {
   sanitizePixels,
-  sanitizeSignature,
   sanitizeText,
   sanitizeVerdicts,
   verifyArtifact,
@@ -37,21 +37,30 @@ import {
   type ProjectRow,
 } from "../pipeline.ts";
 
-/** Concept prompts are re-checked server-side — the client only sends picks. */
-function promptsComplete(
+/**
+ * Concept prompts are re-checked server-side — the client only sends picks.
+ * Each prompt becomes its own part so a wrong pick lands in the verdict list
+ * (and teacher snapshot) instead of an opaque 400; details name the prompt,
+ * never the correct option.
+ */
+function promptParts(
   stage: DecodingStageDef,
   answers: Record<string, number> | undefined,
-): boolean {
-  if (!stage.prompts?.length) return true;
-  if (!answers) return false;
-  return stage.prompts.every(
-    (prompt) => prompt.options[answers[prompt.id] ?? -1]?.correct === true,
-  );
+): PartVerdict[] {
+  return (stage.prompts ?? []).map((prompt, i) => ({
+    id: `prompt-${prompt.id}`,
+    label: `概念题 ${i + 1}`,
+    ok: prompt.options[answers?.[prompt.id] ?? -1]?.correct === true,
+    detail:
+      prompt.options[answers?.[prompt.id] ?? -1]?.correct === true
+        ? null
+        : "还没答对——回到「先想清楚」再看看",
+  }));
 }
 
 type CleanArtifact =
   | { text: string }
-  | { signature?: string; pixels: PixelMatrix }
+  | { pixels: PixelMatrix }
   | { verdicts: NonNullable<ReturnType<typeof sanitizeVerdicts>> };
 
 /**
@@ -73,13 +82,9 @@ function cleanArtifact(
       return { text };
     }
     case "bmp": {
-      const signature = sanitizeSignature(artifact.signature);
       const pixels = sanitizePixels(artifact.pixels);
       if (!pixels) return { error: "malformed-artifact", status: 400 };
-      if (stage.requiresSignature && !signature) {
-        return { error: "malformed-artifact", status: 400 };
-      }
-      return { signature: signature ?? undefined, pixels };
+      return { pixels };
     }
     case "files": {
       const verdicts = sanitizeVerdicts(artifact.verdicts);
@@ -103,9 +108,7 @@ export function judgeDecodingSubmission(
   if ("error" in gated) return gated;
   const stage = gated.stage;
 
-  if (!promptsComplete(stage, body.conceptAnswers)) {
-    return { error: "guided-incomplete", status: 400 };
-  }
+  const concepts = promptParts(stage, body.conceptAnswers);
 
   const seed = seedFor(project.userId, project.labId, stage.index);
   const { payload, expected } = generatePayload(stage, seed);
@@ -114,7 +117,7 @@ export function judgeDecodingSubmission(
   const artifact = cleanArtifact(stage, body.artifact, fileCount);
   if ("error" in artifact) return artifact;
 
-  const parts = verifyArtifact(stage, artifact, expected);
+  const parts = [...concepts, ...verifyArtifact(stage, artifact, expected)];
   const passed = parts.every((part) => part.ok);
   const score = parts.filter((part) => part.ok).length;
 
@@ -135,7 +138,7 @@ export function judgeDecodingSubmission(
       userId: project.userId,
       labId: project.labId,
       stageIndex,
-      snapshot: { artifact, code },
+      snapshot: { artifact, code, conceptAnswers: body.conceptAnswers ?? {} },
       score,
       total: parts.length,
       passed,

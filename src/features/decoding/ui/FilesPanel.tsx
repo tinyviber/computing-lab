@@ -21,6 +21,8 @@ export function FilesPanel(props: {
   onVerdict: (
     fileIndex: number,
     verdict: { decoder: DecoderChoice; text?: string; pixels?: PixelMatrix } | null,
+    /** Run-completion sync: writes only if the pinned verdict still picks this. */
+    expectDecoder?: DecoderChoice,
   ) => void;
 }) {
   const { payload, verdicts, onVerdict } = props;
@@ -46,6 +48,10 @@ export function FilesPanel(props: {
       const text = typeof result === "string" ? result : String(result);
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], text } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
+      // A pinned verdict on this decoder tracks the fresh run output —
+      // expectDecoder makes the write conditional on the CURRENT pin, so a
+      // re-pin during the run isn't silently rolled back.
+      onVerdict(index, { decoder: "text", text }, "text");
     } catch (error) {
       setErrors((prev) => ({
         ...prev,
@@ -78,6 +84,7 @@ export function FilesPanel(props: {
       const pixels = result as PixelMatrix;
       setRuns((prev) => ({ ...prev, [index]: { ...prev[index], pixels } }));
       setErrors((prev) => ({ ...prev, [index]: "" }));
+      onVerdict(index, { decoder: "image", pixels }, "image");
     } catch (error) {
       setErrors((prev) => ({
         ...prev,
@@ -92,10 +99,6 @@ export function FilesPanel(props: {
     <section aria-label="文件列表" className="files-panel">
       <div className="decoding-panel-heading">
         <h3>档案室 · 三个文件</h3>
-        <p className="decoding-panel-note">
-          规则一样：先读 meta，再决定用哪个解码器。两个解码器随用随试——
-          但你的判定只认你最后选定的那一种。
-        </p>
       </div>
       <ol className="files-list">
         {payload.files.map((file, i) => {
@@ -198,6 +201,9 @@ export function FilesPanel(props: {
                   一张图像
                 </label>
                 {verdict ? <span className="file-verdict-done">已记下判定 ✓</span> : null}
+                {run.text === undefined || !run.pixels ? (
+                  <span className="file-verdict-hint">先点对应的「解码」跑一遍才能选</span>
+                ) : null}
               </div>
             </li>
           );

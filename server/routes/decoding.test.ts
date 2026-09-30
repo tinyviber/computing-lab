@@ -137,7 +137,7 @@ describe("decoding routes", () => {
     expect(outcome.currentStage).toBe(2);
   });
 
-  it("rejects a submission whose concept checks are missing", async () => {
+  it("fails a submission whose concept checks are missing, with per-prompt parts", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
     const res = await app.fetch(
       new Request(url(classId, "/judge"), {
@@ -146,7 +146,12 @@ describe("decoding routes", () => {
         body: JSON.stringify({ stageIndex: 1, artifact: { text: "WHATEVER" } }),
       }),
     );
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "guided-incomplete" });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as {
+      passed: boolean;
+      parts: { id: string; ok: boolean }[];
+    };
+    expect(outcome.passed).toBe(false);
+    expect(outcome.parts.some((p) => p.id.startsWith("prompt-") && !p.ok)).toBe(true);
   });
 });

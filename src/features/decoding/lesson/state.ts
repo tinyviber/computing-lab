@@ -1,5 +1,5 @@
 /**
- * Decoding lesson state: which stage, the draft per stage (code, signature,
+ * Decoding lesson state: which stage, the draft per stage (code,
  * concept answers, per-file verdicts), and the last judge verdict. Pure
  * transitions — no React, no network.
  */
@@ -12,6 +12,7 @@ import type {
   LabPayload,
 } from "../domain/protocol.ts";
 import {
+  DECODING_STAGES,
   decodingStageUnlocked,
   getDecodingStage,
   nextDecodingStage,
@@ -44,12 +45,16 @@ export type DecodingLessonAction =
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "set-code"; code: string }
-  | { type: "set-signature"; signature: string }
+  | { type: "set-fill"; blankId: string; value: string }
   | { type: "answer-prompt"; promptId: string; option: number }
   | {
       type: "set-verdict";
       fileIndex: number;
+      /** Stage the verdict was pinned on — drops stale async writes. */
+      stageIndex: number;
       verdict: { decoder: DecoderChoice; text?: string; pixels?: PixelMatrix } | null;
+      /** Sync writes only when the pinned verdict still picks this decoder. */
+      expectDecoder?: DecoderChoice;
     }
   | { type: "judge-result"; outcome: DecodingJudgeResult }
   | { type: "mark-saving" }
@@ -59,7 +64,7 @@ export type DecodingLessonAction =
   | { type: "message"; text: string };
 
 export function emptyDraft(): DecodingDraft {
-  return { code: "", signature: "", conceptAnswers: {}, verdicts: [] };
+  return { code: "", fills: {}, conceptAnswers: {}, verdicts: [] };
 }
 
 export function draftOf(state: DecodingLessonState, stageIndex = state.stageIndex): DecodingDraft {
@@ -119,12 +124,11 @@ export function transitionDecodingLesson(
         drafts[Number(key)] = sanitizeDraft(draft);
       }
       // Resume where the server's mainline pointer says, provided it's still
-      // unlocked (a challenge can sit ahead of it in the rail).
+      // unlocked (a challenge can sit ahead of it in the rail). A pointer
+      // past the last stage (everything passed) clamps to the last stage.
       const stageIndex = decodingStageUnlocked(action.passedStages, action.currentStage)
         ? action.currentStage
-        : decodingStageUnlocked(action.passedStages, state.stageIndex)
-          ? state.stageIndex
-          : 1;
+        : Math.min(nextDecodingStage(action.passedStages), DECODING_STAGES.length);
       return {
         ...state,
         stageIndex,
@@ -145,8 +149,13 @@ export function transitionDecodingLesson(
     case "set-code":
       return touchDraft(state, { ...draftOf(state), code: action.code });
 
-    case "set-signature":
-      return touchDraft(state, { ...draftOf(state), signature: action.signature });
+    case "set-fill": {
+      const draft = draftOf(state);
+      return touchDraft(state, {
+        ...draft,
+        fills: { ...draft.fills, [action.blankId]: action.value },
+      });
+    }
 
     case "answer-prompt": {
       const draft = draftOf(state);
@@ -161,7 +170,17 @@ export function transitionDecodingLesson(
     }
 
     case "set-verdict": {
+      // A decoder run finishing after a stage switch must not scribble its
+      // verdict into the newly-selected stage's draft.
+      if (action.stageIndex !== state.stageIndex) return state;
       const draft = draftOf(state);
+      // Same for a run that landed after the student re-pinned the decoder.
+      if (
+        action.expectDecoder &&
+        draft.verdicts[action.fileIndex]?.decoder !== action.expectDecoder
+      ) {
+        return state;
+      }
       const verdicts = [...draft.verdicts];
       verdicts[action.fileIndex] = action.verdict;
       return touchDraft(state, { ...draft, verdicts });
@@ -192,15 +211,24 @@ export function transitionDecodingLesson(
 /** Bound a restored draft at the domain edge; junk fields drop to defaults. */
 export function sanitizeDraft(raw: unknown): DecodingDraft {
   if (!raw || typeof raw !== "object") return emptyDraft();
-  const { code, signature, conceptAnswers, verdicts } = raw as {
+  const { code, fills, conceptAnswers, verdicts } = raw as {
     code?: unknown;
-    signature?: unknown;
+    fills?: unknown;
     conceptAnswers?: unknown;
     verdicts?: unknown;
   };
+  const fillMap: Record<string, string> = {};
+  if (fills && typeof fills === "object") {
+    for (const [key, value] of Object.entries(fills as Record<string, unknown>).slice(0, 32)) {
+      if (typeof value === "string") fillMap[key.slice(0, 16)] = value.slice(0, 300);
+    }
+  }
   const answers: Record<string, number> = {};
   if (conceptAnswers && typeof conceptAnswers === "object") {
-    for (const [key, value] of Object.entries(conceptAnswers as Record<string, unknown>)) {
+    for (const [key, value] of Object.entries(conceptAnswers as Record<string, unknown>).slice(
+      0,
+      32,
+    )) {
       if (typeof key === "string" && Number.isInteger(value) && (value as number) >= 0) {
         answers[key.slice(0, 64)] = value as number;
       }
@@ -230,7 +258,7 @@ export function sanitizeDraft(raw: unknown): DecodingDraft {
   }
   return {
     code: typeof code === "string" ? code.slice(0, 12000) : "",
-    signature: typeof signature === "string" ? signature.slice(0, 8) : "",
+    fills: fillMap,
     conceptAnswers: answers,
     verdicts: verdictList,
   };

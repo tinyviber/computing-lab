@@ -10,12 +10,7 @@
  */
 
 import { useParams, useSearch } from "@tanstack/react-router";
-import CodeMirror from "@uiw/react-codemirror";
-import { python } from "@codemirror/lang-python";
-import { indentUnit } from "@codemirror/language";
-import { keymap } from "@codemirror/view";
-import { indentWithTab } from "@codemirror/commands";
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
@@ -24,7 +19,8 @@ import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
-import type { PixelMatrix } from "../domain/bmp.ts";
+import { decodeBmp, type PixelMatrix } from "../domain/bmp.ts";
+import { assembleCloze, clozeComplete, hasCloze } from "../domain/cloze.ts";
 import { CHAR_TABLE } from "../domain/encoding.ts";
 import type {
   DecodingDraft,
@@ -32,7 +28,14 @@ import type {
   DecodingSubmission,
   LabPayload,
 } from "../domain/protocol.ts";
-import { decodingStageUnlocked, type DecodingStageDef } from "../domain/stages.ts";
+import { seedFor } from "../domain/rng.ts";
+import {
+  decodingStageUnlocked,
+  getDecodingStage,
+  nextDecodingStage,
+  starterCodeFor,
+  type DecodingStageDef,
+} from "../domain/stages.ts";
 import { sanitizePixels, sanitizeText } from "../domain/verify.ts";
 import {
   allPromptsAnswered,
@@ -45,14 +48,13 @@ import {
   type DecodingLessonAction,
 } from "../lesson/state.ts";
 import { BytePanel } from "./BytePanel.tsx";
+import { ClozeEditor } from "./ClozeEditor.tsx";
 import { ConceptPanel } from "./ConceptPanel.tsx";
 import { DecodingStageRail } from "./DecodingStageRail.tsx";
 import { FilesPanel } from "./FilesPanel.tsx";
 import { PixelCanvas } from "./PixelCanvas.tsx";
 import { BMP_HELPER, runDecode, warmPyodide } from "./pyodideRunner.ts";
 import "./decoding.css";
-
-const EDITOR_EXTENSIONS = [python(), indentUnit.of("    "), keymap.of([indentWithTab])];
 
 /** The value the student's `decode(data)` receives for this stage. */
 function runData(payload: LabPayload): unknown {
@@ -70,18 +72,49 @@ function runData(payload: LabPayload): unknown {
 
 type RunResult = { text: string } | { pixels: PixelMatrix } | null;
 
+/** Cell-wise difference over the union of both matrices' bounds — missing
+ * cells count as different too, so a shrunken matrix can't report 0. */
+function pixelDiffCount(a: PixelMatrix, b: PixelMatrix): number {
+  let n = 0;
+  const height = Math.max(a.length, b.length);
+  const width = Math.max(...a.map((r) => r.length), ...b.map((r) => r.length), 0);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const got = a[y]?.[x];
+      const want = b[y]?.[x];
+      if (!got || !want || got[0] !== want[0] || got[1] !== want[1] || got[2] !== want[2]) {
+        n += 1;
+      }
+    }
+  }
+  return n;
+}
+
+/** Student-facing version of a raw Python/worker error message. */
+function friendlyRunError(raw: string): string {
+  const syntax = /SyntaxError:.*line (\d+)/.exec(raw);
+  if (syntax) return `第 ${syntax[1]} 行附近语法写错了——检查括号、引号和冒号。（${raw}）`;
+  if (/IndexError/.test(raw)) return `下标越界了——检查像素起点和位置计算。（${raw}）`;
+  const name = /NameError: name '(\w+)' is not defined/.exec(raw);
+  if (name) return `名字 ${name[1]} 没有定义过——是不是拼错或顺序放反了？（${raw}）`;
+  if (/TypeError/.test(raw)) return `类型用错了——检查取到的是数还是列表。（${raw}）`;
+  return raw;
+}
+
 function StageBrief({ stage, passed }: { stage: DecodingStageDef; passed: boolean }) {
   return (
     <section className="stage-brief">
       <p className="stage-mission">{stage.mission}</p>
-      <p>{stage.description}</p>
+      {stage.description ? <p>{stage.description}</p> : null}
       <p className="stage-task">{stage.task}</p>
       <p className="submit-note">{stage.judgeNote}</p>
       {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
-      <details className="stage-details">
-        <summary>提示</summary>
-        <p>{stage.hint}</p>
-      </details>
+      {stage.hint ? (
+        <details className="stage-details">
+          <summary>提示</summary>
+          <p>{stage.hint}</p>
+        </details>
+      ) : null}
     </section>
   );
 }
@@ -89,40 +122,51 @@ function StageBrief({ stage, passed }: { stage: DecodingStageDef; passed: boolea
 function DecodeEditor({
   stage,
   code,
+  fills,
   running,
-  onCodeChange,
+  onFill,
   onRun,
+  onPrintExample,
 }: {
   stage: DecodingStageDef;
   code: string;
+  fills: Record<string, string>;
   running: boolean;
-  onCodeChange: (code: string) => void;
+  onFill: (blankId: string, value: string) => void;
   onRun: () => void;
+  onPrintExample: () => void;
 }) {
   return (
     <section aria-label="解码器" className="decode-editor">
       <div className="decoding-panel-heading">
         <h3>你的解码器</h3>
-        <p className="decoding-panel-note">
-          写一个 <code>decode(data)</code>：data 就是左边的原始数据，返回你还原出的结果。
-        </p>
       </div>
-      <CodeMirror
-        aria-label="decode 代码"
-        basicSetup={{
-          lineNumbers: false,
-          foldGutter: false,
-          highlightActiveLine: false,
-          highlightActiveLineGutter: false,
-          autocompletion: false,
-        }}
-        className="code-editor"
-        extensions={EDITOR_EXTENSIONS}
-        height="220px"
-        onChange={onCodeChange}
-        theme="dark"
-        value={code}
-      />
+      <p className="decoding-panel-note decode-editor-note">
+        把每个空填上，你的 <code>decode(data)</code> 就写好了。
+      </p>
+      {stage.example ? (
+        <aside aria-label="样例输入" className="decode-example">
+          <div className="decode-example-heading">
+            <h4>样例输入</h4>
+            {stage.example.run ? (
+              <button
+                aria-label="运行样例并打印 data"
+                className="decode-example-play"
+                disabled={running}
+                onClick={onPrintExample}
+                title="打印 data"
+                type="button"
+              >
+                ▶
+              </button>
+            ) : null}
+          </div>
+          <pre>
+            <code>{stage.example.input}</code>
+          </pre>
+        </aside>
+      ) : null}
+      <ClozeEditor code={code} fills={fills} onFill={onFill} />
       <div className="guided-actions">
         <button
           className="button button-secondary"
@@ -172,7 +216,7 @@ function TextResult({ text, stage }: { text: string; stage: DecodingStageDef }) 
 export function DecodingLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/decoding" });
   const search = useSearch({ strict: false }) as Record<string, unknown>;
-  const { status, role } = useAuth();
+  const { status, role, session } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
   const [state, dispatch] = useReducer(transitionDecodingLesson, undefined, () =>
     createDecodingLessonState(1),
@@ -182,6 +226,8 @@ export function DecodingLabPage() {
   const [running, setRunning] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<RunResult>(null);
+  const [samplePrintout, setSamplePrintout] = useState<string | null>(null);
+  const [samplePrintError, setSamplePrintError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PixelMatrix | null>(null);
   const [wrongPick, setWrongPick] = useState<{ promptId: string; option: number } | null>(null);
 
@@ -226,6 +272,8 @@ export function DecodingLabPage() {
   // Switching stage drops the working result — each stage's artifact is its own.
   useEffect(() => {
     setLastRun(null);
+    setSamplePrintout(null);
+    setSamplePrintError(null);
     setPreview(null);
     setRunError(null);
     setWrongPick(null);
@@ -243,16 +291,44 @@ export function DecodingLabPage() {
     }
   }, [projectLoaded]);
 
-  const source = draft.code.trim() ? draft.code : (stage?.starterCode ?? "");
+  const targetPixels = useMemo(
+    () => (payload?.kind === "bmp" ? decodeBmp(payload.bytes) : null),
+    [payload],
+  );
+
+  // Same seed stream as the payload, namespaced: neighbours see different
+  // cloze templates, so a copied fill doesn't fit the next desk's blanks.
+  const userId = session?.user.id ?? "";
+  const template =
+    stage && userId
+      ? starterCodeFor(stage, seedFor(userId, "decoding-cloze", stage.index))
+      : (stage?.starterCode ?? "");
+
+  const source = template
+    ? hasCloze(template)
+      ? assembleCloze(template, draft.fills)
+      : draft.code.trim() || template
+    : "";
+
+  // Async runs resolve seconds later (Pyodide cold start up to ~90s): a
+  // result started on stage N must never land on stage M's lastRun/error.
+  const stageIndexRef = useRef(state.stageIndex);
+  stageIndexRef.current = state.stageIndex;
 
   const run = useCallback(async () => {
     if (!stage || !payload || payload.kind === "files") return;
+    if (hasCloze(template) && !clozeComplete(template, draft.fills)) {
+      setRunError("还有空没填上——每个空都要填。");
+      return;
+    }
+    const stageIdx = stage.index;
     setRunning(true);
     setRunError(null);
     setLastRun(null);
     try {
       const preamble = stage.kind === "bmp-script" ? BMP_HELPER : undefined;
       const result = await runDecode(source, runData(payload), { preamble });
+      if (stageIndexRef.current !== stageIdx) return;
       if (stage.kind === "bmp") {
         const pixels = sanitizePixels(result);
         if (!pixels)
@@ -264,14 +340,16 @@ export function DecodingLabPage() {
         setLastRun({ text });
       }
     } catch (error) {
-      setRunError(error instanceof Error ? error.message : String(error));
+      if (stageIndexRef.current !== stageIdx) return;
+      setRunError(friendlyRunError(error instanceof Error ? error.message : String(error)));
     } finally {
       setRunning(false);
     }
-  }, [stage, payload, source]);
+  }, [stage, payload, source, template, draft.fills]);
 
   const runPreview = useCallback(async () => {
     if (!payload || payload.kind !== "bmp" || stage?.kind !== "bmp-script") return;
+    const stageIdx = stage.index;
     setRunning(true);
     setRunError(null);
     try {
@@ -279,20 +357,50 @@ export function DecodingLabPage() {
         preamble: BMP_HELPER,
         call: "decode_bmp(data)",
       });
+      if (stageIndexRef.current !== stageIdx) return;
       const clean = sanitizePixels(pixels);
       if (!clean) throw new Error("预览解码没有得到合法的像素列表。");
       setPreview(clean);
     } catch (error) {
+      if (stageIndexRef.current !== stageIdx) return;
       setRunError(error instanceof Error ? error.message : String(error));
     } finally {
       setRunning(false);
     }
   }, [payload, stage]);
 
+  const printExampleData = useCallback(async () => {
+    if (!stage?.example?.run) return;
+    const stageIdx = stage.index;
+    setRunning(true);
+    setSamplePrintout(null);
+    setSamplePrintError(null);
+    try {
+      const result = await runDecode(stage.example.input, null, {
+        call: "None",
+        captureStdout: true,
+        useCodeData: true,
+      });
+      if (stageIndexRef.current !== stageIdx) return;
+      if (typeof result !== "object" || result === null || !("stdout" in result)) {
+        throw new Error("没有捕获到 print 输出。");
+      }
+      setSamplePrintout(String(result.stdout));
+    } catch (error) {
+      if (stageIndexRef.current !== stageIdx) return;
+      setSamplePrintError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setRunning(false);
+    }
+  }, [stage]);
+
   /** What blocks the 提交判定 button, as a student-readable reason. */
   const submitBlocker = (): string | null => {
     if (!stage || !payload) return "数据还没载入，稍等。";
-    if (!allPromptsAnswered(state)) return "先把「先想清楚」的概念题答完。";
+    if (!allPromptsAnswered(state)) return "概念题还没答完。";
+    if (hasCloze(template) && !clozeComplete(template, draft.fills)) {
+      return "还有空没填上——每个空都要填。";
+    }
     switch (stage.kind) {
       case "files":
         return payload.kind === "files" &&
@@ -301,8 +409,6 @@ export function DecodingLabPage() {
           : "每个文件都要先给出判定。";
       case "bmp":
         if (!lastRun || !("pixels" in lastRun)) return "先运行你的 decode，得到像素结果。";
-        if (stage.requiresSignature && !draft.signature.trim())
-          return "先填上你从文件头读出的签名。";
         return null;
       default:
         return lastRun && "text" in lastRun ? null : "先运行你的 decode，得到解码结果。";
@@ -324,14 +430,13 @@ export function DecodingLabPage() {
           ? { verdicts: draft.verdicts }
           : stage.kind === "bmp"
             ? {
-                signature: draft.signature.trim() || undefined,
                 pixels: lastRun && "pixels" in lastRun ? lastRun.pixels : [],
               }
             : { text: lastRun && "text" in lastRun ? lastRun.text : "" };
       const submission: DecodingSubmission = {
         stageIndex: stage.index,
         artifact,
-        code: draft.code || undefined,
+        code: hasCloze(template) ? source : draft.code || undefined,
         conceptAnswers:
           stage.prompts && stage.prompts.length > 0 ? draft.conceptAnswers : undefined,
       };
@@ -348,7 +453,7 @@ export function DecodingLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, payload, state, draft, lastRun]);
+  }, [classId, stage, payload, state, draft, lastRun, template, source]);
 
   const blocker = stage ? submitBlocker() : null;
 
@@ -399,8 +504,14 @@ export function DecodingLabPage() {
               <>
                 {payload.kind === "files" ? (
                   <FilesPanel
-                    onVerdict={(fileIndex, verdict) =>
-                      dispatch({ type: "set-verdict", fileIndex, verdict })
+                    onVerdict={(fileIndex, verdict, expectDecoder) =>
+                      dispatch({
+                        type: "set-verdict",
+                        fileIndex,
+                        stageIndex: state.stageIndex,
+                        verdict,
+                        expectDecoder,
+                      })
                     }
                     payload={payload}
                     verdicts={draft.verdicts}
@@ -409,8 +520,13 @@ export function DecodingLabPage() {
                   <div className="decoder-console">
                     <BytePanel key={payload.kind} payload={payload} />
                     <DecodeEditor
-                      code={source}
-                      onCodeChange={(code) => dispatch({ type: "set-code", code })}
+                      code={template}
+                      fills={draft.fills}
+                      onFill={(blankId, value) => {
+                        setLastRun(null);
+                        dispatch({ type: "set-fill", blankId, value });
+                      }}
+                      onPrintExample={() => void printExampleData()}
                       onRun={() => void run()}
                       running={running}
                       stage={stage}
@@ -429,6 +545,21 @@ export function DecodingLabPage() {
                           </button>
                         ) : null}
                       </div>
+                      {stage.example ? (
+                        <div className="decode-example-output">
+                          <h4>样例输出</h4>
+                          <pre>
+                            <code>
+                              {samplePrintout ?? stage.example.output ?? "运行样例后显示"}
+                            </code>
+                          </pre>
+                          {samplePrintError ? (
+                            <p className="decode-example-error" role="alert">
+                              {samplePrintError}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : null}
                       {runError ? (
                         <pre className="python-error" role="alert">
                           {runError}
@@ -445,30 +576,33 @@ export function DecodingLabPage() {
                       {lastRun && "text" in lastRun ? (
                         <TextResult stage={stage} text={lastRun.text} />
                       ) : null}
-                      {lastRun && "pixels" in lastRun ? (
-                        <div className="preview-block">
-                          <PixelCanvas ariaLabel="解码出的图像" pixels={lastRun.pixels} />
-                          <p className="preview-note">
-                            {lastRun.pixels.length}×{lastRun.pixels[0]?.length ?? 0} 像素
-                          </p>
+                      {stage.kind === "bmp" && targetPixels ? (
+                        <div className="pixel-compare">
+                          <figure>
+                            <PixelCanvas ariaLabel="目标图案" pixels={targetPixels} />
+                            <figcaption>目标图案</figcaption>
+                          </figure>
+                          <figure>
+                            {lastRun && "pixels" in lastRun ? (
+                              <PixelCanvas
+                                ariaLabel="你的解码结果"
+                                diffAgainst={targetPixels}
+                                pixels={lastRun.pixels}
+                              />
+                            ) : (
+                              <div className="pixel-compare-empty">?</div>
+                            )}
+                            <figcaption>
+                              你的解码结果
+                              {lastRun && "pixels" in lastRun
+                                ? ` · ${pixelDiffCount(lastRun.pixels, targetPixels)} 个像素不同`
+                                : ""}
+                            </figcaption>
+                          </figure>
                         </div>
                       ) : null}
-                      {!lastRun && !runError && !preview ? (
+                      {!lastRun && !runError && !preview && stage.kind !== "bmp" ? (
                         <p className="output-empty">运行 decode 后，结果会出现在这里。</p>
-                      ) : null}
-                      {stage.requiresSignature ? (
-                        <label className="signature-field">
-                          你从文件头读出的签名
-                          <input
-                            autoComplete="off"
-                            maxLength={8}
-                            onChange={(e) =>
-                              dispatch({ type: "set-signature", signature: e.target.value })
-                            }
-                            placeholder="比如 AB"
-                            value={draft.signature}
-                          />
-                        </label>
                       ) : null}
                     </section>
                   </div>
@@ -509,6 +643,20 @@ export function DecodingLabPage() {
                     className={`judge-result${state.judgeOutcome.passed ? " is-passed" : ""}`}
                   >
                     <h3>{state.judgeOutcome.passed ? "判定通过 ✓" : "判定未通过"}</h3>
+                    {state.judgeOutcome.passed
+                      ? (() => {
+                          const next = nextDecodingStage(state.passedStages);
+                          return getDecodingStage(next) ? (
+                            <button
+                              className="button button-primary judge-next"
+                              onClick={() => dispatch({ type: "select-stage", stageIndex: next })}
+                              type="button"
+                            >
+                              前往下一关 →
+                            </button>
+                          ) : null;
+                        })()
+                      : null}
                     <ol>
                       {state.judgeOutcome.parts.map((part) => (
                         <li className={part.ok ? "is-ok" : "is-bad"} key={part.id}>

@@ -1,0 +1,43 @@
+/**
+ * Cloze decoder editor: the starter code renders read-only on the same light
+ * surface as the rest of the page; each __(n)__ marker becomes an inline text
+ * input sharing the surrounding monospace font, size, and line height — the
+ * blanks read as gaps in the code, not a separate editor.
+ */
+
+import { Fragment } from "react";
+import { parseCloze } from "../domain/cloze.ts";
+
+export function ClozeEditor({
+  code,
+  fills,
+  onFill,
+}: {
+  code: string;
+  fills: Record<string, string>;
+  onFill: (blankId: string, value: string) => void;
+}) {
+  const parts = parseCloze(code);
+  return (
+    <pre aria-label="decode 填空代码" className="cloze-code">
+      {parts.map((part, i) =>
+        part.kind === "text" ? (
+          <Fragment key={i}>{part.text}</Fragment>
+        ) : (
+          <input
+            aria-label={`空 ${part.id}`}
+            className="cloze-blank"
+            key={i}
+            maxLength={300}
+            onChange={(e) => onFill(part.id, e.target.value)}
+            spellCheck={false}
+            style={{ width: `${Math.max(5, (fills[part.id] ?? "").length + 2)}ch` }}
+            title={`空 ${part.id}`}
+            type="text"
+            value={fills[part.id] ?? ""}
+          />
+        ),
+      )}
+    </pre>
+  );
+}

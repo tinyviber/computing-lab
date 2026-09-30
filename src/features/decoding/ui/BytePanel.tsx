@@ -1,21 +1,26 @@
 /**
- * The raw-data panel: what the stage actually hands the student. Renders the
- * payload as decimal chips (or bit strings for the binary stage), with a
- * 十进制/二进制 toggle — seeing the same byte both ways is the C2 lesson
- * made physical. For BMP payloads the 54-byte header is highlighted as its
- * own region: "the bytes that tell you how to read the rest".
+ * The raw-data panel: what the stage actually hands the student, shown as-is —
+ * decimal bytes for codes/BMP, the 8-bit strings for the bits stage (that IS
+ * the paper's content; the binary↔decimal connection lives in the stage text
+ * and the decoded result map). For BMP payloads the 54-byte header is
+ * highlighted as its own region: "the bytes that tell you how to read the
+ * rest".
  */
 
-import { useState } from "react";
 import { BMP_PROFILE } from "../domain/bmp.ts";
-import { byteToBits, CHAR_TABLE } from "../domain/encoding.ts";
+import { CHAR_TABLE } from "../domain/encoding.ts";
 import type { LabPayload } from "../domain/protocol.ts";
 
-export function BytePanel({ payload }: { payload: LabPayload }) {
-  // Bits stages open on the binary view — it's what the file contains;
-  // the 十进制/二进制 toggle is exactly the C2 lesson: same bytes, two suits.
-  const [asBinary, setAsBinary] = useState(payload.kind === "bits");
+/** Header fields the stage-3 conventions live in: 4-byte little-endian ints. */
+const BMP_FIELDS: { start: number; end: number; label: string }[] = [
+  { start: 10, end: 13, label: "像素起点" },
+  { start: 18, end: 21, label: "宽" },
+  { start: 22, end: 25, label: "高" },
+];
 
+const bmpFieldAt = (i: number) => BMP_FIELDS.find((f) => i >= f.start && i <= f.end);
+
+export function BytePanel({ payload }: { payload: LabPayload }) {
   if (payload.kind === "files") return null; // files render inside FilesPanel
 
   const bytes =
@@ -25,52 +30,35 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
         ? payload.groups.map((g) => Number.parseInt(g, 2))
         : payload.bytes;
 
-  const showBitGroups = payload.kind === "bits";
-
   return (
     <section aria-label="原始数据" className="byte-panel">
       <div className="byte-panel-head">
         <h3>原始数据</h3>
-        <div aria-label="数值表示方式" className="rep-toggle" role="group">
-          <button
-            aria-pressed={!asBinary}
-            className={asBinary ? "" : "is-active"}
-            onClick={() => setAsBinary(false)}
-            type="button"
-          >
-            十进制
-          </button>
-          <button
-            aria-pressed={asBinary}
-            className={asBinary ? "is-active" : ""}
-            onClick={() => setAsBinary(true)}
-            type="button"
-          >
-            二进制
-          </button>
-        </div>
       </div>
 
-      {showBitGroups ? (
+      {payload.kind === "bits" ? (
         <ol className="bit-stream">
           {payload.groups.map((group, i) => (
-            <li className="bit-group" key={i}>
-              <code>{asBinary ? group : String(Number.parseInt(group, 2))}</code>
+            <li className="bit-group" key={i} title={`十进制 ${bytes[i]}`}>
+              <code>{group}</code>
               <span className="bit-index">#{i}</span>
             </li>
           ))}
         </ol>
       ) : (
-        <ol className="byte-stream" data-rep={asBinary ? "bin" : "dec"}>
+        <ol className="byte-stream">
           {bytes.map((byte, i) => {
             const inHeader = payload.kind === "bmp" && i < BMP_PROFILE.pixelOffset;
+            const field = payload.kind === "bmp" ? bmpFieldAt(i) : undefined;
+            const fieldHead = field && i === field.start;
             return (
               <li
-                className={`byte-chip${inHeader ? " is-header" : ""}`}
+                className={`byte-chip${inHeader ? " is-header" : ""}${field ? " is-field" : ""}`}
                 key={i}
-                title={`#${i}${inHeader ? " · 文件头" : ""}`}
+                title={`#${i}${field ? ` · ${field.label}` : inHeader ? " · 文件头" : ""}`}
               >
-                {asBinary ? byteToBits(byte) : byte}
+                {byte}
+                {fieldHead ? <span className="byte-chip-field">{field.label}</span> : null}
               </li>
             );
           })}
@@ -79,8 +67,9 @@ export function BytePanel({ payload }: { payload: LabPayload }) {
 
       {payload.kind === "bmp" ? (
         <p className="byte-legend">
-          <span className="byte-chip is-header byte-legend-chip">66</span> 前{" "}
-          {BMP_PROFILE.pixelOffset} 字节是文件头——里面藏着「怎么读剩下部分」的约定。
+          <span aria-hidden className="byte-chip is-header byte-legend-chip" /> 前{" "}
+          {BMP_PROFILE.pixelOffset} 字节是文件头——里面写着「怎么读剩下部分」（每段 4 字节，小端）：#
+          10–13 = 像素起点、# 18–21 = 宽、# 22–25 = 高（值去高亮段里读）。
         </p>
       ) : null}
 

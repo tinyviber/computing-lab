@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { DECODING_STAGES, getDecodingStage } from "../domain/stages.ts";
+import {
+  DECODING_CORE_STAGES,
+  DECODING_STAGES,
+  decodingStageUnlocked,
+  getDecodingStage,
+  nextDecodingStage,
+} from "../domain/stages.ts";
 import {
   allPromptsAnswered,
   createDecodingLessonState,
@@ -79,15 +85,43 @@ describe("decoding lesson state", () => {
     ).toBe(1);
   });
 
+  it("stores cloze fills in the draft", () => {
+    let state = loaded();
+    state = transitionDecodingLesson(state, {
+      type: "set-fill",
+      blankId: "1",
+      value: "chr(code)",
+    });
+    expect(draftOf(state).fills).toEqual({ "1": "chr(code)" });
+  });
+
   it("stores per-file verdicts in the draft", () => {
     let state = loaded([1, 2, 3]);
     state = transitionDecodingLesson(state, { type: "select-stage", stageIndex: 4 });
     state = transitionDecodingLesson(state, {
       type: "set-verdict",
       fileIndex: 0,
+      stageIndex: 4,
       verdict: { decoder: "text", text: "OK" },
     });
     expect(draftOf(state).verdicts[0]).toEqual({ decoder: "text", text: "OK" });
+    // A run finishing after the stage switch must not write into it.
+    const after = transitionDecodingLesson(state, {
+      type: "set-verdict",
+      fileIndex: 0,
+      stageIndex: 5,
+      verdict: { decoder: "image" },
+    });
+    expect(after).toBe(state);
+    // Sync writes land only while the pin still matches the ran decoder.
+    const repinned = transitionDecodingLesson(state, {
+      type: "set-verdict",
+      fileIndex: 0,
+      stageIndex: 4,
+      verdict: { decoder: "text", text: "STALE" },
+      expectDecoder: "image",
+    });
+    expect(repinned).toBe(state);
   });
 
   it("advances currentStage on a passed judge result", () => {
@@ -109,7 +143,7 @@ describe("decoding lesson state", () => {
   it("sanitizes a restored draft at the boundary", () => {
     expect(sanitizeDraft(null)).toEqual({
       code: "",
-      signature: "",
+      fills: {},
       conceptAnswers: {},
       verdicts: [],
     });
@@ -120,20 +154,36 @@ describe("decoding lesson state", () => {
       verdicts: [{ decoder: "text", text: "hi" }, { decoder: "nope" }, null, "junk"],
     });
     expect(draft.code.length).toBe(12000);
-    expect(draft.signature).toBe("BM");
     expect(draft.conceptAnswers).toEqual({ a: 0, d: 2 });
     expect(draft.verdicts[0]).toEqual({ decoder: "text", text: "hi" });
     expect(draft.verdicts.slice(1)).toEqual([null, null, null]);
   });
+
+  it("sanitizes cloze fills at the boundary", () => {
+    const draft = sanitizeDraft({
+      fills: { "1": "  ok  ", "this-id-is-way-too-long": "x", bad: 7 },
+    });
+    expect(draft.fills).toEqual({ "1": "  ok  ", "this-id-is-way-t": "x" });
+  });
 });
 
 describe("stage table", () => {
-  it("keeps core stages 1-4 and side stages 5-6 anchored after stage 3/4", () => {
+  it("keeps core stages 1-3 and side stages 4-6 all anchored after stage 3", () => {
     expect(DECODING_STAGES.map((s) => s.index)).toEqual([1, 2, 3, 4, 5, 6]);
-    expect(DECODING_STAGES.filter((s) => s.track === "core").map((s) => s.index)).toEqual([
-      1, 2, 3, 4,
-    ]);
+    expect(DECODING_CORE_STAGES.map((s) => s.index)).toEqual([1, 2, 3]);
+    expect(getDecodingStage(4)!.railAfter).toBe(3);
     expect(getDecodingStage(5)!.railAfter).toBe(3);
-    expect(getDecodingStage(6)!.railAfter).toBe(4);
+    expect(getDecodingStage(6)!.railAfter).toBe(3);
+    expect(decodingStageUnlocked([1, 2], 4)).toBe(false);
+    expect(decodingStageUnlocked([1, 2, 3], 4)).toBe(true);
+  });
+
+  it("walks the mainline pointer through core first, then into side stages", () => {
+    expect(nextDecodingStage([])).toBe(1);
+    expect(nextDecodingStage([1, 2])).toBe(3);
+    // Mainline done at 3 — the pointer flows into the first unpassed challenge.
+    expect(nextDecodingStage([1, 2, 3])).toBe(4);
+    expect(nextDecodingStage([1, 2, 3, 5])).toBe(4);
+    expect(nextDecodingStage([1, 2, 3, 4, 5, 6])).toBe(7);
   });
 });

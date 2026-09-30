@@ -21,6 +21,8 @@ type RunRequest = {
   data: unknown;
   preamble?: string;
   call?: string;
+  useCodeData?: boolean;
+  captureStdout?: boolean;
 };
 
 type RunResponse =
@@ -54,6 +56,10 @@ getPyodide().catch(() => undefined);
 
 async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promise<unknown> {
   const globals = pyodide.toPy({});
+  const stdout: string[] = [];
+  if (request.captureStdout) {
+    pyodide.setStdout({ batched: (text) => stdout.push(text) });
+  }
   try {
     if (request.preamble?.trim()) {
       pyodide.runPython(request.preamble, { globals });
@@ -61,19 +67,31 @@ async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promi
     if (request.code.trim()) {
       pyodide.runPython(request.code, { globals });
     }
-    globals.set("data", pyodide.toPy(request.data));
+    if (!request.useCodeData) globals.set("data", pyodide.toPy(request.data));
     const call = request.call ?? "decode(data)";
     const fn = globals.get("decode");
     if (request.call === undefined && (fn === undefined || typeof fn.callKwargs !== "function")) {
       throw new Error("需要一个函数 decode(data)——data 是这一关交给你的数据。");
     }
-    const out = pyodide.runPython(call, { globals });
-    try {
-      return out.toJs({ dict_converter: Object.fromEntries }) as unknown;
-    } finally {
-      out.destroy();
+    const out = pyodide.runPython(call, { globals }) as unknown;
+    if (out !== null && typeof out === "object") {
+      const proxy = out as {
+        toJs?: (options?: unknown) => unknown;
+        destroy?: () => void;
+      };
+      try {
+        const result =
+          typeof proxy.toJs === "function"
+            ? proxy.toJs({ dict_converter: Object.fromEntries })
+            : out;
+        return request.captureStdout ? { result, stdout: stdout.join("") } : result;
+      } finally {
+        if (typeof proxy.destroy === "function") proxy.destroy();
+      }
     }
+    return request.captureStdout ? { result: out, stdout: stdout.join("") } : out;
   } finally {
+    if (request.captureStdout) pyodide.setStdout();
     globals.destroy();
   }
 }

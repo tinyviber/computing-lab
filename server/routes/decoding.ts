@@ -36,10 +36,20 @@ export function decodingRoutes() {
       if (judgeLimiter.exceeded(key)) return { error: "rate-limited", status: 429 };
       judgeLimiter.hit(key);
       const rawAnswers = body.conceptAnswers;
+      const stage = DECODING_STAGES.find((s) => s.index === stageIndex);
+      const validPromptIds = new Set(stage?.prompts?.map((p) => p.id) ?? []);
       const conceptAnswers: Record<string, number> = {};
       if (rawAnswers && typeof rawAnswers === "object") {
+        // Whitelist to this stage's prompt ids — bounded size by construction.
         for (const [key, value] of Object.entries(rawAnswers as Record<string, unknown>)) {
-          if (typeof value === "number") conceptAnswers[key] = value;
+          if (
+            validPromptIds.has(key) &&
+            typeof value === "number" &&
+            Number.isInteger(value) &&
+            value >= 0
+          ) {
+            conceptAnswers[key] = value;
+          }
         }
       }
       return judgeDecodingSubmission(db, project, stageIndex, {

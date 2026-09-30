@@ -10,7 +10,6 @@ import type { DecodingStageDef } from "./stages.ts";
 
 export type Expected =
   | { text: string }
-  | { signature: string; pixels: PixelMatrix }
   | { pixels: PixelMatrix }
   | { verdicts: { decoder: DecoderChoice; text?: string; pixels?: PixelMatrix }[] };
 
@@ -44,13 +43,6 @@ export function sanitizePixels(raw: unknown): PixelMatrix | null {
     matrix.push(outRow);
   }
   return matrix;
-}
-
-export function sanitizeSignature(raw: unknown): string | null {
-  if (typeof raw !== "string") return null;
-  const sig = raw.trim().toUpperCase();
-  if (sig.length === 0 || sig.length > 8) return null;
-  return sig;
 }
 
 export function sanitizeVerdicts(
@@ -94,9 +86,42 @@ function textDetail(actual: string, expected: string): string {
   return "";
 }
 
-function pixelsDetail(actual: PixelMatrix, expected: PixelMatrix): string {
+function pixelsEqual(a: PixelMatrix, b: PixelMatrix): boolean {
+  if (a.length !== b.length || a[0]?.length !== b[0]?.length) return false;
+  return a.every((row, y) => row.every((px, x) => px.every((v, c) => v === b[y][x][c])));
+}
+
+/** R↔B channel swap — reading bytes as R,G,B instead of B,G,R. */
+const swapChannels = (p: PixelMatrix): PixelMatrix =>
+  p.map((row) => row.map(([r, g, b]) => [b, g, r] as (typeof row)[number]));
+/** Bottom-up still stored as top-down — the missing pixels.reverse(). */
+const flipRows = (p: PixelMatrix): PixelMatrix => [...p].reverse();
+/** Row/column transpose — i = (x * height + y) instead of (y * width + x). */
+const transpose = (p: PixelMatrix): PixelMatrix => p[0].map((_, x) => p.map((row) => row[x]));
+
+/**
+ * Name the common decoder bug that produced this matrix before falling back
+ * to the first-mismatch position — "how it's wrong" beats "where it's wrong".
+ */
+function pixelsDetail(
+  actual: PixelMatrix,
+  expected: PixelMatrix,
+  /** Storage convention worth naming when the image flips — top-down files
+   * have no such convention to point at. */
+  flipHint = "核对像素行的排列顺序",
+): string {
   if (actual.length !== expected.length || actual[0]?.length !== expected[0]?.length) {
     return `尺寸不符：提交了 ${actual[0]?.length ?? 0}×${actual.length}，应是 ${expected[0]?.length ?? 0}×${expected.length}`;
+  }
+  if (pixelsEqual(actual, expected)) return "";
+  if (pixelsEqual(flipRows(actual), expected)) {
+    return `画面上下颠倒了——${flipHint}`;
+  }
+  if (pixelsEqual(swapChannels(actual), expected)) {
+    return "形状对了但颜色反了——核对 B、G、R 的通道顺序";
+  }
+  if (pixelsEqual(transpose(actual), expected)) {
+    return "行和列对调了——检查像素位置是 (y * width + x)";
   }
   for (let y = 0; y < expected.length; y += 1) {
     for (let x = 0; x < expected[y].length; x += 1) {
@@ -115,17 +140,12 @@ export function checkText(actual: string, expected: string, label = "解码出�
   return { id: "text", label, ok: detail === "", detail: detail || null };
 }
 
-export function checkSignature(actual: string, expected: string): PartVerdict {
-  return {
-    id: "signature",
-    label: "文件签名",
-    ok: actual === expected,
-    detail: actual === expected ? null : "签名读得不对——再用字符表解释前两个字节",
-  };
-}
-
-export function checkPixels(actual: PixelMatrix, expected: PixelMatrix): PartVerdict {
-  const detail = pixelsDetail(actual, expected);
+export function checkPixels(
+  actual: PixelMatrix,
+  expected: PixelMatrix,
+  flipHint?: string,
+): PartVerdict {
+  const detail = pixelsDetail(actual, expected, flipHint);
   return { id: "pixels", label: "像素矩阵", ok: detail === "", detail: detail || null };
 }
 
@@ -150,20 +170,14 @@ export function verifyArtifact(
     }
     case "bmp": {
       const parts: PartVerdict[] = [];
-      const exp = expected as { signature: string; pixels: PixelMatrix };
-      if (stage.requiresSignature) {
-        const sig = sanitizeSignature((artifact as { signature?: unknown })?.signature);
-        if (sig === null) {
-          parts.push({ id: "signature", label: "文件签名", ok: false, detail: "格式不符" });
-        } else {
-          parts.push(checkSignature(sig, exp.signature));
-        }
-      }
+      const exp = expected as { pixels: PixelMatrix };
       const pixels = sanitizePixels((artifact as { pixels?: unknown })?.pixels);
       if (pixels === null) {
         parts.push({ id: "pixels", label: "像素矩阵", ok: false, detail: "格式不符" });
       } else {
-        parts.push(checkPixels(pixels, exp.pixels));
+        parts.push(
+          checkPixels(pixels, exp.pixels, "核对行序约定（BMP 里图像最下面一行存在最前面）"),
+        );
       }
       return parts;
     }

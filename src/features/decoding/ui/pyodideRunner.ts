@@ -91,6 +91,10 @@ export type DecodeRunOptions = {
   preamble?: string;
   /** Expression to evaluate instead of the default `decode(data)`. */
   call?: string;
+  /** Keep data assignments in code instead of injecting the stage payload. */
+  useCodeData?: boolean;
+  /** Return captured stdout with the Python result. */
+  captureStdout?: boolean;
   timeoutMs?: number;
 };
 
@@ -121,6 +125,8 @@ export async function runDecode(
       data,
       preamble: options.preamble,
       call: options.call,
+      useCodeData: options.useCodeData,
+      captureStdout: options.captureStdout,
     });
   });
 }
