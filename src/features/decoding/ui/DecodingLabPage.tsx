@@ -177,9 +177,7 @@ function DecodeEditor({
                 fills={sampleFills}
                 onFill={onSampleFill}
               />
-              <p className="decode-example-empty">
-                表达式可改——改完点 ▶ 看字节流和图案怎么变
-              </p>
+              <p className="decode-example-empty">表达式可改——改完点 ▶ 看字节流和图案怎么变</p>
             </>
           ) : (
             <pre>
