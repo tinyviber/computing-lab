@@ -475,7 +475,7 @@ export function DecodingLabPage() {
     const stageIdx = stage.index;
     // BMP stages: the generator's printout is the sample input, and decoding
     // that same `data` in the same run yields the sample output image.
-    const expectImage = stage.kind === "bmp";
+    const expectImage = stage.kind === "bmp" || stage.kind === "bmp-script";
     setRunning(true);
     setSamplePrintout(null);
     setSamplePixels(null);
@@ -672,7 +672,8 @@ export function DecodingLabPage() {
                       </div>
                       {stage.example ? (
                         <div className="decode-example-output">
-                          {stage.example.run && stage.kind === "bmp" ? (
+                          {stage.example.run &&
+                          (stage.kind === "bmp" || stage.kind === "bmp-script") ? (
                             <>
                               {samplePrintout !== null ? (
                                 <SampleBytes pixels={samplePixels} raw={samplePrintout} />
