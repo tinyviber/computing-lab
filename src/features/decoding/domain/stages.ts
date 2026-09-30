@@ -47,7 +47,13 @@ export type DecodingStageDef = {
   starterCode: string;
   /** Alternate cloze templates, picked per user — same concepts, different fills. */
   starterVariants?: readonly string[];
-  example?: { input: string; output?: string; run?: boolean };
+  example?: {
+    input: string;
+    output?: string;
+    run?: boolean;
+    /** __(n)__ blanks in `input` start prefilled with these expressions — students can edit and re-run. */
+    blankDefaults?: Record<string, string>;
+  };
   prompts?: DecodingPrompt[];
 };
 
@@ -207,11 +213,12 @@ export const DECODING_STAGES: DecodingStageDef[] = [
         "data[22] = 8          # 高 = 8",
         "for y in reversed(range(8)):  # BMP 从下往上存: 最后一行写在最前面",
         "    for x in range(8):",
-        "        v = 255 - y * 28      # 灰度值只随行变: 第 0 行最亮, 第 7 行最暗",
+        "        v = __(1)__           # 灰度值表达式, 可改: 第 0 行最亮, 第 7 行最暗",
         "        data += [v, v, v]     # 每像素 3 字节 B,G,R, 同值就是灰色",
         "print(data)",
       ].join("\n"),
       run: true,
+      blankDefaults: { "1": "255 - y * 28" },
     },
     starterCode: `def decode(data):
     # data: 一个 BMP 文件的全部字节
