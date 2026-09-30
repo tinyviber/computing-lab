@@ -12,27 +12,44 @@ export function ClozeEditor({
   code,
   fills,
   onFill,
+  ariaLabel = "decode 填空代码",
+  blankLabel,
+  onBlankEnter,
 }: {
   code: string;
   fills: Record<string, string>;
   onFill: (blankId: string, value: string) => void;
+  ariaLabel?: string;
+  blankLabel?: (blankId: string) => string;
+  /** Enter pressed inside a blank — e.g. re-run the enclosing example. */
+  onBlankEnter?: () => void;
 }) {
   const parts = parseCloze(code);
   return (
-    <pre aria-label="decode 填空代码" className="cloze-code">
+    <pre aria-label={ariaLabel} className="cloze-code">
       {parts.map((part, i) =>
         part.kind === "text" ? (
           <Fragment key={i}>{part.text}</Fragment>
         ) : (
           <input
-            aria-label={`空 ${part.id}`}
+            aria-label={blankLabel?.(part.id) ?? `空 ${part.id}`}
             className="cloze-blank"
             key={i}
             maxLength={300}
             onChange={(e) => onFill(part.id, e.target.value)}
+            onKeyDown={
+              onBlankEnter
+                ? (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onBlankEnter();
+                    }
+                  }
+                : undefined
+            }
             spellCheck={false}
             style={{ width: `${Math.max(5, (fills[part.id] ?? "").length + 2)}ch` }}
-            title={`空 ${part.id}`}
+            title={blankLabel?.(part.id) ?? `空 ${part.id}`}
             type="text"
             value={fills[part.id] ?? ""}
           />

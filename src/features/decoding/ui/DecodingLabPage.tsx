@@ -52,7 +52,7 @@ import { ClozeEditor } from "./ClozeEditor.tsx";
 import { ConceptPanel } from "./ConceptPanel.tsx";
 import { DecodingStageRail } from "./DecodingStageRail.tsx";
 import { FilesPanel } from "./FilesPanel.tsx";
-import { PixelCanvas } from "./PixelCanvas.tsx";
+import { PixelCanvas, type PixelHover } from "./PixelCanvas.tsx";
 import { BMP_HELPER, runDecode, warmPyodide } from "./pyodideRunner.ts";
 import "./decoding.css";
 
@@ -127,6 +127,8 @@ function DecodeEditor({
   onFill,
   onRun,
   onPrintExample,
+  sampleFills,
+  onSampleFill,
 }: {
   stage: DecodingStageDef;
   code: string;
@@ -135,6 +137,8 @@ function DecodeEditor({
   onFill: (blankId: string, value: string) => void;
   onRun: () => void;
   onPrintExample: () => void;
+  sampleFills: Record<string, string>;
+  onSampleFill: (blankId: string, value: string) => void;
 }) {
   return (
     <section aria-label="解码器" className="decode-editor">
@@ -164,9 +168,23 @@ function DecodeEditor({
               </button>
             ) : null}
           </div>
-          <pre>
-            <code>{stage.example.input}</code>
-          </pre>
+          {hasCloze(stage.example.input) ? (
+            <>
+              <ClozeEditor
+                ariaLabel="输入生成器代码"
+                blankLabel={() => "表达式，可编辑——改完点 ▶ 重新生成"}
+                code={stage.example.input}
+                fills={sampleFills}
+                onBlankEnter={onPrintExample}
+                onFill={onSampleFill}
+              />
+              <p className="decode-example-empty">表达式可改——改完点 ▶ 看字节流和图案怎么变</p>
+            </>
+          ) : (
+            <pre>
+              <code>{stage.example.input}</code>
+            </pre>
+          )}
         </aside>
       ) : null}
       <ClozeEditor code={code} fills={fills} onFill={onFill} />
@@ -186,6 +204,77 @@ function DecodeEditor({
         ) : null}
       </div>
     </section>
+  );
+}
+
+/** Parse `print(list)` output like "[66, 77, 0, ...]" back into ints; null
+ *  when the stream isn't a plain int list (then show it verbatim). */
+function parseByteList(raw: string): number[] | null {
+  const trimmed = raw.trim();
+  if (!trimmed.startsWith("[") || !trimmed.endsWith("]")) return null;
+  const parts = trimmed.slice(1, -1).split(",");
+  if (!parts.every((part) => /^\s*\d+\s*$/.test(part))) return null;
+  return parts.map((part) => Number(part));
+}
+
+/** The generated sample input: copyable, and split one line per stored pixel
+ *  row once a decoded image is available — BMP stores bottom row first, so
+ *  row tags count down y=h-1 … y=0. */
+function SampleBytes({ raw, pixels }: { raw: string; pixels: PixelMatrix | null }) {
+  const [copied, setCopied] = useState(false);
+  const bytes = useMemo(() => parseByteList(raw), [raw]);
+  const grouped = useMemo(() => {
+    if (!bytes || !pixels) return null;
+    const h = pixels.length;
+    const w = pixels[0]?.length ?? 0;
+    const headerLen = bytes.length - h * w * 3;
+    if (w === 0 || headerLen <= 0) return null;
+    const rows: number[][] = [];
+    for (let i = 0; i < h; i += 1) {
+      rows.push(bytes.slice(headerLen + i * w * 3, headerLen + (i + 1) * w * 3));
+    }
+    return { header: bytes.slice(0, headerLen), rows, h };
+  }, [bytes, pixels]);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(raw);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard unavailable (e.g. non-secure context) — nothing to copy to
+    }
+  };
+  return (
+    <>
+      <div className="decode-example-bytes-head">
+        <h4>样例输入</h4>
+        <button
+          className="button button-ghost decode-copy"
+          onClick={() => void copy()}
+          type="button"
+        >
+          {copied ? "已复制" : "复制"}
+        </button>
+      </div>
+      {grouped ? (
+        <pre className="decode-example-bytes">
+          <span className="bytes-line">
+            <span className="bytes-tag">文件头</span>
+            <code>[{grouped.header.join(", ")}]</code>
+          </span>
+          {grouped.rows.map((row, i) => (
+            <span className="bytes-line" key={i}>
+              <span className="bytes-tag">y={grouped.h - 1 - i}</span>
+              <code>[{row.join(", ")}]</code>
+            </span>
+          ))}
+        </pre>
+      ) : (
+        <pre className="decode-example-bytes">
+          <code>{raw}</code>
+        </pre>
+      )}
+    </>
   );
 }
 
@@ -231,7 +320,11 @@ export function DecodingLabPage() {
   const [lastRun, setLastRun] = useState<RunResult>(null);
   const [samplePrintout, setSamplePrintout] = useState<string | null>(null);
   const [samplePixels, setSamplePixels] = useState<PixelMatrix | null>(null);
+  const [sampleFills, setSampleFills] = useState<Record<string, string>>(
+    () => stageOf(state)?.example?.blankDefaults ?? {},
+  );
   const [samplePrintError, setSamplePrintError] = useState<string | null>(null);
+  const [sampleHover, setSampleHover] = useState<PixelHover | null>(null);
   const [preview, setPreview] = useState<PixelMatrix | null>(null);
   const [wrongPick, setWrongPick] = useState<{ promptId: string; option: number } | null>(null);
 
@@ -282,6 +375,8 @@ export function DecodingLabPage() {
     setPreview(null);
     setRunError(null);
     setWrongPick(null);
+    setSampleHover(null);
+    setSampleFills(getDecodingStage(state.stageIndex)?.example?.blankDefaults ?? {});
   }, [state.stageIndex]);
 
   // A shared ?stage=N link opens that stage once, after the project loads
@@ -384,8 +479,12 @@ export function DecodingLabPage() {
     setSamplePrintout(null);
     setSamplePixels(null);
     setSamplePrintError(null);
+    setSampleHover(null);
     try {
-      const outcome = await runDecode(stage.example.input, null, {
+      const source = hasCloze(stage.example.input)
+        ? assembleCloze(stage.example.input, sampleFills)
+        : stage.example.input;
+      const outcome = await runDecode(source, null, {
         call: expectImage ? "decode_bmp(data)" : "None",
         captureStdout: true,
         preamble: expectImage ? BMP_HELPER : undefined,
@@ -408,7 +507,7 @@ export function DecodingLabPage() {
     } finally {
       setRunning(false);
     }
-  }, [stage]);
+  }, [stage, sampleFills]);
 
   /** What blocks the 提交判定 button, as a student-readable reason. */
   const submitBlocker = (): string | null => {
@@ -544,7 +643,11 @@ export function DecodingLabPage() {
                       }}
                       onPrintExample={() => void printExampleData()}
                       onRun={() => void run()}
+                      onSampleFill={(blankId, value) => {
+                        setSampleFills((prev) => ({ ...prev, [blankId]: value }));
+                      }}
                       running={running}
+                      sampleFills={sampleFills}
                       stage={stage}
                     />
                     <section aria-label="解码结果" className="decode-output">
@@ -565,19 +668,30 @@ export function DecodingLabPage() {
                         <div className="decode-example-output">
                           {stage.example.run && stage.kind === "bmp" ? (
                             <>
-                              <h4>样例输入</h4>
                               {samplePrintout !== null ? (
-                                <pre className="decode-example-bytes">
-                                  <code>{samplePrintout}</code>
-                                </pre>
+                                <SampleBytes pixels={samplePixels} raw={samplePrintout} />
                               ) : (
-                                <p className="decode-example-empty">
-                                  点左边 ▶ 运行「输入生成器」后显示
-                                </p>
+                                <>
+                                  <h4>样例输入</h4>
+                                  <p className="decode-example-empty">
+                                    点左边 ▶ 运行「输入生成器」后显示
+                                  </p>
+                                </>
                               )}
                               <h4>样例输出</h4>
                               {samplePixels ? (
-                                <PixelCanvas ariaLabel="样例输出图案" pixels={samplePixels} />
+                                <>
+                                  <PixelCanvas
+                                    ariaLabel="样例输出图案"
+                                    onPixelHover={setSampleHover}
+                                    pixels={samplePixels}
+                                  />
+                                  <p className="decode-example-hover">
+                                    {sampleHover
+                                      ? `y=${sampleHover.y} x=${sampleHover.x} → [${sampleHover.rgb.join(", ")}]`
+                                      : "把鼠标移到图上，可查看每个像素的 y、x 和 [R, G, B]"}
+                                  </p>
+                                </>
                               ) : (
                                 <p className="decode-example-empty">
                                   这份样例 data 按 BMP 约定解出的图案

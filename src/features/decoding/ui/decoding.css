@@ -269,6 +269,46 @@
   word-break: break-all;
 }
 
+.decode-example-bytes-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0 0 4px;
+}
+
+.decode-example-bytes-head h4 {
+  margin: 0;
+  font-size: var(--font-size-xs);
+}
+
+.decode-copy {
+  padding: 1px 10px;
+  font-size: var(--font-size-xs);
+}
+
+.decode-example-bytes .bytes-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.decode-example-bytes .bytes-tag {
+  flex: none;
+  min-width: 5ch;
+  text-align: right;
+  color: var(--color-text-3, #6b7280);
+  font-size: var(--font-size-xs);
+  user-select: none;
+}
+
+.decode-example-hover {
+  margin: 4px 0 0;
+  color: var(--color-text-3, #6b7280);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+
 .decode-example-empty {
   margin: 0;
   color: var(--color-text-3, #6b7280);
