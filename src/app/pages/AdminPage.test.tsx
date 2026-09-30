@@ -5,9 +5,9 @@ import { adminAuthState, renderAppAt } from "../../test/router-test-helpers";
 
 const classes = [{ id: "c1", name: "测试班级", inviteCode: "CLASS1", memberCount: 0 }];
 const labs = [
-  { id: "calculator", stageCount: 7, hidden: false },
-  { id: "image-sampling", stageCount: 3, hidden: false },
-  { id: "cpu", stageCount: 5, hidden: true },
+  { id: "calculator", stageCount: 7, hidden: false, openClassIds: null, visible: true },
+  { id: "image-sampling", stageCount: 3, hidden: false, openClassIds: null, visible: true },
+  { id: "cpu", stageCount: 5, hidden: true, openClassIds: null, visible: true },
 ];
 const users = [
   {

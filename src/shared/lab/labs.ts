@@ -1,12 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
 
-/** One row of GET /api/labs — the catalog's lab identifiers and hidden state. */
+/** One row of GET /api/labs — the catalog's lab identifiers and visibility. */
 export type LabVisibility = {
   id: string;
   stageCount: number;
   /** Admin-toggled: hidden labs are admin-only until reopened. */
   hidden: boolean;
+  /**
+   * Admin-toggled class scope of an open lab: null means every class, an
+   * array of class ids means only members of those classes.
+   */
+  openClassIds: string[] | null;
+  /** Server-computed access verdict for the signed-in user. */
+  visible: boolean;
 };
 
 export const LAB_TITLES: Record<string, string> = {

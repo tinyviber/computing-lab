@@ -139,7 +139,7 @@ export function CalculatorLabPage() {
   return (
     <LabAccessGate
       classId={classId}
-      hidden={catalog?.get("calculator")?.hidden === true}
+      closed={catalog?.get("calculator")?.visible === false}
       labName="实现ALU"
       noClassHint="请用老师给的邀请码加入班级后再开始实验。"
       role={role}

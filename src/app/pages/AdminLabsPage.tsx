@@ -4,13 +4,38 @@ import { api, describeApiError } from "../../shared/api/client";
 import { useAuth } from "../../shared/auth";
 import { LAB_TITLES, type LabVisibility } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
+import type { AdminClass } from "./AdminTypes";
 import "./admin.css";
+
+/** Editable per-lab visibility: hidden, or open to the checked classes. */
+type LabDraft = { hidden: boolean; checked: Set<string> };
+
+function draftOf(lab: LabVisibility, classes: AdminClass[]): LabDraft {
+  const known = new Set(classes.map((c) => c.id));
+  return {
+    hidden: lab.hidden,
+    // null (every class) renders as all boxes checked; a stored array keeps
+    // only ids that still match a real class.
+    checked:
+      lab.openClassIds === null
+        ? new Set(known)
+        : new Set(lab.openClassIds.filter((id) => known.has(id))),
+  };
+}
+
+function sameDraft(a: LabDraft, b: LabDraft): boolean {
+  if (a.hidden !== b.hidden || a.checked.size !== b.checked.size) return false;
+  for (const id of a.checked) if (!b.checked.has(id)) return false;
+  return true;
+}
 
 export function AdminLabsPage() {
   const { status, role } = useAuth();
   const [labs, setLabs] = useState<LabVisibility[] | null>(null);
+  const [classes, setClasses] = useState<AdminClass[]>([]);
+  const [drafts, setDrafts] = useState<Record<string, LabDraft>>({});
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyLab, setBusyLab] = useState<string | null>(null);
 
   const reload = useCallback(() => {
     void api
@@ -20,26 +45,53 @@ export function AdminLabsPage() {
         setLabs([]);
         setError(describeApiError(caught));
       });
+    void api
+      .get<{ classes: AdminClass[] }>("/api/admin/classes")
+      .then((payload) => setClasses(payload.classes))
+      .catch((caught) => setError(describeApiError(caught)));
   }, []);
 
   useEffect(() => {
     if (status === "authenticated" && role === "admin") reload();
   }, [status, role, reload]);
 
-  const toggleVisibility = useCallback(
+  // Drafts follow the freshly loaded server rows once both sources are in.
+  useEffect(() => {
+    if (!labs) return;
+    setDrafts(Object.fromEntries(labs.map((lab) => [lab.id, draftOf(lab, classes)])));
+  }, [labs, classes]);
+
+  const patchDraft = useCallback((labId: string, patch: (draft: LabDraft) => LabDraft) => {
+    setDrafts((current) => {
+      const draft = current[labId];
+      return draft ? { ...current, [labId]: patch(draft) } : current;
+    });
+  }, []);
+
+  const save = useCallback(
     async (lab: LabVisibility) => {
+      const draft = drafts[lab.id];
+      if (!draft) return;
       setError(null);
-      setBusy(true);
+      setBusyLab(lab.id);
       try {
-        await api.put(`/api/admin/labs/${lab.id}/visibility`, { hidden: !lab.hidden });
+        const allChecked = draft.checked.size === classes.length;
+        await api.put(`/api/admin/labs/${lab.id}/visibility`, {
+          hidden: draft.hidden,
+          // Every class checked stores null — "all classes" also covers
+          // classes created later; a subset stores the pinned ids.
+          openClassIds: allChecked
+            ? null
+            : classes.map((c) => c.id).filter((id) => draft.checked.has(id)),
+        });
         reload();
       } catch (caught) {
         setError(describeApiError(caught));
       } finally {
-        setBusy(false);
+        setBusyLab(null);
       }
     },
-    [reload],
+    [classes, drafts, reload],
   );
 
   if (status === "loading") {
@@ -82,7 +134,7 @@ export function AdminLabsPage() {
               <h2 id="labs-title">实验开放状态</h2>
             </div>
             <p className="admin-labs-hint">
-              隐藏的实验对学生和教师不可见；管理员仍可查看实验并重新开放。
+              隐藏的实验只有管理员可见；开放的实验对勾选班级的成员可见。保存后生效。
             </p>
             <table className="admin-table">
               <thead>
@@ -90,42 +142,132 @@ export function AdminLabsPage() {
                   <th scope="col">实验</th>
                   <th scope="col">关卡数</th>
                   <th scope="col">状态</th>
+                  <th scope="col">开放设置</th>
                   <th scope="col">操作</th>
                 </tr>
               </thead>
               <tbody>
-                {labs?.map((lab) => (
-                  <tr key={lab.id}>
-                    <td>
-                      {LAB_TITLES[lab.id] ?? lab.id}
-                      <span className="admin-lab-id">{lab.id}</span>
-                    </td>
-                    <td>{lab.stageCount}</td>
-                    <td>
-                      <span className={`admin-lab-state${lab.hidden ? " is-hidden" : ""}`}>
-                        {lab.hidden ? "已隐藏" : "开放中"}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        className="button button-ghost admin-inline-button"
-                        disabled={busy}
-                        onClick={() => void toggleVisibility(lab)}
-                        title={lab.hidden ? "重新对学生和教师开放" : "对学生和教师隐藏"}
-                        type="button"
-                      >
-                        {lab.hidden ? "恢复开放" : "隐藏"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {labs?.map((lab) => {
+                  const draft = drafts[lab.id];
+                  const dirty = draft ? !sameDraft(draft, draftOf(lab, classes)) : false;
+                  return (
+                    <tr key={lab.id}>
+                      <td>
+                        {LAB_TITLES[lab.id] ?? lab.id}
+                        <span className="admin-lab-id">{lab.id}</span>
+                      </td>
+                      <td>{lab.stageCount}</td>
+                      <td>
+                        <span className={`admin-lab-state${draft?.hidden ? " is-hidden" : ""}`}>
+                          {!draft
+                            ? "…"
+                            : draft.hidden
+                              ? "已隐藏"
+                              : draft.checked.size === classes.length
+                                ? "全部班级"
+                                : `${draft.checked.size} 个班`}
+                        </span>
+                      </td>
+                      <td className="admin-lab-config">
+                        {draft ? (
+                          <>
+                            <div className="admin-lab-mode" role="radiogroup">
+                              <label className="admin-lab-mode-option">
+                                <input
+                                  checked={!draft.hidden}
+                                  name={`visibility-${lab.id}`}
+                                  onChange={() =>
+                                    patchDraft(lab.id, (d) => ({ ...d, hidden: false }))
+                                  }
+                                  type="radio"
+                                />
+                                开放
+                              </label>
+                              <label className="admin-lab-mode-option">
+                                <input
+                                  checked={draft.hidden}
+                                  name={`visibility-${lab.id}`}
+                                  onChange={() =>
+                                    patchDraft(lab.id, (d) => ({ ...d, hidden: true }))
+                                  }
+                                  type="radio"
+                                />
+                                隐藏（仅管理员可见）
+                              </label>
+                            </div>
+                            {!draft.hidden ? (
+                              <div className="admin-lab-classes">
+                                <div className="admin-lab-class-actions">
+                                  <button
+                                    className="admin-lab-class-action"
+                                    onClick={() =>
+                                      patchDraft(lab.id, (d) => ({
+                                        ...d,
+                                        checked: new Set(classes.map((c) => c.id)),
+                                      }))
+                                    }
+                                    type="button"
+                                  >
+                                    全选
+                                  </button>
+                                  <button
+                                    className="admin-lab-class-action"
+                                    onClick={() =>
+                                      patchDraft(lab.id, (d) => ({ ...d, checked: new Set() }))
+                                    }
+                                    type="button"
+                                  >
+                                    取消全部
+                                  </button>
+                                </div>
+                                {classes.map((klass) => (
+                                  <label className="admin-lab-class" key={klass.id}>
+                                    <input
+                                      checked={draft.checked.has(klass.id)}
+                                      onChange={() =>
+                                        patchDraft(lab.id, (d) => {
+                                          const checked = new Set(d.checked);
+                                          if (checked.has(klass.id)) checked.delete(klass.id);
+                                          else checked.add(klass.id);
+                                          return { ...d, checked };
+                                        })
+                                      }
+                                      type="checkbox"
+                                    />
+                                    {klass.name}
+                                  </label>
+                                ))}
+                                {classes.length === 0 ? (
+                                  <span className="admin-lab-class-empty">
+                                    还没有班级，先在账号管理里创建。
+                                  </span>
+                                ) : null}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
+                      </td>
+                      <td>
+                        <button
+                          className="button button-ghost admin-inline-button"
+                          disabled={!dirty || busyLab === lab.id}
+                          onClick={() => void save(lab)}
+                          title="保存这个实验的开放设置"
+                          type="button"
+                        >
+                          {busyLab === lab.id ? "保存中…" : "保存"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {labs === null ? (
                   <tr>
-                    <td colSpan={4}>正在加载实验…</td>
+                    <td colSpan={5}>正在加载实验…</td>
                   </tr>
                 ) : labs.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>还没有实验。</td>
+                    <td colSpan={5}>还没有实验。</td>
                   </tr>
                 ) : null}
               </tbody>

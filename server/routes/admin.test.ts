@@ -959,7 +959,7 @@ describe("lab visibility", () => {
     }
   });
 
-  it("rejects unknown labs and non-boolean bodies", async () => {
+  it("rejects unknown labs and malformed bodies", async () => {
     const { app } = await setup();
     const cookie = await login(app, "admin", "admin-pass");
     const unknown = await request(
@@ -971,10 +971,26 @@ describe("lab visibility", () => {
     );
     expect(unknown.status).toBe(404);
     expect(await unknown.json()).toEqual({ error: "unknown-lab" });
-    for (const body of [{}, { hidden: "yes" }, { hidden: 1 }]) {
+    for (const body of [
+      {},
+      { hidden: "yes" },
+      { hidden: 1 },
+      { hidden: false, openClassIds: "c1" },
+      { hidden: false, openClassIds: [1] },
+    ]) {
       const res = await request(app, "PUT", "/api/admin/labs/calculator/visibility", body, cookie);
       expect(res.status).toBe(400);
     }
+
+    const missingClass = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/calculator/visibility",
+      { hidden: false, openClassIds: ["c1", "nope"] },
+      cookie,
+    );
+    expect(missingClass.status).toBe(404);
+    expect(await missingClass.json()).toEqual({ error: "class-not-found" });
   });
 
   it("requires auth for the catalog and reflects the toggle", async () => {
@@ -984,9 +1000,11 @@ describe("lab visibility", () => {
 
     const cookie = await login(app, "admin", "admin-pass");
     const before = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
-      labs: { id: string; hidden: boolean }[];
+      labs: { id: string; hidden: boolean; openClassIds: string[] | null; visible: boolean }[];
     };
     expect(before.labs.every((lab) => lab.hidden === false)).toBe(true);
+    expect(before.labs.every((lab) => lab.openClassIds === null)).toBe(true);
+    expect(before.labs.every((lab) => lab.visible === true)).toBe(true);
 
     const toggled = await request(
       app,
@@ -997,10 +1015,12 @@ describe("lab visibility", () => {
     );
     expect(toggled.status).toBe(200);
     const after = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
-      labs: { id: string; hidden: boolean }[];
+      labs: { id: string; hidden: boolean; openClassIds: string[] | null; visible: boolean }[];
     };
     expect(after.labs.find((lab) => lab.id === "cpu")?.hidden).toBe(true);
     expect(after.labs.find((lab) => lab.id === "calculator")?.hidden).toBe(false);
+    // Admins keep `visible` even on hidden labs so they can preview them.
+    expect(after.labs.find((lab) => lab.id === "cpu")?.visible).toBe(true);
   });
 
   it("blocks students and teachers from a hidden lab until reopened", async () => {
@@ -1048,5 +1068,88 @@ describe("lab visibility", () => {
       (await request(app, "GET", "/api/classes/c1/dashboard?lab=calculator", undefined, teacher))
         .status,
     ).toBe(200);
+  });
+
+  it("scopes an open lab to the checked classes", async () => {
+    const { db, app } = await setup();
+    const admin = await login(app, "admin", "admin-pass");
+    const teacher = await login(app, "teacher", "teacher-pass");
+    const student = await login(app, "20260101", "student-pass");
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES ('c2', '二班', 'C2')").run();
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'teacher')",
+    ).run(newId(), memberOf(db, "teacher"));
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c2', ?, 'teacher')",
+    ).run(newId(), memberOf(db, "teacher"));
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), memberOf(db, "20260101"));
+    db.prepare(
+      "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, 'user')",
+    ).run(newId(), "20260102", "李四", await hashPassword("pw-1234"));
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c2', ?, 'student')",
+    ).run(newId(), memberOf(db, "20260102"));
+    const student2 = await login(app, "20260102", "pw-1234");
+
+    // Open to c2 only: c1 members lose the lab, c2 members keep it.
+    const scoped = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/calculator/visibility",
+      { hidden: false, openClassIds: ["c2"] },
+      admin,
+    );
+    expect(scoped.status).toBe(200);
+    expect(await scoped.json()).toEqual({
+      lab: { id: "calculator", hidden: false, openClassIds: ["c2"] },
+    });
+
+    const project = (cookie: string, classId = "c1") =>
+      request(app, "GET", `/api/classes/${classId}/labs/calculator/project`, undefined, cookie);
+    expect((await project(student)).status).toBe(403);
+    expect(await (await project(student)).json()).toEqual({ error: "lab-not-available" });
+    expect((await project(student2, "c2")).status).toBe(200);
+    expect((await project(admin)).status).toBe(200);
+
+    // The catalog reports the per-user verdict: c1's student sees visible=false
+    // while the admin row stays visible for preview.
+    const studentCatalog = (await (
+      await request(app, "GET", "/api/labs", undefined, student)
+    ).json()) as { labs: { id: string; visible: boolean }[] };
+    expect(studentCatalog.labs.find((lab) => lab.id === "calculator")?.visible).toBe(false);
+    const adminCatalog = (await (
+      await request(app, "GET", "/api/labs", undefined, admin)
+    ).json()) as { labs: { id: string; visible: boolean }[] };
+    expect(adminCatalog.labs.find((lab) => lab.id === "calculator")?.visible).toBe(true);
+
+    // The dashboard follows the viewed class: c1's dashboard is closed, c2's works.
+    expect(
+      (await request(app, "GET", "/api/classes/c1/dashboard?lab=calculator", undefined, teacher))
+        .status,
+    ).toBe(403);
+    expect(
+      (await request(app, "GET", "/api/classes/c2/dashboard?lab=calculator", undefined, teacher))
+        .status,
+    ).toBe(200);
+
+    // An empty scope admits no class at all; null reopens to every class.
+    await request(
+      app,
+      "PUT",
+      "/api/admin/labs/calculator/visibility",
+      { hidden: false, openClassIds: [] },
+      admin,
+    );
+    expect((await project(student2, "c2")).status).toBe(403);
+    await request(
+      app,
+      "PUT",
+      "/api/admin/labs/calculator/visibility",
+      { hidden: false, openClassIds: null },
+      admin,
+    );
+    expect((await project(student)).status).toBe(200);
   });
 });

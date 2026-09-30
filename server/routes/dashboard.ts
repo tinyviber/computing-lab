@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { jsonError, requireMembership, type AppVariables } from "../http/context.ts";
 import { parseJsonColumn } from "../db/client.ts";
-import { isLabHidden, labInfo } from "../labs.ts";
+import { isLabOpenToClass, labInfo } from "../labs.ts";
 
 type MatrixCell = {
   stageIndex: number;
@@ -36,8 +36,9 @@ export function dashboardRoutes() {
     const lab = labInfo(labId);
     if (!lab) return jsonError(c, 404, "unknown-lab");
     const db = c.get("db");
-    // Hidden labs stay admin-only on teacher surfaces.
-    if (isLabHidden(db, labId) && auth.user.role !== "admin") {
+    // The dashboard reports one class's progress, so the lab must be open to
+    // that class — admins keep full access (hidden labs included).
+    if (auth.user.role !== "admin" && !isLabOpenToClass(db, labId, auth.membership.classId)) {
       return jsonError(c, 403, "lab-not-available");
     }
     const classId = auth.membership.classId;

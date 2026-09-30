@@ -4,7 +4,7 @@ import { MAX_PASSWORD_LENGTH, hashPassword, minPasswordLength } from "../auth/pa
 import type { AccountRole } from "../auth/session.ts";
 import { newId, withTransaction } from "../db/client.ts";
 import { jsonError, requireAdmin, type AppVariables } from "../http/context.ts";
-import { labInfo, setLabHidden } from "../labs.ts";
+import { labInfo, setLabVisibility } from "../labs.ts";
 
 const STUDENT_NO = /^[A-Za-z0-9_-]{2,32}$/;
 /** CSV/表格里常见的中文写法也接受。 */
@@ -466,18 +466,42 @@ export function adminRoutes() {
     return c.json({ cleared });
   });
 
-  // Hide or reopen a lab. Hidden labs stay reachable for admins (preview +
-  // this toggle) but drop out of the student/teacher home cards, entry
-  // redirects, lab APIs, and dashboards.
+  // Set a lab's visibility. Hidden labs stay reachable for admins (preview +
+  // this endpoint) but drop out of the student/teacher home cards, entry
+  // redirects, lab APIs, and dashboards. An open lab can be scoped to a
+  // checked set of classes — `openClassIds: null` means every class, an
+  // array pins exactly those classes ('[]' opens it to no class). Omitting
+  // `openClassIds` keeps the stored scope.
   app.put("/labs/:labId/visibility", async (c) => {
     const labId = c.req.param("labId");
     if (!labInfo(labId)) return jsonError(c, 404, "unknown-lab");
     const body = await c.req.json().catch(() => null);
-    const hidden =
-      body && typeof body === "object" ? (body as Record<string, unknown>).hidden : undefined;
+    if (!body || typeof body !== "object") return jsonError(c, 400, "invalid-body");
+    const { hidden, openClassIds } = body as Record<string, unknown>;
     if (typeof hidden !== "boolean") return jsonError(c, 400, "invalid-body");
-    setLabHidden(c.get("db"), labId, hidden);
-    return c.json({ lab: { id: labId, hidden } });
+    if (
+      openClassIds !== undefined &&
+      openClassIds !== null &&
+      (!Array.isArray(openClassIds) || openClassIds.some((id) => typeof id !== "string"))
+    ) {
+      return jsonError(c, 400, "invalid-body");
+    }
+
+    const db = c.get("db");
+    if (Array.isArray(openClassIds) && openClassIds.length > 0) {
+      const known = new Set(
+        (db.prepare("SELECT id FROM classes").all() as { id: string }[]).map((row) => row.id),
+      );
+      if (openClassIds.some((id) => !known.has(id))) {
+        return jsonError(c, 404, "class-not-found");
+      }
+    }
+
+    const next = setLabVisibility(db, labId, {
+      hidden,
+      openClassIds: openClassIds as string[] | null | undefined,
+    });
+    return c.json({ lab: { id: labId, ...next } });
   });
 
   app.get("/classes", (c) => {

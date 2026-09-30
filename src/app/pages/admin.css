@@ -294,6 +294,68 @@
   color: var(--danger, #b42318);
 }
 
+.admin-lab-config {
+  min-width: 260px;
+}
+
+.admin-lab-mode {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin-bottom: 8px;
+}
+
+.admin-lab-mode-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-lab-classes {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  max-width: 420px;
+}
+
+.admin-lab-class-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-lab-class-action {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.admin-lab-class-action + .admin-lab-class-action::before {
+  content: "·";
+  margin-right: 4px;
+  color: var(--muted);
+}
+
+.admin-lab-class {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.admin-lab-class-empty {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .admin-class-chips {
   display: flex;
   align-items: center;
