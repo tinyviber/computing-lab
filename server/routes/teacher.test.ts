@@ -239,8 +239,12 @@ describe("teacher lab routes", () => {
       { classId: "c1", adminAllowed: false, teacherOpen: true, open: false },
     ]);
 
-    // The teacher can still store a switch for their own class, but the
-    // admin scope keeps it closed for students either way.
+    // The teacher can still preview an open lab scoped away from their
+    // classes, and still store a switch — only students are gated by it.
+    expect(
+      (await request(app, "GET", "/api/classes/c1/labs/calculator/project", undefined, teacher))
+        .status,
+    ).toBe(200);
     await request(
       app,
       "PUT",
@@ -251,7 +255,8 @@ describe("teacher lab routes", () => {
     const student = await login(app, "20260101", "student-pass");
     expect(await catalogVisible(app, student)).toBe(false);
 
-    // Hidden blocks every gate outright.
+    // Hidden drops the lab from the teacher grid entirely and still
+    // blocks the teacher at the lab API; the admin is unaffected.
     await request(
       app,
       "PUT",
@@ -260,13 +265,12 @@ describe("teacher lab routes", () => {
       admin,
     );
     const hidden = await request(app, "GET", "/api/teacher/labs", undefined, teacher);
-    const { labs: hiddenLabs } = (await hidden.json()) as {
-      labs: { id: string; classes: { classId: string; adminAllowed: boolean }[] }[];
-    };
-    expect(hiddenLabs.find((l) => l.id === "calculator")!.classes).toEqual([
-      { classId: "c1", adminAllowed: false, teacherOpen: false, open: false },
-    ]);
-    // Admin is unaffected.
+    const { labs: hiddenLabs } = (await hidden.json()) as { labs: { id: string }[] };
+    expect(hiddenLabs.find((l) => l.id === "calculator")).toBeUndefined();
+    expect(
+      (await request(app, "GET", "/api/classes/c1/labs/calculator/project", undefined, teacher))
+        .status,
+    ).toBe(403);
     expect(
       (await request(app, "GET", "/api/classes/c1/labs/calculator/project", undefined, admin))
         .status,

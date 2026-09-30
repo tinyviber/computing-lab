@@ -137,9 +137,7 @@ export function TeacherLabsPage() {
                       </td>
                       <td>{lab.stageCount}</td>
                       <td>
-                        <span className={`admin-lab-state${lab.hidden ? " is-hidden" : ""}`}>
-                          {lab.hidden ? "已隐藏" : `${openCount} 个班开放`}
-                        </span>
+                        <span className="admin-lab-state">{openCount} 个班开放</span>
                       </td>
                       <td className="admin-lab-config">
                         <div className="admin-lab-classes">
@@ -147,13 +145,7 @@ export function TeacherLabsPage() {
                             <label
                               className={`admin-lab-class${gate.adminAllowed ? "" : " is-blocked"}`}
                               key={gate.classId}
-                              title={
-                                gate.adminAllowed
-                                  ? undefined
-                                  : lab.hidden
-                                    ? "管理员已隐藏这个实验"
-                                    : "管理员未对这个班开放"
-                              }
+                              title={gate.adminAllowed ? undefined : "管理员未对这个班开放"}
                             >
                               <input
                                 checked={gate.teacherOpen}

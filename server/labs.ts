@@ -142,10 +142,9 @@ export function setLabClassOpen(
 
 /**
  * Whether the user may open the lab at all: admins always; a hidden lab
- * blocks everyone else; an open lab admits members of the checked classes
- * (all classes when no scope is pinned). A teacher's per-class switch can
- * further close the lab for a class's students — teachers themselves keep
- * preview access inside the admin scope so they can judge before opening.
+ * blocks everyone else; teachers can preview every open lab — the admin
+ * class scope and their own per-class switches gate only students. A
+ * student needs an admitted class that is not teacher-closed.
  */
 export function canAccessLab(
   db: DatabaseSync,
@@ -156,12 +155,12 @@ export function canAccessLab(
   if (user.role === "admin") return true;
   const v = visibility ?? labVisibility(db, labId);
   if (v.hidden) return false;
+  if (user.role === "teacher") return true;
   const mine = memberClassIds(db, user.id);
   const admitted =
     v.openClassIds === null ? mine : new Set(v.openClassIds.filter((id) => mine.has(id)));
   if (v.openClassIds === null && mine.size === 0) return true;
   if (admitted.size === 0) return false;
-  if (user.role === "teacher") return true;
   const closed = teacherClosedClasses(db).get(labId);
   if (!closed) return true;
   for (const classId of admitted) if (!closed.has(classId)) return true;
@@ -214,11 +213,11 @@ export function labCatalog(
       visibleClassIds = [...mine].filter(
         (id) => (v.openClassIds === null || v.openClassIds.includes(id)) && !labClosed?.has(id),
       );
-      // A teacher's own switches only gate students — they keep preview
-      // access through any admin-scoped membership.
+      // Teachers see every open lab; the admin scope and their own
+      // switches gate only students.
       visible =
         user.role === "teacher"
-          ? v.openClassIds === null || v.openClassIds.some((id) => mine.has(id))
+          ? true
           : visibleClassIds.length > 0 || (v.openClassIds === null && mine.size === 0);
     }
     return { ...lab, ...v, visible, visibleClassIds };
@@ -228,7 +227,7 @@ export function labCatalog(
 /** One class cell of the teacher lab-management grid. */
 export type LabClassGate = {
   classId: string;
-  /** The admin scope admits this class (hidden labs admit none). */
+  /** The admin scope admits this class. */
   adminAllowed: boolean;
   /** The teacher's own switch for this class; defaults to open. */
   teacherOpen: boolean;
@@ -238,8 +237,9 @@ export type LabClassGate = {
 
 /**
  * Labs joined with the caller's own-class gate cells — the teacher
- * management view. `hidden`/`openClassIds` are the admin layer; each gate
- * resolves to `open` for the class's students.
+ * management view. Hidden labs are admin-domain and never listed; each
+ * gate resolves to `open` for the class's students under the admin scope
+ * plus the teacher's own switch.
  */
 export function teacherLabView(
   db: DatabaseSync,
@@ -250,11 +250,10 @@ export function teacherLabView(
   return LAB_REGISTRY.map((lab) => {
     const v = rows.get(lab.id) ?? OPEN_TO_ALL;
     const classes = classIds.map((classId) => {
-      const adminAllowed =
-        !v.hidden && (v.openClassIds === null || v.openClassIds.includes(classId));
+      const adminAllowed = v.openClassIds === null || v.openClassIds.includes(classId);
       const teacherOpen = !closed.get(lab.id)?.has(classId);
       return { classId, adminAllowed, teacherOpen, open: adminAllowed && teacherOpen };
     });
     return { ...lab, ...v, classes };
-  });
+  }).filter((row) => !row.hidden);
 }
