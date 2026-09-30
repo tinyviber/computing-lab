@@ -53,9 +53,7 @@ export function TeacherLabsPage() {
                   : {
                       ...row,
                       classes: row.classes.map((gate) =>
-                        gate.classId !== classId
-                          ? gate
-                          : { ...gate, teacherOpen: open, open: open && gate.adminAllowed },
+                        gate.classId !== classId ? gate : { ...gate, teacherOpen: open, open },
                       ),
                     },
               ),
