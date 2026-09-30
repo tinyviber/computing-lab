@@ -36,6 +36,7 @@ import { cpuRoutes } from "./routes/cpu.ts";
 import { decodingRoutes } from "./routes/decoding.ts";
 import { isSimRoutes } from "./routes/isSim.ts";
 import { labsRoutes } from "./routes/labs.ts";
+import { teacherRoutes } from "./routes/teacher.ts";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 const distRoot = resolve(here, "../dist");
@@ -92,6 +93,7 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/classes/:classId/labs/decoding", decodingRoutes());
   app.route("/api/classes/:classId/labs/is-sim", isSimRoutes());
   app.route("/api/labs", labsRoutes());
+  app.route("/api/teacher", teacherRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
   app.route("/api/task-sheets", taskSheetRoutes());
   app.route("/api/classes/:classId/task-assignments", taskAssignmentRoutes());

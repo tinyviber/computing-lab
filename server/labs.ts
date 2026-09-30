@@ -103,10 +103,49 @@ function memberClassIds(db: DatabaseSync, userId: string): Set<string> {
   return new Set(rows.map((row) => row.classId));
 }
 
+/** Teacher-closed class ids keyed by lab id (lab_class_settings.open = 0). */
+function teacherClosedClasses(db: DatabaseSync): Map<string, Set<string>> {
+  const rows = db
+    .prepare("SELECT lab_id AS labId, class_id AS classId FROM lab_class_settings WHERE open = 0")
+    .all() as { labId: string; classId: string }[];
+  const map = new Map<string, Set<string>>();
+  for (const row of rows) {
+    const set = map.get(row.labId) ?? new Set<string>();
+    set.add(row.classId);
+    map.set(row.labId, set);
+  }
+  return map;
+}
+
+/** Whether a teacher closed this lab for one class (missing row = open). */
+export function isLabClosedForClass(db: DatabaseSync, labId: string, classId: string): boolean {
+  const row = db
+    .prepare("SELECT open FROM lab_class_settings WHERE lab_id = ? AND class_id = ?")
+    .get(labId, classId) as { open: number } | undefined;
+  return row?.open === 0;
+}
+
+/** Persist a teacher's per-class switch for one of their classes. */
+export function setLabClassOpen(
+  db: DatabaseSync,
+  labId: string,
+  classId: string,
+  open: boolean,
+): void {
+  db.prepare(
+    `INSERT INTO lab_class_settings (lab_id, class_id, open) VALUES (?, ?, ?)
+     ON CONFLICT (lab_id, class_id) DO UPDATE SET
+       open = excluded.open,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`,
+  ).run(labId, classId, open ? 1 : 0);
+}
+
 /**
  * Whether the user may open the lab at all: admins always; a hidden lab
- * blocks everyone else; an open lab admits every member when the scope is
- * "all classes", otherwise anyone holding a membership in a checked class.
+ * blocks everyone else; an open lab admits members of the checked classes
+ * (all classes when no scope is pinned). A teacher's per-class switch can
+ * further close the lab for a class's students — teachers themselves keep
+ * preview access inside the admin scope so they can judge before opening.
  */
 export function canAccessLab(
   db: DatabaseSync,
@@ -117,10 +156,16 @@ export function canAccessLab(
   if (user.role === "admin") return true;
   const v = visibility ?? labVisibility(db, labId);
   if (v.hidden) return false;
-  if (v.openClassIds === null) return true;
-  if (v.openClassIds.length === 0) return false;
   const mine = memberClassIds(db, user.id);
-  return v.openClassIds.some((classId) => mine.has(classId));
+  const admitted =
+    v.openClassIds === null ? mine : new Set(v.openClassIds.filter((id) => mine.has(id)));
+  if (v.openClassIds === null && mine.size === 0) return true;
+  if (admitted.size === 0) return false;
+  if (user.role === "teacher") return true;
+  const closed = teacherClosedClasses(db).get(labId);
+  if (!closed) return true;
+  for (const classId of admitted) if (!closed.has(classId)) return true;
+  return false;
 }
 
 /**
@@ -136,7 +181,8 @@ export function isLabOpenToClass(
 ): boolean {
   const v = visibility ?? labVisibility(db, labId);
   if (v.hidden) return false;
-  return v.openClassIds === null || v.openClassIds.includes(classId);
+  if (v.openClassIds !== null && !v.openClassIds.includes(classId)) return false;
+  return !isLabClosedForClass(db, labId, classId);
 }
 
 /**
@@ -149,13 +195,56 @@ export function labCatalog(
   user: SessionUser,
 ): (LabInfo & LabVisibility & { visible: boolean })[] {
   const rows = visibilityRows(db);
+  const closed = teacherClosedClasses(db);
   const mine = user.role === "admin" ? null : memberClassIds(db, user.id);
   return LAB_REGISTRY.map((lab) => {
     const v = rows.get(lab.id) ?? OPEN_TO_ALL;
-    const visible =
-      user.role === "admin" ||
-      (!v.hidden &&
-        (v.openClassIds === null || v.openClassIds.some((classId) => mine!.has(classId))));
+    let visible: boolean;
+    if (user.role === "admin") visible = true;
+    else if (v.hidden) visible = false;
+    else if (user.role === "teacher") {
+      visible = v.openClassIds === null || v.openClassIds.some((id) => mine!.has(id));
+    } else {
+      const labClosed = closed.get(lab.id);
+      visible =
+        v.openClassIds === null
+          ? mine!.size === 0 || [...mine!].some((id) => !labClosed?.has(id))
+          : v.openClassIds.some((id) => mine!.has(id) && !labClosed?.has(id));
+    }
     return { ...lab, ...v, visible };
+  });
+}
+
+/** One class cell of the teacher lab-management grid. */
+export type LabClassGate = {
+  classId: string;
+  /** The admin scope admits this class (hidden labs admit none). */
+  adminAllowed: boolean;
+  /** The teacher's own switch for this class; defaults to open. */
+  teacherOpen: boolean;
+  /** What this class's students experience. */
+  open: boolean;
+};
+
+/**
+ * Labs joined with the caller's own-class gate cells — the teacher
+ * management view. `hidden`/`openClassIds` are the admin layer; each gate
+ * resolves to `open` for the class's students.
+ */
+export function teacherLabView(
+  db: DatabaseSync,
+  classIds: string[],
+): (LabInfo & LabVisibility & { classes: LabClassGate[] })[] {
+  const rows = visibilityRows(db);
+  const closed = teacherClosedClasses(db);
+  return LAB_REGISTRY.map((lab) => {
+    const v = rows.get(lab.id) ?? OPEN_TO_ALL;
+    const classes = classIds.map((classId) => {
+      const adminAllowed =
+        !v.hidden && (v.openClassIds === null || v.openClassIds.includes(classId));
+      const teacherOpen = !closed.get(lab.id)?.has(classId);
+      return { classId, adminAllowed, teacherOpen, open: adminAllowed && teacherOpen };
+    });
+    return { ...lab, ...v, classes };
   });
 }

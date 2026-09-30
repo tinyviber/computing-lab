@@ -126,6 +126,18 @@ CREATE TABLE IF NOT EXISTS lab_settings (
   updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- Teacher-level per-class lab switch, layered under lab_settings: admins
+-- still pick hidden/open and the class scope; a teacher can only close (or
+-- reopen) a lab for a class they teach. open = 0 blocks the class's students
+-- even when the admin scope admits it; a missing row means open.
+CREATE TABLE IF NOT EXISTS lab_class_settings (
+  lab_id     TEXT NOT NULL,
+  class_id   TEXT NOT NULL REFERENCES classes (id),
+  open       INTEGER NOT NULL DEFAULT 1,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (lab_id, class_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_submissions_project_stage ON submissions (project_id, stage_index);
 CREATE INDEX IF NOT EXISTS idx_submissions_user ON submissions (user_id, lab_id);
 -- Dashboard lookup: latest submission per (user, lab, stage).

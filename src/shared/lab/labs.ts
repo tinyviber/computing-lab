@@ -16,6 +16,22 @@ export type LabVisibility = {
   visible: boolean;
 };
 
+/** One class cell of GET /api/teacher/labs — the teacher's own switch. */
+export type TeacherLabClassGate = {
+  classId: string;
+  /** The admin scope admits this class (hidden labs admit none). */
+  adminAllowed: boolean;
+  /** The teacher's stored switch for this class; defaults to open. */
+  teacherOpen: boolean;
+  /** What this class's students experience. */
+  open: boolean;
+};
+
+/** One row of GET /api/teacher/labs. */
+export type TeacherLabView = Omit<LabVisibility, "visible"> & {
+  classes: TeacherLabClassGate[];
+};
+
 export const LAB_TITLES: Record<string, string> = {
   calculator: "实现ALU",
   cpu: "冯诺依曼数据通路",
