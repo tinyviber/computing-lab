@@ -14,6 +14,11 @@ export type LabVisibility = {
   openClassIds: string[] | null;
   /** Server-computed access verdict for the signed-in user. */
   visible: boolean;
+  /**
+   * The caller's own classes whose students may take the lab — entry
+   * redirects and the dashboard picker use it to land on an open class.
+   */
+  visibleClassIds: string[];
 };
 
 /** One class cell of GET /api/teacher/labs — the teacher's own switch. */

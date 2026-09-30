@@ -186,32 +186,42 @@ export function isLabOpenToClass(
 }
 
 /**
- * Registry rows joined with the stored visibility, plus `visible` — the
- * access verdict for this user (admins see everything, including hidden
- * labs, so they can preview and reopen them).
+ * Registry rows joined with the stored visibility. `visible` is the access
+ * verdict for this user (admins see everything, including hidden labs, so
+ * they can preview and reopen them). `visibleClassIds` lists the caller's
+ * own classes whose students may take the lab — entry redirects and the
+ * dashboard picker use it to land on a class that is actually open.
  */
 export function labCatalog(
   db: DatabaseSync,
   user: SessionUser,
-): (LabInfo & LabVisibility & { visible: boolean })[] {
+): (LabInfo & LabVisibility & { visible: boolean; visibleClassIds: string[] })[] {
   const rows = visibilityRows(db);
   const closed = teacherClosedClasses(db);
-  const mine = user.role === "admin" ? null : memberClassIds(db, user.id);
+  const mine = memberClassIds(db, user.id);
   return LAB_REGISTRY.map((lab) => {
     const v = rows.get(lab.id) ?? OPEN_TO_ALL;
     let visible: boolean;
-    if (user.role === "admin") visible = true;
-    else if (v.hidden) visible = false;
-    else if (user.role === "teacher") {
-      visible = v.openClassIds === null || v.openClassIds.some((id) => mine!.has(id));
+    let visibleClassIds: string[];
+    if (user.role === "admin") {
+      visible = true;
+      visibleClassIds = [...mine];
+    } else if (v.hidden) {
+      visible = false;
+      visibleClassIds = [];
     } else {
       const labClosed = closed.get(lab.id);
+      visibleClassIds = [...mine].filter(
+        (id) => (v.openClassIds === null || v.openClassIds.includes(id)) && !labClosed?.has(id),
+      );
+      // A teacher's own switches only gate students — they keep preview
+      // access through any admin-scoped membership.
       visible =
-        v.openClassIds === null
-          ? mine!.size === 0 || [...mine!].some((id) => !labClosed?.has(id))
-          : v.openClassIds.some((id) => mine!.has(id) && !labClosed?.has(id));
+        user.role === "teacher"
+          ? v.openClassIds === null || v.openClassIds.some((id) => mine.has(id))
+          : visibleClassIds.length > 0 || (v.openClassIds === null && mine.size === 0);
     }
-    return { ...lab, ...v, visible };
+    return { ...lab, ...v, visible, visibleClassIds };
   });
 }
 

@@ -21,7 +21,7 @@ export function TeacherLabsPage() {
   const isStaff = isStaffRole(role);
   const [data, setData] = useState<TeacherLabPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
+  const [busy, setBusy] = useState<Set<string>>(() => new Set());
 
   const reload = useCallback(() => {
     void api
@@ -38,8 +38,9 @@ export function TeacherLabsPage() {
   }, [status, isStaff, reload]);
 
   const toggle = useCallback(async (lab: TeacherLabView, classId: string, open: boolean) => {
+    const key = gateKey(lab.id, classId);
     setError(null);
-    setBusy(gateKey(lab.id, classId));
+    setBusy((current) => new Set(current).add(key));
     try {
       await api.put(`/api/teacher/labs/${lab.id}/classes/${classId}/open`, { open });
       setData((current) =>
@@ -64,7 +65,11 @@ export function TeacherLabsPage() {
     } catch (caught) {
       setError(describeApiError(caught));
     } finally {
-      setBusy(null);
+      setBusy((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   }, []);
 
@@ -153,7 +158,7 @@ export function TeacherLabsPage() {
                               <input
                                 checked={gate.teacherOpen}
                                 disabled={
-                                  !gate.adminAllowed || busy === gateKey(lab.id, gate.classId)
+                                  !gate.adminAllowed || busy.has(gateKey(lab.id, gate.classId))
                                 }
                                 onChange={() => void toggle(lab, gate.classId, !gate.teacherOpen)}
                                 type="checkbox"

@@ -10,8 +10,11 @@ export function DecodingRedirectPage() {
   const { status, primaryMembership, role } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
   const navigate = useNavigate();
-  const classId = primaryMembership?.classId;
-  const closed = catalog?.get("decoding")?.visible === false;
+  const entry = catalog?.get("decoding");
+  const closed = entry?.visible === false;
+  // Land on the first class whose students may take the lab — the primary
+  // membership itself may be a class this lab is closed to.
+  const classId = entry?.visibleClassIds?.[0] ?? primaryMembership?.classId;
 
   useEffect(() => {
     if (status === "anonymous") {

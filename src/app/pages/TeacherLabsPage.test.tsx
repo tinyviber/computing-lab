@@ -14,6 +14,7 @@ const payload = {
       stageCount: 7,
       hidden: false,
       openClassIds: null,
+      visibleClassIds: ["c1", "c2"],
       classes: [
         { classId: "c1", adminAllowed: true, teacherOpen: true, open: true },
         { classId: "c2", adminAllowed: true, teacherOpen: true, open: true },
@@ -24,6 +25,7 @@ const payload = {
       stageCount: 5,
       hidden: true,
       openClassIds: null,
+      visibleClassIds: [],
       classes: [
         { classId: "c1", adminAllowed: false, teacherOpen: true, open: false },
         { classId: "c2", adminAllowed: false, teacherOpen: true, open: false },

@@ -551,14 +551,16 @@ export function adminRoutes() {
       .prepare("SELECT COUNT(*) AS count FROM class_members WHERE class_id = ?")
       .get(classId) as { count: number };
     if (count > 0) return jsonError(c, 409, "class-not-empty");
-    // Empty roster: task assignments and their responses are orphaned data
-    // owned by the class — remove them before the FK-guarded class row.
+    // Empty roster: task assignments and their responses, plus teacher lab
+    // switches, are orphaned data owned by the class — remove them before
+    // the FK-guarded class row.
     withTransaction(db, () => {
       db.prepare(
         `DELETE FROM task_responses WHERE assignment_id IN (
            SELECT id FROM task_assignments WHERE class_id = ?)`,
       ).run(classId);
       db.prepare("DELETE FROM task_assignments WHERE class_id = ?").run(classId);
+      db.prepare("DELETE FROM lab_class_settings WHERE class_id = ?").run(classId);
       db.prepare("DELETE FROM classes WHERE id = ?").run(classId);
     });
     return c.json({ deleted: classId });

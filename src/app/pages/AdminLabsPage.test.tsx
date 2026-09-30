@@ -4,8 +4,22 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { adminAuthState, renderAppAt } from "../../test/router-test-helpers";
 
 const labs = [
-  { id: "calculator", stageCount: 7, hidden: false, openClassIds: null, visible: true },
-  { id: "cpu", stageCount: 5, hidden: true, openClassIds: null, visible: true },
+  {
+    id: "calculator",
+    stageCount: 7,
+    hidden: false,
+    openClassIds: null,
+    visible: true,
+    visibleClassIds: [],
+  },
+  {
+    id: "cpu",
+    stageCount: 5,
+    hidden: true,
+    openClassIds: null,
+    visible: true,
+    visibleClassIds: [],
+  },
 ];
 const classes = [
   { id: "c1", name: "一班", inviteCode: "C1", memberCount: 0 },

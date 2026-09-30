@@ -272,4 +272,62 @@ describe("teacher lab routes", () => {
         .status,
     ).toBe(200);
   });
+
+  it("lists the caller's open classes so redirects land on an open class", async () => {
+    const { db, app } = await setup();
+    const teacher = await login(app, "teacher", "teacher-pass");
+    // 李四 sits in c2; give them a second membership in c1, then close c1.
+    const { id: studentId } = db
+      .prepare("SELECT id FROM users WHERE student_no = '20260102'")
+      .get() as { id: string };
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+    await request(
+      app,
+      "PUT",
+      "/api/teacher/labs/calculator/classes/c1/open",
+      { open: false },
+      teacher,
+    );
+
+    const student = await login(app, "20260102", "student-pass");
+    const response = await request(app, "GET", "/api/labs", undefined, student);
+    const { labs } = (await response.json()) as {
+      labs: { id: string; visible: boolean; visibleClassIds: string[] }[];
+    };
+    const calc = labs.find((l) => l.id === "calculator")!;
+    expect(calc.visible).toBe(true);
+    expect(calc.visibleClassIds).toEqual(["c2"]);
+  });
+
+  it("deletes a class that has teacher switches", async () => {
+    const { db, app } = await setup();
+    const admin = await login(app, "admin", "admin-pass");
+    const created = await request(app, "POST", "/api/admin/classes", { name: "开关班" }, admin);
+    const { class: empty } = (await created.json()) as { class: { id: string } };
+
+    // Admins reach every class through the teacher endpoint, so seeding a
+    // switch on the empty class exercises the FK-guarded delete.
+    const toggled = await request(
+      app,
+      "PUT",
+      `/api/teacher/labs/calculator/classes/${empty.id}/open`,
+      { open: false },
+      admin,
+    );
+    expect(toggled.status).toBe(200);
+
+    const removed = await request(
+      app,
+      "DELETE",
+      `/api/admin/classes/${empty.id}`,
+      undefined,
+      admin,
+    );
+    expect(removed.status).toBe(200);
+    expect(
+      db.prepare("SELECT class_id FROM lab_class_settings WHERE class_id = ?").get(empty.id),
+    ).toBeUndefined();
+  });
 });
