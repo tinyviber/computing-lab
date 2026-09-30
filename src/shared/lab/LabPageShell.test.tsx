@@ -77,10 +77,16 @@ describe("LabPageShell", () => {
         <main>工作区</main>
       </LabPageShell>,
     );
-    expect(container.querySelector(".lab-page-grid")!.className).not.toContain("is-collapsed");
-    expect(screen.getByRole("button", { name: "收起关卡栏" })).toHaveAttribute(
-      "aria-expanded",
-      "true",
-    );
+    const grid = container.querySelector(".lab-page-grid")!;
+    expect(grid.className).not.toContain("is-collapsed");
+    expect(grid.className).toContain("is-forced");
+    // While forced open the toggle is disabled — clicking it would silently
+    // rewrite the stored preference without any visible effect.
+    const forcedToggle = screen.getByRole("button", { name: "收起关卡栏" });
+    expect(forcedToggle).toHaveAttribute("aria-expanded", "true");
+    expect(forcedToggle).toBeDisabled();
+
+    await user.click(forcedToggle);
+    expect(localStorage.getItem("computing-lab:lab-rail:cpu")).toBe("1");
   });
 });

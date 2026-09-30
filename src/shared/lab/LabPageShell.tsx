@@ -64,7 +64,7 @@ export function LabPageShell({
 
   return (
     <div
-      className={`lab-page-grid ${contentClassName}${effective ? " is-collapsed" : ""}`}
+      className={`lab-page-grid ${contentClassName}${effective ? " is-collapsed" : ""}${forceExpand ? " is-forced" : ""}`}
       style={{ "--rail-w": `${railWidth}px` } as CSSProperties}
     >
       <div className="lab-rail-zone">
@@ -74,6 +74,7 @@ export function LabPageShell({
             aria-expanded={!effective}
             aria-label={effective ? "展开关卡栏" : "收起关卡栏"}
             className="lab-rail-toggle"
+            disabled={forceExpand}
             onClick={toggle}
             title={effective ? "展开关卡栏" : "收起关卡栏"}
             type="button"

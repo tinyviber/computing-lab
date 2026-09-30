@@ -255,6 +255,23 @@
   background: var(--subtle);
 }
 
+.lab-rail-toggle:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.lab-rail-toggle:disabled:hover {
+  color: var(--muted);
+  background: transparent;
+}
+
+/* While a coach forces the rail open (e.g. highlights its component shelf),
+   the rail rejoins page flow so page scroll can reach every rail item. */
+.lab-page-grid.is-forced .lab-rail-zone {
+  position: static;
+  max-height: none;
+}
+
 .lab-page-grid.is-collapsed {
   grid-template-columns: 44px minmax(0, 1fr);
 }
@@ -288,6 +305,12 @@
   .lab-rail-zone {
     position: static;
     max-height: none;
+  }
+
+  .lab-page-grid.is-collapsed .lab-rail-zone {
+    align-items: stretch;
+    border-right: none;
+    padding-right: 0;
   }
 
   .lab-page-grid.is-collapsed .lab-rail-scroll {
