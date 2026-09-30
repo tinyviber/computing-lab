@@ -14,6 +14,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "r
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
@@ -588,14 +589,19 @@ export function DecodingLabPage() {
           title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "解码侦探",
         }}
       >
-        <div className="page-content decoding-layout">
-          <DecodingStageRail
-            onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
-            passedStages={state.passedStages}
-            stageIndex={state.stageIndex}
-            unlocked={(s) => decodingStageUnlocked(state.passedStages, s.index)}
-          />
-
+        <LabPageShell
+          collapsedLabel={stage ? `第 ${stage.index} 关` : undefined}
+          labId="decoding"
+          rail={
+            <DecodingStageRail
+              onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
+              passedStages={state.passedStages}
+              stageIndex={state.stageIndex}
+              unlocked={(s) => decodingStageUnlocked(state.passedStages, s.index)}
+            />
+          }
+          railWidth={220}
+        >
           <main aria-label="解码实验区" className="decoding-workspace">
             {stage ? (
               <StageBrief passed={state.passedStages.includes(stage.index)} stage={stage} />
@@ -825,7 +831,7 @@ export function DecodingLabPage() {
               </>
             ) : null}
           </main>
-        </div>
+        </LabPageShell>
       </AppPageLayout>
     </LabAccessGate>
   );

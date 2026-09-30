@@ -17,6 +17,7 @@ import {
   type CalculatorLessonAction,
   type CalculatorLessonState,
 } from "../lesson/state";
+import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { BusReadout } from "./BusReadout";
 import { CircuitCanvas } from "./CircuitCanvas";
 import { CoachCard, type CalculatorCoach } from "./CoachCard";
@@ -87,20 +88,27 @@ export function CalculatorLabWorkspace({
 
   return (
     <>
-      <div className="calculator-layout">
-        <StageRail
-          coachHighlight={coach?.focusesOn("my-components") && stage?.id === "full-adder"}
-          passedStages={state.passedStages}
-          onPlaceComponent={(name) =>
-            dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
-          }
-          onEditCustomComponent={setEditingComponentName}
-          onDeleteCustomComponent={(name) => dispatch({ type: "delete-custom-component", name })}
-          onSelectStage={(index) => dispatch({ type: "select-stage", stageIndex: index })}
-          stageIndex={state.stageIndex}
-          unlockedSubmodules={state.unlockedSubmodules}
-        />
-
+      <LabPageShell
+        collapsedLabel={`第 ${state.stageIndex} 关`}
+        contentClassName="calculator-layout"
+        forceExpand={coach?.focusesOn("my-components")}
+        labId="calculator"
+        rail={
+          <StageRail
+            coachHighlight={coach?.focusesOn("my-components") && stage?.id === "full-adder"}
+            passedStages={state.passedStages}
+            onPlaceComponent={(name) =>
+              dispatch({ type: "add-node", kind: "component", name, x: 320, y: 80 })
+            }
+            onEditCustomComponent={setEditingComponentName}
+            onDeleteCustomComponent={(name) => dispatch({ type: "delete-custom-component", name })}
+            onSelectStage={(index) => dispatch({ type: "select-stage", stageIndex: index })}
+            stageIndex={state.stageIndex}
+            unlockedSubmodules={state.unlockedSubmodules}
+          />
+        }
+        railWidth={232}
+      >
         <main aria-label="计算器实验区" className="calculator-workspace">
           <section className="stage-brief">
             <p>{stage ? <AnnotatedText text={stage.description} /> : null}</p>
@@ -312,7 +320,7 @@ export function CalculatorLabWorkspace({
             />
           ) : null}
         </main>
-      </div>
+      </LabPageShell>
       {editingComponent ? (
         <CustomComponentDialog
           component={editingComponent}

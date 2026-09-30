@@ -1,12 +1,5 @@
 /* Is-sim lab: canvas + player + panels. `is-` prefix keeps feature CSS scoped. */
 
-.is-layout {
-  align-items: start;
-  display: grid;
-  gap: var(--space-6);
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
 .is-workspace {
   display: flex;
   flex-direction: column;
@@ -435,10 +428,6 @@
 }
 
 @media (max-width: 960px) {
-  .is-layout {
-    grid-template-columns: 1fr;
-  }
-
   .is-edit-grid {
     grid-template-columns: 1fr;
   }

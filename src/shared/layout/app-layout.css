@@ -197,9 +197,128 @@
   font-size: 12px;
 }
 
+/* LabPageShell — the rail|workspace grid every lab page uses. The rail zone
+   sticks to the scroll container and scrolls internally; collapsing swaps the
+   rail for a 44px strip while keeping the React tree (and its <details>
+   state) mounted. */
+.lab-page-grid {
+  display: grid;
+  grid-template-columns: var(--rail-w, 240px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.lab-rail-zone {
+  position: sticky;
+  top: var(--space-6, 24px);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100dvh - 112px);
+  min-width: 0;
+}
+
+.lab-rail-scroll {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.lab-rail-bar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 26px;
+}
+
+.lab-rail-bar-label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  writing-mode: vertical-rl;
+}
+
+.lab-rail-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.lab-rail-toggle:hover {
+  color: var(--primary);
+  background: var(--subtle);
+}
+
+.lab-rail-toggle:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.lab-rail-toggle:disabled:hover {
+  color: var(--muted);
+  background: transparent;
+}
+
+/* While a coach forces the rail open (e.g. highlights its component shelf),
+   the rail rejoins page flow so page scroll can reach every rail item. */
+.lab-page-grid.is-forced .lab-rail-zone {
+  position: static;
+  max-height: none;
+}
+
+.lab-page-grid.is-collapsed {
+  grid-template-columns: 44px minmax(0, 1fr);
+}
+
+.lab-page-grid.is-collapsed .lab-rail-zone {
+  align-items: center;
+  border-right: 1px solid var(--border);
+  padding-right: 8px;
+}
+
+.lab-page-grid.is-collapsed .lab-rail-bar {
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.lab-page-grid.is-collapsed .lab-rail-scroll {
+  display: none;
+}
+
 @media (max-width: 960px) {
   .lab-rail {
     border-right: none;
+  }
+
+  .lab-page-grid,
+  .lab-page-grid.is-collapsed {
+    grid-template-columns: 1fr;
+  }
+
+  .lab-rail-zone {
+    position: static;
+    max-height: none;
+  }
+
+  .lab-page-grid.is-collapsed .lab-rail-zone {
+    align-items: stretch;
+    border-right: none;
+    padding-right: 0;
+  }
+
+  .lab-page-grid.is-collapsed .lab-rail-scroll {
+    display: block;
+  }
+
+  .lab-rail-bar {
+    display: none;
   }
 }
 

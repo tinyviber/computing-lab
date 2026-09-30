@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { useLabProject } from "../../../shared/lab/useLabProject";
@@ -315,14 +316,18 @@ export function CpuLabPage() {
           title: stage?.title ?? "冯诺依曼数据通路",
         }}
       >
-        <div className="page-content cpu-layout">
-          <CpuStageRail
-            onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
-            passedStages={state.passedStages}
-            stageIndex={state.stageIndex}
-            unlocked={(s) => cpuStageUnlocked(state.passedStages, s.index)}
-          />
-
+        <LabPageShell
+          collapsedLabel={stage ? `第 ${stage.index} 关` : undefined}
+          labId="cpu"
+          rail={
+            <CpuStageRail
+              onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
+              passedStages={state.passedStages}
+              stageIndex={state.stageIndex}
+              unlocked={(s) => cpuStageUnlocked(state.passedStages, s.index)}
+            />
+          }
+        >
           <main aria-label="CPU 数据通路实验区" className="cpu-workspace">
             {state.calculatorCoreComplete === false ? (
               <p className="cpu-gate-banner" role="note">
@@ -561,7 +566,7 @@ export function CpuLabPage() {
               runOutcome={state.runOutcome}
             />
           </main>
-        </div>
+        </LabPageShell>
       </AppPageLayout>
     </LabAccessGate>
   );

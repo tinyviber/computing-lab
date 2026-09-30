@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
@@ -170,16 +171,20 @@ export function ColorQuantizationLabPage() {
           title: stage?.title ?? "颜色量化",
         }}
       >
-        <div className="page-content quant-layout">
-          <StageRail
-            label="颜色量化"
-            onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
-            passedStages={state.passedStages}
-            stageIndex={state.stageIndex}
-            stages={COLOR_QUANT_STAGES}
-            unlocked={(stage) => quantStageUnlocked(state.passedStages, stage.index)}
-          />
-
+        <LabPageShell
+          collapsedLabel={stage ? `第 ${stage.index} 关` : undefined}
+          labId="color-quantization"
+          rail={
+            <StageRail
+              label="颜色量化"
+              onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
+              passedStages={state.passedStages}
+              stageIndex={state.stageIndex}
+              stages={COLOR_QUANT_STAGES}
+              unlocked={(stage) => quantStageUnlocked(state.passedStages, stage.index)}
+            />
+          }
+        >
           <main aria-label="颜色量化实验区" className="quant-workspace">
             {stage ? <StageBrief stage={stage} /> : null}
 
@@ -261,7 +266,7 @@ export function ColorQuantizationLabPage() {
               </>
             ) : null}
           </main>
-        </div>
+        </LabPageShell>
       </AppPageLayout>
     </LabAccessGate>
   );

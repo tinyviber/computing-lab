@@ -3,6 +3,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
+import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
@@ -186,16 +187,20 @@ export function ImageSamplingLabPage() {
           title: stage?.title ?? "空间采样",
         }}
       >
-        <div className="page-content sampling-layout">
-          <StageRail
-            label="空间采样"
-            onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
-            passedStages={state.passedStages}
-            stageIndex={state.stageIndex}
-            stages={IMAGE_SAMPLING_STAGES}
-            unlocked={(stage) => samplingStageUnlocked(state.passedStages, stage.index)}
-          />
-
+        <LabPageShell
+          collapsedLabel={stage ? `第 ${stage.index} 关` : undefined}
+          labId="image-sampling"
+          rail={
+            <StageRail
+              label="空间采样"
+              onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
+              passedStages={state.passedStages}
+              stageIndex={state.stageIndex}
+              stages={IMAGE_SAMPLING_STAGES}
+              unlocked={(stage) => samplingStageUnlocked(state.passedStages, stage.index)}
+            />
+          }
+        >
           <main aria-label="图像采样实验区" className="sampling-workspace">
             {stage ? <StageBrief stage={stage} /> : null}
 
@@ -273,7 +278,7 @@ export function ImageSamplingLabPage() {
               </>
             ) : null}
           </main>
-        </div>
+        </LabPageShell>
       </AppPageLayout>
     </LabAccessGate>
   );

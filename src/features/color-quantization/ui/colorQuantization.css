@@ -1,11 +1,5 @@
 /* Color-quantization lab — feature-local styles (all quant-* prefixed). */
 
-.quant-layout {
-  display: grid;
-  gap: 20px;
-  grid-template-columns: 240px minmax(0, 1fr);
-}
-
 .quant-workspace {
   display: flex;
   flex-direction: column;
@@ -606,10 +600,6 @@
 }
 
 @media (max-width: 960px) {
-  .quant-layout {
-    grid-template-columns: 1fr;
-  }
-
   .quant-columns {
     grid-template-columns: 1fr;
   }
