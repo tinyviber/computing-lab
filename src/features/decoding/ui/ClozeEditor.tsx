@@ -14,12 +14,15 @@ export function ClozeEditor({
   onFill,
   ariaLabel = "decode 填空代码",
   blankLabel,
+  onBlankEnter,
 }: {
   code: string;
   fills: Record<string, string>;
   onFill: (blankId: string, value: string) => void;
   ariaLabel?: string;
   blankLabel?: (blankId: string) => string;
+  /** Enter pressed inside a blank — e.g. re-run the enclosing example. */
+  onBlankEnter?: () => void;
 }) {
   const parts = parseCloze(code);
   return (
@@ -34,6 +37,16 @@ export function ClozeEditor({
             key={i}
             maxLength={300}
             onChange={(e) => onFill(part.id, e.target.value)}
+            onKeyDown={
+              onBlankEnter
+                ? (e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      onBlankEnter();
+                    }
+                  }
+                : undefined
+            }
             spellCheck={false}
             style={{ width: `${Math.max(5, (fills[part.id] ?? "").length + 2)}ch` }}
             title={blankLabel?.(part.id) ?? `空 ${part.id}`}

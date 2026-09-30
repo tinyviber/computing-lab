@@ -5,7 +5,9 @@
  */
 
 import { useEffect, useRef } from "react";
-import type { PixelMatrix } from "../domain/bmp.ts";
+import type { Pixel, PixelMatrix } from "../domain/bmp.ts";
+
+export type PixelHover = { x: number; y: number; rgb: Pixel };
 
 export function PixelCanvas({
   pixels,
@@ -13,6 +15,7 @@ export function PixelCanvas({
   grid = true,
   ariaLabel,
   diffAgainst,
+  onPixelHover,
 }: {
   pixels: PixelMatrix;
   /** CSS px per cell; default scales the image into a ~200px box. */
@@ -21,6 +24,8 @@ export function PixelCanvas({
   ariaLabel?: string;
   /** When given, mismatched cells get a bright outline. */
   diffAgainst?: PixelMatrix;
+  /** Called with the hovered cell (null on leave); enables the pixel inspector. */
+  onPixelHover?: (hover: PixelHover | null) => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const height = pixels.length;
@@ -73,6 +78,18 @@ export function PixelCanvas({
     <canvas
       aria-label={ariaLabel}
       className="pixel-canvas"
+      onMouseLeave={onPixelHover ? () => onPixelHover(null) : undefined}
+      onMouseMove={
+        onPixelHover
+          ? (e) => {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const x = Math.floor(((e.clientX - rect.left) / rect.width) * width);
+              const y = Math.floor(((e.clientY - rect.top) / rect.height) * height);
+              const rgb = pixels[y]?.[x];
+              onPixelHover(rgb ? { x, y, rgb } : null);
+            }
+          : undefined
+      }
       ref={ref}
       role="img"
       style={{ imageRendering: "pixelated" }}
