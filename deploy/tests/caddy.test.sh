@@ -23,6 +23,13 @@ mkdir -p "$DIST/assets"
 printf '<!doctype html><script type="module" src="/assets/app.js"></script>\n' >"$DIST/index.html"
 printf 'console.log("fixture")\n' >"$DIST/assets/app.js"
 
+# Versioned vendored runtime fixture (as produced by scripts/sync-pyodide.mjs):
+# raw payload plus precompressed sidecars.
+mkdir -p "$DIST/vendor/pyodide-0.0.0"
+printf 'wasm-payload\n' >"$DIST/vendor/pyodide-0.0.0/pyodide.asm.wasm"
+printf 'br-payload\n' >"$DIST/vendor/pyodide-0.0.0/pyodide.asm.wasm.br"
+printf 'gz-payload\n' >"$DIST/vendor/pyodide-0.0.0/pyodide.asm.wasm.gz"
+
 PORT="$(python3 - <<'PY'
 import socket
 
@@ -94,4 +101,22 @@ fi
 request_status /computing-lab/assets/app.js
 [[ "$HTTP_STATUS" == 404 ]] || fail "subpath asset returned $HTTP_STATUS"
 
+request_status /vendor/pyodide-0.0.0/pyodide.asm.wasm
+[[ "$HTTP_STATUS" == 200 ]] || fail "vendored runtime returned $HTTP_STATUS"
+grep -Fq 'wasm-payload' "$BODY_FILE" || fail 'vendored runtime body was not served'
+
+HEADERS="$(curl --noproxy '*' -sSI "http://127.0.0.1:$PORT/vendor/pyodide-0.0.0/pyodide.asm.wasm")"
+grep -Fqi 'cache-control: public, max-age=31536000, immutable' <<<"$HEADERS" \
+  || fail 'vendored runtime missing immutable Cache-Control'
+
+BODY="$(curl --noproxy '*' -sS -H 'Accept-Encoding: br' "http://127.0.0.1:$PORT/vendor/pyodide-0.0.0/pyodide.asm.wasm")"
+[[ "$BODY" == 'br-payload' ]] || fail 'precompressed .br sidecar was not served for br clients'
+
+BODY="$(curl --noproxy '*' -sS -H 'Accept-Encoding: gzip' "http://127.0.0.1:$PORT/vendor/pyodide-0.0.0/pyodide.asm.wasm")"
+[[ "$BODY" == 'gz-payload' ]] || fail 'precompressed .gz sidecar was not served for gzip clients'
+
+request_status /vendor/pyodide-0.0.0/missing.wasm
+[[ "$HTTP_STATUS" == 404 ]] || fail "missing vendored file returned $HTTP_STATUS"
+
 pass 'Caddy serves the root SPA with static 404 semantics'
+pass 'Caddy serves vendored runtimes immutable + precompressed'

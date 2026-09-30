@@ -1,7 +1,7 @@
 /**
  * Main-thread handle for the decoding lab's Pyodide worker. Same two-phase
  * timeout policy as the other Pyodide labs: a generous budget while the
- * vendored runtime (~13 MB) is still downloading, then `timeoutMs` once the
+ * Python runtime (~13 MB) is still downloading, then `timeoutMs` once the
  * worker acks that student code is executing. An execution timeout kills the
  * worker (dead Python can't be interrupted); a load timeout only rejects that
  * request — the download continues and a retry reuses it.
@@ -71,7 +71,7 @@ function ensureWorker(): Worker {
   return worker;
 }
 
-/** Spawn the worker now so the vendored runtime downloads before the first run. */
+/** Spawn the worker now so the runtime download finishes before the first run. */
 export function warmPyodide(): void {
   ensureWorker();
 }
