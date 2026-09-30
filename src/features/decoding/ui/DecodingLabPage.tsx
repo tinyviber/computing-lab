@@ -145,16 +145,19 @@ function DecodeEditor({
         把每个空填上，你的 <code>decode(data)</code> 就写好了。
       </p>
       {stage.example ? (
-        <aside aria-label="样例输入" className="decode-example">
+        <aside
+          aria-label={stage.example.run ? "输入生成器" : "样例输入"}
+          className="decode-example"
+        >
           <div className="decode-example-heading">
-            <h4>样例输入</h4>
+            <h4>{stage.example.run ? "输入生成器" : "样例输入"}</h4>
             {stage.example.run ? (
               <button
-                aria-label="运行样例并打印 data"
+                aria-label="运行输入生成器，得到样例输入"
                 className="decode-example-play"
                 disabled={running}
                 onClick={onPrintExample}
-                title="打印 data"
+                title="运行生成器，得到样例输入"
                 type="button"
               >
                 ▶
@@ -227,6 +230,7 @@ export function DecodingLabPage() {
   const [runError, setRunError] = useState<string | null>(null);
   const [lastRun, setLastRun] = useState<RunResult>(null);
   const [samplePrintout, setSamplePrintout] = useState<string | null>(null);
+  const [samplePixels, setSamplePixels] = useState<PixelMatrix | null>(null);
   const [samplePrintError, setSamplePrintError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PixelMatrix | null>(null);
   const [wrongPick, setWrongPick] = useState<{ promptId: string; option: number } | null>(null);
@@ -273,6 +277,7 @@ export function DecodingLabPage() {
   useEffect(() => {
     setLastRun(null);
     setSamplePrintout(null);
+    setSamplePixels(null);
     setSamplePrintError(null);
     setPreview(null);
     setRunError(null);
@@ -372,20 +377,31 @@ export function DecodingLabPage() {
   const printExampleData = useCallback(async () => {
     if (!stage?.example?.run) return;
     const stageIdx = stage.index;
+    // BMP stages: the generator's printout is the sample input, and decoding
+    // that same `data` in the same run yields the sample output image.
+    const expectImage = stage.kind === "bmp";
     setRunning(true);
     setSamplePrintout(null);
+    setSamplePixels(null);
     setSamplePrintError(null);
     try {
-      const result = await runDecode(stage.example.input, null, {
-        call: "None",
+      const outcome = await runDecode(stage.example.input, null, {
+        call: expectImage ? "decode_bmp(data)" : "None",
         captureStdout: true,
+        preamble: expectImage ? BMP_HELPER : undefined,
         useCodeData: true,
       });
       if (stageIndexRef.current !== stageIdx) return;
-      if (typeof result !== "object" || result === null || !("stdout" in result)) {
+      if (typeof outcome !== "object" || outcome === null || !("stdout" in outcome)) {
         throw new Error("没有捕获到 print 输出。");
       }
-      setSamplePrintout(String(result.stdout));
+      const { stdout, result: value } = outcome as { stdout: unknown; result: unknown };
+      setSamplePrintout(String(stdout));
+      if (expectImage) {
+        const pixels = sanitizePixels(value);
+        if (!pixels) throw new Error("样例 data 没有解出合法的像素矩阵。");
+        setSamplePixels(pixels);
+      }
     } catch (error) {
       if (stageIndexRef.current !== stageIdx) return;
       setSamplePrintError(error instanceof Error ? error.message : String(error));
@@ -547,12 +563,37 @@ export function DecodingLabPage() {
                       </div>
                       {stage.example ? (
                         <div className="decode-example-output">
-                          <h4>样例输出</h4>
-                          <pre>
-                            <code>
-                              {samplePrintout ?? stage.example.output ?? "运行样例后显示"}
-                            </code>
-                          </pre>
+                          {stage.example.run && stage.kind === "bmp" ? (
+                            <>
+                              <h4>样例输入</h4>
+                              {samplePrintout !== null ? (
+                                <pre className="decode-example-bytes">
+                                  <code>{samplePrintout}</code>
+                                </pre>
+                              ) : (
+                                <p className="decode-example-empty">
+                                  点左边 ▶ 运行「输入生成器」后显示
+                                </p>
+                              )}
+                              <h4>样例输出</h4>
+                              {samplePixels ? (
+                                <PixelCanvas ariaLabel="样例输出图案" pixels={samplePixels} />
+                              ) : (
+                                <p className="decode-example-empty">
+                                  这份样例 data 按 BMP 约定解出的图案
+                                </p>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <h4>样例输出</h4>
+                              <pre>
+                                <code>
+                                  {samplePrintout ?? stage.example.output ?? "运行样例后显示"}
+                                </code>
+                              </pre>
+                            </>
+                          )}
                           {samplePrintError ? (
                             <p className="decode-example-error" role="alert">
                               {samplePrintError}

@@ -121,7 +121,7 @@ export function FilesPanel(props: {
               </ol>
               <div className="file-actions">
                 <button
-                  className="button"
+                  className="button button-secondary"
                   disabled={busy}
                   onClick={() => void runText(i, file.bytes)}
                   type="button"
@@ -130,7 +130,7 @@ export function FilesPanel(props: {
                 </button>
                 <span className="file-image-run">
                   <button
-                    className="button"
+                    className="button button-secondary"
                     disabled={busy}
                     onClick={() => void runImage(i, file.bytes)}
                     type="button"
