@@ -192,7 +192,7 @@ export function IsLabPage() {
   return (
     <LabAccessGate
       classId={classId}
-      hidden={catalog?.get("is-sim")?.hidden === true}
+      closed={catalog?.get("is-sim")?.visible === false}
       labName="小型信息系统"
       role={role}
       status={status}

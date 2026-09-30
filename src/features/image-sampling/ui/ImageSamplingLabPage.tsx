@@ -173,7 +173,7 @@ export function ImageSamplingLabPage() {
   return (
     <LabAccessGate
       classId={classId}
-      hidden={catalog?.get("image-sampling")?.hidden === true}
+      closed={catalog?.get("image-sampling")?.visible === false}
       labName="空间采样"
       role={role}
       status={status}

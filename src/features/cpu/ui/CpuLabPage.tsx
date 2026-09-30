@@ -302,7 +302,7 @@ export function CpuLabPage() {
   return (
     <LabAccessGate
       classId={classId}
-      hidden={catalog?.get("cpu")?.hidden === true}
+      closed={catalog?.get("cpu")?.visible === false}
       labName="冯诺依曼数据通路"
       role={role}
       status={status}

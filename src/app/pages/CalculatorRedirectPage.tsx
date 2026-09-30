@@ -11,26 +11,26 @@ export function CalculatorRedirectPage() {
   const catalog = useLabCatalog(status === "authenticated");
   const navigate = useNavigate();
   const classId = primaryMembership?.classId;
-  const hidden = catalog?.get("calculator")?.hidden === true;
+  const closed = catalog?.get("calculator")?.visible === false;
 
   useEffect(() => {
     if (status === "anonymous") {
       void navigate({ to: "/login" });
       return;
     }
-    // Non-admins wait for the catalog so a hidden lab never flashes through.
-    if (classId && (role === "admin" || (catalog !== null && !hidden))) {
+    // Non-admins wait for the catalog so a closed lab never flashes through.
+    if (classId && (role === "admin" || (catalog !== null && !closed))) {
       void navigate({ to: "/classes/$classId/labs/calculator", params: { classId } });
     }
-  }, [status, classId, role, catalog, hidden, navigate]);
+  }, [status, classId, role, catalog, closed, navigate]);
 
-  if (status === "authenticated" && hidden && role !== "admin") {
+  if (status === "authenticated" && closed && role !== "admin") {
     return (
       <AppPageLayout>
         <main className="not-found" role="status">
-          <p className="eyebrow">实验 / 已隐藏</p>
+          <p className="eyebrow">实验 / 暂未开放</p>
           <h1>这个实验暂未开放</h1>
-          <p>「实现ALU」已被管理员隐藏，开放后再来。</p>
+          <p>「实现ALU」暂未对你所在的班级开放，开放后再来。</p>
         </main>
       </AppPageLayout>
     );

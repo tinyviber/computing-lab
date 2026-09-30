@@ -115,12 +115,15 @@ CREATE TABLE IF NOT EXISTS task_responses (
   UNIQUE (assignment_id, user_id)
 );
 
--- Per-lab visibility switch, toggled by admins. A missing row means the
--- lab is open; hidden = 1 makes it admin-only until it is reopened.
+-- Per-lab visibility, managed by admins. A missing row means the lab is
+-- open to every class. hidden = 1 makes the lab admin-only. When open,
+-- open_class_ids scopes it: NULL means every class, a JSON array of class
+-- ids means only members of those classes ('[]' = no class).
 CREATE TABLE IF NOT EXISTS lab_settings (
-  lab_id     TEXT PRIMARY KEY,
-  hidden     INTEGER NOT NULL DEFAULT 0,
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+  lab_id         TEXT PRIMARY KEY,
+  hidden         INTEGER NOT NULL DEFAULT 0,
+  open_class_ids TEXT,
+  updated_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_submissions_project_stage ON submissions (project_id, stage_index);

@@ -460,7 +460,7 @@ export function DecodingLabPage() {
   return (
     <LabAccessGate
       classId={classId}
-      hidden={catalog?.get("decoding")?.hidden === true}
+      closed={catalog?.get("decoding")?.visible === false}
       labName="解码侦探"
       role={role}
       status={status}

@@ -190,16 +190,24 @@ function ClassroomHome() {
   const classId = primaryMembership?.classId;
   const isStaff = isStaffRole(role);
   const isAdmin = role === "admin";
-  // Hidden labs drop off every non-admin surface; admins still see the
-  // cards (badged) so they can preview and reopen them.
-  const hiddenOf = (labId: string) => catalog?.get(labId)?.hidden === true;
-  const cardVisible = (labId: string) => isAdmin || !hiddenOf(labId);
+  // Labs closed to this user (hidden, or scoped to other classes) drop off
+  // non-admin surfaces; admins still see the cards (badged) so they can
+  // preview and adjust visibility.
+  const entryOf = (labId: string) => catalog?.get(labId);
+  const cardVisible = (labId: string) => isAdmin || entryOf(labId)?.visible !== false;
+  const adminBadge = (labId: string) => {
+    if (!isAdmin) return "";
+    const entry = entryOf(labId);
+    if (entry?.hidden) return " · 已隐藏";
+    if (entry?.openClassIds) return ` · ${entry.openClassIds.length} 个班可见`;
+    return "";
+  };
   const hasVisibleLab = HOME_LABS.some((lab) => cardVisible(lab.id));
 
   useEffect(() => {
     if (!classId || isStaff || catalog === null) return;
     for (const lab of HOME_LABS) {
-      if (lab.stages === null || hiddenOf(lab.id)) continue;
+      if (lab.stages === null || entryOf(lab.id)?.visible === false) continue;
       void api
         .get<ProjectSummary>(`/api/classes/${classId}/labs/${lab.id}/project`)
         .then((project) => setProjects((current) => ({ ...current, [lab.id]: project })))
@@ -235,7 +243,7 @@ function ClassroomHome() {
                   <div className="lab-card-topline">
                     <span className="category-label">
                       Lab {String(index + 1).padStart(2, "0")}
-                      {isAdmin && hiddenOf(lab.id) ? " · 已隐藏" : ""}
+                      {adminBadge(lab.id)}
                     </span>
                   </div>
                   <h4>{lab.title}</h4>
