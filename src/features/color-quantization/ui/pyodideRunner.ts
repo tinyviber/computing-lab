@@ -2,7 +2,7 @@
  * Main-thread handle for the Pyodide worker. Lazily spawned, one request at a
  * time per call site is fine — calls are queued through a simple id map.
  *
- * Timeouts are two-phase: a generous budget while the vendored runtime
+ * Timeouts are two-phase: a generous budget while the Python runtime
  * (~13 MB) is still downloading, then `timeoutMs` once the worker acks that
  * student code is executing. An execution timeout terminates the worker
  * (dead Python code can't be interrupted, so the whole runtime is discarded
@@ -94,7 +94,7 @@ function run(message: Record<string, unknown>, timeoutMs: number): Promise<RunPa
   });
 }
 
-/** Spawn the worker now so the vendored runtime downloads before the first run. */
+/** Spawn the worker now so the runtime download finishes before the first run. */
 export function warmPyodide(): void {
   ensureWorker();
 }

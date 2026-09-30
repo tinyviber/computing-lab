@@ -1,5 +1,5 @@
 /**
- * Pyodide module worker — loads the vendored runtime lazily and runs the two
+ * Pyodide module worker — loads the Python runtime lazily and runs the two
  * student-facing functions of this lab:
  *
  *   kind "cell":  cell_value(region) over a batch of test regions
@@ -17,6 +17,7 @@
 /// <reference lib="webworker" />
 
 import type { PyodideInterface } from "pyodide";
+import { getPyodide } from "../../../shared/lab/pyodideRuntime";
 
 type RunRequest =
   | { id: number; kind: "cell"; code: string; regions: number[][][] }
@@ -27,28 +28,8 @@ type RunResponse =
   | { id: number; ok: true; results: unknown[] }
   | { id: number; ok: false; error: string };
 
-type PyodideModule = {
-  loadPyodide: (options: { indexURL: string }) => Promise<PyodideInterface>;
-};
-
-let pyodideReady: Promise<PyodideInterface> | null = null;
-
-function getPyodide(): Promise<PyodideInterface> {
-  if (!pyodideReady) {
-    const base = import.meta.env.BASE_URL;
-    pyodideReady = import(/* @vite-ignore */ `${base}vendor/pyodide/pyodide.mjs`).then(
-      (mod: PyodideModule) => mod.loadPyodide({ indexURL: `${base}vendor/pyodide/` }),
-    );
-    pyodideReady.catch(() => {
-      // Let the next request retry a failed runtime load.
-      pyodideReady = null;
-    });
-  }
-  return pyodideReady;
-}
-
 // Start the ~13 MB runtime download as soon as the worker spawns — a student
-// run's timeout should cover their code, not the vendored download.
+// run's timeout should cover their code, not the download.
 getPyodide().catch(() => undefined);
 
 async function runCell(

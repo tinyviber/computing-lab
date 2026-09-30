@@ -77,7 +77,7 @@ export function ImageSamplingLabPage() {
   const stage = stageOf(state);
   const draft = draftOf(state);
 
-  // Start downloading the vendored Python runtime as soon as the lab opens,
+  // Start downloading the Python runtime as soon as the lab opens,
   // so the first run doesn't spend its load budget on the fetch itself.
   useEffect(() => warmPyodide(), []);
 
