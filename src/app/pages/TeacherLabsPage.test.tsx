@@ -100,5 +100,8 @@ describe("TeacherLabsPage", () => {
         expect.objectContaining({ method: "PUT", body: JSON.stringify({ open: true }) }),
       ),
     );
+    // The open count reflects the teacher's switch regardless of the
+    // admin scope — the row reads 2 个班开放 now.
+    await waitFor(() => expect(cpu.getByText("2 个班开放")).toBeInTheDocument());
   });
 });
