@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { formatInstr, REG_NAMES } from "../domain/isa.ts";
 import type { MachineRun, RunReason, TraceRow } from "../domain/machine.ts";
 
@@ -92,6 +93,20 @@ export function TraceTable(props: {
   onScrub: (cycle: number) => void;
 }) {
   const { run, cursor, onScrub } = props;
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the current row in view — inside the table's own scroll box only,
+  // by nudging scrollTop directly (never scrollIntoView, so the page can't move).
+  useEffect(() => {
+    const box = scrollRef.current;
+    const el = box?.querySelector<HTMLElement>("tr.is-current");
+    if (!box || !el) return;
+    const er = el.getBoundingClientRect();
+    const br = box.getBoundingClientRect();
+    if (er.top < br.top) box.scrollTop -= br.top - er.top + 4;
+    else if (er.bottom > br.bottom) box.scrollTop += er.bottom - br.bottom + 4;
+  }, [cursor]);
+
   if (!run) return null;
   return (
     <section aria-label="执行轨迹" className="cpu-trace">
@@ -103,7 +118,7 @@ export function TraceTable(props: {
           {run.selfModFetch ? " · 取到了自己写过的格子" : ""}。
         </p>
       </div>
-      <div className="cpu-trace-scroll">
+      <div className="cpu-trace-scroll" ref={scrollRef}>
         <table>
           {TRACE_HEAD}
           <tbody>

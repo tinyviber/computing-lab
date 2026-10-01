@@ -3,29 +3,100 @@ import type { CpuPrompt, CpuStageDef } from "../domain/stages.ts";
 const toBin = (byte: number) => byte.toString(2).padStart(8, "0");
 
 /**
+ * The option buttons of one prompt. Wrong `note`s render only after that
+ * option has actually been picked wrong (showing them up front leaks the
+ * answer); `requiresByte` prompts stay disabled until the learner has
+ * dialed the byte playground to the target value.
+ */
+function PromptOptions(props: {
+  prompt: CpuPrompt;
+  wrongPick: { promptId: string; option: number } | null;
+  blocking: boolean;
+  currentByte?: number;
+  onAnswer: (promptId: string, option: number) => void;
+}) {
+  const { prompt, wrongPick, blocking, currentByte, onAnswer } = props;
+  const byteGated = prompt.requiresByte !== undefined && currentByte !== prompt.requiresByte;
+  return (
+    <div className="cpu-guide-options">
+      {byteGated ? (
+        <p className="cpu-guide-bytegate" role="note">
+          先用下面的位开关把字节拨成 <code>{toBin(prompt.requiresByte ?? 0)}</code>
+          ，再回答。
+        </p>
+      ) : null}
+      {prompt.options.map((option, oi) => {
+        const wasPickedWrong = wrongPick?.promptId === prompt.id && wrongPick.option === oi;
+        return (
+          <button
+            className={`cpu-guide-option${wasPickedWrong ? " is-wrong" : ""}`}
+            disabled={byteGated}
+            key={oi}
+            onClick={() => onAnswer(prompt.id, oi)}
+            type="button"
+          >
+            {option.label}
+            {wasPickedWrong && option.note ? (
+              <span className="cpu-guide-note">{option.note}</span>
+            ) : null}
+          </button>
+        );
+      })}
+      {blocking ? <p className="cpu-guide-blocknote">答对这一题，机器才会继续走。</p> : null}
+    </div>
+  );
+}
+
+/**
+ * The prompt being asked right now, rendered as a compact card inside the
+ * machine view (issue #70 follow-up): it sits between the clock bar and the
+ * viz, so predict-and-observe happen in one viewport. `at`-gated prompts
+ * block the stepper right next to the buttons that resume it.
+ */
+export function CurrentPromptCard(props: {
+  prompt: CpuPrompt;
+  wrongPick: { promptId: string; option: number } | null;
+  /** True while this prompt is the one pausing the stepper. */
+  blocking: boolean;
+  currentByte?: number;
+  onAnswer: (promptId: string, option: number) => void;
+}) {
+  const { prompt, wrongPick, blocking, currentByte, onAnswer } = props;
+  return (
+    <section aria-label="当前问题" className={`cpu-now-prompt${blocking ? " is-blocking" : ""}`}>
+      <p className="cpu-guide-prompt">
+        <span className="cpu-now-prompt-tag">当前题</span>
+        {prompt.prompt}
+        {prompt.at !== undefined ? (
+          <span className="cpu-guide-at">在周期 {prompt.at} 处回答</span>
+        ) : null}
+      </p>
+      <PromptOptions
+        blocking={blocking}
+        currentByte={currentByte}
+        onAnswer={onAnswer}
+        prompt={prompt}
+        wrongPick={wrongPick}
+      />
+    </section>
+  );
+}
+
+/**
  * The guided checklist (issue #70 §5.2): the stage's predict/observe
- * prompts in order. Answered prompts pin their reveal; the next one asks;
- * later ones stay dimmed. Prompts with `at` also gate the stepper — the
- * page passes the currently blocking prompt back in.
- *
- * Two guards keep a prompt honest: per-option `note`s render only after
- * that option has actually been picked wrong (showing them up front leaks
- * the answer), and `requiresByte` prompts stay disabled until the learner
- * has dialed the byte playground to the target value.
+ * prompts in order, as a progress overview — answered prompts pin their
+ * reveal, later ones stay dimmed. The live question itself renders as
+ * CurrentPromptCard inside the machine view; the next item here just
+ * points at it.
  */
 export function GuidedPanel(props: {
   stage: CpuStageDef;
   /** Ids answered correctly so far. */
   answered: ReadonlySet<string>;
-  /** The last wrong pick, to mark the option red and show its note. */
-  wrongPick: { promptId: string; option: number } | null;
   /** Prompt currently blocking the stepper, if any. */
   blocking: CpuPrompt | null;
-  /** The byte currently dialed in the C4 playground, when the stage has one. */
-  currentByte?: number;
-  onAnswer: (promptId: string, option: number) => void;
 }) {
-  const { stage, answered, wrongPick, blocking, currentByte, onAnswer } = props;
+  const { stage, answered, blocking } = props;
   const prompts = stage.guided?.prompts ?? [];
   if (prompts.length === 0) return null;
   const nextIndex = prompts.findIndex((p) => !answered.has(p.id));
@@ -42,8 +113,6 @@ export function GuidedPanel(props: {
         {prompts.map((prompt, i) => {
           const isAnswered = answered.has(prompt.id);
           const isNext = i === nextIndex;
-          const byteGated =
-            prompt.requiresByte !== undefined && currentByte !== prompt.requiresByte;
           const classes = [
             "cpu-guide-item",
             isAnswered ? "is-done" : "",
@@ -64,35 +133,7 @@ export function GuidedPanel(props: {
               {isAnswered ? (
                 <p className="cpu-guide-reveal">{prompt.reveal}</p>
               ) : isNext ? (
-                <div className="cpu-guide-options">
-                  {byteGated ? (
-                    <p className="cpu-guide-bytegate" role="note">
-                      先用下面的位开关把字节拨成 <code>{toBin(prompt.requiresByte ?? 0)}</code>
-                      ，再回答。
-                    </p>
-                  ) : null}
-                  {prompt.options.map((option, oi) => {
-                    const wasPickedWrong =
-                      wrongPick?.promptId === prompt.id && wrongPick.option === oi;
-                    return (
-                      <button
-                        className={`cpu-guide-option${wasPickedWrong ? " is-wrong" : ""}`}
-                        disabled={byteGated}
-                        key={oi}
-                        onClick={() => onAnswer(prompt.id, oi)}
-                        type="button"
-                      >
-                        {option.label}
-                        {wasPickedWrong && option.note ? (
-                          <span className="cpu-guide-note">{option.note}</span>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                  {blocking?.id === prompt.id ? (
-                    <p className="cpu-guide-blocknote">答对这一题，机器才会继续走。</p>
-                  ) : null}
-                </div>
+                <p className="cpu-guide-seemachine">▼ 在下面的机器区作答</p>
               ) : null}
             </li>
           );
