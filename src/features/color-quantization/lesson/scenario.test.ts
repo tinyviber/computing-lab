@@ -36,6 +36,32 @@ describe("color-quantization scenario URL codec", () => {
     });
   });
 
+  it("accepts a single toner the router already parsed as a number", () => {
+    expect(parseQuantScenario({ stage: 1, toners: 5 })).toEqual({
+      stageIndex: 1,
+      toners: [5],
+      table: null,
+    });
+  });
+
+  it("round-trips a single-toner scenario through router search parsing", () => {
+    // Mirrors the share link (String(value)) plus TanStack Router's default
+    // search parsing, which JSON-parses each value when it can.
+    const viaRouter = (search: Record<string, string | number>): Record<string, unknown> =>
+      Object.fromEntries(
+        Object.entries(search).map(([key, value]) => {
+          try {
+            return [key, JSON.parse(String(value)) as unknown];
+          } catch {
+            return [key, String(value)];
+          }
+        }),
+      );
+    const search = viaRouter(encodeQuantScenario({ stageIndex: 1, toners: [5] }));
+    expect(search).toEqual({ stage: 1, toners: 5 });
+    expect(parseQuantScenario(search)).toEqual({ stageIndex: 1, toners: [5], table: null });
+  });
+
   it("round-trips a free scenario", () => {
     const scenario = {
       stageIndex: 4,

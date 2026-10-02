@@ -223,7 +223,9 @@
   text-underline-offset: 3px;
 }
 
-.stage-brief p {
+/* Status banners (.stage-takeaway) are styled only by design/base.css; :where()
+   keeps this rule at (0,1,1) so the other brief paragraphs cascade as before. */
+.stage-brief p:where(:not(.stage-takeaway)) {
   color: var(--secondary);
   font-size: 13px;
   line-height: 20px;
@@ -842,7 +844,9 @@
   stroke-width: 2.5;
 }
 
-.canvas-help p {
+/* Status banners (.test-error) are styled only by design/base.css; :where()
+   keeps this rule's specificity unchanged. */
+.canvas-help p:where(:not(.test-error)) {
   color: var(--muted);
   font-size: 11px;
   line-height: 17px;

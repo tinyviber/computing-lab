@@ -226,7 +226,9 @@ p {
   border: 1px solid var(--success-border);
   border-radius: var(--radius-control);
   background: var(--success-soft);
+  color: var(--primary);
   font-size: 13px;
+  line-height: 1.5;
 }
 
 /* Available to screen readers only; keeps table captions off-screen. */

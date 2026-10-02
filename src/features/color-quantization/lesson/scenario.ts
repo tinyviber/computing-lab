@@ -17,6 +17,9 @@ export type QuantScenario = {
 };
 
 function parseIntList(raw: unknown): number[] | null {
+  // The router JSON-parses search values, so a single-item list (`?toners=5`)
+  // arrives as a number rather than the string "5".
+  if (typeof raw === "number") return Number.isInteger(raw) ? [raw] : null;
   if (typeof raw !== "string") return null;
   const values = raw
     .split(",")
