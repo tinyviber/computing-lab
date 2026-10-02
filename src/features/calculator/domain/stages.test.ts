@@ -41,4 +41,11 @@ describe("calculator stage pin order", () => {
     expect(getStage(6)?.details).toContain("5 位二进制补码");
     expect(getStage(6)?.details).toContain("A < B");
   });
+
+  it("has a non-empty takeaway for every stage", () => {
+    for (const stage of CALCULATOR_STAGES) {
+      expect(stage.takeaway).toBeTruthy();
+      expect(stage.takeaway.length).toBeGreaterThan(0);
+    }
+  });
 });

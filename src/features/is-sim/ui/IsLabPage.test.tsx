@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { renderAppAt, teacherAuthState } from "../../../test/router-test-helpers";
 
 describe("IsLabPage", () => {
@@ -26,5 +26,51 @@ describe("IsLabPage", () => {
     // Submit and public-test controls render (the lab works offline too).
     expect(screen.getByRole("button", { name: "运行公开测试" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "提交判定" })).toBeInTheDocument();
+  });
+
+  it("shows stage takeaway when the stage is passed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 1,
+              passedStages: [1],
+              drafts: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/is-sim", { auth: teacherAuthState });
+
+    await screen.findByRole("heading", { name: /让数据流起来/ });
+    expect(screen.getByText(/本关收获/)).toBeInTheDocument();
+  });
+
+  it("does not show stage takeaway when the stage is not passed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 1,
+              passedStages: [],
+              drafts: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/is-sim", { auth: teacherAuthState });
+
+    await screen.findByRole("heading", { name: /让数据流起来/ });
+    expect(screen.queryByText(/本关收获/)).not.toBeInTheDocument();
   });
 });

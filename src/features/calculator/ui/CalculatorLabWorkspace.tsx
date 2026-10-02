@@ -120,6 +120,9 @@ export function CalculatorLabWorkspace({
                 </p>
               </details>
             ) : null}
+            {stage && state.passedStages.includes(stage.index) ? (
+              <p className="stage-takeaway">本关收获：{stage.takeaway}</p>
+            ) : null}
             {stage ? <HintDisclosure hint={stage.hint} key={stage.id} /> : null}
             {coach && projectLoaded && !coach.step ? (
               <button className="stage-guide-trigger" onClick={coach.restart} type="button">

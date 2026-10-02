@@ -56,7 +56,7 @@ function viewsAt(run: SimRun, cursor: number): Record<string, DeviceView> {
   return views;
 }
 
-function StageBrief({ stage }: { stage: IsStageDef }) {
+function StageBrief({ stage, passed }: { stage: IsStageDef; passed: boolean }) {
   return (
     <section className="stage-brief">
       <p>{stage.description}</p>
@@ -65,6 +65,7 @@ function StageBrief({ stage }: { stage: IsStageDef }) {
         {stage.task}
       </p>
       <p className="submit-note">判题方式：{stage.judgeNote}</p>
+      {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
       <HintDisclosure hint={stage.hint} />
     </section>
   );
@@ -219,7 +220,9 @@ export function IsLabPage() {
           }
         >
           <main aria-label="信息系统实验区" className="is-workspace">
-            {stage ? <StageBrief stage={stage} /> : null}
+            {stage ? (
+              <StageBrief stage={stage} passed={state.passedStages.includes(stage.index)} />
+            ) : null}
 
             {state.message ? (
               <p className="test-error" role="alert">
