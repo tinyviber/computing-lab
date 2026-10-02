@@ -101,6 +101,13 @@
   border-color: var(--accent);
 }
 
+/* Named by the last failed judgement. Outline (not border / box-shadow) so it
+   stacks with selected, active and down without overriding them. */
+.is-node.is-flagged {
+  outline: 2px solid var(--danger);
+  outline-offset: 2px;
+}
+
 .is-node-head {
   align-items: center;
   display: flex;
@@ -111,6 +118,11 @@
   color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.04em;
+}
+
+.is-node-flag {
+  color: var(--danger);
+  display: inline-flex;
 }
 
 .is-node-label {

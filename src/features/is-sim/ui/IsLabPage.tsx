@@ -44,6 +44,7 @@ import { EventTimeline } from "./EventTimeline.tsx";
 import { IsStageRail } from "./IsStageRail.tsx";
 import { IsTestPanel } from "./IsTestPanel.tsx";
 import { TopologyCanvas } from "./TopologyCanvas.tsx";
+import { flaggedNodeIds, topologyKey } from "./counterexample.ts";
 import "./is-sim.css";
 
 /** Device views "after `cursor` steps processed" — each row carries its after snapshot. */
@@ -86,6 +87,10 @@ export function IsLabPage() {
   const [cursor, setCursor] = useState(0);
   const [clock, setClock] = useState<"idle" | "running" | "paused">("idle");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // topologyKey of what the shown verdict graded, set in the same batch as
+  // the verdict. Edits clear the verdict, but one made while the judge was
+  // running lands before it — this key then no longer matches the canvas.
+  const [judgedKey, setJudgedKey] = useState<string | null>(null);
 
   const stage = stageOf(state);
   const draft = draftOf(state);
@@ -173,6 +178,8 @@ export function IsLabPage() {
 
   const onSubmit = useCallback(async () => {
     if (!classId || !stage) return;
+    // The judge grades sanitizeDraft(draft), which is exactly `topology`.
+    const submittedKey = topologyKey(topology);
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -180,13 +187,19 @@ export function IsLabPage() {
         stageIndex: stage.index,
         draft,
       });
+      setJudgedKey(submittedKey);
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
       setSubmitError(describeApiError(error));
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft]);
+  }, [classId, stage, draft, topology]);
+
+  const flaggedIds = useMemo(
+    () => flaggedNodeIds(state.judgeOutcome, judgedKey, topology),
+    [state.judgeOutcome, judgedKey, topology],
+  );
 
   const editing = clock !== "running";
   const selected = selectedId ? (topology.nodes.find((n) => n.id === selectedId) ?? null) : null;
@@ -242,6 +255,7 @@ export function IsLabPage() {
               <div className="is-edit-grid">
                 <TopologyCanvas
                   disabled={!editing}
+                  flaggedIds={flaggedIds}
                   onAddLink={(link) => dispatch({ type: "add-link", link })}
                   onAddNode={(kind) => dispatch({ type: "add-node", kind })}
                   onRemoveLink={(link) => dispatch({ type: "remove-link", link })}

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  encodeQuantScenario,
-  parseQuantScenario,
-  quantScenarioActions,
-} from "./scenario.ts";
+import { encodeQuantScenario, parseQuantScenario, quantScenarioActions } from "./scenario.ts";
 import { createQuantLessonState } from "./state.ts";
 
 describe("color-quantization scenario URL codec", () => {
@@ -74,9 +70,7 @@ describe("quantScenarioActions", () => {
   it("applies params to current stage when stage not specified", () => {
     const state = createQuantLessonState(3);
     const scenario = parseQuantScenario({ toners: "0,1" });
-    expect(quantScenarioActions(state, scenario)).toEqual([
-      { type: "set-toners", toners: [0, 1] },
-    ]);
+    expect(quantScenarioActions(state, scenario)).toEqual([{ type: "set-toners", toners: [0, 1] }]);
   });
 
   it("applies table params for free mode", () => {
