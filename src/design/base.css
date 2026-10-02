@@ -192,6 +192,43 @@ p {
   color: var(--primary);
 }
 
+/* Status banners shared by lab, dashboard, and task-sheet pages. */
+.test-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-control);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.test-error button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.test-error button:hover {
+  color: var(--primary);
+}
+
+.stage-takeaway {
+  padding: 10px var(--space-3);
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-control);
+  background: var(--success-soft);
+  font-size: 13px;
+}
+
 /* Available to screen readers only; keeps table captions off-screen. */
 .sr-only {
   position: absolute;

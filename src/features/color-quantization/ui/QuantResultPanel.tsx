@@ -79,7 +79,7 @@ export function QuantResultPanel({
         </div>
       </dl>
 
-      {outcome.passed ? <p className="quant-takeaway">这一关验证了：{stage.takeaway}</p> : null}
+      {outcome.passed ? <p className="stage-takeaway">这一关验证了：{stage.takeaway}</p> : null}
 
       {!outcome.passed && outcome.counterexample ? (
         <div className="quant-counterexample">

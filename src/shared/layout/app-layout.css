@@ -176,6 +176,54 @@
   color: var(--success);
 }
 
+/* Optional side stages shared by multiple labs. */
+.lab-stage-link.is-optional {
+  margin-left: 12px;
+  border-style: dashed;
+}
+
+.stage-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stage-branch-item {
+  list-style: none;
+}
+
+.stage-branch {
+  margin: 2px 0;
+}
+
+.stage-branch-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 6px 22px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10px;
+  list-style-position: inside;
+}
+
+.stage-branch-summary:hover {
+  color: var(--primary);
+}
+
+.stage-branch-summary span:last-child {
+  color: var(--accent);
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-weight: 700;
+}
+
+.stage-branch-list {
+  margin-bottom: 4px;
+}
+
 .lab-stage-titles {
   display: grid;
   flex: 1;
