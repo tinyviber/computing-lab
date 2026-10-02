@@ -7,6 +7,8 @@
 
 import { sanitizeSubset, sanitizeTable } from "../domain/quantize.ts";
 import { getQuantStage } from "../domain/stages.ts";
+import type { QuantLessonAction, QuantLessonState } from "./state.ts";
+import { isStageUnlocked } from "./state.ts";
 
 export type QuantScenario = {
   stageIndex: number | null;
@@ -42,4 +44,38 @@ export function encodeQuantScenario(scenario: {
   if (scenario.toners?.length) out.toners = scenario.toners.join(",");
   if (scenario.table?.length) out.table = scenario.table.join(",");
   return out;
+}
+
+/**
+ * Convert a scenario into actions to apply it to the lesson state.
+ * Rules:
+ * - If stage specified but not unlocked: return [] (apply nothing).
+ * - If stage specified and unlocked: select-stage, then apply params.
+ * - If stage not specified: apply params to current stage.
+ */
+export function quantScenarioActions(
+  state: QuantLessonState,
+  scenario: QuantScenario,
+): QuantLessonAction[] {
+  const actions: QuantLessonAction[] = [];
+
+  // If stage specified but not unlocked, drop everything
+  if (scenario.stageIndex != null && !isStageUnlocked(state, scenario.stageIndex)) {
+    return [];
+  }
+
+  // If stage specified and unlocked, select it
+  if (scenario.stageIndex != null) {
+    actions.push({ type: "select-stage", stageIndex: scenario.stageIndex });
+  }
+
+  // Apply toners/table
+  if (scenario.toners) {
+    actions.push({ type: "set-toners", toners: scenario.toners });
+  }
+  if (scenario.table) {
+    actions.push({ type: "set-table", table: scenario.table });
+  }
+
+  return actions;
 }

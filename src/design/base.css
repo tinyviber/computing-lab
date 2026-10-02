@@ -242,6 +242,42 @@ p {
   white-space: nowrap;
 }
 
+/* ---- scenario link (staff-only lab share button) ----------------------- */
+
+.scenario-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.scenario-link-hint {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.scenario-link-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.scenario-link-fallback p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scenario-link-fallback input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  padding: var(--space-1) var(--space-2);
+  width: 320px;
+  max-width: 100%;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

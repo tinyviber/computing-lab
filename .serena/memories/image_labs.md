@@ -52,3 +52,15 @@
 - Explorer collision lists are clickable pair buttons: sampling outlines
   the diff region on the original; quant lists the merged parts for the
   pair.
+
+## Scenario link invariants
+
+- Scenario link button only appears for teacher/admin roles (`isStaffRole`),
+  because the encoded params (resolution, toners, table) are submission
+  content — sharing would let students copy answers.
+- When a scenario URL specifies a stage the student has not unlocked,
+  `*ScenarioActions` returns `[]` — no params apply. This prevents the
+  URL from writing teacher-level drafts into the student's locked stages.
+- URL resolution is never applied to `requiresChooseSize` stages (sampling
+  stage 2), since those require code-computed output. The page layer already
+  skips encoding `shareSearch` for those stages.

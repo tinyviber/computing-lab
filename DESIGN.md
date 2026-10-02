@@ -137,6 +137,9 @@ rail 的竖向分隔线画在网格内部（`border-right`），内容仍然受 
 - 面板/卡片：`border: 1px solid var(--border)` +
   `border-radius: var(--radius-panel)` + `background: var(--surface)`，
   需要浮起感时加 `--shadow-sm`。
+- 场景链接按钮：`ScenarioLinkButton`（`shared/lab/`，样式在 `design/base.css`）。
+  位于实验页 explorer 下方，仅教师/管理员可见，用于复制可重现的场景链接。
+  编码的场景参数即判题提交内容，因此不对学生暴露。
 
 ## Icons
 

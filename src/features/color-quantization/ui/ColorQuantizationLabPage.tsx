@@ -1,7 +1,7 @@
 import { useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
-import { useAuth } from "../../../shared/auth";
+import { isStaffRole, useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
@@ -15,13 +15,16 @@ import { COLOR_QUANT_STAGES, quantStageUnlocked, type QuantStageDef } from "../d
 import {
   createQuantLessonState,
   draftOf,
-  isStageUnlocked,
   stageOf,
   transitionQuantLesson,
   type QuantLessonAction,
   type StageDraft,
 } from "../lesson/state.ts";
-import { parseQuantScenario } from "../lesson/scenario.ts";
+import {
+  encodeQuantScenario,
+  parseQuantScenario,
+  quantScenarioActions,
+} from "../lesson/scenario.ts";
 import { ChooseTonersPanel } from "./ChooseTonersPanel.tsx";
 import { FreeMapPanel } from "./FreeMapPanel.tsx";
 import { GuidedTonerTask } from "./GuidedTonerTask.tsx";
@@ -101,13 +104,10 @@ export function ColorQuantizationLabPage() {
     if (scenarioApplied.current || !projectLoaded) return;
     scenarioApplied.current = true;
     const scenario = parseQuantScenario(search);
-    if (scenario.stageIndex != null && isStageUnlocked(state, scenario.stageIndex)) {
-      dispatch({ type: "select-stage", stageIndex: scenario.stageIndex });
-    }
-    if (scenario.toners) dispatch({ type: "set-toners", toners: scenario.toners });
-    if (scenario.table) dispatch({ type: "set-table", table: scenario.table });
+    const actions = quantScenarioActions(state, scenario);
+    actions.forEach((action) => dispatch(action));
     // A shared scenario link is a starting point, not a live binding to the URL.
-  }, [projectLoaded]);
+  }, [projectLoaded, state]);
 
   useAutosaveDraft<StageDraft>({
     classId,
@@ -154,6 +154,13 @@ export function ColorQuantizationLabPage() {
       setSubmitting(false);
     }
   }, [classId, stage, state, draft]);
+
+  const shareSearch =
+    stage && isStaffRole(role)
+      ? stage.mode === "pick"
+        ? encodeQuantScenario({ stageIndex: stage.index, toners: draft.toners })
+        : encodeQuantScenario({ stageIndex: stage.index, table: draft.table })
+      : undefined;
 
   return (
     <LabAccessGate
@@ -209,6 +216,7 @@ export function ColorQuantizationLabPage() {
                   onTable={(table) => dispatch({ type: "set-table", table })}
                   onToners={(toners) => dispatch({ type: "set-toners", toners })}
                   ruleCode={draftOf(state, 1).code}
+                  shareSearch={shareSearch}
                   stage={stage}
                 />
 

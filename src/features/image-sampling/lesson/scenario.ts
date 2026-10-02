@@ -6,6 +6,8 @@
 
 import { sanitizeResolution } from "../domain/downsample.ts";
 import { getSamplingStage } from "../domain/stages.ts";
+import type { SamplingLessonAction, SamplingLessonState } from "./state.ts";
+import { isStageUnlocked } from "./state.ts";
 
 export type SamplingScenario = {
   stageIndex: number | null;
@@ -38,4 +40,44 @@ export function encodeSamplingScenario(scenario: SamplingScenario): Record<strin
   if (scenario.width != null) out.w = scenario.width;
   if (scenario.height != null) out.h = scenario.height;
   return out;
+}
+
+/**
+ * Convert a scenario into actions to apply it to the lesson state.
+ * Rules:
+ * - If stage specified but not unlocked: return [] (apply nothing).
+ * - If stage specified and unlocked: select-stage, then apply params.
+ * - If stage not specified: apply params to current stage.
+ * - If target stage requiresChooseSize: do NOT apply resolution.
+ */
+export function samplingScenarioActions(
+  state: SamplingLessonState,
+  scenario: SamplingScenario,
+): SamplingLessonAction[] {
+  const actions: SamplingLessonAction[] = [];
+
+  // If stage specified but not unlocked, drop everything
+  if (scenario.stageIndex != null && !isStageUnlocked(state, scenario.stageIndex)) {
+    return [];
+  }
+
+  // If stage specified and unlocked, select it
+  if (scenario.stageIndex != null) {
+    actions.push({ type: "select-stage", stageIndex: scenario.stageIndex });
+  }
+
+  // Determine target stage (selected or current)
+  const targetStageIndex = scenario.stageIndex ?? state.stageIndex;
+  const targetStage = getSamplingStage(targetStageIndex);
+
+  // Apply resolution only if stage does not require choose_size
+  if (scenario.width != null && targetStage && !targetStage.requiresChooseSize) {
+    actions.push({
+      type: "set-resolution",
+      width: scenario.width,
+      height: scenario.height ?? scenario.width,
+    });
+  }
+
+  return actions;
 }
