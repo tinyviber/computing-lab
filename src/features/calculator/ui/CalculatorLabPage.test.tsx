@@ -141,3 +141,52 @@ describe("CalculatorLabPage coach", () => {
     expect(await screen.findByText("先认识信号")).toBeInTheDocument();
   });
 });
+
+describe("CalculatorLabPage takeaway", () => {
+  it("shows stage takeaway when the stage is passed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 2,
+              passedStages: [1],
+              unlockedSubmodules: [],
+              drafts: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/calculator");
+
+    expect(await screen.findByText(/本关收获：一根导线 = 实时信号传递/)).toBeInTheDocument();
+  });
+
+  it("does not show stage takeaway when the stage is not passed", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Promise.resolve(
+          new Response(
+            JSON.stringify({
+              currentStage: 1,
+              passedStages: [],
+              unlockedSubmodules: [],
+              drafts: {},
+            }),
+            { headers: { "content-type": "application/json" } },
+          ),
+        ),
+      ),
+    );
+
+    await renderAppAt("/classes/c1/labs/calculator");
+
+    await screen.findByText(/用一根导线把输入 A 连到输出 Y/);
+    expect(screen.queryByText(/本关收获/)).not.toBeInTheDocument();
+  });
+});

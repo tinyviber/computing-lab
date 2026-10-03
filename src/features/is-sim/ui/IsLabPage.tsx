@@ -44,6 +44,7 @@ import { EventTimeline } from "./EventTimeline.tsx";
 import { IsStageRail } from "./IsStageRail.tsx";
 import { IsTestPanel } from "./IsTestPanel.tsx";
 import { TopologyCanvas } from "./TopologyCanvas.tsx";
+import { flaggedNodeIds, topologyKey } from "./counterexample.ts";
 import "./is-sim.css";
 
 /** Device views "after `cursor` steps processed" — each row carries its after snapshot. */
@@ -56,7 +57,7 @@ function viewsAt(run: SimRun, cursor: number): Record<string, DeviceView> {
   return views;
 }
 
-function StageBrief({ stage }: { stage: IsStageDef }) {
+function StageBrief({ stage, passed }: { stage: IsStageDef; passed: boolean }) {
   return (
     <section className="stage-brief">
       <p>{stage.description}</p>
@@ -65,6 +66,7 @@ function StageBrief({ stage }: { stage: IsStageDef }) {
         {stage.task}
       </p>
       <p className="submit-note">判题方式：{stage.judgeNote}</p>
+      {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
       <HintDisclosure hint={stage.hint} />
     </section>
   );
@@ -85,6 +87,10 @@ export function IsLabPage() {
   const [cursor, setCursor] = useState(0);
   const [clock, setClock] = useState<"idle" | "running" | "paused">("idle");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // topologyKey of what the shown verdict graded, set in the same batch as
+  // the verdict. Edits clear the verdict, but one made while the judge was
+  // running lands before it — this key then no longer matches the canvas.
+  const [judgedKey, setJudgedKey] = useState<string | null>(null);
 
   const stage = stageOf(state);
   const draft = draftOf(state);
@@ -172,6 +178,8 @@ export function IsLabPage() {
 
   const onSubmit = useCallback(async () => {
     if (!classId || !stage) return;
+    // The judge grades sanitizeDraft(draft), which is exactly `topology`.
+    const submittedKey = topologyKey(topology);
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -179,13 +187,19 @@ export function IsLabPage() {
         stageIndex: stage.index,
         draft,
       });
+      setJudgedKey(submittedKey);
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
       setSubmitError(describeApiError(error));
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft]);
+  }, [classId, stage, draft, topology]);
+
+  const flaggedIds = useMemo(
+    () => flaggedNodeIds(state.judgeOutcome, judgedKey, topology),
+    [state.judgeOutcome, judgedKey, topology],
+  );
 
   const editing = clock !== "running";
   const selected = selectedId ? (topology.nodes.find((n) => n.id === selectedId) ?? null) : null;
@@ -219,7 +233,9 @@ export function IsLabPage() {
           }
         >
           <main aria-label="信息系统实验区" className="is-workspace">
-            {stage ? <StageBrief stage={stage} /> : null}
+            {stage ? (
+              <StageBrief stage={stage} passed={state.passedStages.includes(stage.index)} />
+            ) : null}
 
             {state.message ? (
               <p className="test-error" role="alert">
@@ -239,6 +255,7 @@ export function IsLabPage() {
               <div className="is-edit-grid">
                 <TopologyCanvas
                   disabled={!editing}
+                  flaggedIds={flaggedIds}
                   onAddLink={(link) => dispatch({ type: "add-link", link })}
                   onAddNode={(kind) => dispatch({ type: "add-node", kind })}
                   onRemoveLink={(link) => dispatch({ type: "remove-link", link })}

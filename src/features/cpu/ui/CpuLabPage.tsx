@@ -65,7 +65,7 @@ function displayState(run: MachineRun, cursor: number) {
   };
 }
 
-function StageBrief({ stage }: { stage: CpuStageDef }) {
+function StageBrief({ stage, passed }: { stage: CpuStageDef; passed: boolean }) {
   return (
     <section className="stage-brief">
       <p>{stage.description}</p>
@@ -74,6 +74,7 @@ function StageBrief({ stage }: { stage: CpuStageDef }) {
         {stage.task}
       </p>
       <p className="submit-note">判题方式：{stage.judgeNote}</p>
+      {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
       <HintDisclosure hint={stage.hint} />
     </section>
   );
@@ -335,7 +336,9 @@ export function CpuLabPage() {
               </p>
             ) : null}
 
-            {stage ? <StageBrief stage={stage} /> : null}
+            {stage ? (
+              <StageBrief stage={stage} passed={state.passedStages.includes(stage.index)} />
+            ) : null}
 
             {stage ? <InstructionShelf ops={stage.ops} /> : null}
 

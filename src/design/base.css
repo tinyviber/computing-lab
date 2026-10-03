@@ -192,6 +192,52 @@ p {
   color: var(--primary);
 }
 
+/* Status banners shared by lab, dashboard, and task-sheet pages. */
+.test-error {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-control);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.test-error button {
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.test-error button:hover {
+  color: var(--primary);
+}
+
+.stage-takeaway {
+  padding: 10px var(--space-3);
+  border: 1px solid var(--success-border);
+  border-radius: var(--radius-control);
+  background: var(--success-soft);
+  color: var(--primary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Stage briefs share one body size across lab pages; labs that need other
+   colors or line-heights override locally. :where() keeps this at (0,1,1)
+   so .stage-takeaway stays owned by the rule above. */
+.stage-brief p:where(:not(.stage-takeaway)) {
+  font-size: 13px;
+}
+
 /* Available to screen readers only; keeps table captions off-screen. */
 .sr-only {
   position: absolute;
@@ -203,6 +249,42 @@ p {
   border: 0;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+/* ---- scenario link (staff-only lab share button) ----------------------- */
+
+.scenario-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.scenario-link-hint {
+  color: var(--muted);
+  font-size: 12px;
+  max-width: 200px;
+}
+
+.scenario-link-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.scenario-link-fallback p {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.scenario-link-fallback input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  font-size: 12px;
+  padding: var(--space-1) var(--space-2);
+  width: 320px;
+  max-width: 100%;
 }
 
 @media (prefers-reduced-motion: reduce) {

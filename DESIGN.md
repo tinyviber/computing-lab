@@ -9,14 +9,18 @@ colors:
   border: "#dbe3ee"
   primary: "#17283d"
   secondary: "#526579"
-  muted: "#728399"
+  muted: "#5f6e81"
   accent: "#4f46e5"
   accent-soft: "#eeedff"
   focus: "#818cf8"
   focus-ring: "#4338ca"
   success: "#17845b"
+  success-soft: "#f0fdf4"
+  success-border: "#86efac66"
   warning: "#b7791f"
   danger: "#b42318"
+  danger-soft: "#fdf1ef"
+  danger-border: "#f0cfcb"
 elevation:
   shadow-sm: "0 4px 14px rgb(23 40 61 / 5%)"
   shadow-md: "0 16px 40px rgb(23 40 61 / 8%)"
@@ -95,18 +99,21 @@ rail 的竖向分隔线画在网格内部（`border-right`），内容仍然受 
 
 颜色只按角色使用，不按字面含义：
 
-| Token                              | 用途                                 |
-| ---------------------------------- | ------------------------------------ |
-| `--canvas`                         | 页面背景（topbar/卡片之外的区域）    |
-| `--surface`                        | 卡片、面板、topbar、弹层             |
-| `--subtle`                         | 次级填充：hover 底、图表槽位、禁用态 |
-| `--border`                         | 所有描边、分隔线                     |
-| `--primary`                        | 正文标题、重要文字                   |
-| `--secondary`                      | 说明文字                             |
-| `--muted`                          | 弱化提示、placeholder 级文字         |
-| `--accent` / `--accent-soft`       | 主交互色及其浅底（按钮、当前态）     |
-| `--focus` / `--focus-ring`         | hover 边框 / `:focus-visible` 描边   |
-| `--success`/`--warning`/`--danger` | 状态语义色，仅用于状态               |
+| Token                                                                 | 用途                                 |
+| --------------------------------------------------------------------- | ------------------------------------ |
+| `--canvas`                                                            | 页面背景（topbar/卡片之外的区域）    |
+| `--surface`                                                           | 卡片、面板、topbar、弹层             |
+| `--subtle`                                                            | 次级填充：hover 底、图表槽位、禁用态 |
+| `--border`                                                            | 所有描边、分隔线                     |
+| `--primary`                                                           | 正文标题、重要文字                   |
+| `--secondary`                                                         | 说明文字                             |
+| `--muted`                                                             | 弱化提示、placeholder 级文字         |
+| `--accent` / `--accent-soft`                                          | 主交互色及其浅底（按钮、当前态）     |
+| `--focus` / `--focus-ring`                                            | hover 边框 / `:focus-visible` 描边   |
+| `--success`/`--warning`/`--danger`                                    | 状态语义色，仅用于状态               |
+| `--success-soft`/`--success-border`/`--danger-soft`/`--danger-border` | 状态提示条的底色与描边               |
+
+`--muted` 在 canvas/surface/subtle/accent-soft 上均满足 WCAG AA 4.5:1 对比度要求。与 `--secondary` 的层级主要靠字号/字重区分。
 
 不要在组件里写死近似色（如 `#e2e8f0`）。需要新颜色时先加 token。
 
@@ -122,12 +129,19 @@ rail 的竖向分隔线画在网格内部（`border-right`），内容仍然受 
 
 - 按钮：`.button` + `.button-primary` / `.button-secondary`（base.css）。
   页面不要发明第三种按钮样式。
+- 状态提示条：`.test-error`（错误/失败提示）与 `.stage-takeaway`（通关收获）定义在 base.css，跨页面使用，feature CSS 不得重定义。
+  关卡说明段落的正文字号（`.stage-brief p`，13px）也在 base.css 统一；
+  个别实验需要别的颜色或行高时仍由本地规则覆盖。
+- 关卡栏原语：`.stage-list`、`.stage-branch*`、`.lab-stage-link.is-optional` 定义在 shared/layout/app-layout.css，feature CSS 不得重定义。
 - 下拉菜单：`.account-menu-*`（`shared/auth/account-menu.css`）。
   全局导航入口（班级看板、账号管理、个人资料、退出）只放在右上角
   `AccountMenu`，不在首页铺管理卡片。
 - 面板/卡片：`border: 1px solid var(--border)` +
   `border-radius: var(--radius-panel)` + `background: var(--surface)`，
   需要浮起感时加 `--shadow-sm`。
+- 场景链接按钮：`ScenarioLinkButton`（`shared/lab/`，样式在 `design/base.css`）。
+  位于实验页 explorer 下方，仅教师/管理员可见，用于复制可重现的场景链接。
+  编码的场景参数即判题提交内容，因此不对学生暴露。
 
 ## Icons
 

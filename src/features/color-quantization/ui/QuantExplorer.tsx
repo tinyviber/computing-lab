@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ScenarioLinkButton } from "../../../shared/lab/ScenarioLinkButton";
 import { Icon } from "../../../shared/ui/Icon";
 import { publicGalleryFor } from "../domain/fixtures.ts";
 import {
@@ -81,6 +82,7 @@ export function QuantExplorer({
   onToners,
   onTable,
   ruleCode,
+  shareSearch,
 }: {
   stage: QuantStageDef;
   draft: StageDraft;
@@ -88,6 +90,8 @@ export function QuantExplorer({
   onTable: (table: number[]) => void;
   /** Student's stage-1 nearest_toner source; enables the "用我的规则" preview. */
   ruleCode?: string;
+  /** When provided, renders a share-link button (staff only). */
+  shareSearch?: Record<string, string | number>;
 }) {
   const gallery = useMemo(() => publicGalleryFor(stage.category), [stage.category]);
   const [memberIndex, setMemberIndex] = useState(0);
@@ -244,6 +248,7 @@ export function QuantExplorer({
         {stage.category === "cargo" ? "货运" : ""}
         {stage.category === "recon" ? "侦察" : ""}机器人）
       </h3>
+      {shareSearch ? <ScenarioLinkButton search={shareSearch} /> : null}
 
       {stage.mode === "pick" ? (
         <div className="quant-rack-block">

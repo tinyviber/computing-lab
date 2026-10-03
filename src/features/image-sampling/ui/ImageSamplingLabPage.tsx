@@ -1,7 +1,7 @@
 import { useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
-import { useAuth } from "../../../shared/auth";
+import { isStaffRole, useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
@@ -20,13 +20,16 @@ import {
   createSamplingLessonState,
   draftOf,
   draftResolution,
-  isStageUnlocked,
   stageOf,
   transitionSamplingLesson,
   type SamplingLessonAction,
   type StageDraft,
 } from "../lesson/state.ts";
-import { parseSamplingScenario } from "../lesson/scenario.ts";
+import {
+  encodeSamplingScenario,
+  parseSamplingScenario,
+  samplingScenarioActions,
+} from "../lesson/scenario.ts";
 import { ChooseSizePanel } from "./ChooseSizePanel.tsx";
 import { DownsampleExplorer } from "./DownsampleExplorer.tsx";
 import { GuidedCellTask } from "./GuidedCellTask.tsx";
@@ -106,17 +109,10 @@ export function ImageSamplingLabPage() {
     if (scenarioApplied.current || !projectLoaded) return;
     scenarioApplied.current = true;
     const scenario = parseSamplingScenario(search);
-    if (scenario.stageIndex != null && isStageUnlocked(state, scenario.stageIndex)) {
-      dispatch({ type: "select-stage", stageIndex: scenario.stageIndex });
-    }
-    if (scenario.width != null) {
-      dispatch({
-        type: "set-resolution",
-        width: scenario.width,
-        height: scenario.height ?? scenario.width,
-      });
-    }
+    const actions = samplingScenarioActions(state, scenario);
+    actions.forEach((action) => dispatch(action));
     // A shared scenario link is a starting point, not a live binding to the URL.
+    // projectLoaded flips in the same batch as load-project, so `state` is fresh.
   }, [projectLoaded]);
 
   useAutosaveDraft<StageDraft>({
@@ -170,6 +166,15 @@ export function ImageSamplingLabPage() {
   const resolution = stage ? draftResolution(state, stage) : null;
   const previewWidth = draft.width ?? 8;
   const previewHeight = stage?.mode === "square" ? previewWidth : (draft.height ?? 8);
+
+  const shareSearch =
+    stage && isStaffRole(role) && !stage.requiresChooseSize
+      ? encodeSamplingScenario({
+          stageIndex: stage.index,
+          width: previewWidth,
+          height: previewHeight,
+        })
+      : undefined;
 
   return (
     <LabAccessGate
@@ -227,6 +232,7 @@ export function ImageSamplingLabPage() {
                   ruleCode={draftOf(state, 1).code}
                   resolutionReady={resolution != null}
                   selectedCell={state.selectedCell}
+                  shareSearch={shareSearch}
                   stage={stage}
                   width={previewWidth}
                 />

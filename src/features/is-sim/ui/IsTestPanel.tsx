@@ -6,6 +6,7 @@
 
 import type { IsCounterexample, IsJudgeResult } from "../domain/protocol.ts";
 import type { PublicRunOutcome } from "../lesson/state.ts";
+import { COUNTEREXAMPLE_LISTED } from "./counterexample.ts";
 
 const REASON_TEXT: Record<string, string> = {
   done: "跑完",
@@ -26,22 +27,22 @@ function diffText(c: IsCounterexample): string {
   if (c.eventsUsed > c.eventBudget) {
     parts.push(`用了 ${c.eventsUsed} 步，超出用例预算 ${c.eventBudget} 步`);
   }
-  for (const d of c.dbDiff.slice(0, 3)) {
+  for (const d of c.dbDiff.slice(0, COUNTEREXAMPLE_LISTED)) {
     const missing = d.missing?.length ? `，缺记录 ${d.missing.join("、")}` : "";
     parts.push(
       `设备 ${d.node} 应有 ${d.expectedCount ?? "?"} 条记录，实际 ${d.actualCount} 条${missing}`,
     );
   }
-  for (const d of c.seenDiff.slice(0, 3)) {
+  for (const d of c.seenDiff.slice(0, COUNTEREXAMPLE_LISTED)) {
     parts.push(`看板 ${d.node} 应收 ${d.expected} 条，实收 ${d.actual} 条`);
   }
-  for (const d of c.firedDiff.slice(0, 3)) {
+  for (const d of c.firedDiff.slice(0, COUNTEREXAMPLE_LISTED)) {
     parts.push(`执行器 ${d.node} ${d.expected ? "应触发而未触发" : "不该触发却触发了"}`);
   }
-  for (const u of c.unapproved.slice(0, 3)) {
+  for (const u of c.unapproved.slice(0, COUNTEREXAMPLE_LISTED)) {
     parts.push(`t${u.tick} 有事件未经人工核准就到了 ${u.node}·${u.port}`);
   }
-  for (const p of c.pending.slice(0, 3)) {
+  for (const p of c.pending.slice(0, COUNTEREXAMPLE_LISTED)) {
     parts.push(`${p.node} 还压着 ${p.count} 条未处理`);
   }
   if (c.dropped.length > 0) {

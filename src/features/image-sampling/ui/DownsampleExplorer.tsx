@@ -11,6 +11,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ScenarioLinkButton } from "../../../shared/lab/ScenarioLinkButton";
 import { Icon } from "../../../shared/ui/Icon";
 import { diffBounds, makeImage, type BinaryImage } from "../domain/bitmap.ts";
 import { cellBounds, cellRegion, cellStats, type Resolution } from "../domain/downsample.ts";
@@ -34,6 +35,8 @@ type ExplorerProps = {
   onCellPick: (cell: CellPick | null) => void;
   /** Student's stage-1 cell_value source; enables the "用我的规则" preview. */
   ruleCode?: string;
+  /** When provided, renders a share-link button (staff only). */
+  shareSearch?: Record<string, string | number>;
 };
 
 function ResolutionInputs({
@@ -131,6 +134,7 @@ export function DownsampleExplorer({
   onCellPick,
   resolutionReady,
   ruleCode,
+  shareSearch,
 }: ExplorerProps) {
   const gallery = useMemo(() => publicGalleryFor(stage.category), [stage.category]);
   const [memberIndex, setMemberIndex] = useState(0);
@@ -259,6 +263,7 @@ export function DownsampleExplorer({
   return (
     <section aria-labelledby="explorer-title" className="downsample-explorer">
       <h3 id="explorer-title">发信实验台（公开图谱 {gallery.length} 张）</h3>
+      {shareSearch ? <ScenarioLinkButton search={shareSearch} /> : null}
 
       <ResolutionInputs
         height={height}

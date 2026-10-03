@@ -25,6 +25,8 @@ import type { IsStageDef } from "../domain/stages.ts";
 
 const CELL_W = 168;
 const CELL_H = 128;
+/** Spoken and hovered on nodes the last failed judgement named. */
+const FLAGGED_TEXT = "判定反例涉及此设备";
 
 export function portCenter(node: IsNode, port: string, side: "in" | "out") {
   const spec = NODE_PORTS[node.kind];
@@ -48,6 +50,8 @@ export function TopologyCanvas(props: {
   onAddNode: (kind: IsNodeKind) => void;
   onAddLink: (link: IsLink) => void;
   onRemoveLink: (link: IsLink) => void;
+  /** Nodes the last failed judgement names: outlined, iconed and announced. */
+  flaggedIds?: ReadonlySet<string>;
 }) {
   const {
     stage,
@@ -59,6 +63,7 @@ export function TopologyCanvas(props: {
     onAddNode,
     onAddLink,
     onRemoveLink,
+    flaggedIds,
   } = props;
   const [pendingFrom, setPendingFrom] = useState<string | null>(null);
 
@@ -149,19 +154,28 @@ export function TopologyCanvas(props: {
           if (pendingFrom && pendingFrom !== node.id && spec.in.length > 0) {
             classes.push("is-wire-target");
           }
+          const flagged = flaggedIds?.has(node.id) ?? false;
+          if (flagged) classes.push("is-flagged");
+          const name = `${KIND_LABEL[node.kind]} ${node.label || node.id}`;
           return (
             <div
-              aria-label={`${KIND_LABEL[node.kind]} ${node.label || node.id}`}
+              aria-label={flagged ? `${name}，${FLAGGED_TEXT}` : name}
               className={classes.join(" ")}
               key={node.id}
               onClick={() => onSelect(node.id)}
               role="button"
               style={{ left: node.x * CELL_W + 6, top: node.y * CELL_H + 6 }}
               tabIndex={0}
+              title={flagged ? FLAGGED_TEXT : undefined}
             >
               <header className="is-node-head">
                 <span className="is-node-kind">{KIND_LABEL[node.kind]}</span>
                 {node.fixed ? <Icon name="lock" size={10} /> : null}
+                {flagged ? (
+                  <span className="is-node-flag">
+                    <Icon name="warning" size={10} />
+                  </span>
+                ) : null}
               </header>
               <p className="is-node-label">{node.label || node.id}</p>
               <div className="is-node-ports">
