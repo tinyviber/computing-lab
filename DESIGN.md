@@ -130,6 +130,8 @@ rail 的竖向分隔线画在网格内部（`border-right`），内容仍然受 
 - 按钮：`.button` + `.button-primary` / `.button-secondary`（base.css）。
   页面不要发明第三种按钮样式。
 - 状态提示条：`.test-error`（错误/失败提示）与 `.stage-takeaway`（通关收获）定义在 base.css，跨页面使用，feature CSS 不得重定义。
+  关卡说明段落的正文字号（`.stage-brief p`，13px）也在 base.css 统一；
+  个别实验需要别的颜色或行高时仍由本地规则覆盖。
 - 关卡栏原语：`.stage-list`、`.stage-branch*`、`.lab-stage-link.is-optional` 定义在 shared/layout/app-layout.css，feature CSS 不得重定义。
 - 下拉菜单：`.account-menu-*`（`shared/auth/account-menu.css`）。
   全局导航入口（班级看板、账号管理、个人资料、退出）只放在右上角

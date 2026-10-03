@@ -231,6 +231,13 @@ p {
   line-height: 1.5;
 }
 
+/* Stage briefs share one body size across lab pages; labs that need other
+   colors or line-heights override locally. :where() keeps this at (0,1,1)
+   so .stage-takeaway stays owned by the rule above. */
+.stage-brief p:where(:not(.stage-takeaway)) {
+  font-size: 13px;
+}
+
 /* Available to screen readers only; keeps table captions off-screen. */
 .sr-only {
   position: absolute;

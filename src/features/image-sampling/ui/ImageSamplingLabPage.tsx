@@ -112,7 +112,8 @@ export function ImageSamplingLabPage() {
     const actions = samplingScenarioActions(state, scenario);
     actions.forEach((action) => dispatch(action));
     // A shared scenario link is a starting point, not a live binding to the URL.
-  }, [projectLoaded, state]);
+    // projectLoaded flips in the same batch as load-project, so `state` is fresh.
+  }, [projectLoaded]);
 
   useAutosaveDraft<StageDraft>({
     classId,

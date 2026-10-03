@@ -852,6 +852,13 @@
   line-height: 17px;
 }
 
+/* These containers stack paragraphs flush (no flex/grid gap), so the error
+   banner keeps the 10px offset it had before the styles moved to base.css. */
+.canvas-help .test-error,
+.test-panel .test-error {
+  margin-top: 10px;
+}
+
 .calculator-actions {
   display: flex;
   flex-wrap: wrap;
