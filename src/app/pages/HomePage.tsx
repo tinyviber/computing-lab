@@ -9,6 +9,7 @@ import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
 import { DECODING_CORE_STAGES } from "../../features/decoding";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
+import { AUDIO_ENCODING_STAGES } from "../../features/audio-encoding";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -70,6 +71,14 @@ const HOME_LABS = [
     description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
     to: "/labs/color-quantization",
     stages: null,
+    primary: false,
+  },
+  {
+    id: "audio-encoding",
+    title: "声音编码",
+    description: "把声波变成数字发给接收端：采样率定最高音，位深定噪声地板，预算管着数据量。",
+    to: "/labs/audio-encoding",
+    stages: AUDIO_ENCODING_STAGES.length,
     primary: false,
   },
 ] as const;

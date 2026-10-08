@@ -24,6 +24,10 @@ test("serves the root app, calculator entry, and not-found fallback", async ({ p
   expect(calculator?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText("登录");
 
+  const audio = await page.goto("labs/audio-encoding", { waitUntil: "networkidle" });
+  expect(audio?.status()).toBe(200);
+  await expect(page.locator("h1").first()).toHaveText("登录");
+
   const missing = await page.goto("missing-route", { waitUntil: "networkidle" });
   expect(missing?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText(/实验不存在/);

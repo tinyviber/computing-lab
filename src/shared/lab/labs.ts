@@ -44,6 +44,7 @@ export const LAB_TITLES: Record<string, string> = {
   "color-quantization": "颜色量化",
   "is-sim": "小型信息系统",
   decoding: "解码侦探",
+  "audio-encoding": "声音编码",
 };
 
 /**

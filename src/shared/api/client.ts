@@ -65,6 +65,7 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-toners": "墨粉选择无效。",
   "invalid-table": "映射表无效（每个源色都要有一条映射）。",
   "toner-not-loaded": "映射到了粉盒里没有的墨粉。",
+  "invalid-params": "提交的参数无效，请检查采样率、位深和声道设置。",
   "lab-not-available": "这个实验暂未开放。",
   "unknown-lab": "未知的实验。",
   "invalid-revision": "无效的版本参数。",

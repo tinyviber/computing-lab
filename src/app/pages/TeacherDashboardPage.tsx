@@ -8,6 +8,7 @@ import { DECODING_STAGES } from "../../features/decoding";
 import { IS_SIM_STAGES } from "../../features/is-sim";
 import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
+import { AUDIO_ENCODING_STAGES } from "../../features/audio-encoding";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { useLabCatalog } from "../../shared/lab/labs";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
@@ -31,6 +32,7 @@ const LAB_OPTIONS: LabOption[] = [
   { id: "is-sim", title: "小型信息系统", stages: IS_SIM_STAGES },
   { id: "image-sampling", title: "空间采样", stages: IMAGE_SAMPLING_STAGES },
   { id: "color-quantization", title: "颜色量化", stages: COLOR_QUANT_STAGES },
+  { id: "audio-encoding", title: "声音编码", stages: AUDIO_ENCODING_STAGES },
 ];
 
 type MatrixCell = {
