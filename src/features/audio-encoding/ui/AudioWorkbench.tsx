@@ -34,7 +34,10 @@ export function AudioWorkbench(props: {
   const jobRef = useRef<DigitizeJob | null>(null);
   const micRef = useRef<MicRecorder | null>(null);
   const debounceRef = useRef<number | null>(null);
-  const player = useAudioPlayer();
+  // Destructure the stable callbacks: the hook's returned object is new every
+  // render, so depending on `player` in an effect would re-fire (and stop
+  // playback) on every state change. The callbacks themselves are stable.
+  const { playing, play, stop, swapTo, setSource: setPlayerSource } = useAudioPlayer();
 
   const pickPreset = useCallback(
     (id: string) => {
@@ -108,7 +111,7 @@ export function AudioWorkbench(props: {
         .then((res) => {
           if (jobRef.current !== job) return;
           setResult(res);
-          player.setSource("processed", res.audio);
+          setPlayerSource("processed", res.audio);
         })
         .catch((e) => {
           if (e instanceof DigitizeCancelled) return;
@@ -124,11 +127,11 @@ export function AudioWorkbench(props: {
     return () => {
       if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
     };
-  }, [source, params, player]);
+  }, [source, params, setPlayerSource]);
 
   useEffect(() => {
-    player.setSource("original", source?.audio ?? null);
-  }, [source, player]);
+    setPlayerSource("original", source?.audio ?? null);
+  }, [source, setPlayerSource]);
 
   useEffect(
     () => () => {
@@ -176,9 +179,9 @@ export function AudioWorkbench(props: {
                   <span>原音 · {source.audio.sampleRate} Hz</span>
                   <PlayButton
                     label="原音"
-                    onPlay={() => player.play("original")}
-                    onStop={player.stop}
-                    playing={player.playing === "original"}
+                    onPlay={() => play("original")}
+                    onStop={stop}
+                    playing={playing === "original"}
                   />
                 </div>
                 <WaveformCanvas
@@ -199,10 +202,10 @@ export function AudioWorkbench(props: {
                   <PlayButton
                     label="处理音"
                     onPlay={() => {
-                      if (result) player.play("processed");
+                      if (result) play("processed");
                     }}
-                    onStop={player.stop}
-                    playing={player.playing === "processed"}
+                    onStop={stop}
+                    playing={playing === "processed"}
                   />
                 </div>
                 {result ? (
@@ -220,9 +223,7 @@ export function AudioWorkbench(props: {
                 <div className="ae-action-row">
                   <button
                     className="button-ghost"
-                    onClick={() =>
-                      player.swapTo(player.playing === "original" ? "processed" : "original")
-                    }
+                    onClick={() => swapTo(playing === "original" ? "processed" : "original")}
                     type="button"
                   >
                     A/B 切换（同位置对比）

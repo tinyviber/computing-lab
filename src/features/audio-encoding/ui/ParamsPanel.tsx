@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   BIT_DEPTH_PRESETS,
   DEFAULT_PARAMS,
@@ -24,6 +25,37 @@ export type AudioSource = {
   label: string;
   audio: PcmAudio;
 };
+
+/**
+ * Custom-rate field. Draft text is kept locally so typing a value like
+ * "2000" doesn't get rejected mid-keystroke by the 2000–96000 clamp;
+ * out-of-range drafts simply don't commit until blurred (display snaps
+ * back to the real param).
+ */
+function RateInput(props: { value: number; onCommit: (rate: number) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <label className="ae-custom">
+      自定义
+      <input
+        aria-label="自定义采样率"
+        max={96000}
+        min={2000}
+        onBlur={() => setDraft(null)}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          const v = Number(e.target.value);
+          if (Number.isFinite(v) && v >= 2000 && v <= 96000) {
+            props.onCommit(Math.round(v));
+          }
+        }}
+        step={100}
+        type="number"
+        value={draft ?? props.value}
+      />
+    </label>
+  );
+}
 
 /**
  * Left column: pick material, then turn the three digitization knobs.
@@ -133,23 +165,10 @@ export function ParamsPanel(props: {
               {rate >= 1000 ? `${rate / 1000}k` : rate}
             </button>
           ))}
-          <label className="ae-custom">
-            自定义
-            <input
-              aria-label="自定义采样率"
-              max={96000}
-              min={2000}
-              onChange={(e) => {
-                const v = Number(e.target.value);
-                if (Number.isFinite(v) && v >= 2000 && v <= 96000) {
-                  props.onParams({ sampleRate: Math.round(v) });
-                }
-              }}
-              step={100}
-              type="number"
-              value={params.sampleRate}
-            />
-          </label>
+          <RateInput
+            onCommit={(rate) => props.onParams({ sampleRate: rate })}
+            value={params.sampleRate}
+          />
         </div>
         <p className="ae-hint">
           采样率 ÷ 2 = 理论上还能表示的最高频率；更高的分量会混叠，不是消失。
