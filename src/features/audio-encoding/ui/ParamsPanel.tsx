@@ -8,27 +8,39 @@ import {
 import { durationOf } from "../domain/audio.ts";
 import { formatBytes, formatHz, formatKbps, pcmBitRate, pcmByteSize } from "../domain/metrics.ts";
 import { quantizationLevels } from "../domain/quantize.ts";
-import type { AudioStageDef } from "../domain/stages.ts";
+import { DEMO_SIGNALS } from "../domain/signals.ts";
+
+/** Teaching presets — names are reference only, not real formats. */
+const PARAM_PRESETS: { label: string; params: AudioParams }[] = [
+  { label: "电话音质 8k/8bit", params: { sampleRate: 8000, bitDepth: 8, channels: 1 } },
+  { label: "极低 4k/4bit", params: { sampleRate: 4000, bitDepth: 4, channels: 1 } },
+  { label: "广播 32k/16bit", params: { sampleRate: 32000, bitDepth: 16, channels: 2 } },
+  { label: "CD 44.1k/16bit", params: { sampleRate: 44100, bitDepth: 16, channels: 2 } },
+];
+
+export type AudioSource = {
+  kind: "preset" | "file" | "mic";
+  id?: string;
+  label: string;
+  audio: PcmAudio;
+};
 
 /**
- * Left-hand controls: material source + digitization knobs + live PCM
- * estimates. Pure presentation — every change flows back through
- * `onParams`/`onSourceRequest` so the draft stays the single truth.
+ * Left column: pick material, then turn the three digitization knobs.
+ * Pure presentation — every change flows back through `onParams` /
+ * `onPick*` so the page stays the single source of truth.
  */
 export function ParamsPanel(props: {
-  stage: AudioStageDef;
   params: AudioParams;
-  source: { kind: "fixture" | "file" | "mic"; label: string; audio: PcmAudio } | null;
-  fixtureLabel: string;
+  source: AudioSource | null;
   importing: boolean;
   recording: boolean;
-  busy: boolean;
   onParams: (p: Partial<AudioParams>) => void;
-  onPickFixture: () => void;
+  onPickPreset: (id: string) => void;
   onPickFile: (file: File) => void;
   onToggleRecord: () => void;
 }) {
-  const { params, stage, source } = props;
+  const { params, source } = props;
   const seconds = source ? durationOf(source.audio) : 0;
   const effectiveCh = source
     ? params.channels === 1
@@ -46,14 +58,19 @@ export function ParamsPanel(props: {
         <h3>① 素材</h3>
       </div>
       <div className="ae-source-row" role="group" aria-label="选择音频来源">
-        <button
-          className={`button-secondary ae-chip${source?.kind === "fixture" ? " is-active" : ""}`}
-          onClick={props.onPickFixture}
-          type="button"
-        >
-          本关测试信号 {props.fixtureLabel}
-        </button>
-        <label className={`button-secondary ae-chip${source?.kind === "file" ? " is-active" : ""}`}>
+        {DEMO_SIGNALS.map((sig) => (
+          <button
+            aria-pressed={source?.kind === "preset" && source.id === sig.id}
+            className={`ae-chip${source?.kind === "preset" && source.id === sig.id ? " is-active" : ""}`}
+            key={sig.id}
+            onClick={() => props.onPickPreset(sig.id)}
+            title={sig.description}
+            type="button"
+          >
+            {sig.name}
+          </button>
+        ))}
+        <label className={`ae-chip${source?.kind === "file" ? " is-active" : ""}`}>
           导入音频文件
           <input
             accept="audio/*"
@@ -68,7 +85,7 @@ export function ParamsPanel(props: {
           />
         </label>
         <button
-          className={`button-secondary ae-chip${props.recording ? " is-rec" : ""}`}
+          className={`ae-chip${props.recording ? " is-rec" : ""}`}
           onClick={props.onToggleRecord}
           type="button"
         >
@@ -83,6 +100,9 @@ export function ParamsPanel(props: {
             : "还没有素材——选一个来源。"}
         {props.recording ? "（录音中，最长 15 秒，结束后自动载入）" : ""}
       </p>
+      {source?.kind === "preset" ? (
+        <p className="ae-hint">{DEMO_SIGNALS.find((s) => s.id === source.id)?.description}</p>
+      ) : null}
       <p className="ae-hint">
         音频只在你的浏览器里处理，不会上传。浏览器能解码的格式（常见 mp3 / wav / ogg /
         m4a）都可以导入。
@@ -181,20 +201,18 @@ export function ParamsPanel(props: {
         </p>
       </fieldset>
 
-      {stage.probes.length > 0 ? (
-        <div className="ae-probe-row">
-          {stage.probes.map((probe) => (
-            <button
-              className="button-ghost"
-              key={probe.label}
-              onClick={() => props.onParams(probe.params)}
-              type="button"
-            >
-              {probe.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <div className="ae-probe-row">
+        {PARAM_PRESETS.map((preset) => (
+          <button
+            className="button-ghost"
+            key={preset.label}
+            onClick={() => props.onParams(preset.params)}
+            type="button"
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
 
       <p className="ae-estimate" aria-live="polite">
         估算 PCM：{formatKbps(estimate.bitrate)} · 这段素材约 {formatBytes(estimate.size)}

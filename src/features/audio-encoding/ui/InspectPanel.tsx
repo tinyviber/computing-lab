@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { PcmAudio } from "../domain/audio.ts";
 import { durationOf } from "../domain/audio.ts";
+import { foldedHz, topPeaks } from "../domain/fft.ts";
 import { resampleChannel } from "../domain/resample.ts";
 
 const COLORS = {
@@ -207,8 +208,123 @@ function StaircaseView({ original, processed, targetRate, bitDepth }: ViewProps)
   );
 }
 
+/**
+ * 频谱混叠视图：原音的主要频率分量（灰）与处理后的实测分量（紫）。
+ * 高于目标奈奎斯特的分量画折回箭头——"多出来的音"从听见变成看见。
+ */
+function SpectrumView({ original, processed, targetRate }: ViewProps) {
+  const srcPeaks = useMemo(
+    () => topPeaks(original.channels[0] ?? new Float32Array(0), original.sampleRate, 10),
+    [original],
+  );
+  const outPeaks = useMemo(
+    () =>
+      processed
+        ? topPeaks(processed.channels[0] ?? new Float32Array(0), processed.sampleRate, 10)
+        : [],
+    [processed],
+  );
+  const srcNyq = original.sampleRate / 2;
+  const dstNyq = targetRate / 2;
+  const fmax = Math.min(srcNyq, Math.max(dstNyq * 1.5, ...srcPeaks.map((p) => p.freq)) * 1.1);
+  const height = 170;
+
+  const ref = useCanvas(
+    (g, w, h) => {
+      const x = (f: number) => (f / fmax) * (w - 30) + 6;
+      const y = (m: number) => h - 22 - m * (h - 46);
+      // Axis + Hz ticks
+      g.strokeStyle = COLORS.grid;
+      g.fillStyle = COLORS.text;
+      g.font = "10.5px system-ui";
+      g.lineWidth = 1;
+      g.beginPath();
+      g.moveTo(0, h - 22);
+      g.lineTo(w, h - 22);
+      g.stroke();
+      const tick = fmax > 30000 ? 10000 : fmax > 12000 ? 4000 : 2000;
+      for (let f = 0; f <= fmax; f += tick) {
+        g.fillText(f >= 1000 ? `${f / 1000}k` : `${f}`, x(f) - 6, h - 8);
+      }
+      // Target-Nyquist line — the wall partials bounce off.
+      g.strokeStyle = COLORS.stem;
+      g.setLineDash([4, 4]);
+      g.beginPath();
+      g.moveTo(x(dstNyq), 4);
+      g.lineTo(x(dstNyq), h - 22);
+      g.stroke();
+      g.setLineDash([]);
+      g.fillStyle = COLORS.stem;
+      g.fillText(
+        `奈奎斯特 ${dstNyq >= 1000 ? `${(dstNyq / 1000).toFixed(1)}k` : dstNyq}Hz`,
+        Math.min(x(dstNyq) + 4, w - 100),
+        12,
+      );
+      // Fold-back arrows for original peaks above the target Nyquist.
+      for (const p of srcPeaks) {
+        if (p.freq > dstNyq) {
+          const folded = foldedHz(p.freq, targetRate);
+          g.strokeStyle = "#d97706";
+          g.fillStyle = "#d97706";
+          g.lineWidth = 1.4;
+          g.beginPath();
+          g.moveTo(x(p.freq), y(p.magnitude) - 4);
+          g.quadraticCurveTo(x(p.freq), 8, x(folded), 10);
+          g.lineTo(x(folded), 18);
+          g.stroke();
+          // Arrowhead
+          g.beginPath();
+          g.moveTo(x(folded), 22);
+          g.lineTo(x(folded) - 3.5, 14);
+          g.lineTo(x(folded) + 3.5, 14);
+          g.closePath();
+          g.fill();
+        }
+      }
+      // Stems: original peaks (gray) and measured processed peaks (purple).
+      for (const p of srcPeaks) {
+        g.strokeStyle = COLORS.original;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(x(p.freq) - 3, h - 22);
+        g.lineTo(x(p.freq) - 3, y(p.magnitude));
+        g.stroke();
+        g.fillStyle = COLORS.original;
+        g.fillText(`${Math.round(p.freq)}`, x(p.freq) - 12, y(p.magnitude) - 4);
+      }
+      for (const p of outPeaks) {
+        g.strokeStyle = COLORS.processed;
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(x(p.freq) + 3, h - 22);
+        g.lineTo(x(p.freq) + 3, y(p.magnitude));
+        g.stroke();
+        g.fillStyle = COLORS.processed;
+        g.fillText(`${Math.round(p.freq)}`, x(p.freq) - 8, y(p.magnitude) - 4);
+      }
+      if (!processed) {
+        g.fillStyle = COLORS.text;
+        g.font = "12px system-ui";
+        g.fillText("改任意参数，紫色谱峰会显示处理后实测到的分量。", 8, 30);
+      }
+    },
+    height,
+    [srcPeaks, outPeaks, dstNyq, fmax, targetRate, processed],
+  );
+
+  return (
+    <div>
+      <canvas className="ae-inspect-canvas" ref={ref} style={{ height }} />
+      <p className="ae-view-note">
+        灰线 = 原音主要分量，紫线 = 处理后实测分量，红虚线 =
+        目标采样率的奈奎斯特上限。橙箭头：越界分量被折回低频——这就是混叠，信号多出了原本没有的频率。
+      </p>
+    </div>
+  );
+}
+
 export function InspectPanel(props: ViewProps) {
-  const [view, setView] = useState<"points" | "stairs">("points");
+  const [view, setView] = useState<"points" | "stairs" | "spectrum">("points");
   return (
     <section className="ae-panel" aria-label="放大观察">
       <div className="ae-panel-heading">
@@ -230,9 +346,23 @@ export function InspectPanel(props: ViewProps) {
           >
             量化阶梯
           </button>
+          <button
+            aria-pressed={view === "spectrum"}
+            className={view === "spectrum" ? "is-active" : ""}
+            onClick={() => setView("spectrum")}
+            type="button"
+          >
+            频谱混叠
+          </button>
         </div>
       </div>
-      {view === "points" ? <SamplePointsView {...props} /> : <StaircaseView {...props} />}
+      {view === "points" ? (
+        <SamplePointsView {...props} />
+      ) : view === "stairs" ? (
+        <StaircaseView {...props} />
+      ) : (
+        <SpectrumView {...props} />
+      )}
     </section>
   );
 }

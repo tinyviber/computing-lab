@@ -1,21 +1,19 @@
 /**
- * Deterministic fixture signals ("本关信号").
+ * Demo fixture signals for the audio-encoding demo page.
  *
- * Judged stages never ship student audio to the server — instead every
- * student gets a signal *spec* derived from a per-user seed, and both the
- * browser workbench and the server judge render it through `renderSignal`.
- * A spec is plain data (a list of partials per channel), so what the
- * student hears is bit-for-bit what the judge measures.
+ * Presets are pure data (`SignalSpec` = a list of sine partials per
+ * channel) rendered through `renderSignal` — deterministic, cheap, and
+ * small enough that digitizing re-runs live on every parameter change.
  */
 
 import type { PcmAudio } from "./audio.ts";
-import { hashSeed, makeRng, rngFloat, rngInt, type Rng } from "./rng.ts";
+import { hashSeed, makeRng } from "./rng.ts";
 
 /** One sine partial: frequency (Hz), amplitude (0–1), phase (radians). */
 export type TonePart = { freq: number; amp: number; phase: number };
 
 export type SignalSpec = {
-  /** Human-readable variant tag, e.g. "S-42" — lets a class compare draws. */
+  /** Human-readable tag shown next to the preset name. */
   label: string;
   /** Native rate the fixture is rendered at. */
   sampleRate: number;
@@ -34,127 +32,10 @@ export function signalMaxFreq(spec: SignalSpec): number {
   return max;
 }
 
-const randPhase = (rng: Rng) => rngFloat(rng) * Math.PI * 2;
-
-/**
- * Draw a multitone spec: `partialsPerChannel` sine components per channel,
- * the top one parked exactly at `fmax` so `signalMaxFreq` stays meaningful,
- * the rest spread over the band below it.
- */
-function drawMultitone(
-  rng: Rng,
-  opts: {
-    fmax: number;
-    partials: number;
-    channelCount: 1 | 2;
-    sampleRate: number;
-    durationSec: number;
-    noiseAmp?: number;
-    /** Stereo variant: give channel 2 its own detuned partial set. */
-    stereoSpread?: boolean;
-  },
-): SignalSpec {
-  const channels: TonePart[][] = [];
-  for (let ch = 0; ch < opts.channelCount; ch += 1) {
-    const parts: TonePart[] = [];
-    const count = opts.partials;
-    for (let i = 0; i < count; i += 1) {
-      let freq: number;
-      if (i === count - 1) {
-        freq = opts.fmax;
-      } else {
-        // Spread lower partials over [fmax*0.08, fmax*0.55]; channel 2 detunes.
-        const base = opts.fmax * (0.08 + 0.47 * (i / Math.max(1, count - 1)));
-        const jitter = (rngFloat(rng) - 0.5) * opts.fmax * 0.06;
-        freq = Math.round(base + jitter + (ch === 1 && opts.stereoSpread ? 37 : 0));
-      }
-      parts.push({
-        freq,
-        amp: 0.25 + rngFloat(rng) * 0.55,
-        phase: randPhase(rng),
-      });
-    }
-    channels.push(parts);
-  }
-  return {
-    label: `S-${rngInt(rng, 10, 99)}`,
-    sampleRate: opts.sampleRate,
-    durationSec: opts.durationSec,
-    channels,
-    noiseAmp: opts.noiseAmp ?? 0,
-  };
-}
-
-/**
- * The fixture for a stage. `userId` scopes the draw: every student gets a
- * different-but-equivalent signal, and the server regenerates the identical
- * spec from the project owner's id at judge time. Passing null/empty yields
- * the shared "demo" variant (used for previews before auth resolves).
- */
-export function signalSpecFor(
-  userId: string | null | undefined,
-  stage: { id: string },
-): SignalSpec {
-  const rng = makeRng(hashSeed(`audio-encoding/${stage.id}/${userId ?? "demo"}`));
-  switch (stage.id) {
-    case "hear-the-digits":
-      // Fixed public signal: two clear tones a first-time listener can
-      // separate by ear — a low hum plus a bright high partial.
-      return {
-        label: "T-1",
-        sampleRate: 48000,
-        durationSec: 2.5,
-        noiseAmp: 0,
-        channels: [
-          [
-            { freq: 220, amp: 0.7, phase: 0 },
-            { freq: 660, amp: 0.35, phase: 1.3 },
-            { freq: 2750, amp: 0.22, phase: 2.1 },
-          ],
-        ],
-      };
-    case "thin-wire":
-      return drawMultitone(rng, {
-        fmax: 3600 + 100 * rngInt(rng, 0, 38),
-        partials: 4,
-        channelCount: 1,
-        sampleRate: 44100,
-        durationSec: 3,
-      });
-    case "quiet-floor":
-      return drawMultitone(rng, {
-        fmax: 2400 + 100 * rngInt(rng, 0, 20),
-        partials: 3,
-        channelCount: 1,
-        sampleRate: 44100,
-        durationSec: 3,
-        noiseAmp: 0.012,
-      });
-    case "full-link":
-      return drawMultitone(rng, {
-        fmax: 4600 + 100 * rngInt(rng, 0, 18),
-        partials: 3,
-        channelCount: 2,
-        sampleRate: 44100,
-        durationSec: 5,
-        noiseAmp: 0.01,
-        stereoSpread: true,
-      });
-    default:
-      return drawMultitone(rng, {
-        fmax: 3000,
-        partials: 3,
-        channelCount: 1,
-        sampleRate: 44100,
-        durationSec: 3,
-      });
-  }
-}
-
 /**
  * Render a spec into playable audio. Sine sum per channel plus optional
  * seeded uniform noise; the whole buffer is then peak-normalized to 0.9 so
- * later quantization uses the [-1, 1] range honestly without clipping.
+ * quantization uses the [-1, 1] range honestly without clipping.
  */
 export function renderSignal(spec: SignalSpec): PcmAudio {
   const frames = Math.round(spec.durationSec * spec.sampleRate);
@@ -180,4 +61,101 @@ export function renderSignal(spec: SignalSpec): PcmAudio {
     for (let n = 0; n < data.length; n += 1) data[n] *= gain;
   }
   return { sampleRate: spec.sampleRate, channels };
+}
+
+export type DemoSignal = {
+  id: string;
+  name: string;
+  description: string;
+  spec: SignalSpec;
+};
+
+/**
+ * Built-in material. Each preset illustrates a different teaching moment:
+ * speech = everything fits even at telephone rates; music = wide band that
+ * exposes the Nyquist knee; highs = partials deliberately parked above the
+ * low preset rates so aliasing is guaranteed and visible.
+ */
+export const DEMO_SIGNALS: DemoSignal[] = [
+  {
+    id: "voice",
+    name: "语音样例",
+    description:
+      "低频为主的类语音信号（最高约 3.4 kHz）。即使用 8000 Hz 的“电话音质”也几乎无损——采样率刚好够用时发生了什么，用它看。",
+    spec: {
+      label: "语音",
+      sampleRate: 44100,
+      durationSec: 3,
+      noiseAmp: 0.004,
+      channels: [
+        [
+          { freq: 180, amp: 0.55, phase: 0 },
+          { freq: 360, amp: 0.3, phase: 1.1 },
+          { freq: 720, amp: 0.22, phase: 2.3 },
+          { freq: 1440, amp: 0.15, phase: 0.7 },
+          { freq: 2880, amp: 0.09, phase: 3.0 },
+          { freq: 3400, amp: 0.06, phase: 1.9 },
+        ],
+      ],
+    },
+  },
+  {
+    id: "music",
+    name: "音乐样例",
+    description:
+      "较宽频带的类音乐信号（含约 8 kHz 泛音，双声道）。降到 11025 Hz 以下时，顶部泛音会折回成混叠——看频谱图里的箭头。",
+    spec: {
+      label: "音乐",
+      sampleRate: 44100,
+      durationSec: 4,
+      noiseAmp: 0.008,
+      channels: [
+        [
+          { freq: 220, amp: 0.45, phase: 0 },
+          { freq: 440, amp: 0.35, phase: 0.9 },
+          { freq: 880, amp: 0.25, phase: 2.1 },
+          { freq: 1760, amp: 0.18, phase: 1.4 },
+          { freq: 3520, amp: 0.12, phase: 2.8 },
+          { freq: 7040, amp: 0.08, phase: 0.4 },
+          { freq: 8000, amp: 0.05, phase: 1.7 },
+        ],
+        [
+          { freq: 220, amp: 0.4, phase: 0.6 },
+          { freq: 453, amp: 0.3, phase: 1.8 },
+          { freq: 906, amp: 0.22, phase: 0.2 },
+          { freq: 1812, amp: 0.16, phase: 2.5 },
+          { freq: 3624, amp: 0.11, phase: 1.0 },
+          { freq: 7248, amp: 0.07, phase: 2.9 },
+          { freq: 8100, amp: 0.05, phase: 0.8 },
+        ],
+      ],
+    },
+  },
+  {
+    id: "highs",
+    name: "高频泛音样例",
+    description:
+      "故意放进 5–10 kHz 泛音的信号，任何低于 20 kHz 的采样率都会混叠。把采样率拖到 8000–16000，看高频分量被“折回”低频区。",
+    spec: {
+      label: "高泛音",
+      sampleRate: 44100,
+      durationSec: 3,
+      noiseAmp: 0,
+      channels: [
+        [
+          { freq: 300, amp: 0.5, phase: 0 },
+          { freq: 600, amp: 0.28, phase: 1.2 },
+          { freq: 5200, amp: 0.2, phase: 0.5 },
+          { freq: 7800, amp: 0.16, phase: 2.2 },
+          { freq: 9900, amp: 0.12, phase: 1.1 },
+        ],
+      ],
+    },
+  },
+];
+
+export const DEFAULT_DEMO_SIGNAL = DEMO_SIGNALS[0];
+
+export function demoSignalById(id: string | null | undefined): DemoSignal {
+  return DEMO_SIGNALS.find((s) => s.id === id) ?? DEFAULT_DEMO_SIGNAL;
 }

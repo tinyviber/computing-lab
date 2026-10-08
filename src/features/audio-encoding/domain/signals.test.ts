@@ -1,43 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { renderSignal, signalMaxFreq, signalSpecFor } from "./signals.ts";
-import { getAudioStage } from "./stages.ts";
-import { audioPeak } from "./metrics.ts";
+import { DEMO_SIGNALS, demoSignalById, renderSignal, signalMaxFreq } from "./signals.ts";
 
-describe("signalSpecFor", () => {
-  it("is deterministic per (user, stage) and differs across users", () => {
-    const stage = getAudioStage(2)!;
-    const a = signalSpecFor("u-1", stage);
-    const b = signalSpecFor("u-2", stage);
-    const a2 = signalSpecFor("u-1", stage);
-    expect(a2).toEqual(a);
-    expect(signalMaxFreq(a)).not.toBe(signalMaxFreq(b));
+describe("DEMO_SIGNALS", () => {
+  it("every preset renders deterministic, in-range audio", () => {
+    for (const sig of DEMO_SIGNALS) {
+      const a = renderSignal(sig.spec);
+      const b = renderSignal(sig.spec);
+      expect(a.sampleRate).toBe(sig.spec.sampleRate);
+      expect(a.channels).toHaveLength(sig.spec.channels.length);
+      const n = Math.round(sig.spec.durationSec * sig.spec.sampleRate);
+      for (const ch of a.channels) {
+        expect(ch).toHaveLength(n);
+        for (const v of ch) expect(Math.abs(v)).toBeLessThanOrEqual(0.9001);
+      }
+      expect(a.channels[0].slice(0, 64)).toEqual(b.channels[0].slice(0, 64));
+      expect(signalMaxFreq(sig.spec)).toBeGreaterThan(0);
+    }
   });
 
-  it("guided stage ships one shared public signal", () => {
-    const stage = getAudioStage(1)!;
-    expect(signalSpecFor("u-1", stage)).toEqual(signalSpecFor("u-9", stage));
-    expect(signalMaxFreq(signalSpecFor("u-1", stage))).toBe(2750);
+  it("music preset is stereo and carries >8kHz partials for aliasing demos", () => {
+    const music = demoSignalById("music");
+    expect(music.spec.channels).toHaveLength(2);
+    expect(signalMaxFreq(music.spec)).toBeGreaterThan(7000);
   });
 
-  it("design stage produces a stereo fixture", () => {
-    const spec = signalSpecFor("u-1", getAudioStage(4)!);
-    expect(spec.channels).toHaveLength(2);
-  });
-});
-
-describe("renderSignal", () => {
-  it("renders identical audio for identical specs", () => {
-    const spec = signalSpecFor("u-1", getAudioStage(3)!);
-    const a = renderSignal(spec);
-    const b = renderSignal(spec);
-    expect(a.channels[0]).toEqual(b.channels[0]);
+  it("highs preset forces aliasing at telephone rates", () => {
+    const highs = demoSignalById("highs");
+    expect(signalMaxFreq(highs.spec)).toBeGreaterThan(8000);
   });
 
-  it("normalizes peak to 0.9 and preserves duration", () => {
-    const spec = signalSpecFor("u-1", getAudioStage(4)!);
-    const audio = renderSignal(spec);
-    expect(audio.sampleRate).toBe(spec.sampleRate);
-    expect(audio.channels[0].length).toBe(Math.round(spec.durationSec * spec.sampleRate));
-    expect(audioPeak(audio)).toBeCloseTo(0.9, 5);
+  it("demoSignalById falls back to the first preset", () => {
+    expect(demoSignalById("nope").id).toBe(DEMO_SIGNALS[0].id);
+    expect(demoSignalById(null).id).toBe(DEMO_SIGNALS[0].id);
   });
 });

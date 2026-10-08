@@ -35,7 +35,6 @@ import { colorQuantizationRoutes } from "./routes/colorQuantization.ts";
 import { cpuRoutes } from "./routes/cpu.ts";
 import { decodingRoutes } from "./routes/decoding.ts";
 import { isSimRoutes } from "./routes/isSim.ts";
-import { audioEncodingRoutes } from "./routes/audioEncoding.ts";
 import { labsRoutes } from "./routes/labs.ts";
 import { teacherRoutes } from "./routes/teacher.ts";
 
@@ -93,7 +92,6 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/classes/:classId/labs/cpu", cpuRoutes());
   app.route("/api/classes/:classId/labs/decoding", decodingRoutes());
   app.route("/api/classes/:classId/labs/is-sim", isSimRoutes());
-  app.route("/api/classes/:classId/labs/audio-encoding", audioEncodingRoutes());
   app.route("/api/labs", labsRoutes());
   app.route("/api/teacher", teacherRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());

@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { digitize, mixToMono } from "./digitize.ts";
 import { pcmByteSize, pcmBitRate } from "./metrics.ts";
-import { renderSignal, signalSpecFor, signalMaxFreq } from "./signals.ts";
-import { getAudioStage } from "./stages.ts";
+import { DEMO_SIGNALS, renderSignal, signalMaxFreq } from "./signals.ts";
 import type { PcmAudio } from "./audio.ts";
 
 const stereo: PcmAudio = {
@@ -18,7 +17,7 @@ describe("mixToMono", () => {
 
 describe("digitize", () => {
   it("keeps duration consistent when the rate changes", () => {
-    const spec = signalSpecFor("u-1", getAudioStage(2)!);
+    const spec = DEMO_SIGNALS[0].spec;
     const audio = renderSignal(spec);
     const out = digitize(audio, { sampleRate: 8000, bitDepth: 8, channels: 1 });
     expect(out.audio.sampleRate).toBe(8000);
@@ -35,7 +34,7 @@ describe("digitize", () => {
   });
 
   it("resampling a fitting rate leaves the fixture's top partial intact", () => {
-    const spec = signalSpecFor("u-1", getAudioStage(2)!);
+    const spec = DEMO_SIGNALS[0].spec;
     const audio = renderSignal(spec);
     const rate = Math.ceil((2 * signalMaxFreq(spec)) / 100) * 100;
     const out = digitize(audio, { sampleRate: rate, bitDepth: 24, channels: 1 });

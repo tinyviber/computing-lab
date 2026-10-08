@@ -9,7 +9,6 @@ import { coreStages } from "../../features/calculator";
 import { CPU_CORE_STAGES } from "../../features/cpu";
 import { DECODING_CORE_STAGES } from "../../features/decoding";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
-import { AUDIO_ENCODING_STAGES } from "../../features/audio-encoding";
 import "./home.css";
 
 type ProjectSummary = { currentStage: number };
@@ -75,10 +74,10 @@ const HOME_LABS = [
   },
   {
     id: "audio-encoding",
-    title: "声音编码",
-    description: "把声波变成数字发给接收端：采样率定最高音，位深定噪声地板，预算管着数据量。",
+    title: "声音编码（演示）",
+    description: "把声波变成数字：调采样率看混叠折回频谱，调位深看量化阶梯——全程在浏览器本地演示。",
     to: "/labs/audio-encoding",
-    stages: AUDIO_ENCODING_STAGES.length,
+    stages: null,
     primary: false,
   },
 ] as const;

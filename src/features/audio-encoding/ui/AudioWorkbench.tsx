@@ -1,40 +1,31 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { renderSignal, signalSpecFor } from "../domain/signals.ts";
-import type { AudioParams, PcmAudio } from "../domain/audio.ts";
-import type { AudioEncodingJudgeResult } from "../domain/protocol.ts";
-import type { AudioStageDef } from "../domain/stages.ts";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { demoSignalById, renderSignal } from "../domain/signals.ts";
+import type { AudioParams } from "../domain/audio.ts";
+import { durationOf } from "../domain/audio.ts";
 import type { DigitizeResult } from "../domain/digitize.ts";
-import { formatDb } from "../domain/metrics.ts";
 import { decodeFileToPcm, startMicRecording, type MicRecorder } from "./audioEngine.ts";
 import { runDigitize, DigitizeCancelled, type DigitizeJob } from "./runDigitize.ts";
 import { useAudioPlayer } from "./useAudioPlayer.ts";
 import { WaveformCanvas } from "./WaveformCanvas.tsx";
 import { InspectPanel } from "./InspectPanel.tsx";
-import { ParamsPanel } from "./ParamsPanel.tsx";
 import { MetricsPanel } from "./MetricsPanel.tsx";
-import { GuidedPanel } from "./GuidedPanel.tsx";
+import { ParamsPanel, type AudioSource } from "./ParamsPanel.tsx";
 
-type Source = { kind: "fixture" | "file" | "mic"; label: string; audio: PcmAudio };
-
-type Props = {
-  stage: AudioStageDef;
-  userId: string | undefined;
+/**
+ * The whole demo surface. Params live in the page (so ?rate=&bits=&ch=
+ * links work); audio source, processing jobs, and playback live here.
+ * Processing re-runs automatically on every param/source change — the
+ * demo is "turn the knob, watch the digits", not a submit-and-wait lab.
+ */
+export function AudioWorkbench(props: {
   params: AudioParams;
-  guidedAnswers: Record<string, number>;
-  verdict: AudioEncodingJudgeResult | null;
-  busy: boolean;
+  initialSignalId: string | undefined;
   onParams: (p: Partial<AudioParams>) => void;
-  onGuidedAnswer: (id: string, option: number) => void;
-  onSubmit: () => void;
-};
-
-const guidedReady = (stage: AudioStageDef, answers: Record<string, number>) =>
-  stage.guided ? stage.guided.prompts.every((p) => answers[p.id] != null) : true;
-
-export function AudioWorkbench(props: Props) {
-  const { stage, userId, params } = props;
-  const spec = useMemo(() => signalSpecFor(userId, stage), [userId, stage]);
-  const [source, setSource] = useState<Source | null>(null);
+  /** Report which preset is loaded (null for file/mic) so the share URL stays accurate. */
+  onSignalId?: (id: string | null) => void;
+}) {
+  const { params } = props;
+  const [source, setSource] = useState<AudioSource | null>(null);
   const [importing, setImporting] = useState(false);
   const [recording, setRecording] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,24 +33,24 @@ export function AudioWorkbench(props: Props) {
   const [result, setResult] = useState<DigitizeResult | null>(null);
   const jobRef = useRef<DigitizeJob | null>(null);
   const micRef = useRef<MicRecorder | null>(null);
+  const debounceRef = useRef<number | null>(null);
   const player = useAudioPlayer();
 
-  const loadFixture = useCallback(() => {
-    setError(null);
-    setSource({ kind: "fixture", label: spec.label, audio: renderSignal(spec) });
-    setResult(null);
-  }, [spec]);
+  const pickPreset = useCallback(
+    (id: string) => {
+      const sig = demoSignalById(id);
+      setError(null);
+      setSource({ kind: "preset", id: sig.id, label: sig.name, audio: renderSignal(sig.spec) });
+      props.onSignalId?.(sig.id);
+    },
+    [props],
+  );
 
-  // The stage's own fixture is the default material — always available,
-  // deterministic per student, and identical to what the judge re-creates.
+  // Default material: the preset named by the URL (or the first one).
+  // Runs once on mount — the initial preset is a starting point, not a binding.
   useEffect(() => {
-    loadFixture();
-  }, [loadFixture]);
-
-  useEffect(() => {
-    player.setSource("original", source?.audio ?? null);
-    if (!result) player.setSource("processed", null);
-  }, [source, result]);
+    pickPreset(props.initialSignalId ?? "");
+  }, []);
 
   const pickFile = useCallback(async (file: File) => {
     setImporting(true);
@@ -67,7 +58,7 @@ export function AudioWorkbench(props: Props) {
     try {
       const audio = await decodeFileToPcm(file);
       setSource({ kind: "file", label: file.name, audio });
-      setResult(null);
+      props.onSignalId?.(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "导入失败。");
     } finally {
@@ -83,7 +74,7 @@ export function AudioWorkbench(props: Props) {
         const audio = await micRef.current?.stop();
         if (audio) {
           setSource({ kind: "mic", label: "麦克风录音", audio });
-          setResult(null);
+          props.onSignalId?.(null);
         }
       } catch (e) {
         setError(e instanceof Error ? e.message : "录音失败。");
@@ -102,38 +93,42 @@ export function AudioWorkbench(props: Props) {
     }
   }, [recording]);
 
-  const cancelProcessing = useCallback(() => {
-    jobRef.current?.cancel();
-    jobRef.current = null;
-    setProcessing(null);
-  }, []);
+  // Live re-digitize: every param/source change schedules a fresh job; the
+  // debounce collapses chip-click bursts, and a stale job's result is
+  // dropped by id — the displayed output always matches current knobs.
+  useEffect(() => {
+    if (!source) return;
+    if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      jobRef.current?.cancel();
+      setProcessing("处理中…");
+      const job = runDigitize(source.audio, params);
+      jobRef.current = job;
+      job.promise
+        .then((res) => {
+          if (jobRef.current !== job) return;
+          setResult(res);
+          player.setSource("processed", res.audio);
+        })
+        .catch((e) => {
+          if (e instanceof DigitizeCancelled) return;
+          if (jobRef.current === job) setError(e instanceof Error ? e.message : "处理失败。");
+        })
+        .finally(() => {
+          if (jobRef.current === job) {
+            jobRef.current = null;
+            setProcessing(null);
+          }
+        });
+    }, 120);
+    return () => {
+      if (debounceRef.current != null) window.clearTimeout(debounceRef.current);
+    };
+  }, [source, params, player]);
 
-  const process = useCallback(() => {
-    if (!source || processing) return;
-    setError(null);
-    setProcessing("启动处理…");
-    const job = runDigitize(source.audio, params, (phase, done, total) => {
-      const label = phase === "resample" ? "重采样" : phase === "quantize" ? "量化" : "混声道";
-      setProcessing(`${label} ${done}/${total}`);
-    });
-    jobRef.current = job;
-    job.promise
-      .then((res) => {
-        if (jobRef.current !== job) return; // stale job
-        setResult(res);
-        player.setSource("processed", res.audio);
-      })
-      .catch((e) => {
-        if (e instanceof DigitizeCancelled) return;
-        setError(e instanceof Error ? e.message : "处理失败。");
-      })
-      .finally(() => {
-        if (jobRef.current === job) {
-          jobRef.current = null;
-          setProcessing(null);
-        }
-      });
-  }, [source, params, processing, player]);
+  useEffect(() => {
+    player.setSource("original", source?.audio ?? null);
+  }, [source, player]);
 
   useEffect(
     () => () => {
@@ -143,38 +138,23 @@ export function AudioWorkbench(props: Props) {
     [],
   );
 
-  const ready = guidedReady(stage, props.guidedAnswers);
-  const needProcess = stage.kind !== "guided" && !result;
-  const spanSeconds = source
-    ? Math.max(0.05, source.audio.channels[0].length / source.audio.sampleRate)
-    : 1;
+  const spanSeconds = source ? Math.max(0.05, durationOf(source.audio)) : 1;
 
   return (
     <div className="ae-workbench">
       <div className="ae-left">
         <ParamsPanel
-          busy={props.busy || processing != null}
-          fixtureLabel={spec.label}
           importing={importing}
           onParams={props.onParams}
           onPickFile={pickFile}
-          onPickFixture={loadFixture}
+          onPickPreset={pickPreset}
           onToggleRecord={toggleRecord}
           params={params}
           recording={recording}
           source={source}
-          stage={stage}
         />
       </div>
       <div className="ae-right">
-        {stage.guided ? (
-          <GuidedPanel
-            answers={props.guidedAnswers}
-            disabled={props.busy}
-            onAnswer={props.onGuidedAnswer}
-            prompts={stage.guided.prompts}
-          />
-        ) : null}
         {error ? (
           <p className="ae-error" role="alert">
             {error}
@@ -182,29 +162,19 @@ export function AudioWorkbench(props: Props) {
         ) : null}
         <section aria-label="波形对比" className="ae-panel">
           <div className="ae-panel-heading">
-            <h3>③ 处理与对比</h3>
-            <div className="ae-action-row">
-              <button
-                className="button-primary"
-                disabled={!source || processing != null || props.busy}
-                onClick={process}
-                type="button"
-              >
-                {processing ?? "开始数字化"}
-              </button>
-              {processing ? (
-                <button className="button-secondary" onClick={cancelProcessing} type="button">
-                  取消
-                </button>
-              ) : null}
-            </div>
+            <h3>③ 处理前后对比</h3>
+            {processing ? (
+              <span className="ae-progress-note" role="status">
+                {processing}
+              </span>
+            ) : null}
           </div>
           {source ? (
             <div className="ae-waves">
               <div className="ae-wave-block">
                 <div className="ae-wave-head">
                   <span>原音 · {source.audio.sampleRate} Hz</span>
-                  <PlayButtons
+                  <PlayButton
                     label="原音"
                     onPlay={() => player.play("original")}
                     onStop={player.stop}
@@ -223,12 +193,14 @@ export function AudioWorkbench(props: Props) {
                   <span>
                     处理后 ·{" "}
                     {result
-                      ? `${result.audio.sampleRate} Hz`
+                      ? `${result.audio.sampleRate} Hz / ${params.bitDepth} bit`
                       : `目标 ${params.sampleRate} Hz / ${params.bitDepth} bit`}
                   </span>
-                  <PlayButtons
+                  <PlayButton
                     label="处理音"
-                    onPlay={() => (result ? player.play("processed") : undefined)}
+                    onPlay={() => {
+                      if (result) player.play("processed");
+                    }}
                     onStop={player.stop}
                     playing={player.playing === "processed"}
                   />
@@ -241,21 +213,24 @@ export function AudioWorkbench(props: Props) {
                     spanSeconds={spanSeconds}
                   />
                 ) : (
-                  <p className="ae-placeholder">
-                    {processing ? processing : "点「开始数字化」生成处理后音频。"}
-                  </p>
+                  <p className="ae-placeholder">{processing ?? "调整参数即自动重新处理。"}</p>
                 )}
               </div>
               {result ? (
-                <button
-                  className="button-ghost"
-                  onClick={() =>
-                    player.swapTo(player.playing === "original" ? "processed" : "original")
-                  }
-                  type="button"
-                >
-                  A/B 切换（同位置对比）
-                </button>
+                <div className="ae-action-row">
+                  <button
+                    className="button-ghost"
+                    onClick={() =>
+                      player.swapTo(player.playing === "original" ? "processed" : "original")
+                    }
+                    type="button"
+                  >
+                    A/B 切换（同位置对比）
+                  </button>
+                  <span className="ae-hint">
+                    如果演示机有声音，可以播放对比；没有也能看图理解。
+                  </span>
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -271,26 +246,12 @@ export function AudioWorkbench(props: Props) {
         {source && result ? (
           <MetricsPanel original={source.audio} params={params} result={result} />
         ) : null}
-        {props.verdict ? <VerdictPanel verdict={props.verdict} /> : null}
-        <div className="ae-submit-row">
-          <button
-            className="button-primary"
-            disabled={props.busy || !ready || needProcess}
-            onClick={props.onSubmit}
-            title={needProcess ? "先「开始数字化」再提交" : !ready ? "先答完上面的引导题" : ""}
-            type="button"
-          >
-            提交本关
-          </button>
-          {!ready ? <span className="ae-hint">答完引导题后才能提交。</span> : null}
-          {needProcess ? <span className="ae-hint">先运行一次数字化，再提交你的参数。</span> : null}
-        </div>
       </div>
     </div>
   );
 }
 
-function PlayButtons(props: {
+function PlayButton(props: {
   label: string;
   playing: boolean;
   onPlay: () => void;
@@ -318,36 +279,5 @@ function PlayButtons(props: {
         </button>
       )}
     </span>
-  );
-}
-
-function VerdictPanel(props: { verdict: AudioEncodingJudgeResult }) {
-  const { verdict } = props;
-  return (
-    <section
-      aria-label="判定结果"
-      className={`ae-panel ae-verdict ${verdict.passed ? "is-pass" : "is-fail"}`}
-    >
-      <div className="ae-panel-heading">
-        <h3>{verdict.passed ? "✓ 通过" : "✗ 还没过"}</h3>
-        <span className="ae-progress-note">信号：{verdict.signalLabel}</span>
-      </div>
-      <ul className="ae-check-list">
-        {verdict.checks.map((check) => (
-          <li className={check.ok ? "is-ok" : "is-bad"} key={check.id}>
-            {check.ok ? "✓" : "✗"} {check.label}
-            {check.detail ? <span className="ae-check-detail">{check.detail}</span> : null}
-          </li>
-        ))}
-      </ul>
-      {verdict.measured.snrDb != null || verdict.measured.sizeBytes != null ? (
-        <p className="ae-hint">
-          实测：{verdict.measured.snrDb != null ? `SNR ${formatDb(verdict.measured.snrDb)}` : ""}
-          {verdict.measured.sizeBytes != null
-            ? ` · 大小 ${(verdict.measured.sizeBytes / 1000).toFixed(1)} KB`
-            : ""}
-        </p>
-      ) : null}
-    </section>
   );
 }

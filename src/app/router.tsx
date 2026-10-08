@@ -18,7 +18,6 @@ import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
 import { CpuRedirectPage } from "./pages/CpuRedirectPage";
 import { DecodingRedirectPage } from "./pages/DecodingRedirectPage";
-import { AudioEncodingRedirectPage } from "./pages/AudioEncodingRedirectPage";
 import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
@@ -186,20 +185,17 @@ const isSimLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
-/** Public entry for audio encoding; forwards members to their own class. */
-const audioEncodingEntryRoute = createRoute({
+/** Audio-encoding demo page — a tool, not a judged lab: no stages,
+ * no submissions, everything runs locally in the browser. */
+const audioEncodingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/audio-encoding",
-  component: AudioEncodingRedirectPage,
-  errorComponent: LabErrorPage,
-});
-
-const audioEncodingLabRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: "/classes/$classId/labs/audio-encoding",
   validateSearch: passThroughSearch,
   // Lazy: keeps the workbench + worker glue out of the main bundle.
-  component: lazyRouteComponent(() => import("../features/audio-encoding"), "AudioEncodingLabPage"),
+  component: lazyRouteComponent(
+    () => import("../features/audio-encoding"),
+    "AudioEncodingDemoPage",
+  ),
   errorComponent: LabErrorPage,
 });
 
@@ -266,8 +262,7 @@ const routeTree = rootRoute.addChildren([
   decodingLabRoute,
   isSimEntryRoute,
   isSimLabRoute,
-  audioEncodingEntryRoute,
-  audioEncodingLabRoute,
+  audioEncodingRoute,
   dashboardRoute,
   studentLabPreviewRoute,
   taskSheetListRoute,

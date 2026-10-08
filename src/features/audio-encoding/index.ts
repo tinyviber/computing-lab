@@ -1,2 +1,1 @@
-export { AudioEncodingLabPage } from "./ui/AudioEncodingLabPage";
-export { AUDIO_ENCODING_STAGES } from "./domain/stages";
+export { AudioEncodingDemoPage } from "./ui/AudioEncodingDemoPage";
