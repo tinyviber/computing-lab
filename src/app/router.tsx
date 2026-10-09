@@ -185,6 +185,20 @@ const isSimLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+/** Audio-encoding demo page — a tool, not a judged lab: no stages,
+ * no submissions, everything runs locally in the browser. */
+const audioEncodingRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/labs/audio-encoding",
+  validateSearch: passThroughSearch,
+  // Lazy: keeps the workbench + worker glue out of the main bundle.
+  component: lazyRouteComponent(
+    () => import("../features/audio-encoding"),
+    "AudioEncodingDemoPage",
+  ),
+  errorComponent: LabErrorPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/classes/$classId/dashboard",
@@ -248,6 +262,7 @@ const routeTree = rootRoute.addChildren([
   decodingLabRoute,
   isSimEntryRoute,
   isSimLabRoute,
+  audioEncodingRoute,
   dashboardRoute,
   studentLabPreviewRoute,
   taskSheetListRoute,

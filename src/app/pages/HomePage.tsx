@@ -72,6 +72,14 @@ const HOME_LABS = [
     stages: null,
     primary: false,
   },
+  {
+    id: "audio-encoding",
+    title: "声音编码（演示）",
+    description: "把声波变成数字：调采样率看混叠折回频谱，调位深看量化阶梯——全程在浏览器本地演示。",
+    to: "/labs/audio-encoding",
+    stages: null,
+    primary: false,
+  },
 ] as const;
 
 const TASK_STATUS: Record<StudentTask["status"], string> = {
