@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { hashPassword, verifyPassword } from "../auth/password.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
+import { canAccessLab } from "../labs.ts";
 import { adminRoutes } from "./admin.ts";
 import { authRoutes } from "./auth.ts";
 import { calculatorRoutes } from "./calculator.ts";
@@ -1078,6 +1079,65 @@ describe("lab visibility", () => {
     expect(opened.status).toBe(200);
     expect(await audioVisible(student1)).toBe(true);
     expect(await audioVisible(student2)).toBe(false);
+
+    const hidden = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/audio-encoding/visibility",
+      { hidden: true },
+      admin,
+    );
+    expect(hidden.status).toBe(200);
+    expect(await audioVisible(student1)).toBe(false);
+
+    const reopened = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/audio-encoding/visibility",
+      { hidden: false },
+      admin,
+    );
+    expect(reopened.status).toBe(200);
+    expect(await audioVisible(student1)).toBe(true);
+  });
+
+  it("revokes a globally open audio demo after a student's last class membership is removed", async () => {
+    const { app, db } = await setup();
+    const studentId = memberOf(db, "20260101");
+    db.prepare(
+      "INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, 'c1', ?, 'student')",
+    ).run(newId(), studentId);
+
+    const admin = await login(app, "admin", "admin-pass");
+    const student = await login(app, "20260101", "student-pass");
+    const opened = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/audio-encoding/visibility",
+      { hidden: false, openClassIds: null },
+      admin,
+    );
+    expect(opened.status).toBe(200);
+
+    const audioVisible = async () => {
+      const response = await request(app, "GET", "/api/labs", undefined, student);
+      const payload = (await response.json()) as {
+        labs: { id: string; visible: boolean }[];
+      };
+      return payload.labs.find((lab) => lab.id === "audio-encoding")?.visible;
+    };
+
+    expect(await audioVisible()).toBe(true);
+    db.prepare("DELETE FROM class_members WHERE user_id = ?").run(studentId);
+    expect(await audioVisible()).toBe(false);
+    expect(
+      canAccessLab(db, "audio-encoding", {
+        id: studentId,
+        studentNo: "20260101",
+        name: "张三",
+        role: "user",
+      }),
+    ).toBe(false);
   });
 
   it("blocks students and teachers from a hidden lab until reopened", async () => {

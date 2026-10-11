@@ -175,7 +175,6 @@ export function canAccessLab(
   // can open a class the scope missed or close one it admitted.
   const openFor = (classId: string) =>
     switches?.get(classId) ?? (v.openClassIds === null || v.openClassIds.includes(classId));
-  if (v.openClassIds === null && mine.size === 0 && !switches?.size) return true;
   for (const classId of mine) if (openFor(classId)) return true;
   return false;
 }
@@ -229,11 +228,10 @@ export function labCatalog(
         (id) => labSwitches?.get(id) ?? (v.openClassIds === null || v.openClassIds.includes(id)),
       );
       // Teachers see every open lab; the admin scope and their own
-      // switches gate only students.
-      visible =
-        user.role === "teacher"
-          ? true
-          : visibleClassIds.length > 0 || (v.openClassIds === null && mine.size === 0);
+      // switches gate only students. Students must belong to at least one
+      // class whose gate is open; a global scope means all classes, not users
+      // without a class membership.
+      visible = user.role === "teacher" ? true : visibleClassIds.length > 0;
     }
     return { id: lab.id, stageCount: lab.stageCount, ...v, visible, visibleClassIds };
   });
