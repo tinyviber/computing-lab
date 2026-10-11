@@ -1,12 +1,14 @@
 import type { DatabaseSync } from "node:sqlite";
 import { coreStages } from "../../src/features/calculator/domain/stages.ts";
 import type { CpuDraft, CpuJudgeResult } from "../../src/features/cpu/domain/protocol.ts";
-import { CPU_STAGES } from "../../src/features/cpu/domain/stages.ts";
+import { CPU_STAGES, cpuStageUnlocked, getCpuStage } from "../../src/features/cpu/domain/stages.ts";
 import { sanitizeDraft } from "../../src/features/cpu/lesson/state.ts";
 import { SlidingWindowLimiter } from "../auth/rateLimit.ts";
 import { parseJsonColumn } from "../db/client.ts";
+import { requireMembership, jsonError } from "../http/context.ts";
 import { judgeCpuSubmission } from "../judge/cpu/judge.ts";
-import { saveStageDraft } from "../judge/pipeline.ts";
+import { getOrCreateProject, saveStageDraft } from "../judge/pipeline.ts";
+import { canAccessLab } from "../labs.ts";
 import { labRoutes } from "./labRoutes.ts";
 
 /**
@@ -28,7 +30,7 @@ export function cpuRoutes() {
   // 20 submissions per stage per 10 minutes — the hidden set is large enough
   // that brute-forcing case values through submissions is useless anyway.
   const judgeLimiter = new SlidingWindowLimiter(20, 10 * 60 * 1000);
-  return labRoutes<CpuDraft, CpuJudgeResult>({
+  const routes = labRoutes<CpuDraft, CpuJudgeResult>({
     labId: "cpu",
     stageCount: CPU_STAGES.length,
     projectExtras: (db, project) => ({
@@ -47,17 +49,54 @@ export function cpuRoutes() {
           if (typeof value === "number") guidedAnswers[key] = value;
         }
       }
-      const guidedFirstAnswers: Record<string, number> = {};
-      const rawFirstAnswers = body.guidedFirstAnswers;
-      if (rawFirstAnswers && typeof rawFirstAnswers === "object") {
-        for (const [key, value] of Object.entries(rawFirstAnswers as Record<string, unknown>)) {
-          if (typeof value === "number") guidedFirstAnswers[key] = value;
-        }
-      }
-      return judgeCpuSubmission(db, project, stageIndex, body.draft, {
-        guidedAnswers,
-        guidedFirstAnswers,
-      });
+      return judgeCpuSubmission(db, project, stageIndex, body.draft, { guidedAnswers });
     },
   });
+
+  routes.post("/guided-answer", async (c) => {
+    const auth = requireMembership(c);
+    if ("error" in auth) return jsonError(c, auth.status, auth.error);
+    const db = c.get("db");
+    if (!canAccessLab(db, "cpu", auth.user)) return jsonError(c, 403, "lab-not-available");
+
+    const body = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+    const stageIndex = Number(body?.stageIndex);
+    const promptId = body?.promptId;
+    const optionIndex = body?.optionIndex;
+    const stage = getCpuStage(stageIndex);
+    if (!stage?.guided || typeof promptId !== "string") {
+      return jsonError(c, 400, "invalid-guided-answer");
+    }
+
+    const project = getOrCreateProject<CpuDraft>(db, auth.user.id, auth.membership.classId, "cpu");
+    if (!cpuStageUnlocked(project.passedStages, stageIndex)) {
+      return jsonError(c, 409, "stage-locked");
+    }
+
+    const prompt = stage.guided.prompts.find((item) => item.id === promptId);
+    if (
+      !prompt ||
+      typeof optionIndex !== "number" ||
+      !Number.isInteger(optionIndex) ||
+      optionIndex < 0 ||
+      optionIndex >= prompt.options.length
+    ) {
+      return jsonError(c, 400, "invalid-guided-answer");
+    }
+
+    db.prepare(
+      `INSERT OR IGNORE INTO cpu_guided_first_answers
+       (project_id, stage_index, prompt_id, option_index) VALUES (?, ?, ?, ?)`,
+    ).run(project.id, stageIndex, promptId, optionIndex);
+    const first = db
+      .prepare(
+        `SELECT option_index AS optionIndex FROM cpu_guided_first_answers
+         WHERE project_id = ? AND stage_index = ? AND prompt_id = ?`,
+      )
+      .get(project.id, stageIndex, promptId) as { optionIndex: number } | undefined;
+    if (!first) return jsonError(c, 500, "internal-error");
+    return c.json({ optionIndex: first.optionIndex });
+  });
+
+  return routes;
 }

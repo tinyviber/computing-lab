@@ -73,7 +73,7 @@ describe("decoding routes", () => {
     expect(stage1.codes.length).toBeGreaterThan(3);
   });
 
-  it("issues different payloads to different students", async () => {
+  it("generates each payload from the requesting user's stable seed", async () => {
     const { app, classId, studentId, adminId, cookieFor } = await setup();
     const fetchCodes = async (userId: string) => {
       const res = await app.fetch(
@@ -84,7 +84,16 @@ describe("decoding routes", () => {
     };
     const a = await fetchCodes(studentId);
     const b = await fetchCodes(adminId);
-    expect(a).not.toEqual(b);
+    const stage = getDecodingStage(1)!;
+    const studentSeed = seedFor(studentId, "decoding", 1);
+    const adminSeed = seedFor(adminId, "decoding", 1);
+    expect(studentSeed).not.toBe(adminSeed);
+    expect(a).toEqual(
+      (generatePayload(stage, studentSeed).payload as Extract<LabPayload, { kind: "codes" }>).codes,
+    );
+    expect(b).toEqual(
+      (generatePayload(stage, adminSeed).payload as Extract<LabPayload, { kind: "codes" }>).codes,
+    );
   });
 
   it("unauthenticated requests get 401", async () => {

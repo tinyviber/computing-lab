@@ -22,8 +22,6 @@ export type CpuSubmission = {
    * not just a program.
    */
   guidedAnswers?: Record<string, number>;
-  /** First option picked for each guided prompt, retained for teacher review. */
-  guidedFirstAnswers?: Record<string, number>;
 };
 
 export type CpuCounterexample = {

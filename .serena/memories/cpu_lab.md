@@ -30,9 +30,10 @@
   ({promptId, option}) and the UI shows only that option's `note` —
   un-picked options must stay indistinguishable (no pre-click hints).
 - `GuidedPanel` displays prompt options in a stable per-user seeded order but
-  sends original stage option indices to the reducer/judge. The first pick is
-  retained in `guidedFirstAnswers` and saved as `testSummary.predictions` for
-  teacher review; only final correct picks gate stage completion.
+  sends original stage option indices to the server. `/guided-answer` stores
+  the first pick in `cpu_guided_first_answers` with a unique key per project,
+  stage, and prompt; retries cannot overwrite it. The judge reads this table
+  for `testSummary.predictions`; only final correct picks gate stage completion.
 - Prompt step-blocking: a prompt with `at <= cursor` unanswered pauses the
   clock until answered.
 - `prompt.caseIndex` pins the demo-case picker: while that prompt is the

@@ -56,12 +56,20 @@ function guidedAnswersComplete(
 
 /** First picks are informational only; retain known answers for teacher review. */
 function guidedPredictions(
+  db: DatabaseSync,
+  projectId: string,
   stage: CpuStageDef,
-  answers: Record<string, number> | undefined,
 ): NonNullable<CpuTestSummary["predictions"]> {
+  const rows = db
+    .prepare(
+      `SELECT prompt_id AS promptId, option_index AS optionIndex
+       FROM cpu_guided_first_answers WHERE project_id = ? AND stage_index = ?`,
+    )
+    .all(projectId, stage.index) as { promptId: string; optionIndex: number }[];
+  const answers = new Map(rows.map((row) => [row.promptId, row.optionIndex]));
   return (stage.guided?.prompts ?? []).flatMap((prompt) => {
-    const index = answers?.[prompt.id];
-    if (typeof index !== "number" || !Number.isInteger(index)) return [];
+    const index = answers.get(prompt.id);
+    if (index === undefined) return [];
     const option = prompt.options[index];
     if (!option) return [];
     return [
@@ -82,7 +90,6 @@ export function judgeCpuSubmission(
   rawDraft: unknown,
   options?: {
     guidedAnswers?: Record<string, number>;
-    guidedFirstAnswers?: Record<string, number>;
   },
 ): CpuJudgeResult | LabJudgeError {
   const gated = gateStage(getCpuStage(stageIndex), (stage) =>
@@ -150,7 +157,7 @@ export function judgeCpuSubmission(
 
   const testSummary: CpuTestSummary = {
     categories,
-    predictions: guidedPredictions(stage, options?.guidedFirstAnswers),
+    predictions: guidedPredictions(db, project.id, stage),
     results: verdicts.map((v) => ({ name: v.name, category: v.category, passed: v.passed })),
     counterexample,
     branchOneWayOnly,

@@ -56,6 +56,17 @@ CREATE TABLE IF NOT EXISTS submissions (
   submitted_at   TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
 
+-- First guided CPU answer is an immutable event, separate from the final
+-- answer set submitted for grading.
+CREATE TABLE IF NOT EXISTS cpu_guided_first_answers (
+  project_id  TEXT NOT NULL REFERENCES student_projects (id) ON DELETE CASCADE,
+  stage_index INTEGER NOT NULL CHECK (stage_index > 0),
+  prompt_id   TEXT NOT NULL,
+  option_index INTEGER NOT NULL CHECK (option_index >= 0),
+  recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  PRIMARY KEY (project_id, stage_index, prompt_id)
+);
+
 CREATE TABLE IF NOT EXISTS sessions (
   id         TEXT PRIMARY KEY,
   user_id    TEXT NOT NULL REFERENCES users (id),

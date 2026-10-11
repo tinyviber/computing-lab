@@ -5,6 +5,8 @@ import { hashPassword } from "../auth/password.ts";
 import { createSession } from "../auth/session.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
+import { hiddenCasesFor } from "../judge/cpu/hiddenSet.ts";
+import { seedFor } from "../../src/features/cpu/domain/rng.ts";
 import { cpuRoutes } from "./cpu.ts";
 
 async function setup() {
@@ -15,8 +17,7 @@ async function setup() {
     "实验班",
     "invite-1",
   );
-  const mkUser = async (no: string, role: string, memberRole: string | null) => {
-    const id = newId();
+  const mkUser = async (no: string, role: string, memberRole: string | null, id = newId()) => {
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
     ).run(id, no, no, await hashPassword("pass"), role);
@@ -30,7 +31,7 @@ async function setup() {
     }
     return id;
   };
-  const studentId = await mkUser("stu-1", "user", "student");
+  const studentId = await mkUser("stu-1", "user", "student", "c6-boundary-3");
   const teacherId = await mkUser("tea-1", "teacher", "teacher");
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
@@ -135,17 +136,34 @@ describe("cpu routes", () => {
     expect(body.drafts["1"].rows).toEqual(SOLVED_C1);
   });
 
-  it("judges the stage-1 reference solution end-to-end", async () => {
+  it("keeps the first guided pick on the server across retries and judges", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
     const firstPrompt = getCpuStage(1)!.guided!.prompts[0];
     const firstWrongIndex = firstPrompt.options.findIndex((option) => option.correct !== true);
-    const firstAnswers = guidedAnswersFor(1);
-    firstAnswers[firstPrompt.id] = firstWrongIndex;
+    const correctIndex = firstPrompt.options.findIndex((option) => option.correct === true);
+    const cookie = cookieFor(studentId);
+    const recordFirstPick = (optionIndex: number) =>
+      app.fetch(
+        new Request(url(classId, "/guided-answer"), {
+          method: "POST",
+          headers: { cookie, "content-type": "application/json" },
+          body: JSON.stringify({ stageIndex: 1, promptId: firstPrompt.id, optionIndex }),
+        }),
+      );
+    const firstPick = await recordFirstPick(firstWrongIndex);
+    expect(firstPick.status).toBe(200);
+    expect(await firstPick.json()).toEqual({ optionIndex: firstWrongIndex });
+
+    // Simulate a refreshed client retrying with a different choice. The
+    // server's first event remains authoritative even if /judge is forged.
+    const retry = await recordFirstPick(correctIndex);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual({ optionIndex: firstWrongIndex });
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
       guidedAnswers: guidedAnswersFor(1),
-      guidedFirstAnswers: firstAnswers,
+      guidedFirstAnswers: { [firstPrompt.id]: correctIndex },
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -167,8 +185,10 @@ describe("cpu routes", () => {
     );
   });
 
-  it("lets the C6 countdown finish for every hidden starting value", async () => {
+  it("lets the C6 countdown finish with the fixed hidden B=8 boundary", async () => {
     const { db, app, classId, studentId, cookieFor } = await setup();
+    const hiddenCases = hiddenCasesFor(6, seedFor(studentId, "cpu", 6));
+    expect(hiddenCases.some((testCase) => testCase.initRegs?.B === 8)).toBe(true);
     const cookie = cookieFor(studentId);
     await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
     db.prepare(

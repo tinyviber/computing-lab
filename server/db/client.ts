@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 8;
+export const SCHEMA_VERSION = 9;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -203,6 +203,18 @@ export function migrate(db: DatabaseSync): void {
         open       INTEGER NOT NULL DEFAULT 1,
         updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         PRIMARY KEY (lab_id, class_id)
+      )`);
+    }
+    // v8 -> v9: immutable CPU guided first picks, stored before grading so
+    // refreshes and forged /judge payloads cannot replace the teacher record.
+    if (version < 9) {
+      db.exec(`CREATE TABLE IF NOT EXISTS cpu_guided_first_answers (
+        project_id  TEXT NOT NULL REFERENCES student_projects (id) ON DELETE CASCADE,
+        stage_index INTEGER NOT NULL CHECK (stage_index > 0),
+        prompt_id   TEXT NOT NULL,
+        option_index INTEGER NOT NULL CHECK (option_index >= 0),
+        recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+        PRIMARY KEY (project_id, stage_index, prompt_id)
       )`);
     }
     // Never stamp a newer database down to an older version.

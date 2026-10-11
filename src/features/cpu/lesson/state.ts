@@ -66,8 +66,6 @@ export type CpuLessonState = {
    * the stage's prompts rather than trusting a bare "done" flag.
    */
   guidedAnswers: Record<number, Record<string, number>>;
-  /** First option picked for each prompt, retained even after a correction. */
-  guidedFirstAnswers: Record<number, Record<string, number>>;
   /** C4 byte playground: the byte currently dialed in (reset per stage). */
   playgroundByte: number;
   /** Last wrong option pick, for red-marking the button (per stage). */
@@ -91,7 +89,7 @@ export type CpuLessonAction =
   | { type: "insert-row"; index: number }
   | { type: "remove-row"; index: number }
   | { type: "move-row"; index: number; dir: -1 | 1 }
-  | { type: "answer-prompt"; promptId: string; option: number }
+  | { type: "answer-prompt"; stageIndex?: number; promptId: string; option: number }
   | { type: "set-byte"; value: number }
   | { type: "run-public-tests"; cases: CpuCase[] }
   | { type: "judge-result"; outcome: CpuJudgeResult }
@@ -189,7 +187,6 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     drafts: {},
     calculatorCoreComplete: null,
     guidedAnswers: {},
-    guidedFirstAnswers: {},
     playgroundByte: initialPlaygroundByte(getCpuStage(stageIndex)),
     wrongPick: null,
     runOutcome: null,
@@ -352,6 +349,7 @@ export function transitionCpuLesson(
     }
 
     case "answer-prompt": {
+      if (action.stageIndex !== undefined && action.stageIndex !== state.stageIndex) return state;
       const stage = stageOf(state);
       const prompt = stage?.guided?.prompts.find((p) => p.id === action.promptId);
       if (!stage?.guided || !prompt) return state;
@@ -363,24 +361,14 @@ export function transitionCpuLesson(
       }
       const answered = state.guidedAnswers[state.stageIndex] ?? {};
       if (action.promptId in answered) return state;
-      const firstAnswers = state.guidedFirstAnswers[state.stageIndex] ?? {};
-      const guidedFirstAnswers =
-        action.promptId in firstAnswers
-          ? state.guidedFirstAnswers
-          : {
-              ...state.guidedFirstAnswers,
-              [state.stageIndex]: { ...firstAnswers, [action.promptId]: action.option },
-            };
       if (!option.correct) {
         return {
           ...state,
-          guidedFirstAnswers,
           wrongPick: { promptId: action.promptId, option: action.option },
         };
       }
       return {
         ...state,
-        guidedFirstAnswers,
         guidedAnswers: {
           ...state.guidedAnswers,
           [state.stageIndex]: { ...answered, [action.promptId]: action.option },

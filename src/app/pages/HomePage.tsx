@@ -255,6 +255,7 @@ function ClassroomHome() {
           <div className="lab-card-grid lab-catalog-grid">
             {HOME_LABS.map((lab, index) => {
               const project = projects[lab.id];
+              const canOpenWithoutClass = isAdmin && lab.id === "audio-encoding";
               return cardVisible(lab.id) ? (
                 <article className={`lab-card${lab.primary ? " is-primary" : ""}`} key={lab.id}>
                   <div className="lab-card-topline">
@@ -268,7 +269,7 @@ function ClassroomHome() {
                   {!isStaff && project && lab.stages !== null ? (
                     <StageProgress currentStage={project.currentStage} total={lab.stages} />
                   ) : null}
-                  {classId ? (
+                  {classId || canOpenWithoutClass ? (
                     <Link className="button button-primary" to={lab.to}>
                       {project && project.currentStage > 1 ? "继续" : "开始实验"}
                     </Link>

@@ -22,9 +22,11 @@ function LoadingPage() {
 
 /** The browser-only demo still follows the same admin and class visibility controls. */
 export function AudioEncodingEntryPage() {
-  const { status, role } = useAuth();
+  const { status, role, session } = useAuth();
   const catalog = useLabCatalog(status === "authenticated");
-  const allowed = role === "admin" || catalog?.get("audio-encoding")?.visible === true;
+  const hasClassMembership = (session?.memberships.length ?? 0) > 0;
+  const allowed =
+    role === "admin" || (hasClassMembership && catalog?.get("audio-encoding")?.visible === true);
 
   if (status === "loading" || (status === "authenticated" && role !== "admin" && !catalog)) {
     return <LoadingPage />;

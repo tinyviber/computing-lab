@@ -94,6 +94,7 @@ export function CpuLabPage() {
     createCpuLessonState(1),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [recordingPrompt, setRecordingPrompt] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // The machine view: which public case feeds memory, and how far through
   // its trace the display sits. Derived data — never persisted.
@@ -296,9 +297,6 @@ export function CpuLabPage() {
         stageIndex: stage.index,
         draft,
         guidedAnswers: stage.guided ? (state.guidedAnswers[stage.index] ?? {}) : undefined,
-        guidedFirstAnswers: stage.guided
-          ? (state.guidedFirstAnswers[stage.index] ?? {})
-          : undefined,
       });
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -306,7 +304,28 @@ export function CpuLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft, state.guidedAnswers, state.guidedFirstAnswers]);
+  }, [classId, stage, draft, state.guidedAnswers]);
+
+  const onPromptAnswer = useCallback(
+    async (promptId: string, option: number) => {
+      if (!classId || !stage || recordingPrompt) return;
+      setRecordingPrompt(true);
+      setSubmitError(null);
+      try {
+        await api.post<{ optionIndex: number }>(`/api/classes/${classId}/labs/cpu/guided-answer`, {
+          stageIndex: stage.index,
+          promptId,
+          optionIndex: option,
+        });
+        dispatch({ type: "answer-prompt", stageIndex: stage.index, promptId, option });
+      } catch (error) {
+        setSubmitError(`记录预测失败：${describeApiError(error)}`);
+      } finally {
+        setRecordingPrompt(false);
+      }
+    },
+    [classId, stage, recordingPrompt],
+  );
 
   const lastOp = display?.lastRow?.decoded.op ?? null;
   const pendingIsMemRead =
@@ -392,9 +411,8 @@ export function CpuLabPage() {
                 answered={answeredPrompts}
                 blocking={blockingPrompt}
                 currentByte={state.playgroundByte}
-                onAnswer={(promptId, option) =>
-                  dispatch({ type: "answer-prompt", promptId, option })
-                }
+                disabled={recordingPrompt}
+                onAnswer={onPromptAnswer}
                 optionOrders={promptOptionOrders}
                 stage={stage}
                 wrongPick={state.wrongPick}

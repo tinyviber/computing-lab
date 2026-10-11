@@ -42,6 +42,10 @@ POST judge 跑隐藏用例并推进 `passedStages`。每个实验只提供 spec�
 关卡数、saveDraft、judge）；不引入通用 `LessonRuntime`/
 `Stepper` 框架。
 
+CPU 引导题的首答通过独立的 `/guided-answer` 请求在判题前写入
+`cpu_guided_first_answers`；唯一键让记录不可覆盖，判题从服务端读取它生成教师预测详情，
+不接受 `/judge` 客户端提交的首答副本。
+
 实验可见性由管理员维护的 `hidden` 状态控制：未隐藏的实验向班级成员开放；隐藏时
 非管理员无法访问首页入口、实验 API 或教师看板，管理员仍保留访问能力。
 
