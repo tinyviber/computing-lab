@@ -80,11 +80,15 @@
   the end row and "共 N 个周期 + reason" header appear only once the run
   is fully walked. The judge's `TraceRows` counterexample replay still
   shows the full trace.
-- **cursor vs visited split** (issue #100 review): `cursor` = machine-view
-  position (display/pending/phase); `visited` = furthest committed cycle,
-  max-tracked and reset only on stage/case/replay/复位. `TraceTable` takes
-  BOTH — `visited` renders `trace.slice(0, visited)`, so scrubbing `cursor`
-  back never loses walked rows.
+- **Playback-keyed machine view** (issue #100 review): `cursor`/`visited`/
+  `phase` live in `playbackViews[playbackId]` where `playbackId` =
+  `caseIndex-replayFlag-rowsContent`. A case/replay/program switch changes
+  the key, so the new run's view defaults to `{0,0,fetch}` on the SAME
+  render — no reset effect, no transitional-render race. `visited` only
+  grows (scrub-back keeps walked rows); `commitCycle` is the ONLY cursor
+  writer that bumps `visited` and marks a finished public case observed.
+  Do NOT reintroduce a bare `cursor` useState + reset effects — that's the
+  race the reviewer flagged.
 - **`TraceRows` full-trace contract** (issue #100 review — the P1): it
   always receives the FULL `trace` plus a `visibleCount`; each row's
   "regs after" reads `trace[row.cycle].regsBefore` (the NEXT row) or

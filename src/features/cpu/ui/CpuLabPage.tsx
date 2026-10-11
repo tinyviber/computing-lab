@@ -102,17 +102,17 @@ export function CpuLabPage() {
   // A hidden counterexample the student replayed into the machine view —
   // overrides the public-case picker until they pick a public case again.
   const [replayCase, setReplayCase] = useState<CpuCase | null>(null);
-  const [cursor, setCursor] = useState(0);
-  // Furthest cycle committed — grows only forward, so scrubbing back never
-  // loses rows already walked (issue #100 review: cursor vs visited split).
-  const [visited, setVisited] = useState(0);
+  // Machine-view position: cursor (display), visited (furthest committed —
+  // only ever grows), phase (fetch/decode/exec lens). Kept per playbackId so
+  // a case/program switch discards the previous run's position on the same
+  // render — the new run starts at 0 instead of inheriting a stale end
+  // cursor (issue #100 review: case-switch race + program-edit stale run).
+  const [playbackViews, setPlaybackViews] = useState<
+    Record<string, { cursor: number; visited: number; phase: CpuPhase }>
+  >({});
   // Public cases this student has walked to HALT on this stage — the
   // observation gate for submitting a zero-programming core stage.
   const [observedCases, setObservedCases] = useState<ReadonlySet<number>>(new Set());
-  // The 3-phase scrub (issue #70 §5.2): a UI-only lens on the pending cycle
-  // — fetch shows PC→mem→IR, decode the IR field split, exec the ghost
-  // values about to commit. All data comes from the same trace row.
-  const [phase, setPhase] = useState<CpuPhase>("fetch");
   const [clock, setClock] = useState<"idle" | "running" | "paused">("idle");
 
   const stage = stageOf(state);
@@ -176,6 +176,15 @@ export function CpuLabPage() {
   }, [stage, userId]);
   const machineCase =
     replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
+  // The playback identity — (case, replay, program). Any change discards the
+  // previous run's view on the SAME render because `view` is keyed by it:
+  // the new run's entry is absent, so cursor/visited/phase fall back to 0.
+  // A stale end-cursor can never leak into the next run's transitional
+  // render — that was the case-switch race (fresh case wrongly marked
+  // observed + its trace flashed) and the program-edit stale run (P2).
+  const playbackId = `${caseIndex}-${replayCase === null ? "p" : "r"}-${rows
+    .map((r) => `${r.op}${r.reg}${r.operand}`)
+    .join(",")}`;
   const run = useMemo(
     () =>
       stage && machineCase
@@ -184,7 +193,8 @@ export function CpuLabPage() {
     [stage, machineCase, rows],
   );
   const maxCursor = run?.trace.length ?? 0;
-  const effectiveCursor = Math.min(cursor, maxCursor);
+  const view = playbackViews[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+  const effectiveCursor = Math.min(view.cursor, maxCursor);
   const display = useMemo(
     () => (run ? displayState(run, effectiveCursor) : null),
     [run, effectiveCursor],
@@ -196,6 +206,35 @@ export function CpuLabPage() {
     () => (run && pending ? displayState(run, effectiveCursor + 1) : null),
     [run, pending, effectiveCursor],
   );
+
+  const setViewPhase = useCallback(
+    (updater: CpuPhase | ((p: CpuPhase) => CpuPhase)) => {
+      setPlaybackViews((views) => {
+        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+        const next = typeof updater === "function" ? updater(cur.phase) : updater;
+        return { ...views, [playbackId]: { ...cur, phase: next } };
+      });
+    },
+    [playbackId],
+  );
+  /** Scrub the machine view to a committed cycle (no re-observation). */
+  const scrubTo = useCallback(
+    (cycle: number) => {
+      setPlaybackViews((views) => {
+        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+        return { ...views, [playbackId]: { ...cur, cursor: cycle, phase: "fetch" } };
+      });
+    },
+    [playbackId],
+  );
+  /** Restart the current run's walk-through (复位 button). */
+  const resetView = useCallback(() => {
+    setPlaybackViews((views) => ({
+      ...views,
+      [playbackId]: { cursor: 0, visited: 0, phase: "fetch" },
+    }));
+  }, [playbackId]);
+  const phase = view.phase;
 
   // Guided prompt gating: the first unanswered `at` prompt whose cycle
   // threshold has been reached blocks the stepper until answered.
@@ -214,33 +253,18 @@ export function CpuLabPage() {
   const observationComplete =
     stage?.track !== "core" || publicCases.every((_, i) => observedCases.has(i));
 
-  // A stage switch or case switch restarts the playback and the observation
-  // record (each stage asks for its own full walk-through).
+  // A stage switch restarts the playback and the observation record — each
+  // stage asks for its own full walk-through. A case/replay/program switch
+  // needs no reset effect at all: `view` is keyed by `playbackId`, so the
+  // new run renders cursor/visited/phase=0 on its first render and a stale
+  // end-cursor can never leak across (issue #100 review: the transitional
+  // render is what made the old cursor+effect reset racy).
   useEffect(() => {
     setCaseIndex(0);
     setReplayCase(null);
-    setCursor(0);
-    setVisited(0);
     setObservedCases(new Set());
-    setPhase("fetch");
     setClock("idle");
   }, [state.stageIndex]);
-  useEffect(() => {
-    setCursor(0);
-    setVisited(0);
-    setPhase("fetch");
-    setClock("idle");
-  }, [caseIndex, replayCase]);
-
-  // `visited` tracks the furthest committed cycle — scrubbing back with
-  // `cursor` must never shrink the rows already walked. Reaching the end of
-  // a public case marks it observed for the core-stage submit gate.
-  useEffect(() => {
-    setVisited((v) => Math.max(v, effectiveCursor));
-    if (replayCase === null && maxCursor > 0 && effectiveCursor >= maxCursor) {
-      setObservedCases((s) => (s.has(caseIndex) ? s : new Set(s).add(caseIndex)));
-    }
-  }, [effectiveCursor, maxCursor, caseIndex, replayCase]);
 
   // While a data-pinned prompt is unanswered the picker follows it — and
   // switching cases restarts playback, which the effect above handles.
@@ -263,25 +287,37 @@ export function CpuLabPage() {
         initRegs: c.initRegs,
         expect: { cycles: stage.maxCycles },
       });
-      setCursor(0);
-      setVisited(0);
-      setPhase("fetch");
       setClock("idle");
     },
     [stage],
+  );
+
+  /** Commit one cycle: advance cursor, grow visited, mark a finished public
+   * case observed. The cursor updater writes visited too so the two can
+   * never diverge (issue #100 review). */
+  const commitCycle = useCallback(
+    (n: number) => {
+      setPlaybackViews((views) => {
+        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+        const cursor = Math.min(cur.cursor + n, maxCursor);
+        const visited = Math.max(cur.visited, cursor);
+        if (visited >= maxCursor && maxCursor > 0 && replayCase === null) {
+          setObservedCases((s) => (s.has(caseIndex) ? s : new Set(s).add(caseIndex)));
+        }
+        return { ...views, [playbackId]: { ...cur, cursor, visited, phase: "fetch" } };
+      });
+    },
+    [playbackId, maxCursor, replayCase, caseIndex],
   );
 
   /** One beat: advance the phase lens, and on exec→commit the cycle. */
   const onBeat = useCallback(() => {
     if (!pending || blockingPrompt) return;
     setClock("paused");
-    if (phase === "fetch") setPhase("decode");
-    else if (phase === "decode") setPhase("exec");
-    else {
-      setCursor((c) => Math.min(c + 1, maxCursor));
-      setPhase("fetch");
-    }
-  }, [pending, blockingPrompt, phase, maxCursor]);
+    if (phase === "fetch") setViewPhase("decode");
+    else if (phase === "decode") setViewPhase("exec");
+    else commitCycle(1);
+  }, [pending, blockingPrompt, phase, setViewPhase, commitCycle]);
 
   // The clock ticks the machine forward; editing is locked while it runs.
   // Guided stages tick beat-by-beat (fetch → decode → exec → commit) so
@@ -297,21 +333,21 @@ export function CpuLabPage() {
     const timer = setInterval(
       () => {
         if (guided) {
-          setPhase((p) => {
-            if (p === "fetch") return "decode";
-            if (p === "decode") return "exec";
-            setCursor((c) => Math.min(c + 1, maxCursor));
-            return "fetch";
+          setViewPhase((p) => {
+            if (p === "exec") {
+              commitCycle(1);
+              return "fetch";
+            }
+            return p === "fetch" ? "decode" : "exec";
           });
         } else {
-          setCursor((c) => Math.min(c + 1, maxCursor));
-          setPhase("fetch");
+          commitCycle(1);
         }
       },
       guided ? 350 : 500,
     );
     return () => clearInterval(timer);
-  }, [clock, canStep, maxCursor, guided]);
+  }, [clock, canStep, maxCursor, guided, setViewPhase, commitCycle]);
   // Reaching the trace end (or a gate) settles the clock on its own.
   useEffect(() => {
     if (clock === "running" && (effectiveCursor >= maxCursor || blockingPrompt)) {
@@ -492,9 +528,7 @@ export function CpuLabPage() {
                       className="button button-ghost"
                       onClick={() => {
                         setClock("idle");
-                        setCursor(0);
-                        setVisited(0);
-                        setPhase("fetch");
+                        resetView();
                       }}
                       type="button"
                     >
@@ -510,7 +544,7 @@ export function CpuLabPage() {
                         }`}
                         disabled={!pending || blockingPrompt !== null}
                         key={p.id}
-                        onClick={() => setPhase(p.id)}
+                        onClick={() => setViewPhase(p.id)}
                         type="button"
                       >
                         {i > 0 ? <span className="cpu-phase-arrow">→</span> : null}
@@ -605,11 +639,10 @@ export function CpuLabPage() {
                   cursor={effectiveCursor}
                   onScrub={(cycle) => {
                     setClock("paused");
-                    setCursor(cycle);
-                    setPhase("fetch");
+                    scrubTo(cycle);
                   }}
                   run={run}
-                  visited={visited}
+                  visited={view.visited}
                 />
               </section>
             ) : null}
