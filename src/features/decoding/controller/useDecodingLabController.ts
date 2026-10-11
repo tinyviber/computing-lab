@@ -71,11 +71,13 @@ export function useDecodingLabController({
   const inputRevision = state.inputRevisions[state.stageIndex] ?? 0;
 
   // The judge round-trip is one more async channel: a submission is stamped
-  // with the stage it ran for plus a ticket, and a stale response applies
-  // nothing — the same rule the execution channels enforce.
+  // with the stage and input version it ran for plus a ticket, and a stale
+  // response applies nothing — the same rule the execution channels enforce.
   const submitTicketRef = useRef(0);
   const stageIndexRef = useRef(state.stageIndex);
   stageIndexRef.current = state.stageIndex;
+  const inputRevisionRef = useRef(inputRevision);
+  inputRevisionRef.current = inputRevision;
 
   useEffect(() => warmPyodide(), []);
 
@@ -258,6 +260,13 @@ export function useDecodingLabController({
     }
     const ticket = ++submitTicketRef.current;
     const submittedStage = stage.index;
+    const submittedRevision = inputRevision;
+    // The response lands only while the submit still describes the stage
+    // and draft on screen — an edit mid-flight retires it like a stale run.
+    const stillCurrent = () =>
+      submitTicketRef.current === ticket &&
+      stageIndexRef.current === submittedStage &&
+      inputRevisionRef.current === submittedRevision;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -279,20 +288,18 @@ export function useDecodingLabController({
         `/api/classes/${classId}/labs/decoding/judge`,
         submission,
       );
-      // The student moved on (or submitted again) mid-flight — drop it.
-      if (submitTicketRef.current !== ticket || stageIndexRef.current !== submittedStage) {
-        return;
-      }
+      // The student moved on (or edited, or submitted again) mid-flight — drop it.
+      if (!stillCurrent()) return;
       dispatch({ type: "judge-result", outcome });
       if (!outcome.passed) {
         dispatch({ type: "message", text: "判定未通过——看看右侧每一项的检查结果。" });
       }
     } catch (error) {
-      if (submitTicketRef.current === ticket) setSubmitError(describeApiError(error));
+      if (stillCurrent()) setSubmitError(describeApiError(error));
     } finally {
       if (submitTicketRef.current === ticket) setSubmitting(false);
     }
-  }, [classId, stage, payload, model, draft, decodeExec.result]);
+  }, [classId, stage, payload, model, draft, inputRevision, decodeExec.result]);
 
   const actions: DecodingLabActions = {
     selectStage: (stageIndex) => dispatch({ type: "select-stage", stageIndex }),

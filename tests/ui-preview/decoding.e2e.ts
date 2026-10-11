@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { expectFrameHeightSynced, fullPageShot } from "./helpers";
 
 const scenarios = [
   "initial",
@@ -58,10 +59,15 @@ for (const viewport of ["desktop", "tablet", "mobile"]) {
         await expect(frame.getByText("保存失败", { exact: true })).toBeVisible();
       if (scenario === "load-error")
         await expect(frame.getByRole("alert")).toContainText("草稿加载失败");
+      // Each scene switch remounts the frame — its height must re-converge
+      // to the new document before the capture.
+      await expectFrameHeightSynced(page);
       // Save review evidence outside the checkout; no machine-specific baselines.
-      await page.screenshot({
-        path: join(tmpdir(), `computing-lab-decoding-${viewport}-${scenario}.png`),
-      });
+      // fullPage covers the whole scroll height, including the auto-sized frame.
+      await fullPageShot(
+        page,
+        join(tmpdir(), `computing-lab-decoding-${viewport}-${scenario}.png`),
+      );
     }
     await page.getByLabel("预览视口").selectOption(viewport === "mobile" ? "desktop" : "mobile");
     await expect(page.locator("iframe")).toHaveCSS(

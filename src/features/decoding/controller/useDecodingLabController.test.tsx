@@ -204,6 +204,61 @@ describe("decoding controller", () => {
     expect(result.current.model.feedback.message).toBeNull();
   });
 
+  it("drops a judge response that lands after the draft was edited", async () => {
+    const judge = deferred<Response>();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: unknown) =>
+        String(url).includes("/judge") ? judge.promise : projectResponse(),
+      ),
+    );
+    vi.mocked(runDecode).mockResolvedValue("MOON");
+    const result = await loaded();
+    const stage = result.current.model.stage!;
+    for (const prompt of stage.prompts ?? []) {
+      act(() =>
+        result.current.actions.answerPrompt(
+          prompt.id,
+          prompt.options.findIndex((o) => o.correct),
+        ),
+      );
+    }
+    act(() => result.current.actions.setFill("1", "chr(code)"));
+    act(() => result.current.actions.run());
+    await waitFor(() => expect(result.current.model.submission.blocker).toBeNull());
+
+    let submit!: Promise<void>;
+    act(() => {
+      submit = result.current.actions.submit();
+    });
+    expect(result.current.model.submission.submitting).toBe(true);
+
+    // Edit while the judge request is in flight — its response describes
+    // code that is no longer on screen.
+    act(() => result.current.actions.setFill("1", "chr(code+1)"));
+
+    await act(async () => {
+      judge.resolve(
+        new Response(
+          JSON.stringify({
+            passed: true,
+            submissionId: "s1",
+            currentStage: 2,
+            passedStages: [1, 2],
+            parts: [{ id: "artifact", label: "解码产物比对", ok: true, detail: "一致" }],
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      );
+      await submit;
+    });
+
+    expect(result.current.model.stage?.index).toBe(1);
+    expect(result.current.model.judge).toBeNull();
+    expect(result.current.model.submission.submitting).toBe(false);
+    expect(result.current.model.feedback.message).toBeNull();
+  });
+
   it("reports the friendly error for a failed run only while its input is current", async () => {
     vi.stubGlobal(
       "fetch",
