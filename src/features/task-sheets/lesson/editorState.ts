@@ -22,6 +22,21 @@ export function blankOption(id: number) {
   return { id: `o${id}`, text: "" };
 }
 
+/**
+ * Next collision-free option number: 1 + the max numeric suffix among
+ * existing `o<N>` ids. Ids loaded from other sheets may not follow the
+ * convention; they cannot collide with `o<N>` output and are ignored.
+ * (length+1 breaks when a middle option is deleted and another is added.)
+ */
+export function nextOptionNum(options: { id: string }[]): number {
+  let max = 0;
+  for (const o of options) {
+    const match = /^o(\d+)$/.exec(o.id);
+    if (match) max = Math.max(max, Number.parseInt(match[1], 10));
+  }
+  return max + 1;
+}
+
 function makeQuestion(kind: Question["type"], n: number): Question {
   if (kind === "fill") {
     return {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChoiceQuestion, Question } from "../domain/schema.ts";
-import { blankOption, editorReducer, type EditorState } from "./editorState.ts";
+import { blankOption, editorReducer, nextOptionNum, type EditorState } from "./editorState.ts";
 
 const base = (questions: Question[] = []): EditorState => ({
   title: "任务单",
@@ -17,6 +17,22 @@ const choice = (id: string): ChoiceQuestion => ({
   multiple: false,
   options: [blankOption(1), blankOption(2)],
   correctOptionIds: [],
+});
+
+describe("nextOptionNum", () => {
+  it("is collision-free after deleting a middle option and adding one", () => {
+    const options = [blankOption(1), blankOption(2), blankOption(3), blankOption(4)];
+    const afterDelete = options.filter((o) => o.id !== "o2");
+    const added = blankOption(nextOptionNum(afterDelete));
+    const ids = [...afterDelete, added].map((o) => o.id);
+    expect(added.id).toBe("o5");
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("ignores ids that do not follow the o<N> convention", () => {
+    expect(nextOptionNum([{ id: "abc" }, { id: "o7" }, { id: "o2x" }])).toBe(8);
+    expect(nextOptionNum([])).toBe(1);
+  });
 });
 
 describe("editorReducer meta/load", () => {
