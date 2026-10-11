@@ -70,6 +70,9 @@ export type CalculatorLessonState = {
   unlockedSubmodules: ComponentDef[];
   /** Draft graph per stage index. */
   drafts: Record<number, CircuitGraph>;
+  /** The local drafts a save conflict replaced — kept so the learner can
+   *  restore their unsaved version explicitly after reconciling. */
+  conflictedLocalDrafts: Record<number, CircuitGraph>;
   /** Server-assigned revision of each stage's latest applied write — the
    *  next autosave for that stage sends it back as `expectedRevision`. */
   draftRevisions: Record<number, number>;
@@ -153,6 +156,7 @@ export type CalculatorLessonAction =
       /** Server revision now stored for the stage — seeds the next save. */
       revision?: number;
     }
+  | { type: "restore-conflict-draft"; stageIndex: number }
   | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
   | { type: "dismiss-message" };
 
@@ -251,6 +255,7 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     passedStages: [],
     unlockedSubmodules: [],
     drafts: { [stageIndex]: scaffoldGraph(stageIndex) },
+    conflictedLocalDrafts: {},
     draftRevisions: {},
     past: [],
     nodeMove: null,
@@ -600,6 +605,7 @@ export function transitionCalculatorLesson(
         passedStages: action.passedStages,
         unlockedSubmodules: action.unlockedSubmodules,
         drafts,
+        conflictedLocalDrafts: {},
         draftRevisions,
         past: [],
         nodeMove: null,
@@ -888,8 +894,12 @@ export function transitionCalculatorLesson(
     case "mark-saved": {
       // Only a save started from the stage's current dirty state may settle it.
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      // A fresh applied write supersedes any conflict backup for the stage.
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
       return {
         ...state,
+        conflictedLocalDrafts,
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -905,27 +915,39 @@ export function transitionCalculatorLesson(
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
       };
 
-    case "mark-save-conflict":
-      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+    case "mark-save-conflict": {
+      // "saving" is the write that was refused; "dirty" means the learner
+      // edited past it — the conflict still lands so it stays visible.
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      if (status !== "saving" && status !== "dirty") return state;
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
+    }
 
     case "resolve-save-conflict": {
       // Per-stage reconcile after a refused write: swap ONLY the conflicted
       // stage's draft for the server's copy and land its conflict flag in the
       // same transition — every other stage's local draft and save flag is
-      // left untouched. Settles only while the stage still waits on its save:
-      // a newer local edit (dirty) retries its own save and reconciles later.
-      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      // left untouched. The replaced local draft is stashed in
+      // conflictedLocalDrafts so the learner can still recover it. Settles
+      // while the stage waits on its save — and on a dirty flag too: a
+      // fenced stage cannot retry its own save, so the reconcile must still
+      // land (the stash keeps those newer edits recoverable the same way).
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      if (status !== "saving" && status !== "dirty") return state;
       const isCurrent = action.stageIndex === state.stageIndex;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      const localDraft = state.drafts[action.stageIndex];
+      if (localDraft !== undefined) conflictedLocalDrafts[action.stageIndex] = localDraft;
       return {
         ...state,
         drafts: {
           ...state.drafts,
           [action.stageIndex]: withScaffold(action.draft ?? emptyGraph(), action.stageIndex),
         },
+        conflictedLocalDrafts,
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -935,6 +957,29 @@ export function transitionCalculatorLesson(
         // stage dirty and re-saves — the student's recovery path for the
         // overwritten work. Selection/wiring and stale verdicts clear only
         // when the replaced draft is the one on screen.
+        nodeMove: isCurrent ? null : state.nodeMove,
+        selectedNodeId: isCurrent ? null : state.selectedNodeId,
+        pendingWire: isCurrent ? null : state.pendingWire,
+        runOutcome: isCurrent ? null : state.runOutcome,
+        judgeOutcome: isCurrent ? null : state.judgeOutcome,
+      };
+    }
+
+    case "restore-conflict-draft": {
+      // The learner explicitly keeps their pre-conflict version: it returns
+      // as a dirty draft and autosave re-arms — expectedRevision is now the
+      // reconciled server revision, so the write supersedes legitimately
+      // (or loses OCC to an even newer write → a fresh conflict).
+      const backup = state.conflictedLocalDrafts[action.stageIndex];
+      if (backup === undefined) return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      const isCurrent = action.stageIndex === state.stageIndex;
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.stageIndex]: backup },
+        conflictedLocalDrafts,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         nodeMove: isCurrent ? null : state.nodeMove,
         selectedNodeId: isCurrent ? null : state.selectedNodeId,
         pendingWire: isCurrent ? null : state.pendingWire,

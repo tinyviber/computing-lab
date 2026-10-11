@@ -134,6 +134,22 @@
   color: var(--warning);
 }
 
+.save-indicator-restore {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  white-space: nowrap;
+}
+
+.save-indicator-restore:hover {
+  color: var(--primary);
+}
+
 /* Stage progression rail — the shared StageRail/StageLink component. */
 .lab-rail {
   border-right: 1px solid var(--border);

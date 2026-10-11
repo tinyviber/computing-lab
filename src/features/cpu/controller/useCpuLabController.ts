@@ -411,6 +411,8 @@ export function useCpuLabController({
     runPublicTests: () => dispatch({ type: "run-public-tests", cases: publicCases }),
     submit: onSubmit,
     replayCounterexample: onReplayCounterexample,
+    restoreConflictLocal: () =>
+      dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex }),
   };
   return { model, actions };
 }

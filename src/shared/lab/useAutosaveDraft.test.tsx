@@ -264,7 +264,7 @@ describe("useAutosaveDraft", () => {
     expect(onSaved).not.toHaveBeenCalled();
   });
 
-  it("reports a rejected write through onConflict only while still latest", async () => {
+  it("fences a rejected stage: its queued arm never sends, onConflict fires once", async () => {
     const onSaved = vi.fn();
     const onError = vi.fn();
     const onConflict = vi.fn();
@@ -281,23 +281,107 @@ describe("useAutosaveDraft", () => {
     // 同关卡第二臂在首个保存未完成时排队 —— 只有一个请求在途。
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    // 已被本地更新臂取代的旧写入被拒只是迟到响应：它把队列里的新臂放出去，
-    // 自身静默，不触发冲突。
+    // 另一标签页先写入了服务端（revision 7）：本机写入被拒。排队臂携带的
+    // 是冲突发生前的内容 —— 若带着调和后的 expectedRevision 放出去，就等于
+    // 静默覆盖胜出的写入。拒绝之后该关卡一切待发路径全部作废。
     calls[0].done.resolve(ok(false, 7));
-    await flush();
-    expect(onConflict).not.toHaveBeenCalled();
-    expect(fetch).toHaveBeenCalledTimes(2);
-    // 被拒响应携带的服务端 revision 也计入下一笔的 expectedRevision。
-    expect(calls[1].body.expectedRevision).toBe(7);
-
-    // 仍是最新臂的写入被拒：服务器上已有更新数据，交给 onConflict 走重取
-    // 调和 —— 不得静默挂起、不得报成 saved/error。
-    calls[1].done.resolve(ok(false, 8));
     await flush();
     expect(onConflict).toHaveBeenCalledTimes(1);
     expect(onConflict).toHaveBeenCalledWith(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(onConflict).toHaveBeenCalledTimes(1);
     expect(onSaved).not.toHaveBeenCalled();
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("kills a still-debouncing arm when the stage's in-flight write is rejected", async () => {
+    const onConflict = vi.fn();
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ deps: [1], onConflict }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // A2 已武装但 debounce 未满 —— 拒绝到达时它的定时器必须连快照一起
+    // 死掉，否则到点后它会带着调和后的 expectedRevision 发出冲突前的内容。
+    rerender(base({ deps: [2], onConflict }));
+    await act(async () => {
+      vi.advanceTimersByTime(800);
+    });
+    calls[0].done.resolve(ok(false, 7));
+    await flush();
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(onConflict).toHaveBeenCalledWith(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a losing tab fenced until the stage reconciles, then saves with the new revision", async () => {
+    // 两个标签页竞争同一关卡：本机 A1 在途、A2 已排队；另一标签的 B1 先落地
+    // （服务端 revision 1），A1 被拒 —— A2 绝不能带着新 expectedRevision 悄悄
+    // 盖掉 B1；直到调和落地后新产生的 dirty 才能合法地以 revision 1 续写。
+    const onConflict = vi.fn();
+    const drafts: Record<number, Draft> = { 1: { text: "A1" } };
+    let serverRev = 0;
+    const props = (over: Partial<Params> = {}) =>
+      base({
+        draftOf: (s) => drafts[s],
+        expectedRevisionOf: () => serverRev,
+        onConflict,
+        ...over,
+      });
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: props({ deps: [1] }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].body.expectedRevision).toBe(0);
+
+    // 学习者继续编辑 → A2 在 A1 在途时排队。
+    drafts[1] = { text: "A2" };
+    rerender(props({ deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // B1 先落地：A1 被拒，A2 的排队项与快照一并作废。
+    calls[0].done.resolve(ok(false, 1));
+    await flush();
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // 调和未落之前继续编辑：仍然拦截 —— 这些改动早于服务端写入，无权胜出。
+    drafts[1] = { text: "A3-before-reconcile" };
+    rerender(props({ deps: [3] }));
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // fetchProject 调和落地：expectedRevisionOf 读到服务端 revision 1。之后
+    // 新产生的 dirty（或找回的本地版本）以 revision 1 为期望合法续写。
+    serverRev = 1;
+    rerender(props({ saveStatus: "conflict", deps: [3] }));
+    drafts[1] = { text: "A3-after-reconcile" };
+    rerender(props({ deps: [4] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.expectedRevision).toBe(1);
+    expect(calls[1].body.draft).toEqual({ text: "A3-after-reconcile" });
   });
 
   it("carries expectedRevision — the project seed first, then the applied response", async () => {

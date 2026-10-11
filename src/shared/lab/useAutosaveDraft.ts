@@ -34,10 +34,15 @@ type DraftSaveResponse = { ok?: boolean; applied?: boolean; revision?: number };
  *   stage's latest arm, so an older in-flight save can never overwrite a
  *   newer dirty state — and a late response after an unmount or class switch
  *   finds an empty arm map and is dropped entirely.
- * - A rejected write (`applied: false`) that is still the stage's latest arm
- *   means the server holds a newer write from elsewhere: the hook reports it
- *   through `onConflict` so the caller can reconcile that stage's draft,
- *   instead of leaving the flag hanging on "saving" or pretending success.
+ * - A rejected write (`applied: false`) means the server holds a newer
+ *   write from elsewhere. The stage is then fenced: its queued arm and any
+ *   still-debouncing timer die with it — letting one send would carry the
+ *   reconciled revision on content that predates it and silently overwrite
+ *   the winning write — `onConflict` fires so the caller can refetch and
+ *   reconcile, and no new arm for that stage may leave until the lesson
+ *   state has caught up to the revision the rejection reported (the re-arm
+ *   gate below). Only then does a dirty flag schedule a write that
+ *   legitimately supersedes the server draft.
  *
  * The lifecycle callbacks all receive the stage they fired for; the lesson
  * reducer keeps flags per stage so one stage's late completion cannot
@@ -73,6 +78,10 @@ export function useAutosaveDraft<TDraft>(options: {
   const queuedArm = useRef(new Map<number, number>());
   const inFlight = useRef(new Set<number>());
   const appliedRev = useRef(new Map<number, number>());
+  // Stages the server fenced with a rejection: nothing for them may send
+  // until the lesson state reconciles to the rejection's revision (gate in
+  // the arm effect below).
+  const conflicted = useRef(new Set<number>());
   const armSeq = useRef(0);
   // The request body and expectedRevision are built when a request sends,
   // not when it armed — reads always go through the latest committed options.
@@ -119,6 +128,35 @@ export function useAutosaveDraft<TDraft>(options: {
         if (rev !== undefined) {
           appliedRev.current.set(stage, Math.max(appliedRev.current.get(stage) ?? 0, rev));
         }
+        // The server refused the write — it already holds a newer draft
+        // from elsewhere. Fence the stage BEFORE touching the queue: a
+        // queued or still-debouncing arm would resend with the reconciled
+        // expectedRevision on content that predates it and silently
+        // overwrite the winning write. Kill every pending path for the
+        // stage (their snapshots are dead), then report the conflict — even
+        // when a newer local arm exists, since the bypassed-write window is
+        // exactly what must never stay silent.
+        if (result?.applied === false) {
+          conflicted.current.add(stage);
+          const pendingTimer = timers.current.get(stage);
+          if (pendingTimer !== undefined) {
+            clearTimeout(pendingTimer);
+            timers.current.delete(stage);
+          }
+          // The stage's pending debounce arm (its latest) can never fire
+          // now — drop its snapshot. The responding arm's own was already
+          // dropped above; a queued arm's goes with its entry below.
+          const pendingArm = latestArm.current.get(stage);
+          if (pendingArm !== undefined) armDraft.current.delete(pendingArm);
+          latestArm.current.delete(stage);
+          const queued = queuedArm.current.get(stage);
+          if (queued !== undefined) {
+            queuedArm.current.delete(stage);
+            armDraft.current.delete(queued);
+          }
+          opts.onConflict?.(stage);
+          return;
+        }
         // A newer arm waited for this response — send it and let ITS result
         // report; this arm was superseded whether it applied or not.
         const queued = queuedArm.current.get(stage);
@@ -128,12 +166,6 @@ export function useAutosaveDraft<TDraft>(options: {
           return;
         }
         if (latestArm.current.get(stage) !== arm) return;
-        // Still the stage's latest arm, yet the server holds a newer write:
-        // a genuinely stale state, not a superseded local one — reconcile.
-        if (result?.applied === false) {
-          opts.onConflict?.(stage);
-          return;
-        }
         opts.onSaved(stage, rev);
       })
       .catch(() => {
@@ -153,13 +185,33 @@ export function useAutosaveDraft<TDraft>(options: {
   useEffect(() => {
     if (armedClass.current !== classId) return;
     if (saveStatus !== "dirty" || !classId) return;
+    // A fenced stage stays silent until the lesson state has reconciled to
+    // the revision the rejection reported — `expectedRevisionOf` reads the
+    // reducer's reconciled revisions. Drafts edited before that point may
+    // never arm: their content predates the server write they would claim
+    // to succeed. Once the gate passes (reconcile landed, or the learner
+    // explicitly restored their copy) the stage autosaves normally.
+    if (conflicted.current.has(stageIndex)) {
+      const fenced =
+        latestOptions.current.expectedRevisionOf(stageIndex) <
+        (appliedRev.current.get(stageIndex) ?? 0);
+      if (fenced) return;
+      conflicted.current.delete(stageIndex);
+    }
     const draft = latestOptions.current.draftOf(stageIndex);
     if (draft === undefined) return;
     const arm = ++armSeq.current;
+    const prevArm = latestArm.current.get(stageIndex);
     latestArm.current.set(stageIndex, arm);
     armDraft.current.set(arm, { stage: stageIndex, draft });
     const previous = timers.current.get(stageIndex);
-    if (previous) clearTimeout(previous);
+    if (previous) {
+      clearTimeout(previous);
+      // The cancelled arm's snapshot can never send — a pending-timer arm
+      // is by definition neither in-flight nor queued, so nothing else
+      // would ever drop it.
+      if (prevArm !== undefined) armDraft.current.delete(prevArm);
+    }
     const timer = setTimeout(() => {
       timers.current.delete(stageIndex);
       // The stage's earlier save is still in flight: queue this arm and let
@@ -190,6 +242,7 @@ export function useAutosaveDraft<TDraft>(options: {
     const queued = queuedArm.current;
     const flying = inFlight.current;
     const applied = appliedRev.current;
+    const fenced = conflicted.current;
     return () => {
       for (const t of pending.values()) clearTimeout(t);
       pending.clear();
@@ -197,6 +250,7 @@ export function useAutosaveDraft<TDraft>(options: {
       queued.clear();
       flying.clear();
       applied.clear();
+      fenced.clear();
       armDraft.current.clear();
     };
   }, [classId]);

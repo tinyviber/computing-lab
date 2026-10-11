@@ -608,7 +608,14 @@ export function DecodingLabPage() {
       <AppPageLayout
         className="decoding-lab"
         topbar={
-          <SaveIndicator status={statusForStage(state.saveStatusByStage, state.stageIndex)} />
+          <SaveIndicator
+            status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+            onRestoreLocal={
+              state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                : undefined
+            }
+          />
         }
         topbarProps={{
           subtitle: stage?.englishTitle,

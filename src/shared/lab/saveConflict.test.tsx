@@ -2,6 +2,7 @@ import { act, render } from "@testing-library/react";
 import { useReducer, type Dispatch } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DecodingDraft } from "../../features/decoding/domain/protocol";
+import { createCpuLessonState, transitionCpuLesson } from "../../features/cpu/lesson/state";
 import {
   createDecodingLessonState,
   emptyDraft,
@@ -209,5 +210,66 @@ describe("save conflict recovery", () => {
     // 冲突过的 stage 2 不受影响。
     expect(statusForStage(exposed.state.saveStatusByStage, 2)).toBe("conflict");
     expect(exposed.state.drafts[2]?.code).toBe("server-2");
+
+    // 被服务端草稿覆盖的本地草稿并没有丢：可找回的副本留在
+    // conflictedLocalDrafts —— “找回我未保存的修改” 用它换回本地版本。
+    expect(exposed.state.conflictedLocalDrafts[2]?.code).toBe("local-2");
+
+    dispatch({ type: "restore-conflict-draft", stageIndex: 2 });
+    expect(exposed.state.drafts[2]?.code).toBe("local-2");
+    expect(exposed.state.conflictedLocalDrafts[2]).toBeUndefined();
+    expect(statusForStage(exposed.state.saveStatusByStage, 2)).toBe("dirty");
+
+    // 找回的草稿标记 dirty → autosave 重新排程。此时 expectedRevision 已是
+    // 调和后的服务端 revision 7，这笔写入是合法地覆盖（而非偷渡）。
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    const put3 = calls.filter((c) => c.method === "PUT")[2];
+    expect(put3?.body?.stageIndex).toBe(2);
+    expect(put3?.body?.expectedRevision).toBe(7);
+    expect((put3?.body?.draft as DecodingDraft | undefined)?.code).toBe("local-2");
+
+    put3?.done.resolve(json({ ok: true, applied: true, revision: 8 }));
+    await flush();
+    expect(statusForStage(exposed.state.saveStatusByStage, 2)).toBe("saved");
+    expect(exposed.state.draftRevisions[2]).toBe(8);
+    expect(exposed.state.drafts[2]?.code).toBe("local-2");
+  });
+
+  it("keeps the pre-conflict local draft recoverable on the cpu reducer too", () => {
+    // 同样的两个 action 直接打在 cpu 的真实 reducer 上：冲突调和存副本，
+    // 找回时恢复并标 dirty（当前关卡还要跟着换新 playback revision）。
+    let state = createCpuLessonState(7);
+    state = transitionCpuLesson(state, {
+      type: "load-project",
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5, 6],
+      drafts: { 7: { rows: [{ op: "LOAD", reg: 0, operand: 3 }] } },
+      draftRevisions: { 7: 2 },
+      calculatorCoreComplete: true,
+    });
+    state = transitionCpuLesson(state, { type: "mark-saving", stageIndex: 7 });
+    state = transitionCpuLesson(state, {
+      type: "resolve-save-conflict",
+      stageIndex: 7,
+      draft: { rows: [{ op: "STORE", reg: 1, operand: 4 }] },
+      revision: 5,
+    });
+    expect(state.drafts[7]?.rows).toEqual([{ op: "STORE", reg: 1, operand: 4 }]);
+    expect(state.conflictedLocalDrafts[7]?.rows).toEqual([{ op: "LOAD", reg: 0, operand: 3 }]);
+    expect(state.draftRevisions[7]).toBe(5);
+    expect(statusForStage(state.saveStatusByStage, 7)).toBe("conflict");
+
+    const playback = state.editRevision;
+    state = transitionCpuLesson(state, { type: "restore-conflict-draft", stageIndex: 7 });
+    expect(state.drafts[7]?.rows).toEqual([{ op: "LOAD", reg: 0, operand: 3 }]);
+    expect(state.conflictedLocalDrafts[7]).toBeUndefined();
+    expect(statusForStage(state.saveStatusByStage, 7)).toBe("dirty");
+    // 当前关卡的程序换了 → playback revision 递增；无副本时则是 no-op。
+    expect(state.editRevision).toBe(playback + 1);
+    const after = state;
+    state = transitionCpuLesson(state, { type: "restore-conflict-draft", stageIndex: 7 });
+    expect(state).toBe(after);
   });
 });

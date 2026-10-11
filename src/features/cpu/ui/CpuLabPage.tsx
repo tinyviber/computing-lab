@@ -27,7 +27,16 @@ export function CpuLabPage() {
     >
       <AppPageLayout
         className="cpu-lab"
-        topbar={<SaveIndicator status={model.feedback.saveStatus} />}
+        topbar={
+          <SaveIndicator
+            status={model.feedback.saveStatus}
+            onRestoreLocal={
+              model.feedback.conflictLocalAvailable
+                ? controller.actions.restoreConflictLocal
+                : undefined
+            }
+          />
+        }
         topbarProps={{
           subtitle: model.stage?.englishTitle,
           title: model.stage?.title ?? "冯诺依曼数据通路",

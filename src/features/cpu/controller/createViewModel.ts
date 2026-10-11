@@ -103,6 +103,7 @@ export function createCpuLabViewModel(input: {
     },
     feedback: {
       saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+      conflictLocalAvailable: state.conflictedLocalDrafts[state.stageIndex] !== undefined,
       recommendCalculator: state.calculatorCoreComplete === false,
       message: state.message,
       error: input.loadError ?? input.submitError,

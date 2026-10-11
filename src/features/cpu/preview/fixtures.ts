@@ -150,5 +150,6 @@ export function createCpuPreviewActions(record: (action: string) => void): CpuLa
     runPublicTests: () => record("runPublicTests"),
     submit: async () => record("submit"),
     replayCounterexample: () => record("replayCounterexample"),
+    restoreConflictLocal: () => record("restoreConflictLocal"),
   };
 }

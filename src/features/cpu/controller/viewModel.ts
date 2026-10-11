@@ -59,6 +59,8 @@ export type CpuLabViewModel = Readonly<{
   }>;
   feedback: Readonly<{
     saveStatus: SaveStatus;
+    /** A pre-conflict local draft of this stage is recoverable. */
+    conflictLocalAvailable: boolean;
     recommendCalculator: boolean;
     message: string | null;
     error: string | null;
@@ -155,6 +157,8 @@ export type CpuLabActions = {
   runPublicTests(): void;
   submit(): Promise<void>;
   replayCounterexample(counterexample: CpuCounterexample): void;
+  /** Swap the reconciled (server) draft back for the pre-conflict local copy. */
+  restoreConflictLocal(): void;
 };
 
 export type CpuWorkspaceProps = { model: CpuLabViewModel; actions: CpuLabActions };

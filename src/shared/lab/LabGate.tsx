@@ -14,11 +14,24 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
   conflict: "已载入最新进度",
 };
 
-export function SaveIndicator({ status }: { status: SaveStatus }) {
+export function SaveIndicator({
+  status,
+  onRestoreLocal,
+}: {
+  status: SaveStatus;
+  /** A recoverable local copy exists for the conflicted stage — the control
+   *  swaps the server's copy back for what the learner had typed. */
+  onRestoreLocal?: () => void;
+}) {
   return (
     <span aria-live="polite" className={`save-indicator is-${status}`}>
       {status === "saved" ? <Icon name="check" size={11} /> : null}
       {SAVE_LABEL[status]}
+      {status === "conflict" && onRestoreLocal ? (
+        <button className="save-indicator-restore" onClick={onRestoreLocal} type="button">
+          找回我未保存的修改
+        </button>
+      ) : null}
     </span>
   );
 }

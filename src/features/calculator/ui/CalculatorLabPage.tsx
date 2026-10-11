@@ -173,7 +173,14 @@ export function CalculatorLabPage() {
         className="calculator-lab"
         topbar={
           <div className="calculator-status">
-            <SaveIndicator status={statusForStage(state.saveStatusByStage, state.stageIndex)} />
+            <SaveIndicator
+              status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+              onRestoreLocal={
+                state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                  ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                  : undefined
+              }
+            />
           </div>
         }
         topbarProps={{
