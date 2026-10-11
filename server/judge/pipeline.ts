@@ -13,7 +13,6 @@
  */
 
 import type { DatabaseSync } from "node:sqlite";
-import type { ComponentDef } from "../../src/features/calculator/domain/graph.ts";
 import { newId, parseJsonColumn, withTransaction } from "../db/client.ts";
 
 /** Machine-readable failure returned by any lab judge before grading starts. */
@@ -30,7 +29,8 @@ export type ProjectRow<TDraft = unknown> = {
   labId: string;
   currentStage: number;
   passedStages: number[];
-  unlockedSubmodules: ComponentDef[];
+  /** Lab-defined submodule payload (e.g. calculator component defs). */
+  unlockedSubmodules: unknown[];
   drafts: Record<string, TDraft>;
   /** Server-assigned revision of the latest applied write per stage. Draft
    *  saves are compare-and-swap on this counter: the client sends the
@@ -75,7 +75,7 @@ function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
     labId: row.lab_id,
     currentStage: row.current_stage,
     passedStages: parseJsonColumn<number[]>(row.passed_stages, []),
-    unlockedSubmodules: parseJsonColumn<ComponentDef[]>(row.unlocked_submodules, []),
+    unlockedSubmodules: parseJsonColumn<unknown[]>(row.unlocked_submodules, []),
     drafts: parseJsonColumn<Record<string, TDraft>>(row.draft_graph, {}),
     draftRevisions: toDraftRevisions(
       parseJsonColumn<Record<string, number | { revision?: unknown }>>(row.draft_revisions, {}),

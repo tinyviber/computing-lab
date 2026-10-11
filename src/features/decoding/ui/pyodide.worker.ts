@@ -14,7 +14,7 @@
 /// <reference lib="webworker" />
 
 import type { PyodideInterface } from "pyodide";
-import { getPyodide } from "../../../shared/lab/pyodideRuntime";
+import { installPyodideWorker } from "../../../shared/worker/workerProtocol.ts";
 
 type RunRequest = {
   id: number;
@@ -25,15 +25,6 @@ type RunRequest = {
   useCodeData?: boolean;
   captureStdout?: boolean;
 };
-
-type RunResponse =
-  | { id: number; phase: "executing" }
-  | { id: number; ok: true; result: unknown }
-  | { id: number; ok: false; error: string };
-
-// Start the ~13 MB runtime download as soon as the worker spawns — a student
-// run's timeout should cover their code, not the download.
-getPyodide().catch(() => undefined);
 
 async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promise<unknown> {
   const globals = pyodide.toPy({});
@@ -77,20 +68,6 @@ async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promi
   }
 }
 
-self.onmessage = (event: MessageEvent<RunRequest>) => {
-  const request = event.data;
-  void (async (): Promise<RunResponse> => {
-    const pyodide = await getPyodide();
-    // Ack once the runtime is loaded, before running student code: the
-    // caller switches from the load budget to the run budget, and a
-    // timeout now means the code itself — never the runtime download.
-    self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
-    const result = await runRequest(pyodide, request);
-    return { id: request.id, ok: true, result };
-  })()
-    .then((response) => self.postMessage(response))
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      self.postMessage({ id: request.id, ok: false, error: message } satisfies RunResponse);
-    });
-};
+installPyodideWorker<RunRequest>(async (pyodide, request) => ({
+  result: await runRequest(pyodide, request),
+}));

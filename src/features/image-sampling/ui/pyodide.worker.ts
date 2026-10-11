@@ -17,20 +17,11 @@
 /// <reference lib="webworker" />
 
 import type { PyodideInterface } from "pyodide";
-import { getPyodide } from "../../../shared/lab/pyodideRuntime";
+import { installPyodideWorker } from "../../../shared/worker/workerProtocol.ts";
 
 type RunRequest =
   | { id: number; kind: "cell"; code: string; regions: number[][][] }
   | { id: number; kind: "size"; code: string; images: number[][][]; helpers?: string };
-
-type RunResponse =
-  | { id: number; phase: "executing" }
-  | { id: number; ok: true; results: unknown[] }
-  | { id: number; ok: false; error: string };
-
-// Start the ~13 MB runtime download as soon as the worker spawns — a student
-// run's timeout should cover their code, not the download.
-getPyodide().catch(() => undefined);
 
 async function runCell(
   pyodide: PyodideInterface,
@@ -126,22 +117,9 @@ async function runSize(
   }
 }
 
-self.onmessage = (event: MessageEvent<RunRequest>) => {
-  const request = event.data;
-  void (async (): Promise<RunResponse> => {
-    const pyodide = await getPyodide();
-    // Ack before running student code: the caller switches from the load
-    // budget to the run budget, and a timeout now means the code itself.
-    self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
-    const results =
-      request.kind === "cell"
-        ? await runCell(pyodide, request.code, request.regions)
-        : await runSize(pyodide, request.code, request.images, request.helpers);
-    return { id: request.id, ok: true, results };
-  })()
-    .then((response) => self.postMessage(response))
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      self.postMessage({ id: request.id, ok: false, error: message } satisfies RunResponse);
-    });
-};
+installPyodideWorker<RunRequest>(async (pyodide, request) => ({
+  results:
+    request.kind === "cell"
+      ? await runCell(pyodide, request.code, request.regions)
+      : await runSize(pyodide, request.code, request.images, request.helpers),
+}));

@@ -24,7 +24,7 @@
 /// <reference lib="webworker" />
 
 import type { PyodideInterface } from "pyodide";
-import { getPyodide } from "../../../shared/lab/pyodideRuntime";
+import { installPyodideWorker } from "../../../shared/worker/workerProtocol.ts";
 
 type RunRequest =
   | { id: number; kind: "toner"; code: string; colors: number[][]; toners: number[][] }
@@ -47,15 +47,6 @@ type RunRequest =
       palette: number[][];
       helpers?: string;
     };
-
-type RunResponse =
-  | { id: number; phase: "executing" }
-  | { id: number; ok: true; results: unknown[]; helperFailed?: boolean }
-  | { id: number; ok: false; error: string };
-
-// Start the ~13 MB runtime download as soon as the worker spawns — a student
-// run's timeout should cover their code, not the download.
-getPyodide().catch(() => undefined);
 
 function mustFn(globals: ReturnType<PyodideInterface["toPy"]>, name: string, sig: string) {
   const fn = globals.get(name);
@@ -207,39 +198,25 @@ async function runMapAll(
   }
 }
 
-self.onmessage = (event: MessageEvent<RunRequest>) => {
-  const request = event.data;
-  void (async (): Promise<RunResponse> => {
-    const pyodide = await getPyodide();
-    // Ack before running student code: the caller switches from the load
-    // budget to the run budget, and a timeout now means the code itself.
-    self.postMessage({ id: request.id, phase: "executing" } satisfies RunResponse);
-    const outcome =
-      request.kind === "toner"
-        ? { results: await runToner(pyodide, request.code, request.colors, request.toners) }
-        : request.kind === "pick"
-          ? await runPick(
-              pyodide,
-              request.code,
-              request.toners,
-              request.palette,
-              request.images,
-              request.k,
-              request.helpers,
-            )
-          : await runMapAll(
-              pyodide,
-              request.code,
-              request.colors,
-              request.toners,
-              request.palette,
-              request.helpers,
-            );
-    return { id: request.id, ok: true, ...outcome };
-  })()
-    .then((response) => self.postMessage(response))
-    .catch((error: unknown) => {
-      const message = error instanceof Error ? error.message : String(error);
-      self.postMessage({ id: request.id, ok: false, error: message } satisfies RunResponse);
-    });
-};
+installPyodideWorker<RunRequest>(async (pyodide, request) =>
+  request.kind === "toner"
+    ? { results: await runToner(pyodide, request.code, request.colors, request.toners) }
+    : request.kind === "pick"
+      ? await runPick(
+          pyodide,
+          request.code,
+          request.toners,
+          request.palette,
+          request.images,
+          request.k,
+          request.helpers,
+        )
+      : await runMapAll(
+          pyodide,
+          request.code,
+          request.colors,
+          request.toners,
+          request.palette,
+          request.helpers,
+        ),
+);

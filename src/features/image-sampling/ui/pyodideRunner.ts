@@ -1,118 +1,34 @@
 /**
- * Main-thread handle for the Pyodide worker. Lazily spawned, one request at a
- * time per call site is fine — calls are queued through a simple id map.
- *
- * Timeouts are two-phase: a generous budget while the Python runtime
- * (~13 MB) is still downloading, then `timeoutMs` once the worker acks that
- * student code is executing. An execution timeout terminates the worker
- * (dead Python code can't be interrupted, so the whole runtime is discarded
- * and will cold-load on the next run); a load timeout only rejects that
- * request — the download continues in the background and a retry reuses it.
+ * Main-thread entry points for the image-sampling lab's Pyodide worker.
+ * Worker lifecycle, the two-phase timeout policy and the wire envelope live
+ * in shared/worker — this module only keeps the lab's request kinds and the
+ * payload shape of its ok responses (`{ results }`).
  */
+import {
+  createWorkerClient,
+  WORKER_RUN_TIMEOUT_MS,
+} from "../../../shared/worker/createWorkerClient.ts";
 
-type Pending = {
-  resolve: (results: unknown[]) => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-  /** True once the worker acked it started running student code. */
-  executing: boolean;
-  /** Budget applied to the execution phase after the load phase. */
-  timeoutMs: number;
-};
+export { PythonRunError } from "../../../shared/worker/workerErrors.ts";
 
-const DEFAULT_TIMEOUT_MS = 15_000;
-const LOAD_TIMEOUT_MS = 90_000;
-
-let worker: Worker | null = null;
-let seq = 0;
-const pending = new Map<number, Pending>();
-
-function killWorker(): void {
-  worker?.terminate();
-  worker = null;
-  for (const entry of pending.values()) {
-    clearTimeout(entry.timer);
-    entry.reject(new Error("运行超时——代码里可能有死循环，已重置 Python 环境。"));
-  }
-  pending.clear();
-}
-
-function onTimeout(id: number): void {
-  const entry = pending.get(id);
-  if (!entry) return;
-  if (entry.executing) {
-    killWorker();
-    return;
-  }
-  pending.delete(id);
-  entry.reject(new Error("首次加载 Python 运行环境超时（需下载约 13MB）——请检查网络后再试一次。"));
-}
-
-function ensureWorker(): Worker {
-  if (worker) return worker;
-  worker = new Worker(new URL("./pyodide.worker.ts", import.meta.url), { type: "module" });
-  worker.onmessage = (event: MessageEvent) => {
-    const data = event.data as {
-      id: number;
-      phase?: string;
-      ok?: boolean;
-      results?: unknown[];
-      error?: string;
-    };
-    const entry = pending.get(data.id);
-    if (!entry) return;
-    if (data.phase === "executing") {
-      entry.executing = true;
-      clearTimeout(entry.timer);
-      entry.timer = setTimeout(() => onTimeout(data.id), entry.timeoutMs);
-      return;
-    }
-    pending.delete(data.id);
-    clearTimeout(entry.timer);
-    if (data.ok) entry.resolve(data.results ?? []);
-    else entry.reject(new Error(data.error ?? "运行失败"));
-  };
-  worker.onerror = () => killWorker();
-  return worker;
-}
-
-function run(message: Record<string, unknown>, timeoutMs: number): Promise<unknown[]> {
-  const w = ensureWorker();
-  const id = (seq += 1);
-  return new Promise((resolve, reject) => {
-    pending.set(id, {
-      resolve,
-      reject,
-      timer: setTimeout(() => onTimeout(id), LOAD_TIMEOUT_MS),
-      executing: false,
-      timeoutMs,
-    });
-    w.postMessage({ id, ...message });
-  });
-}
+const client = createWorkerClient(
+  () => new Worker(new URL("./pyodide.worker.ts", import.meta.url), { type: "module" }),
+);
 
 /** Spawn the worker now so the runtime download finishes before the first run. */
-export function warmPyodide(): void {
-  ensureWorker();
-}
-
-export class PythonRunError extends Error {
-  constructor(
-    message: string,
-    readonly pythonTraceback: string | null = null,
-  ) {
-    super(message);
-    this.name = "PythonRunError";
-  }
-}
+export const warmPyodide = client.warm;
 
 /** Run the student's cell_value(region) over test regions; returns raw outputs. */
 export async function runCellValue(
   code: string,
   regions: number[][][],
-  timeoutMs = DEFAULT_TIMEOUT_MS,
+  timeoutMs = WORKER_RUN_TIMEOUT_MS,
 ): Promise<unknown[]> {
-  return run({ kind: "cell", code, regions }, timeoutMs);
+  const payload = await client.run<{ results: unknown[] }>(
+    { kind: "cell", code, regions },
+    timeoutMs,
+  );
+  return payload.results;
 }
 
 /**
@@ -124,7 +40,11 @@ export async function runChooseSize(
   code: string,
   images: number[][][],
   helpers?: string,
-  timeoutMs = DEFAULT_TIMEOUT_MS,
+  timeoutMs = WORKER_RUN_TIMEOUT_MS,
 ): Promise<unknown[]> {
-  return run({ kind: "size", code, images, helpers }, timeoutMs);
+  const payload = await client.run<{ results: unknown[] }>(
+    { kind: "size", code, images, helpers },
+    timeoutMs,
+  );
+  return payload.results;
 }
