@@ -21,7 +21,7 @@ export function GuidedPanel(props: {
   wrongPick: { promptId: string; option: number } | null;
   /** Prompt currently blocking the stepper, if any. */
   blocking: CpuPrompt | null;
-  /** The byte currently dialed in the C4 playground, when the stage has one. */
+  /** The byte currently dialed in the M2 playground, when the stage has one. */
   currentByte?: number;
   /** Persist a first pick before accepting another click. */
   disabled?: boolean;

@@ -34,19 +34,19 @@ describe("cpu lesson state", () => {
     expect(state.saveStatus).toBe("idle");
   });
 
-  it("guided normalization keeps only the editable slots from a draft", () => {
+  it("guided normalization ignores a hostile draft on a fixed-program stage", () => {
     let state = createCpuLessonState(2);
     state = transitionCpuLesson(state, {
       type: "load-project",
       currentStage: 2,
       passedStages: [1],
       drafts: {
-        // A hostile draft: wrong op on the editable row, a mutated locked
-        // row, and an extra row — only the editable slot survives.
+        // M2 has no editable rows — every draft row is dropped and the fixed
+        // prefill program is what reaches the machine.
         2: {
           rows: [
             { op: "HALT", reg: 0, operand: 0 },
-            { op: "STORE", reg: 0, operand: 15 },
+            { op: "STORE", reg: 0, operand: 99 },
             { op: "HALT", reg: 0, operand: 0 },
             { op: "JMP", reg: 0, operand: 9 },
           ],
@@ -55,7 +55,7 @@ describe("cpu lesson state", () => {
       calculatorCoreComplete: true,
     });
     expect(programOf(state)).toEqual([
-      { op: "LOAD", reg: 0, operand: 14 },
+      { op: "LOAD", reg: 0, operand: 11 },
       { op: "STORE", reg: 0, operand: 15 },
       { op: "HALT", reg: 0, operand: 0 },
     ]);
@@ -92,10 +92,10 @@ describe("cpu lesson state", () => {
   });
 
   it("keeps byte-gated prompts shut until the playground byte is dialed", () => {
-    // C4's playground starts on the program's own first byte, not 224.
-    let state = createCpuLessonState(4);
-    expect(state.playgroundByte).toBe(0b00001110);
-    for (const promptId of ["opcode-field", "decode-000", "operand-field"]) {
+    // M2's byte observer starts on the program's first byte LOAD A,M[11] = 11.
+    let state = createCpuLessonState(2);
+    expect(state.playgroundByte).toBe(0b00001011);
+    for (const promptId of ["opcode-field", "decode-load", "operand-field"]) {
       state = transitionCpuLesson(state, { type: "answer-prompt", promptId, option: 0 });
     }
     // byte-224 asks for 11100000 — answers are ignored until then.
@@ -104,14 +104,14 @@ describe("cpu lesson state", () => {
       promptId: "byte-224",
       option: 0,
     });
-    expect(state.guidedAnswers[4]?.["byte-224"]).toBeUndefined();
+    expect(state.guidedAnswers[2]?.["byte-224"]).toBeUndefined();
     state = transitionCpuLesson(state, { type: "set-byte", value: 0b11100000 });
     state = transitionCpuLesson(state, {
       type: "answer-prompt",
       promptId: "byte-224",
       option: 0,
     });
-    expect(state.guidedAnswers[4]["byte-224"]).toBe(0);
+    expect(state.guidedAnswers[2]["byte-224"]).toBe(0);
   });
 
   it("edits rows and marks the draft dirty on free stages", () => {
@@ -217,8 +217,10 @@ describe("cpu lesson state", () => {
       calculatorCoreComplete: true,
     });
     expect(state.stageIndex).toBe(3);
+    state = transitionCpuLesson(state, { type: "select-stage", stageIndex: 5 });
+    expect(state.stageIndex).toBe(3); // stage 5 needs stage 3 passed first
     state = transitionCpuLesson(state, { type: "select-stage", stageIndex: 4 });
-    expect(state.stageIndex).toBe(3); // stage 4 is still locked
+    expect(state.stageIndex).toBe(4); // 支线1 unlocks after core stage 1
     state = transitionCpuLesson(state, { type: "select-stage", stageIndex: 1 });
     expect(state.stageIndex).toBe(1);
   });
@@ -234,15 +236,7 @@ describe("cpu lesson state", () => {
     });
     const cases = publicCasesFor(2, seedFor("u", "cpu", 2));
     state = transitionCpuLesson(state, { type: "run-public-tests", cases });
-    // The blank placeholder row (LOAD A,M[0]) can't satisfy the copy
-    // contract — nothing writes M[15].
-    expect(state.runOutcome?.score).toBe(0);
-    state = transitionCpuLesson(state, {
-      type: "set-row",
-      index: 1,
-      patch: { op: "STORE", operand: 15 },
-    });
-    state = transitionCpuLesson(state, { type: "run-public-tests", cases });
+    // The fixed program already copies M[11] → M[15], so it passes as-is.
     expect(state.runOutcome?.score).toBe(2);
     expect(state.runOutcome?.total).toBe(2);
     expect(state.runOutcome?.results[0].passed).toBe(true);

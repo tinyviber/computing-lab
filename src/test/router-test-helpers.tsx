@@ -1,3 +1,4 @@
+import { StrictMode } from "react";
 import { RouterProvider, createMemoryHistory } from "@tanstack/react-router";
 import { render, waitFor } from "@testing-library/react";
 import { expect } from "vitest";
@@ -23,18 +24,19 @@ export const adminAuthState: AuthState = {
 
 export const anonymousAuthState: AuthState = { status: "anonymous", session: null };
 
-export type RenderAppOptions = { auth?: AuthState };
+export type RenderAppOptions = { auth?: AuthState; strict?: boolean };
 
 export async function renderAppAt(initialEntry: string, options: RenderAppOptions = {}) {
   const auth = options.auth ?? adminAuthState;
 
   const history = createMemoryHistory({ initialEntries: [initialEntry] });
   const router = createAppRouter({ history });
-  const rendered = render(
+  const tree = (
     <AuthProvider initialState={auth}>
       <RouterProvider router={router} />
-    </AuthProvider>,
+    </AuthProvider>
   );
+  const rendered = render(options.strict ? <StrictMode>{tree}</StrictMode> : tree);
 
   await router.load();
   await waitFor(() => expect(router.state.status).toBe("idle"));

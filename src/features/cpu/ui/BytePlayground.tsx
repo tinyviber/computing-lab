@@ -3,12 +3,14 @@ import { decodeInstr, encodeInstr, formatInstr, OPCODES, type InstrRow } from ".
 const toBin = (byte: number) => byte.toString(2).padStart(8, "0");
 
 /**
- * The byte playground (issue #70 C4): flip bits, see the field split and
- * the decoded instruction — a byte IS an instruction encoding. The byte
- * lives in lesson state so guided prompts can require real manipulation
- * (`requiresByte`) instead of admiring a preset. The program's own bytes
- * are offered as presets so the learner can verify "cell 2 really is
- * 224 = HALT" with their own eyes.
+ * The byte observer (issue #100 M2): flip bits, see the field split and
+ * the decoded instruction — a byte IS an instruction encoding. The point
+ * is the two readings, not authoring: the same 8 bits read as a number
+ * AND decode as an instruction, which is the whole stored-program idea.
+ * The byte lives in lesson state so guided prompts can require real
+ * manipulation (`requiresByte`) instead of admiring a preset. The
+ * program's own bytes are offered as presets so the learner can verify
+ * "cell 2 really is 224 = HALT" with their own eyes.
  */
 export function BytePlayground(props: {
   byte: number;
@@ -27,11 +29,11 @@ export function BytePlayground(props: {
   const built = (row: InstrRow) => encodeInstr(row);
 
   return (
-    <section aria-label="字节游乐场" className="cpu-byteplay">
+    <section aria-label="字节观察器" className="cpu-byteplay">
       <div className="cpu-panel-heading">
-        <h3>字节游乐场</h3>
+        <h3>字节观察器</h3>
         <p className="cpu-panel-note">
-          一个存储格 = 8 位 = 一条指令。点下面的位翻转，看译码器怎么读它。
+          一个存储格 = 8 位。拨下面的位，看同一个 byte 当“数”读是几、当“指令”读是什么。
         </p>
       </div>
       <div className="cpu-byteplay-row">

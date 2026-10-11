@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 9;
+export const SCHEMA_VERSION = 10;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -216,6 +216,21 @@ export function migrate(db: DatabaseSync): void {
         recorded_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
         PRIMARY KEY (project_id, stage_index, prompt_id)
       )`);
+    }
+    // v9 -> v10: the cpu lab was re-cut into the 点餐机 three-stage mainline
+    // (issue #100) — old stage indices map to different stages now, so
+    // project progress, drafts, first-pick rows and submissions all reset.
+    // The lab is default-hidden; submissions are cheap practice records.
+    if (version < 10) {
+      db.exec(
+        "UPDATE student_projects SET passed_stages='[]', current_stage=1, draft_graph='{}' " +
+          "WHERE lab_id='cpu'",
+      );
+      db.exec("DELETE FROM submissions WHERE lab_id='cpu'");
+      db.exec(
+        "DELETE FROM cpu_guided_first_answers WHERE project_id IN " +
+          "(SELECT id FROM student_projects WHERE lab_id='cpu')",
+      );
     }
     // Never stamp a newer database down to an older version.
     if (version < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);

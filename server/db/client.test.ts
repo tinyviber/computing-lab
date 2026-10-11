@@ -41,27 +41,87 @@ const tableExists = (db: DatabaseSync, name: string) =>
   undefined;
 
 describe("migrate", () => {
-  it.each([1, 2, 3, 4, 5, 6, 7, 8])("upgrades a v%i database to the current schema", (version) => {
-    const db = fixtureDb(version);
+  it.each([1, 2, 3, 4, 5, 6, 7, 8, 9])(
+    "upgrades a v%i database to the current schema",
+    (version) => {
+      const db = fixtureDb(version);
+      migrate(db);
+
+      expect(versionOf(db)).toBe(SCHEMA_VERSION);
+      for (const table of [
+        "task_sheets",
+        "task_assignments",
+        "task_responses",
+        "cpu_guided_first_answers",
+      ]) {
+        expect(tableExists(db, table), table).toBe(true);
+      }
+      // v2/v3 columns exist after the chain ran.
+      expect(db.prepare("SELECT passed_stages FROM student_projects LIMIT 0")).toBeDefined();
+      expect(db.prepare("SELECT role FROM users LIMIT 0")).toBeDefined();
+      expect(
+        db
+          .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?")
+          .get("idx_submissions_user_stage"),
+      ).toBeDefined();
+      db.close();
+    },
+  );
+
+  it("resets cpu progress and submissions when a v9 db upgrades (issue #100)", () => {
+    // The issue-#100 re-cut reindexes every cpu stage, so old indices map to
+    // different stages — progress, drafts and submissions must not carry.
+    const db = fixtureDb(9);
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES ('c1', 'class', 'inv')").run();
+    db.prepare(
+      "INSERT INTO users (id, student_no, name, password_hash, role) VALUES ('u1', 'no1', 'n', 'h', 'user')",
+    ).run();
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id, current_stage, passed_stages, draft_graph) " +
+        "VALUES ('p1', 'u1', 'c1', 'cpu', 5, '[1,2,3,4]', '{\"1\":{}}')",
+    ).run();
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id, current_stage, passed_stages) " +
+        "VALUES ('p2', 'u1', 'c1', 'calculator', 7, '[1,2,3,4,5,6]')",
+    ).run();
+    db.prepare(
+      "INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary) " +
+        "VALUES ('s1', 'p1', 'u1', 'cpu', 2, '{}', 2, 2, 1, '{}')",
+    ).run();
+    db.prepare(
+      "INSERT INTO cpu_guided_first_answers (project_id, stage_index, prompt_id, option_index) " +
+        "VALUES ('p1', 2, 'first-fetch', 0)",
+    ).run();
+
     migrate(db);
 
     expect(versionOf(db)).toBe(SCHEMA_VERSION);
-    for (const table of [
-      "task_sheets",
-      "task_assignments",
-      "task_responses",
-      "cpu_guided_first_answers",
-    ]) {
-      expect(tableExists(db, table), table).toBe(true);
-    }
-    // v2/v3 columns exist after the chain ran.
-    expect(db.prepare("SELECT passed_stages FROM student_projects LIMIT 0")).toBeDefined();
-    expect(db.prepare("SELECT role FROM users LIMIT 0")).toBeDefined();
+    const cpu = db
+      .prepare(
+        "SELECT passed_stages, current_stage, draft_graph FROM student_projects WHERE id='p1'",
+      )
+      .get() as { passed_stages: string; current_stage: number; draft_graph: string };
+    expect(cpu.passed_stages).toBe("[]");
+    expect(cpu.current_stage).toBe(1);
+    expect(cpu.draft_graph).toBe("{}");
+    // Other labs' progress is untouched.
     expect(
-      db
-        .prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name = ?")
-        .get("idx_submissions_user_stage"),
-    ).toBeDefined();
+      (
+        db.prepare("SELECT passed_stages FROM student_projects WHERE id='p2'").get() as {
+          passed_stages: string;
+        }
+      ).passed_stages,
+    ).toBe("[1,2,3,4,5,6]");
+    expect(
+      (
+        db.prepare("SELECT COUNT(*) AS n FROM submissions WHERE lab_id='cpu'").get() as {
+          n: number;
+        }
+      ).n,
+    ).toBe(0);
+    expect(
+      (db.prepare("SELECT COUNT(*) AS n FROM cpu_guided_first_answers").get() as { n: number }).n,
+    ).toBe(0);
     db.close();
   });
 

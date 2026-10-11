@@ -74,6 +74,12 @@ export type CpuLessonState = {
   judgeOutcome: CpuJudgeResult | null;
   saveStatus: SaveStatus;
   message: string | null;
+  /**
+   * Bumped on every draft edit — the machine view keys playback by it, so
+   * ANY program change starts a fresh walk (even an edit that lands back on
+   * identical text; a content-keyed cache would resurrect the old run).
+   */
+  editRevision: number;
 };
 
 export type CpuLessonAction =
@@ -170,13 +176,13 @@ export function nextPrompt(state: CpuLessonState) {
 }
 
 /**
- * C4's playground starts on the program's own first byte (LOAD A,M[14] =
- * 00001110) so the byte-224 prompts force a real dial, not a glance at the
- * HALT byte already sitting there.
+ * M2's byte observer starts on the program's own first byte (LOAD A,M[11] =
+ * 0b00001011 = 11) so the learner sees a byte that also decodes, not 0.
+ * `requiresByte` prompts still force a real dial from there.
  */
 export function initialPlaygroundByte(stage: CpuStageDef | undefined): number {
-  const first = stage?.guided?.bytePlayground ? stage.prefillRows?.[0] : undefined;
-  return first ? encodeInstr(first) : 0;
+  const row = stage?.guided?.bytePlayground ? stage.prefillRows?.[0] : undefined;
+  return row ? encodeInstr(row) : 0;
 }
 
 export function createCpuLessonState(stageIndex = 1): CpuLessonState {
@@ -193,6 +199,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     judgeOutcome: null,
     saveStatus: "idle",
     message: null,
+    editRevision: 0,
   };
 }
 
@@ -204,6 +211,7 @@ function withDraft(state: CpuLessonState, draft: CpuDraft): CpuLessonState {
     // A new program invalidates previous verdicts.
     runOutcome: null,
     judgeOutcome: null,
+    editRevision: state.editRevision + 1,
   };
 }
 
