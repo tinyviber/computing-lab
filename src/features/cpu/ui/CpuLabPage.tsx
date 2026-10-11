@@ -198,17 +198,18 @@ export function CpuLabPage() {
   }, [stage, userId]);
   const machineCase =
     replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
-  // The playback identity — (stage, case, replay revision, program). Any
-  // change discards the previous run's view on the SAME render because
+  // The playback identity — (stage, case, replay revision, edit revision).
+  // Any change discards the previous run's view on the SAME render because
   // `view` is keyed by it: the new run's entry is absent, so
   // cursor/visited/phase fall back to 0. A stale end-cursor can never leak
   // into the next run's transitional render — that was the case-switch
   // race (fresh case wrongly marked observed + its trace flashed), the
-  // program-edit stale run (P2), and the cross-stage collision between
-  // free-authoring stages whose empty programs produced identical keys.
+  // program-edit stale run (P2), the cross-stage collision between
+  // free-authoring stages whose empty programs produced identical keys,
+  // and the A→B→A edit that used to resurrect the cached run (P3).
   const playbackId = `${stage?.index ?? 0}-${caseIndex}-${
     replayCase === null ? "p" : `r${replayRevision}`
-  }-${rows.map((r) => `${r.op}${r.reg}${r.operand}`).join(",")}`;
+  }-e${state.editRevision}`;
   const run = useMemo(
     () =>
       stage && machineCase
@@ -287,11 +288,14 @@ export function CpuLabPage() {
   }, [state.stageIndex]);
 
   // While a data-pinned prompt is unanswered the picker follows it — and
-  // switching cases restarts playback, which the effect above handles.
+  // switching cases restarts playback, which the effect above handles. The
+  // clock goes back to idle too so a paused walk doesn't mislabel the
+  // fresh run's button as 「继续」 (issue #100 review).
   useEffect(() => {
     if (pinnedCaseIndex === null) return;
     setReplayCase(null);
     setCaseIndex(pinnedCaseIndex);
+    setClock("idle");
   }, [pinnedCaseIndex]);
 
   // The hidden judge counterexample can be replayed through the same
@@ -576,6 +580,9 @@ export function CpuLabPage() {
                         if (event.target.value === "replay") return;
                         setReplayCase(null);
                         setCaseIndex(Number(event.target.value));
+                        // A fresh walk starts idle — a paused clock would
+                        // mislabel the button as 「继续」 (issue #100 review).
+                        setClock("idle");
                       }}
                       value={
                         replayCase

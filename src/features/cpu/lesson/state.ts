@@ -74,6 +74,12 @@ export type CpuLessonState = {
   judgeOutcome: CpuJudgeResult | null;
   saveStatus: SaveStatus;
   message: string | null;
+  /**
+   * Bumped on every draft edit — the machine view keys playback by it, so
+   * ANY program change starts a fresh walk (even an edit that lands back on
+   * identical text; a content-keyed cache would resurrect the old run).
+   */
+  editRevision: number;
 };
 
 export type CpuLessonAction =
@@ -193,6 +199,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     judgeOutcome: null,
     saveStatus: "idle",
     message: null,
+    editRevision: 0,
   };
 }
 
@@ -204,6 +211,7 @@ function withDraft(state: CpuLessonState, draft: CpuDraft): CpuLessonState {
     // A new program invalidates previous verdicts.
     runOutcome: null,
     judgeOutcome: null,
+    editRevision: state.editRevision + 1,
   };
 }
 

@@ -183,8 +183,48 @@ describe("CpuLabPage", () => {
       const trace = screen.getByRole("heading", { name: "执行轨迹" }).closest("section")!;
       // Only the header row — no cycle rows committed for B yet.
       expect(within(trace).getAllByRole("row")).toHaveLength(1);
+      // The clock went back to idle on the switch — a leftover "paused"
+      // would mislabel this button as 「继续」 for a run that never walked.
+      expect(screen.getByRole("button", { name: "连跑" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "继续" })).not.toBeInTheDocument();
     },
   );
+
+  it("restarts the walk on ANY program edit — even back to the same text (issue #100 review)", async () => {
+    // Program-keyed playback used to resurrect the old run on A→B→A: the
+    // same content hash produced the same view slot. Draft edits now bump
+    // an editRevision instead, so every edit starts a fresh walk.
+    stubApi({
+      currentStage: 7,
+      passedStages: [1, 2, 3, 4, 5, 6],
+      drafts: {
+        "7": {
+          rows: [
+            { op: "LOAD", reg: 0, operand: 13 },
+            { op: "HALT", reg: 0, operand: 0 },
+          ],
+        },
+      },
+    });
+    await renderAppAt("/classes/c1/labs/cpu", { auth: teacherAuthState });
+    await screen.findByRole("heading", { name: /真正写一个 if/ });
+
+    const step = () => screen.getByRole("button", { name: /下一拍|提交这一周期/ });
+    fireEvent.click(step());
+    fireEvent.click(step());
+    fireEvent.click(step());
+    expect(cycleCount()).toBe("周期 1");
+
+    // A→B: an edit is a new playback identity — the walk restarts.
+    const opSelect = screen.getByRole("combobox", { name: "第 0 行指令" });
+    fireEvent.change(opSelect, { target: { value: "STORE" } });
+    expect(cycleCount()).toBe("周期 0");
+
+    // B→A: identical program text — a content-keyed cache would bring the
+    // old 周期 1 back here. With editRevision it stays at zero.
+    fireEvent.change(opSelect, { target: { value: "LOAD" } });
+    expect(cycleCount()).toBe("周期 0");
+  });
 
   it("shows stage takeaway when the stage is passed", async () => {
     vi.stubGlobal(
@@ -245,36 +285,40 @@ describe("CpuLabPage", () => {
       await renderAppAt("/classes/c1/labs/cpu", { auth: teacherAuthState, strict: true });
       await screen.findByRole("heading", { name: /上一章藏在这里/ });
       vi.useFakeTimers();
+      try {
+        fireEvent.click(screen.getByRole("button", { name: "连跑" }));
+        await act(async () => {
+          vi.advanceTimersByTime(350 * 3); // fetch → decode → exec|commit
+        });
+        // Exactly ONE cycle committed — a double-fired updater would land on 2.
+        expect(cycleCount()).toBe("周期 1");
 
-      fireEvent.click(screen.getByRole("button", { name: "连跑" }));
-      await act(async () => {
-        vi.advanceTimersByTime(350 * 3); // fetch → decode → exec|commit
-      });
-      // Exactly ONE cycle committed — a double-fired updater would land on 2.
-      expect(cycleCount()).toBe("周期 1");
+        // The at:1 prompts pause the clock; answer every prompt (carry-out
+        // pins 演示数据 to the second case mid-way through).
+        expect(screen.getByRole("button", { name: "继续" })).toBeInTheDocument();
+        for (let i = 0; i < 5; i += 1) {
+          expect(await answerAskingPrompt()).toBe(true);
+        }
 
-      // The at:1 prompts pause the clock; answer every prompt (carry-out
-      // pins 演示数据 to the second case mid-way through).
-      expect(screen.getByRole("button", { name: "继续" })).toBeInTheDocument();
-      for (let i = 0; i < 5; i += 1) {
-        expect(await answerAskingPrompt()).toBe(true);
+        // Case B's walk starts at zero — and still commits exactly once per
+        // cycle, all the way to HALT. The pin reset the clock to idle, so the
+        // button correctly reads 「连跑」, not 「继续」.
+        fireEvent.click(screen.getByRole("button", { name: "连跑" }));
+        await act(async () => {
+          vi.advanceTimersByTime(350 * 3);
+        });
+        expect(cycleCount()).toBe("周期 1");
+        await act(async () => {
+          vi.advanceTimersByTime(350 * 9); // cycles 2–4, no prompts left to block
+        });
+        expect(cycleCount()).toBe("周期 4 / 4");
+        expect(screen.getByText(/结束：/)).toBeInTheDocument();
+        // Observation is recorded from committed state — case B counts.
+        expect(screen.getByText(/已看 1 \/ 2 份/)).toBeInTheDocument();
+      } finally {
+        // Never leak fake timers into the rest of the suite.
+        vi.useRealTimers();
       }
-
-      // Case B's walk starts at zero — and still commits exactly once per
-      // cycle, all the way to HALT.
-      fireEvent.click(screen.getByRole("button", { name: "继续" }));
-      await act(async () => {
-        vi.advanceTimersByTime(350 * 3);
-      });
-      expect(cycleCount()).toBe("周期 1");
-      await act(async () => {
-        vi.advanceTimersByTime(350 * 9); // cycles 2–4, no prompts left to block
-      });
-      expect(cycleCount()).toBe("周期 4 / 4");
-      expect(screen.getByText(/结束：/)).toBeInTheDocument();
-      // Observation is recorded from committed state — case B counts.
-      expect(screen.getByText(/已看 1 \/ 2 份/)).toBeInTheDocument();
-      vi.useRealTimers();
     },
   );
 
