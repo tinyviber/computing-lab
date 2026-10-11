@@ -20,7 +20,7 @@ import type {
   CpuJudgeResult,
   CpuProjectPayload,
 } from "../domain/protocol.ts";
-import { seedFor } from "../domain/rng.ts";
+import { seedFor, shuffledIndices } from "../domain/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
   answeredPromptIds,
@@ -150,6 +150,18 @@ export function CpuLabPage() {
     () => (stage ? publicCasesFor(stage.index, seedFor(userId, "cpu", stage.index)) : []),
     [stage, userId],
   );
+  const promptOptionOrders = useMemo(() => {
+    if (!stage?.guided) return {};
+    return Object.fromEntries(
+      stage.guided.prompts.map((prompt) => [
+        prompt.id,
+        shuffledIndices(
+          prompt.options.length,
+          seedFor(userId, `cpu-prompt-${prompt.id}`, stage.index),
+        ),
+      ]),
+    );
+  }, [stage, userId]);
   const machineCase =
     replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
   const run = useMemo(
@@ -284,6 +296,9 @@ export function CpuLabPage() {
         stageIndex: stage.index,
         draft,
         guidedAnswers: stage.guided ? (state.guidedAnswers[stage.index] ?? {}) : undefined,
+        guidedFirstAnswers: stage.guided
+          ? (state.guidedFirstAnswers[stage.index] ?? {})
+          : undefined,
       });
       dispatch({ type: "judge-result", outcome });
     } catch (error) {
@@ -291,7 +306,7 @@ export function CpuLabPage() {
     } finally {
       setSubmitting(false);
     }
-  }, [classId, stage, draft, state.guidedAnswers]);
+  }, [classId, stage, draft, state.guidedAnswers, state.guidedFirstAnswers]);
 
   const lastOp = display?.lastRow?.decoded.op ?? null;
   const pendingIsMemRead =
@@ -380,6 +395,7 @@ export function CpuLabPage() {
                 onAnswer={(promptId, option) =>
                   dispatch({ type: "answer-prompt", promptId, option })
                 }
+                optionOrders={promptOptionOrders}
                 stage={stage}
                 wrongPick={state.wrongPick}
               />

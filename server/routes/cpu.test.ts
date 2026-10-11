@@ -48,6 +48,14 @@ const SOLVED_C1 = [
   { op: "HALT", reg: 0, operand: 0 },
 ];
 
+const SOLVED_C6 = [
+  { op: "STORE", reg: 1, operand: 14 },
+  { op: "JZ", reg: 1, operand: 4 },
+  { op: "SUB", reg: 1, operand: 15 },
+  { op: "JMP", reg: 0, operand: 0 },
+  { op: "HALT", reg: 0, operand: 0 },
+];
+
 /** Every prompt of the stage answered with its correct option index. */
 function guidedAnswersFor(stageIndex: number): Record<string, number> {
   const stage = getCpuStage(stageIndex)!;
@@ -129,10 +137,15 @@ describe("cpu routes", () => {
 
   it("judges the stage-1 reference solution end-to-end", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
+    const firstPrompt = getCpuStage(1)!.guided!.prompts[0];
+    const firstWrongIndex = firstPrompt.options.findIndex((option) => option.correct !== true);
+    const firstAnswers = guidedAnswersFor(1);
+    firstAnswers[firstPrompt.id] = firstWrongIndex;
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
       guidedAnswers: guidedAnswersFor(1),
+      guidedFirstAnswers: firstAnswers,
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -140,8 +153,43 @@ describe("cpu routes", () => {
       score: number;
       total: number;
       currentStage: number;
+      testSummary: {
+        predictions: { promptId: string; selected: string; correct: boolean }[];
+      };
     };
     expect(outcome).toMatchObject({ passed: true, score: outcome.total, currentStage: 2 });
+    expect(outcome.testSummary.predictions).toContainEqual(
+      expect.objectContaining({
+        promptId: firstPrompt.id,
+        selected: firstPrompt.options[firstWrongIndex].label,
+        correct: false,
+      }),
+    );
+  });
+
+  it("lets the C6 countdown finish for every hidden starting value", async () => {
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1, 2, 3, 4, 5]), studentId, classId);
+
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 6,
+      draft: { rows: SOLVED_C6 },
+      guidedAnswers: guidedAnswersFor(6),
+    });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as {
+      passed: boolean;
+      score: number;
+      total: number;
+      testSummary: { results: { passed: boolean }[] };
+    };
+    expect(outcome.passed).toBe(true);
+    expect(outcome.score).toBe(outcome.total);
+    expect(outcome.testSummary.results.every((result) => result.passed)).toBe(true);
   });
 
   it("rejects a guided stage until the prompt sequence is complete", async () => {

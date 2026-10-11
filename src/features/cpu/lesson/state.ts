@@ -66,6 +66,8 @@ export type CpuLessonState = {
    * the stage's prompts rather than trusting a bare "done" flag.
    */
   guidedAnswers: Record<number, Record<string, number>>;
+  /** First option picked for each prompt, retained even after a correction. */
+  guidedFirstAnswers: Record<number, Record<string, number>>;
   /** C4 byte playground: the byte currently dialed in (reset per stage). */
   playgroundByte: number;
   /** Last wrong option pick, for red-marking the button (per stage). */
@@ -187,6 +189,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     drafts: {},
     calculatorCoreComplete: null,
     guidedAnswers: {},
+    guidedFirstAnswers: {},
     playgroundByte: initialPlaygroundByte(getCpuStage(stageIndex)),
     wrongPick: null,
     runOutcome: null,
@@ -358,13 +361,26 @@ export function transitionCpuLesson(
       if (prompt.requiresByte !== undefined && state.playgroundByte !== prompt.requiresByte) {
         return state;
       }
-      if (!option.correct) {
-        return { ...state, wrongPick: { promptId: action.promptId, option: action.option } };
-      }
       const answered = state.guidedAnswers[state.stageIndex] ?? {};
       if (action.promptId in answered) return state;
+      const firstAnswers = state.guidedFirstAnswers[state.stageIndex] ?? {};
+      const guidedFirstAnswers =
+        action.promptId in firstAnswers
+          ? state.guidedFirstAnswers
+          : {
+              ...state.guidedFirstAnswers,
+              [state.stageIndex]: { ...firstAnswers, [action.promptId]: action.option },
+            };
+      if (!option.correct) {
+        return {
+          ...state,
+          guidedFirstAnswers,
+          wrongPick: { promptId: action.promptId, option: action.option },
+        };
+      }
       return {
         ...state,
+        guidedFirstAnswers,
         guidedAnswers: {
           ...state.guidedAnswers,
           [state.stageIndex]: { ...answered, [action.promptId]: action.option },

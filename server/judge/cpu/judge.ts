@@ -54,12 +54,36 @@ function guidedAnswersComplete(
   );
 }
 
+/** First picks are informational only; retain known answers for teacher review. */
+function guidedPredictions(
+  stage: CpuStageDef,
+  answers: Record<string, number> | undefined,
+): NonNullable<CpuTestSummary["predictions"]> {
+  return (stage.guided?.prompts ?? []).flatMap((prompt) => {
+    const index = answers?.[prompt.id];
+    if (typeof index !== "number" || !Number.isInteger(index)) return [];
+    const option = prompt.options[index];
+    if (!option) return [];
+    return [
+      {
+        promptId: prompt.id,
+        prompt: prompt.prompt,
+        selected: option.label,
+        correct: option.correct === true,
+      },
+    ];
+  });
+}
+
 export function judgeCpuSubmission(
   db: DatabaseSync,
   project: ProjectRow<CpuDraft>,
   stageIndex: number,
   rawDraft: unknown,
-  options?: { guidedAnswers?: Record<string, number> },
+  options?: {
+    guidedAnswers?: Record<string, number>;
+    guidedFirstAnswers?: Record<string, number>;
+  },
 ): CpuJudgeResult | LabJudgeError {
   const gated = gateStage(getCpuStage(stageIndex), (stage) =>
     cpuStageUnlocked(project.passedStages, stage.index),
@@ -126,6 +150,7 @@ export function judgeCpuSubmission(
 
   const testSummary: CpuTestSummary = {
     categories,
+    predictions: guidedPredictions(stage, options?.guidedFirstAnswers),
     results: verdicts.map((v) => ({ name: v.name, category: v.category, passed: v.passed })),
     counterexample,
     branchOneWayOnly,

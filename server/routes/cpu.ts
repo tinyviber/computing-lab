@@ -47,7 +47,17 @@ export function cpuRoutes() {
           if (typeof value === "number") guidedAnswers[key] = value;
         }
       }
-      return judgeCpuSubmission(db, project, stageIndex, body.draft, { guidedAnswers });
+      const guidedFirstAnswers: Record<string, number> = {};
+      const rawFirstAnswers = body.guidedFirstAnswers;
+      if (rawFirstAnswers && typeof rawFirstAnswers === "object") {
+        for (const [key, value] of Object.entries(rawFirstAnswers as Record<string, unknown>)) {
+          if (typeof value === "number") guidedFirstAnswers[key] = value;
+        }
+      }
+      return judgeCpuSubmission(db, project, stageIndex, body.draft, {
+        guidedAnswers,
+        guidedFirstAnswers,
+      });
     },
   });
 }

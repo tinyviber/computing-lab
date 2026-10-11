@@ -3,8 +3,10 @@
 ## 运行时边界
 
 仓库是一个 Vite 包和一个 Node API 进程。前端入口是 `src/main.tsx`，应用路由集中在
-`src/app/router.tsx`；课程 feature 有 `calculator`、`cpu`、`image-sampling`、
-`color-quantization`、`is-sim`、`decoding` 六个，另有跨课程的 `task-sheets`（任务单）功能。
+`src/app/router.tsx`；六个有阶段和判题的课程 feature 是 `calculator`、`cpu`、
+`image-sampling`、`color-quantization`、`is-sim`、`decoding`。`audio-encoding` 是无
+阶段、无判题 API 的浏览器演示；它仍在实验注册表中，默认隐藏并沿用管理员与班级可见性设置。
+另有跨课程的 `task-sheets`（任务单）功能。
 
 ```text
 src/app
@@ -18,6 +20,9 @@ src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is
 
 src/features/task-sheets
   └─ 任务单模板、班级布置、学生作答与批改界面
+
+src/features/audio-encoding
+  └─ 本地音频采样 / 量化演示；可见性由 `server/labs.ts` 控制，页面入口也检查目录权限
 
 src/shared/lab
   └─ 各实验页共用的薄封装：useLabProject（加载）、

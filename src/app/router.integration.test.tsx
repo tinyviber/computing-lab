@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   adminAuthState,
   anonymousAuthState,
@@ -8,6 +8,8 @@ import {
 } from "../test/router-test-helpers";
 
 describe("application router integration", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   it("shows the signed-in name only inside the account dropdown trigger", async () => {
     await renderAppAt("/", { auth: teacherAuthState });
 
@@ -30,6 +32,29 @@ describe("application router integration", () => {
   });
 
   it("renders every homepage lab from the same card pattern and action label", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      const path = String(input);
+      const payload = path.includes("/api/labs")
+        ? {
+            labs: [
+              {
+                id: "audio-encoding",
+                stageCount: 0,
+                hidden: false,
+                openClassIds: null,
+                visible: true,
+                visibleClassIds: ["c1"],
+              },
+            ],
+          }
+        : path.includes("/task-assignments")
+          ? { assignments: [] }
+          : { currentStage: 1 };
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
     await renderAppAt("/", { auth: teacherAuthState });
 
     const cards = screen.getAllByRole("article");

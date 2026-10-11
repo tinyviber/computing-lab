@@ -1002,7 +1002,14 @@ describe("lab visibility", () => {
     const before = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
       labs: { id: string; hidden: boolean; openClassIds: string[] | null; visible: boolean }[];
     };
-    expect(before.labs.every((lab) => lab.hidden === false)).toBe(true);
+    expect(
+      before.labs.filter((lab) => lab.id !== "audio-encoding").every((lab) => lab.hidden === false),
+    ).toBe(true);
+    expect(before.labs.find((lab) => lab.id === "audio-encoding")).toMatchObject({
+      hidden: true,
+      openClassIds: null,
+      visible: true,
+    });
     expect(before.labs.every((lab) => lab.openClassIds === null)).toBe(true);
     expect(before.labs.every((lab) => lab.visible === true)).toBe(true);
 
@@ -1019,8 +1026,58 @@ describe("lab visibility", () => {
     };
     expect(after.labs.find((lab) => lab.id === "cpu")?.hidden).toBe(true);
     expect(after.labs.find((lab) => lab.id === "calculator")?.hidden).toBe(false);
+    expect(after.labs.find((lab) => lab.id === "audio-encoding")?.hidden).toBe(true);
     // Admins keep `visible` even on hidden labs so they can preview them.
     expect(after.labs.find((lab) => lab.id === "cpu")?.visible).toBe(true);
+  });
+
+  it("keeps the audio demo closed by default and allows a class-scoped opening", async () => {
+    const { app, db } = await setup();
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES (?, ?, ?)").run(
+      "c2",
+      "二班",
+      "CLASS27",
+    );
+    const student2Id = newId();
+    db.prepare(
+      "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
+    ).run(student2Id, "20260102", "李四", await hashPassword("student-pass"), "user");
+    db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
+      newId(),
+      "c1",
+      memberOf(db, "20260101"),
+      "student",
+    );
+    db.prepare("INSERT INTO class_members (id, class_id, user_id, role) VALUES (?, ?, ?, ?)").run(
+      newId(),
+      "c2",
+      student2Id,
+      "student",
+    );
+    const admin = await login(app, "admin", "admin-pass");
+    const student1 = await login(app, "20260101", "student-pass");
+    const student2 = await login(app, "20260102", "student-pass");
+    const audioVisible = async (cookie: string) => {
+      const response = await request(app, "GET", "/api/labs", undefined, cookie);
+      const payload = (await response.json()) as {
+        labs: { id: string; visible: boolean }[];
+      };
+      return payload.labs.find((lab) => lab.id === "audio-encoding")?.visible;
+    };
+
+    expect(await audioVisible(student1)).toBe(false);
+    expect(await audioVisible(student2)).toBe(false);
+
+    const opened = await request(
+      app,
+      "PUT",
+      "/api/admin/labs/audio-encoding/visibility",
+      { hidden: false, openClassIds: ["c1"] },
+      admin,
+    );
+    expect(opened.status).toBe(200);
+    expect(await audioVisible(student1)).toBe(true);
+    expect(await audioVisible(student2)).toBe(false);
   });
 
   it("blocks students and teachers from a hidden lab until reopened", async () => {

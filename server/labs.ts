@@ -17,6 +17,8 @@ import { parseJsonColumn } from "./db/client.ts";
 export type LabInfo = {
   id: string;
   stageCount: number;
+  /** Labs awaiting review stay closed until an administrator opens them. */
+  defaultHidden?: boolean;
 };
 
 /**
@@ -29,8 +31,6 @@ export type LabVisibility = {
   openClassIds: string[] | null;
 };
 
-const OPEN_TO_ALL: LabVisibility = { hidden: false, openClassIds: null };
-
 export const LAB_REGISTRY: LabInfo[] = [
   { id: "calculator", stageCount: CALCULATOR_STAGES.length },
   { id: "image-sampling", stageCount: IMAGE_SAMPLING_STAGES.length },
@@ -38,13 +38,14 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "cpu", stageCount: CPU_STAGES.length },
   { id: "decoding", stageCount: DECODING_STAGES.length },
   { id: "is-sim", stageCount: IS_SIM_STAGES.length },
+  { id: "audio-encoding", stageCount: 0, defaultHidden: true },
 ];
 
 export function labInfo(id: string | undefined): LabInfo | undefined {
   return LAB_REGISTRY.find((l) => l.id === id);
 }
 
-/** lab_settings rows keyed by lab id; a missing row means open to all. */
+/** lab_settings rows keyed by lab id. */
 function visibilityRows(db: DatabaseSync): Map<string, LabVisibility> {
   const rows = db
     .prepare("SELECT lab_id AS id, hidden, open_class_ids AS openClassIds FROM lab_settings")
@@ -59,8 +60,15 @@ function visibilityRows(db: DatabaseSync): Map<string, LabVisibility> {
   return map;
 }
 
+function defaultVisibility(labId: string): LabVisibility {
+  return {
+    hidden: LAB_REGISTRY.find((lab) => lab.id === labId)?.defaultHidden ?? false,
+    openClassIds: null,
+  };
+}
+
 export function labVisibility(db: DatabaseSync, labId: string): LabVisibility {
-  return visibilityRows(db).get(labId) ?? OPEN_TO_ALL;
+  return visibilityRows(db).get(labId) ?? defaultVisibility(labId);
 }
 
 /**
@@ -206,7 +214,7 @@ export function labCatalog(
   const switches = labClassSwitches(db);
   const mine = memberClassIds(db, user.id);
   return LAB_REGISTRY.map((lab) => {
-    const v = rows.get(lab.id) ?? OPEN_TO_ALL;
+    const v = rows.get(lab.id) ?? defaultVisibility(lab.id);
     let visible: boolean;
     let visibleClassIds: string[];
     if (user.role === "admin") {
@@ -227,7 +235,7 @@ export function labCatalog(
           ? true
           : visibleClassIds.length > 0 || (v.openClassIds === null && mine.size === 0);
     }
-    return { ...lab, ...v, visible, visibleClassIds };
+    return { id: lab.id, stageCount: lab.stageCount, ...v, visible, visibleClassIds };
   });
 }
 
@@ -255,12 +263,12 @@ export function teacherLabView(
   const rows = visibilityRows(db);
   const switches = labClassSwitches(db);
   return LAB_REGISTRY.map((lab) => {
-    const v = rows.get(lab.id) ?? OPEN_TO_ALL;
+    const v = rows.get(lab.id) ?? defaultVisibility(lab.id);
     const classes = classIds.map((classId) => {
       const adminAllowed = v.openClassIds === null || v.openClassIds.includes(classId);
       const teacherOpen = switches.get(lab.id)?.get(classId) ?? adminAllowed;
       return { classId, adminAllowed, teacherOpen, open: teacherOpen };
     });
-    return { ...lab, ...v, classes };
+    return { id: lab.id, stageCount: lab.stageCount, ...v, classes };
   }).filter((row) => !row.hidden);
 }

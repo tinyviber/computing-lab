@@ -71,6 +71,7 @@ describe("cpu lesson state", () => {
       option: 1,
     });
     expect(state.wrongPick).toEqual({ promptId: "first-fetch", option: 1 });
+    expect(state.guidedFirstAnswers[1]?.["first-fetch"]).toBe(1);
     expect(guidedComplete(state)).toBe(false);
     // Correct picks accumulate until every prompt is answered.
     const prompts = ["first-fetch", "first-action", "pc-advance", "store-target", "halt-end"];
@@ -78,6 +79,7 @@ describe("cpu lesson state", () => {
       state = transitionCpuLesson(state, { type: "answer-prompt", promptId, option: 0 });
     }
     expect(state.wrongPick).toBeNull();
+    expect(state.guidedFirstAnswers[1]?.["first-fetch"]).toBe(1);
     expect(guidedComplete(state)).toBe(true);
     // Re-answering is idempotent.
     const size = Object.keys(state.guidedAnswers[1]).length;

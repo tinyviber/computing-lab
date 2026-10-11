@@ -63,10 +63,44 @@ type SubmissionDetail = {
   passed: boolean;
   submittedAt: string;
   testSummary: {
-    categories: Record<string, { passed: number; total: number }>;
-    error: string | null;
+    categories?: Record<string, { passed: number; total: number }>;
+    parts?: { id: string; label: string; ok: boolean; detail: string | null }[];
+    predictions?: {
+      promptId: string;
+      prompt: string;
+      selected: string;
+      correct: boolean;
+    }[];
+    error?: string | null;
   };
 };
+
+type DrawerCheck = {
+  id: string;
+  label: string;
+  passed: number;
+  total: number;
+  detail?: string | null;
+};
+
+function drawerChecks(summary: SubmissionDetail["testSummary"]): DrawerCheck[] {
+  const categories = Object.entries(summary.categories ?? {});
+  if (categories.length > 0) {
+    return categories.map(([label, bucket]) => ({
+      id: label,
+      label,
+      passed: bucket.passed,
+      total: bucket.total,
+    }));
+  }
+  return (summary.parts ?? []).map((part) => ({
+    id: part.id,
+    label: part.label,
+    passed: part.ok ? 1 : 0,
+    total: 1,
+    detail: part.detail,
+  }));
+}
 
 function timeOf(iso: string | null): string {
   if (!iso) return "—";
@@ -76,11 +110,24 @@ function timeOf(iso: string | null): string {
     : `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
-function CellView({ cell, onOpen }: { cell: MatrixCell | undefined; onOpen?: () => void }) {
+function CellView({
+  cell,
+  onOpen,
+  openTitle,
+}: {
+  cell: MatrixCell | undefined;
+  onOpen?: () => void;
+  openTitle?: string;
+}) {
   if (!cell) return <span className="cell-empty">—</span>;
   if (cell.passed) {
     return onOpen ? (
-      <button className="cell-pass" onClick={onOpen} title="预览学生画布" type="button">
+      <button
+        className="cell-pass"
+        onClick={onOpen}
+        title={openTitle ?? "查看提交详情"}
+        type="button"
+      >
         <Icon name="check" size={14} />
       </button>
     ) : (
@@ -368,8 +415,12 @@ export function TeacherDashboardPage() {
                             if (isAdmin && lab.id === "calculator") {
                               return () => openPreview(row, cell);
                             }
+                            if (lab.id === "cpu") return () => openDetail(cell.submissionId);
                             return cell.passed ? undefined : () => openDetail(cell.submissionId);
                           })()}
+                          openTitle={
+                            isAdmin && lab.id === "calculator" ? "预览学生画布" : undefined
+                          }
                         />
                       </td>
                     ))}
@@ -443,18 +494,37 @@ export function TeacherDashboardPage() {
             ) : null}
 
             <ul className="drawer-categories">
-              {Object.entries(detail.testSummary.categories).map(([category, bucket]) => {
-                const ok = bucket.passed === bucket.total;
+              {drawerChecks(detail.testSummary).map((check) => {
+                const ok = check.passed === check.total;
                 return (
-                  <li className={ok ? "is-pass" : "is-fail"} key={category}>
-                    <span>{category}</span>
+                  <li className={ok ? "is-pass" : "is-fail"} key={check.id}>
+                    <span>
+                      {check.label}
+                      {check.detail ? <small>{check.detail}</small> : null}
+                    </span>
                     <span className="drawer-category-score">
-                      {bucket.passed}/{bucket.total} <Icon name={ok ? "check" : "x"} size={13} />
+                      {check.passed}/{check.total} <Icon name={ok ? "check" : "x"} size={13} />
                     </span>
                   </li>
                 );
               })}
             </ul>
+            {detail.testSummary.predictions && detail.testSummary.predictions.length > 0 ? (
+              <section aria-label="预测首答">
+                <h3>预测首答</h3>
+                <ul className="drawer-categories drawer-predictions">
+                  {detail.testSummary.predictions.map((prediction) => (
+                    <li
+                      className={prediction.correct ? "is-pass" : "is-fail"}
+                      key={prediction.promptId}
+                    >
+                      <span>{prediction.prompt}</span>
+                      <span>首答：{prediction.selected}</span>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
             <p className="drawer-note">提交时间 {timeOf(detail.submittedAt)}</p>
           </aside>
         </div>

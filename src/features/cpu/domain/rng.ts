@@ -32,3 +32,14 @@ export function makeRng(seed: number): () => number {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+
+/** Stable Fisher–Yates order for a prompt's option indices. */
+export function shuffledIndices(length: number, seed: number): number[] {
+  const indices = Array.from({ length: Math.max(0, Math.floor(length)) }, (_, i) => i);
+  const random = makeRng(seed);
+  for (let i = indices.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices;
+}

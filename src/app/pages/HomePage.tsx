@@ -202,7 +202,14 @@ function ClassroomHome() {
   // non-admin surfaces; admins still see the cards (badged) so they can
   // preview and adjust visibility.
   const entryOf = (labId: string) => catalog?.get(labId);
-  const cardVisible = (labId: string) => isAdmin || entryOf(labId)?.visible !== false;
+  const cardVisible = (labId: string) => {
+    if (isAdmin) return true;
+    const entry = entryOf(labId);
+    // The demo has no server API to enforce access, so fail closed until its
+    // registered visibility is confirmed by the catalog.
+    if (labId === "audio-encoding") return entry?.visible === true;
+    return entry?.visible !== false;
+  };
   const adminBadge = (labId: string) => {
     if (!isAdmin) return "";
     const entry = entryOf(labId);
