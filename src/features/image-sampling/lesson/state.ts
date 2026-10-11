@@ -14,7 +14,11 @@ import {
 } from "../domain/stages.ts";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type StageDraft = {
@@ -35,7 +39,7 @@ export type SamplingLessonState = {
   /** Output cell selected in the zoom inspector, if any. */
   selectedCell: CellPick | null;
   judgeOutcome: SamplingJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   message: string | null;
 };
 
@@ -51,9 +55,9 @@ export type SamplingLessonAction =
   | { type: "set-code"; code: string }
   | { type: "select-cell"; cell: CellPick | null }
   | { type: "judge-result"; outcome: SamplingJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -95,7 +99,7 @@ export function createSamplingLessonState(stageIndex = 1): SamplingLessonState {
     drafts: {},
     selectedCell: null,
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     message: null,
   };
 }
@@ -121,7 +125,7 @@ export function transitionSamplingLesson(
         passedStages: action.passedStages,
         drafts,
         selectedCell: null,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         judgeOutcome: null,
       };
     }
@@ -147,7 +151,7 @@ export function transitionSamplingLesson(
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: next },
         selectedCell: null,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         // A new resolution invalidates the previous verdict.
         judgeOutcome: null,
       };
@@ -164,7 +168,7 @@ export function transitionSamplingLesson(
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: next },
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         judgeOutcome: stage?.requiresChooseSize ? null : state.judgeOutcome,
       };
     }
@@ -182,13 +186,24 @@ export function transitionSamplingLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
     case "mark-saved":
-      // Only a save started from the current dirty state may settle it — a
-      // stale completion must not hide a newer dirty draft.
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      // Only a save started from the stage's current dirty state may settle
+      // it — a stale completion must not hide a newer dirty draft.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

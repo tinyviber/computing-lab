@@ -20,7 +20,11 @@ import {
 } from "../domain/stages.ts";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 export type DecodingLessonState = {
   stageIndex: number;
@@ -31,7 +35,7 @@ export type DecodingLessonState = {
   /** Per-user stage payloads issued by the server at project load. */
   payloads: Record<number, LabPayload>;
   judgeOutcome: DecodingJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   message: string | null;
 };
 
@@ -57,9 +61,9 @@ export type DecodingLessonAction =
       expectDecoder?: DecoderChoice;
     }
   | { type: "judge-result"; outcome: DecodingJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -100,7 +104,7 @@ export function createDecodingLessonState(stageIndex = 1): DecodingLessonState {
     drafts: {},
     payloads: {},
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     message: null,
   };
 }
@@ -109,7 +113,7 @@ function touchDraft(state: DecodingLessonState, draft: DecodingDraft): DecodingL
   return {
     ...state,
     drafts: { ...state.drafts, [state.stageIndex]: draft },
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
   };
 }
 
@@ -136,7 +140,7 @@ export function transitionDecodingLesson(
         passedStages: action.passedStages,
         drafts,
         payloads: action.payloads,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         judgeOutcome: null,
       };
     }
@@ -195,12 +199,23 @@ export function transitionDecodingLesson(
       };
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
     case "mark-saved":
-      // Only a save started from the current dirty state may settle it.
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      // Only a save started from the stage's current dirty state may settle it.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

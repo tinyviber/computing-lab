@@ -13,6 +13,11 @@
 
 import type { SaveStatus } from "../../../shared/api/client";
 import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
+import {
   encodeInstr,
   MAX_PROGRAM_ROWS,
   opOperandMeaning,
@@ -72,7 +77,7 @@ export type CpuLessonState = {
   wrongPick: { promptId: string; option: number } | null;
   runOutcome: PublicRunOutcome | null;
   judgeOutcome: CpuJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   message: string | null;
   /**
    * Bumped on every draft edit — the machine view keys playback by it, so
@@ -99,9 +104,9 @@ export type CpuLessonAction =
   | { type: "set-byte"; value: number }
   | { type: "run-public-tests"; cases: CpuCase[] }
   | { type: "judge-result"; outcome: CpuJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -197,7 +202,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     wrongPick: null,
     runOutcome: null,
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     message: null,
     editRevision: 0,
   };
@@ -207,7 +212,7 @@ function withDraft(state: CpuLessonState, draft: CpuDraft): CpuLessonState {
   return {
     ...state,
     drafts: { ...state.drafts, [state.stageIndex]: draft },
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
     // A new program invalidates previous verdicts.
     runOutcome: null,
     judgeOutcome: null,
@@ -270,7 +275,7 @@ export function transitionCpuLesson(
         passedStages: action.passedStages,
         drafts,
         calculatorCoreComplete: action.calculatorCoreComplete,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         judgeOutcome: null,
         runOutcome: null,
       };
@@ -432,12 +437,23 @@ export function transitionCpuLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
     case "mark-saved":
-      // Only a save started from the current dirty state may settle it.
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      // Only a save started from the stage's current dirty state may settle it.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

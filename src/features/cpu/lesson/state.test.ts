@@ -10,6 +10,7 @@ import {
 } from "./state.ts";
 import type { CpuDraft } from "../domain/protocol.ts";
 import { seedFor } from "../domain/rng.ts";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 const base = (): CpuLessonState => createCpuLessonState(1);
 /** A free (non-guided) challenge stage for editing tests. */
@@ -31,7 +32,7 @@ describe("cpu lesson state", () => {
       { op: "STORE", reg: 0, operand: 15 },
       { op: "HALT", reg: 0, operand: 0 },
     ]);
-    expect(state.saveStatus).toBe("idle");
+    expect(statusForStage(state.saveStatusByStage, state.stageIndex)).toBe("idle");
   });
 
   it("guided normalization ignores a hostile draft on a fixed-program stage", () => {
@@ -129,7 +130,7 @@ describe("cpu lesson state", () => {
       patch: { op: "STORE", operand: 15 },
     });
     expect(draftOf(state).rows).toHaveLength(2);
-    expect(state.saveStatus).toBe("dirty");
+    expect(statusForStage(state.saveStatusByStage, state.stageIndex)).toBe("dirty");
     state = transitionCpuLesson(state, { type: "move-row", index: 0, dir: 1 });
     expect(draftOf(state).rows[0].op).toBe("STORE");
     state = transitionCpuLesson(state, { type: "remove-row", index: 0 });

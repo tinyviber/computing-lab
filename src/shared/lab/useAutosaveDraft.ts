@@ -3,30 +3,44 @@ import { api } from "../api/client";
 
 const AUTOSAVE_DELAY_MS = 1500;
 
+type DraftSaveResponse = { ok?: boolean; applied?: boolean };
+
 /**
  * Silent debounced autosave of the per-stage draft. Timers live in a ref keyed
  * by stage, so an armed payload always reaches the server: effect re-runs and
  * stage switches never cancel a pending timer — only a newer arm for the same
- * stage (debounce) or unmount does. Each arm is stamped with a per-stage
- * revision; when a request resolves, its completion is reported only while it
- * is still the stage's latest revision, so an older in-flight save can never
- * overwrite a newer dirty state.
+ * stage (debounce) or unmount does.
+ *
+ * Every arm is stamped with a globally increasing revision (wall clock plus a
+ * monotonic bump) that travels with the PUT body. Two guards use it:
+ *
+ * - Client side, a resolving request reports its completion only while it is
+ *   still the stage's latest revision, so an older in-flight save can never
+ *   overwrite a newer dirty state — and a late response after an unmount or
+ *   class switch finds an empty revision map and is dropped entirely.
+ * - Server side, the pipeline refuses a write whose revision is behind the
+ *   one already stored for that stage, so requests that arrive out of order
+ *   cannot resurrect an older draft.
+ *
+ * The lifecycle callbacks all receive the stage they fired for; the lesson
+ * reducer keeps flags per stage so one stage's late completion cannot
+ * clobber the flag of the stage now on screen.
  */
 export function useAutosaveDraft<TDraft>(options: {
   classId: string | undefined;
   labId: string;
-  /** The lesson reducer's save flag — the schedule only arms while "dirty". */
+  /** The lesson's save flag for `stageIndex` — the schedule only arms while "dirty". */
   saveStatus: string;
   stageIndex: number;
   /** Snapshots the draft that should persist for the given stage. */
   draftOf: (stageIndex: number) => TDraft | undefined;
-  /** PUT body; defaults to `{ stageIndex, draft }`. */
-  bodyFor?: (stageIndex: number, draft: TDraft) => unknown;
+  /** PUT body; defaults to `{ stageIndex, draft }`. The revision is merged in. */
+  bodyFor?: (stageIndex: number, draft: TDraft) => Record<string, unknown>;
   /** Extra inputs (e.g. unlocked components) whose change re-arms the timer. */
   deps?: unknown[];
-  onSaving: () => void;
-  onSaved: () => void;
-  onError: () => void;
+  onSaving: (stageIndex: number) => void;
+  onSaved: (stageIndex: number) => void;
+  onError: (stageIndex: number) => void;
 }): void {
   const {
     classId,
@@ -42,27 +56,35 @@ export function useAutosaveDraft<TDraft>(options: {
   } = options;
   const timers = useRef(new Map<number, ReturnType<typeof setTimeout>>());
   const latestRev = useRef(new Map<number, number>());
-  const seq = useRef(0);
+  const lastIssuedRev = useRef(0);
 
   useEffect(() => {
     if (saveStatus !== "dirty" || !classId) return;
     const draft = draftOf(stageIndex);
     if (draft === undefined) return;
-    const body = bodyFor ? bodyFor(stageIndex, draft) : { stageIndex, draft };
-    const rev = ++seq.current;
+    const rev = Math.max(Date.now(), lastIssuedRev.current + 1);
+    lastIssuedRev.current = rev;
     latestRev.current.set(stageIndex, rev);
+    const body = {
+      ...(bodyFor ? bodyFor(stageIndex, draft) : { stageIndex, draft }),
+      revision: rev,
+    } as Record<string, unknown>;
     const previous = timers.current.get(stageIndex);
     if (previous) clearTimeout(previous);
     const timer = setTimeout(() => {
       timers.current.delete(stageIndex);
-      onSaving();
+      onSaving(stageIndex);
       void api
-        .put(`/api/classes/${classId}/labs/${labId}/draft`, body)
-        .then(() => {
-          if (latestRev.current.get(stageIndex) === rev) onSaved();
+        .put<DraftSaveResponse>(`/api/classes/${classId}/labs/${labId}/draft`, body)
+        .then((result) => {
+          if (latestRev.current.get(stageIndex) !== rev) return;
+          // The server dropped this write as stale — the newer arm that
+          // superseded it owns the stage's flag and will settle it itself.
+          if (result?.applied === false) return;
+          onSaved(stageIndex);
         })
         .catch(() => {
-          if (latestRev.current.get(stageIndex) === rev) onError();
+          if (latestRev.current.get(stageIndex) === rev) onError(stageIndex);
         });
     }, AUTOSAVE_DELAY_MS);
     timers.current.set(stageIndex, timer);
@@ -72,7 +94,9 @@ export function useAutosaveDraft<TDraft>(options: {
     // and never just because saveStatus flipped.
   }, [saveStatus, stageIndex, classId, labId, ...deps]);
 
-  // Unmount or class switch: nothing armed for this context should still fire.
+  // Unmount or class switch: nothing armed for this context should still fire,
+  // and nothing already in flight may report back into the new context —
+  // clearing the revision map turns late responses into silent drops.
   useEffect(() => {
     const pending = timers.current;
     const revisions = latestRev.current;

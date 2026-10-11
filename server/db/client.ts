@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 10;
+export const SCHEMA_VERSION = 11;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -233,6 +233,13 @@ export function migrate(db: DatabaseSync): void {
       );
     }
     // Never stamp a newer database down to an older version.
+    if (version < 11) {
+      if (!hasColumn(db, "student_projects", "draft_revisions")) {
+        db.exec(
+          "ALTER TABLE student_projects ADD COLUMN draft_revisions TEXT NOT NULL DEFAULT '{}'",
+        );
+      }
+    }
     if (version < SCHEMA_VERSION) db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
   });
 }

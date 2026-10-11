@@ -31,7 +31,8 @@ type LabSpec<TDraft, TOutcome> = {
     project: ProjectRow<TDraft>,
     stageIndex: number,
     body: Record<string, unknown>,
-  ) => void;
+    revision: number,
+  ) => boolean;
   judge: (
     db: DatabaseSync,
     project: ProjectRow<TDraft>,
@@ -85,9 +86,19 @@ export function labRoutes<TDraft, TOutcome extends object>(
     const body = await c.req.json().catch(() => null);
     const stageIndex = stageIndexOf(body);
     if (stageIndex === null) return jsonError(c, 400, "invalid-stage");
+    const revision = body?.revision;
+    if (typeof revision !== "number" || !Number.isFinite(revision) || revision < 0) {
+      return jsonError(c, 400, "invalid-revision");
+    }
     const db = c.get("db");
-    spec.saveDraft(db, projectOf(db, auth), stageIndex, body as Record<string, unknown>);
-    return c.json({ ok: true, savedAt: new Date().toISOString() });
+    const applied = spec.saveDraft(
+      db,
+      projectOf(db, auth),
+      stageIndex,
+      body as Record<string, unknown>,
+      revision,
+    );
+    return c.json({ ok: true, savedAt: new Date().toISOString(), applied });
   });
 
   app.post("/judge", async (c) => {

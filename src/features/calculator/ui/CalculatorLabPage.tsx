@@ -5,6 +5,7 @@ import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
@@ -89,7 +90,7 @@ export function CalculatorLabPage() {
   useAutosaveDraft<CircuitGraph>({
     classId,
     labId: "calculator",
-    saveStatus: state.saveStatus,
+    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
     stageIndex,
     draftOf: () => graph,
     bodyFor: (index, draft) => ({
@@ -98,9 +99,9 @@ export function CalculatorLabPage() {
       components: state.unlockedSubmodules,
     }),
     deps: [graph, state.unlockedSubmodules],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
   });
 
   const onSubmit = useCallback(async () => {
@@ -149,7 +150,7 @@ export function CalculatorLabPage() {
         className="calculator-lab"
         topbar={
           <div className="calculator-status">
-            <SaveIndicator status={state.saveStatus} />
+            <SaveIndicator status={statusForStage(state.saveStatusByStage, state.stageIndex)} />
           </div>
         }
         topbarProps={{

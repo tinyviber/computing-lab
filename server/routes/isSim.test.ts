@@ -121,7 +121,7 @@ describe("is-sim routes", () => {
       new Request(url(classId, "/draft"), {
         method: "PUT",
         headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ stageIndex: 1, draft: dirty }),
+        body: JSON.stringify({ stageIndex: 1, revision: 1, draft: dirty }),
       }),
     );
     expect(put.status).toBe(200);
@@ -136,6 +136,7 @@ describe("is-sim routes", () => {
     const { app, classId, studentId, cookieFor } = await setup();
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
+      revision: 1,
       draft: SOLVED_S1,
     });
     expect(res.status).toBe(200);

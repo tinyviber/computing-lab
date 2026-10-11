@@ -27,7 +27,11 @@ import { getStage, nextMainlineStage, stagePrerequisites, type StageDef } from "
 import { publicCasesFor } from "./publicCases";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 /** First failing hidden case, echoed back by the judge for display. */
 export type Counterexample = {
@@ -72,7 +76,7 @@ export type CalculatorLessonState = {
   nodeMove: { stageIndex: number; nodeId: string; graph: CircuitGraph } | null;
   selectedNodeId: string | null;
   pendingWire: PendingWire;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   runOutcome: RunOutcome;
   judgeOutcome: JudgeOutcome;
   message: string | null;
@@ -132,9 +136,9 @@ export type CalculatorLessonAction =
   | { type: "delete-edge"; id: string }
   | { type: "reset-stage" }
   | { type: "run-public-tests" }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
   | { type: "dismiss-message" };
 
@@ -237,7 +241,7 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     nodeMove: null,
     selectedNodeId: null,
     pendingWire: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     runOutcome: null,
     judgeOutcome: null,
     message: null,
@@ -377,7 +381,7 @@ function updateGraph(
           unlockedSubmodules: state.unlockedSubmodules,
         })
       : state.past,
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
     // Editing invalidates any previous verdict.
     runOutcome: null,
     judgeOutcome: null,
@@ -544,7 +548,7 @@ function editCustomComponent(
       unlockedSubmodules: state.unlockedSubmodules,
     }),
     nodeMove: null,
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
     runOutcome: null,
     judgeOutcome: null,
     message: `已更新自定义组件“${nextName}”。`,
@@ -579,7 +583,7 @@ export function transitionCalculatorLesson(
         drafts,
         past: [],
         nodeMove: null,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -679,7 +683,7 @@ export function transitionCalculatorLesson(
         unlockedSubmodules: [...state.unlockedSubmodules, result.component],
         selectedNodeId: componentNodeId,
         pendingWire: null,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
         message: `已封装“${name}”，现在可以从“我的组件”中重复放置。`,
@@ -743,7 +747,7 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         unlockedSubmodules: state.unlockedSubmodules.filter((candidate) => candidate !== component),
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
         message: `已删除自定义组件“${component.name}”。`,
@@ -840,7 +844,7 @@ export function transitionCalculatorLesson(
         unlockedSubmodules: top.unlockedSubmodules ?? settled.unlockedSubmodules,
         past: settled.past.slice(0, -1),
         nodeMove: null,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, settled.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -856,13 +860,25 @@ export function transitionCalculatorLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
 
     case "mark-saved":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      // Only a save started from the stage's current dirty state may settle it.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
 
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
 
     case "judge-result": {
       const unlocked = action.outcome.unlockedComponent;

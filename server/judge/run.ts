@@ -101,13 +101,15 @@ export function saveDraft(
   stageIndex: number,
   graph: unknown,
   rawComponents?: unknown,
-): void {
+  revision?: number,
+): boolean {
   const submodules =
     rawComponents === undefined
       ? undefined
       : [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
-  saveStageDraft(db, project, stageIndex, sanitizeGraph(graph), {
+  return saveStageDraft(db, project, stageIndex, sanitizeGraph(graph), {
     unlockedSubmodules: submodules,
+    revision,
   });
 }
 

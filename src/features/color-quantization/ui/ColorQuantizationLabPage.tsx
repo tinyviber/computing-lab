@@ -7,6 +7,7 @@ import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
@@ -113,13 +114,13 @@ export function ColorQuantizationLabPage() {
   useAutosaveDraft<StageDraft>({
     classId,
     labId: "color-quantization",
-    saveStatus: state.saveStatus,
+    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
   });
 
   const canSubmit =
@@ -173,7 +174,9 @@ export function ColorQuantizationLabPage() {
     >
       <AppPageLayout
         className="quant-lab"
-        topbar={<SaveIndicator status={state.saveStatus} />}
+        topbar={
+          <SaveIndicator status={statusForStage(state.saveStatusByStage, state.stageIndex)} />
+        }
         topbarProps={{
           subtitle: stage?.englishTitle,
           title: stage?.title ?? "颜色量化",

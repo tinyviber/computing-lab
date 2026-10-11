@@ -32,6 +32,8 @@ export type ProjectRow<TDraft = unknown> = {
   passedStages: number[];
   unlockedSubmodules: ComponentDef[];
   drafts: Record<string, TDraft>;
+  /** Latest accepted save revision per stage; older writes are dropped. */
+  draftRevisions: Record<string, number>;
 };
 
 type RawProject = {
@@ -43,6 +45,7 @@ type RawProject = {
   passed_stages: string;
   unlocked_submodules: string;
   draft_graph: string;
+  draft_revisions: string;
 };
 
 function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
@@ -55,6 +58,7 @@ function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
     passedStages: parseJsonColumn<number[]>(row.passed_stages, []),
     unlockedSubmodules: parseJsonColumn<ComponentDef[]>(row.unlocked_submodules, []),
     drafts: parseJsonColumn<Record<string, TDraft>>(row.draft_graph, {}),
+    draftRevisions: parseJsonColumn<Record<string, number>>(row.draft_revisions, {}),
   };
 }
 
@@ -100,18 +104,34 @@ export function saveStageDraft<TDraft>(
   project: ProjectRow<TDraft>,
   stageIndex: number,
   draft: TDraft,
-  extras?: { unlockedSubmodules?: unknown[] },
-): void {
-  const drafts = { ...project.drafts, [String(stageIndex)]: draft };
+  extras?: { unlockedSubmodules?: unknown[]; revision?: number },
+): boolean {
+  const key = String(stageIndex);
+  const lastRevision = project.draftRevisions[key];
+  if (
+    extras?.revision !== undefined &&
+    typeof lastRevision === "number" &&
+    lastRevision > extras.revision
+  ) {
+    return false;
+  }
+  const drafts = { ...project.drafts, [key]: draft };
+  const revisions = { ...project.draftRevisions, [key]: extras?.revision ?? Date.now() };
   if (extras?.unlockedSubmodules === undefined) {
     db.prepare(
-      "UPDATE student_projects SET draft_graph = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-    ).run(JSON.stringify(drafts), project.id);
-    return;
+      "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    ).run(JSON.stringify(drafts), JSON.stringify(revisions), project.id);
+    return true;
   }
   db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(JSON.stringify(drafts), JSON.stringify(extras.unlockedSubmodules), project.id);
+    "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+  ).run(
+    JSON.stringify(drafts),
+    JSON.stringify(revisions),
+    JSON.stringify(extras.unlockedSubmodules),
+    project.id,
+  );
+  return true;
 }
 
 /**

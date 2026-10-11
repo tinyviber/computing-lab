@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS student_projects (
   passed_stages       TEXT NOT NULL DEFAULT '[]',
   unlocked_submodules TEXT NOT NULL DEFAULT '[]',
   draft_graph         TEXT NOT NULL DEFAULT '{}',
+  draft_revisions     TEXT NOT NULL DEFAULT '{}',
   updated_at          TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   UNIQUE (user_id, lab_id)
 );

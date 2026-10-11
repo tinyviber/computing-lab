@@ -111,6 +111,7 @@ describe("decoding routes", () => {
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({
           stageIndex: 1,
+          revision: 1,
           draft: { code: "def decode(d): return ''", signature: "BM", verdicts: "junk" },
         }),
       }),

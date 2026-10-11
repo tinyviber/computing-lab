@@ -86,7 +86,11 @@ describe("image-sampling routes", () => {
       new Request(url(classId, "/draft"), {
         method: "PUT",
         headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ stageIndex: 1, draft: { width: 16, height: 16, code: "x" } }),
+        body: JSON.stringify({
+          stageIndex: 1,
+          revision: 1,
+          draft: { width: 16, height: 16, code: "x" },
+        }),
       }),
     );
     expect(put.status).toBe(200);

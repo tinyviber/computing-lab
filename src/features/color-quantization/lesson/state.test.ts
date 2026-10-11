@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createQuantLessonState, draftOf, sanitizeDraft, transitionQuantLesson } from "./state.ts";
 import type { QuantJudgeResult } from "../domain/protocol.ts";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 const fakeOutcome = (over: Partial<QuantJudgeResult>): QuantJudgeResult => ({
   mode: "pick",
@@ -41,7 +42,7 @@ describe("color-quantization lesson state", () => {
     let s = createQuantLessonState();
     s = transitionQuantLesson(s, { type: "set-toners", toners: [2, 0, 5, 1] });
     expect(draftOf(s).toners).toEqual([0, 1, 2, 5]); // sorted + deduped
-    expect(s.saveStatus).toBe("dirty");
+    expect(statusForStage(s.saveStatusByStage, s.stageIndex)).toBe("dirty");
   });
 
   it("keeps drafts separate per stage", () => {

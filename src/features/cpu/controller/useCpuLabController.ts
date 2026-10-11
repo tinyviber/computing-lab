@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { runProgram, type CpuCase } from "../domain/machine.ts";
 import type {
@@ -107,13 +108,13 @@ export function useCpuLabController({
   useAutosaveDraft<CpuDraft>({
     classId,
     labId: "cpu",
-    saveStatus: state.saveStatus,
+    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
   });
 
   const publicCases = useMemo(

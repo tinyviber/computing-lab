@@ -120,7 +120,7 @@ test("completes the first calculator stage through the real API", async ({ page,
 
   const graph = wireGraph();
   const draft = await browserRequest.put(`/api/classes/${classId}/labs/calculator/draft`, {
-    data: { stageIndex: 1, graph, components: [] },
+    data: { stageIndex: 1, graph, components: [], revision: 1 },
   });
   expect(draft.status()).toBe(200);
 

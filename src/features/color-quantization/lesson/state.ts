@@ -19,7 +19,11 @@ import {
 } from "../domain/stages.ts";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type StageDraft = {
@@ -38,7 +42,7 @@ export type QuantLessonState = {
   passedStages: number[];
   drafts: Record<number, StageDraft>;
   judgeOutcome: QuantJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   message: string | null;
 };
 
@@ -54,9 +58,9 @@ export type QuantLessonAction =
   | { type: "set-table"; table: number[] }
   | { type: "set-code"; code: string }
   | { type: "judge-result"; outcome: QuantJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -83,7 +87,7 @@ export function createQuantLessonState(stageIndex = 1): QuantLessonState {
     passedStages: [],
     drafts: {},
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     message: null,
   };
 }
@@ -108,7 +112,7 @@ export function transitionQuantLesson(
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         judgeOutcome: null,
       };
     }
@@ -124,7 +128,7 @@ export function transitionQuantLesson(
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: { ...draft, toners } },
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         // A new selection invalidates the previous verdict.
         judgeOutcome: null,
       };
@@ -136,7 +140,7 @@ export function transitionQuantLesson(
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: { ...draft, table } },
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         judgeOutcome: null,
       };
     }
@@ -146,7 +150,7 @@ export function transitionQuantLesson(
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: { ...draft, code: action.code } },
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
       };
     }
 
@@ -160,13 +164,24 @@ export function transitionQuantLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
     case "mark-saved":
-      // Only a save started from the current dirty state may settle it — a
-      // stale completion must not hide a newer dirty draft.
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      // Only a save started from the stage's current dirty state may settle
+      // it — a stale completion must not hide a newer dirty draft.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

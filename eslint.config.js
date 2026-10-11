@@ -54,7 +54,14 @@ export default tseslint.config(
             { group: ["**/controller/**"] },
             { group: ["**/lesson/**"] },
             {
-              group: ["**/shared/api/**", "**/shared/auth/**", "**/shared/lab/**"],
+              // saveStatus is a pure module lessons may call; the rest of
+              // shared/lab is hooks/UI and stays type-only from here.
+              group: [
+                "**/shared/api/**",
+                "**/shared/auth/**",
+                "**/shared/lab/!(saveStatus*)",
+                "**/shared/lab/*/**",
+              ],
               allowTypeImports: true,
             },
           ],
@@ -85,7 +92,14 @@ export default tseslint.config(
             { group: ["**/ui/**"] },
             { group: ["**/controller/**"] },
             {
-              group: ["**/shared/api/**", "**/shared/auth/**", "**/shared/lab/**"],
+              // saveStatus is a pure module lessons may call; the rest of
+              // shared/lab is hooks/UI and stays type-only from here.
+              group: [
+                "**/shared/api/**",
+                "**/shared/auth/**",
+                "**/shared/lab/!(saveStatus*)",
+                "**/shared/lab/*/**",
+              ],
               allowTypeImports: true,
             },
           ],

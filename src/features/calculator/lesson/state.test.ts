@@ -11,6 +11,7 @@ import {
 import { halfAdderGraph } from "../domain/fixtures";
 import type { CircuitGraph } from "../domain/graph";
 import { CALCULATOR_STAGES } from "../domain/stages";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 function apply(
   state: CalculatorLessonState,
@@ -122,7 +123,7 @@ describe("calculator lesson state", () => {
     );
     expect(wired.pendingWire).toBeNull();
     expect(graphOf(wired).edges).toHaveLength(1);
-    expect(wired.saveStatus).toBe("dirty");
+    expect(statusForStage(wired.saveStatusByStage, wired.stageIndex)).toBe("dirty");
   });
 
   it("toggles component collapse as one undoable graph edit", () => {
@@ -647,13 +648,20 @@ describe("calculator lesson state", () => {
       x: 1,
       y: 1,
     });
-    expect(dirty.saveStatus).toBe("dirty");
-    const saving = apply(dirty, { type: "mark-saving" });
-    expect(saving.saveStatus).toBe("saving");
-    expect(apply(saving, { type: "mark-saved" }).saveStatus).toBe("saved");
+    expect(statusForStage(dirty.saveStatusByStage, dirty.stageIndex)).toBe("dirty");
+    const saving = apply(dirty, { type: "mark-saving", stageIndex: 1 });
+    expect(statusForStage(saving.saveStatusByStage, saving.stageIndex)).toBe("saving");
+    expect(
+      statusForStage(apply(saving, { type: "mark-saved", stageIndex: 1 }).saveStatusByStage, 1),
+    ).toBe("saved");
     // A save that lands after a new edit must not claim "saved".
     const editedWhileSaving = apply(saving, { type: "add-node", kind: "and", x: 2, y: 2 });
-    expect(apply(editedWhileSaving, { type: "mark-saved" }).saveStatus).toBe("dirty");
+    expect(
+      statusForStage(
+        apply(editedWhileSaving, { type: "mark-saved", stageIndex: 1 }).saveStatusByStage,
+        1,
+      ),
+    ).toBe("dirty");
   });
 
   it("undoes the most recent graph edit on the current stage", () => {
@@ -664,7 +672,7 @@ describe("calculator lesson state", () => {
     const undone = apply(edited, { type: "undo" });
     expect(graphOf(undone)).toEqual(graphOf(base));
     expect(undone.past).toHaveLength(0);
-    expect(undone.saveStatus).toBe("dirty");
+    expect(statusForStage(undone.saveStatusByStage, undone.stageIndex)).toBe("dirty");
   });
 
   it("groups continuous node dragging into one undo step", () => {

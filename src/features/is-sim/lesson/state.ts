@@ -12,6 +12,11 @@
 
 import type { SaveStatus } from "../../../shared/api/client";
 import {
+  markSaveStatus,
+  statusForStage,
+  type SaveStatusByStage,
+} from "../../../shared/lab/saveStatus.ts";
+import {
   defaultParamsFor,
   firstFreeSlot,
   MAX_DEVICES,
@@ -57,7 +62,7 @@ export type IsLessonState = {
   drafts: Record<number, IsDraft>;
   runOutcome: PublicRunOutcome | null;
   judgeOutcome: IsJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
   message: string | null;
 };
 
@@ -78,9 +83,9 @@ export type IsLessonAction =
   | { type: "reset-draft" }
   | { type: "run-public-tests"; cases: IsCase[] }
   | { type: "judge-result"; outcome: IsJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-save-error"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -118,7 +123,7 @@ export function createIsLessonState(stageIndex = 1): IsLessonState {
     drafts: {},
     runOutcome: null,
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
     message: null,
   };
 }
@@ -132,7 +137,7 @@ function withDraft(state: IsLessonState, draft: IsDraft): IsLessonState {
   return {
     ...state,
     drafts: { ...state.drafts, [state.stageIndex]: sanitizeTopology(draft) },
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
     // A new topology invalidates previous verdicts.
     runOutcome: null,
     judgeOutcome: null,
@@ -168,7 +173,7 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
-        saveStatus: "idle",
+        saveStatusByStage: {},
         judgeOutcome: null,
         runOutcome: null,
       };
@@ -266,7 +271,7 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
       return {
         ...state,
         drafts,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -307,11 +312,22 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
     case "mark-saved":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

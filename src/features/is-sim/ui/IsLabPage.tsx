@@ -13,6 +13,7 @@ import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 import { useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
@@ -114,13 +115,13 @@ export function IsLabPage() {
   useAutosaveDraft<IsDraft>({
     classId,
     labId: "is-sim",
-    saveStatus: state.saveStatus,
+    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
   });
 
   const userId = session?.user.id ?? "";
@@ -214,7 +215,9 @@ export function IsLabPage() {
     >
       <AppPageLayout
         className="is-lab"
-        topbar={<SaveIndicator status={state.saveStatus} />}
+        topbar={
+          <SaveIndicator status={statusForStage(state.saveStatusByStage, state.stageIndex)} />
+        }
         topbarProps={{
           subtitle: stage?.englishTitle,
           title: stage?.title ?? "小型信息系统",

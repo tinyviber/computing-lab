@@ -13,8 +13,10 @@ export function isSimRoutes() {
   return labRoutes<IsDraft, IsJudgeResult>({
     labId: "is-sim",
     stageCount: IS_SIM_STAGES.length,
-    saveDraft: (db, project, stageIndex, body) =>
-      saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
+    saveDraft: (db, project, stageIndex, body, revision) =>
+      saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
+        revision,
+      }),
     judge: (db, project, stageIndex, body) => {
       const key = `${project.userId}|is-sim|${stageIndex}`;
       if (judgeLimiter.exceeded(key)) return { error: "rate-limited", status: 429 };
