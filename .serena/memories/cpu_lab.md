@@ -76,10 +76,25 @@
 - Synchronized highlighting keys off the same trace row: editor `is-active`,
   memory `is-read`/`is-pending-write`, register ghost "→ n", diagram wires
   (`EXEC_WIRES` per op, `PHASE_PARTS` per phase).
-- Trace no-spoiler (issue #100): `TraceTable` renders only walked rows
-  (`trace.slice(0,cursor)`); the end row and "共 N 个周期 + reason" header
-  appear only once `cursor >= trace.length`. The judge's `TraceRows`
-  counterexample replay still shows the full trace.
+- Trace no-spoiler (issue #100): `TraceTable` renders only walked rows;
+  the end row and "共 N 个周期 + reason" header appear only once the run
+  is fully walked. The judge's `TraceRows` counterexample replay still
+  shows the full trace.
+- **cursor vs visited split** (issue #100 review): `cursor` = machine-view
+  position (display/pending/phase); `visited` = furthest committed cycle,
+  max-tracked and reset only on stage/case/replay/复位. `TraceTable` takes
+  BOTH — `visited` renders `trace.slice(0, visited)`, so scrubbing `cursor`
+  back never loses walked rows.
+- **`TraceRows` full-trace contract** (issue #100 review — the P1): it
+  always receives the FULL `trace` plus a `visibleCount`; each row's
+  "regs after" reads `trace[row.cycle].regsBefore` (the NEXT row) or
+  `finalRegs` on the last. Never derive regs-after from a sliced array —
+  a truncated last row would fall back to terminal regs and misreport
+  intermediate values (e.g. showing final A=8 on a cycle that committed 3).
+- **Observation gate** (issue #100 review): `observedCases` is a Set of
+  public-case indices that reached HALT (tracked in CpuLabPage, reset per
+  stage); `observationComplete` requires every public case on a `core`
+  stage. Submit is `disabled` until it holds, with a "已看 N / M 份" note.
 - M3's ALU column add lives in `RegistersPanel`'s `ColumnAdd` — only on
   stage index 3 during the exec phase it lays out `augend ± addend` as 5
   columns with the carry-out column lit.

@@ -38,6 +38,19 @@ describe("CpuLabPage", () => {
     expect(screen.getByRole("button", { name: "提交判定" })).toBeDisabled();
   });
 
+  it("keeps 提交判定 gated until every public case has been walked to HALT (issue #100 review)", async () => {
+    await renderAppAt("/classes/c1/labs/cpu", { auth: teacherAuthState });
+    await screen.findByRole("heading", { name: /按一下时钟/ });
+
+    // Observation gate: a zero-programming core stage cannot be submitted
+    // before the demos are watched to the end — the point of the mainline is
+    // watching the parts move, not just answering prompts.
+    const submit = screen.getByRole("button", { name: "提交判定" });
+    expect(submit).toBeDisabled();
+    expect(screen.getByText(/已看 0 \/ \d+ 份/)).toBeInTheDocument();
+    expect(submit).toHaveAttribute("title", expect.stringContaining("按时钟走到停机"));
+  });
+
   it("shows stage takeaway when the stage is passed", async () => {
     vi.stubGlobal(
       "fetch",

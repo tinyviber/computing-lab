@@ -103,6 +103,12 @@ export function CpuLabPage() {
   // overrides the public-case picker until they pick a public case again.
   const [replayCase, setReplayCase] = useState<CpuCase | null>(null);
   const [cursor, setCursor] = useState(0);
+  // Furthest cycle committed — grows only forward, so scrubbing back never
+  // loses rows already walked (issue #100 review: cursor vs visited split).
+  const [visited, setVisited] = useState(0);
+  // Public cases this student has walked to HALT on this stage — the
+  // observation gate for submitting a zero-programming core stage.
+  const [observedCases, setObservedCases] = useState<ReadonlySet<number>>(new Set());
   // The 3-phase scrub (issue #70 §5.2): a UI-only lens on the pending cycle
   // — fetch shows PC→mem→IR, decode the IR field split, exec the ghost
   // values about to commit. All data comes from the same trace row.
@@ -202,20 +208,39 @@ export function CpuLabPage() {
       (p) => !answeredPrompts.has(p.id) && p.at !== undefined && effectiveCursor >= p.at,
     ) ?? null;
   const complete = guidedComplete(state);
+  // Observation gate (issue #100 review): a zero-programming core stage can
+  // only be submitted once every public case has been walked to HALT — the
+  // point of the mainline is watching the parts move, not just answering.
+  const observationComplete =
+    stage?.track !== "core" || publicCases.every((_, i) => observedCases.has(i));
 
-  // A stage switch or case switch restarts the playback.
+  // A stage switch or case switch restarts the playback and the observation
+  // record (each stage asks for its own full walk-through).
   useEffect(() => {
     setCaseIndex(0);
     setReplayCase(null);
     setCursor(0);
+    setVisited(0);
+    setObservedCases(new Set());
     setPhase("fetch");
     setClock("idle");
   }, [state.stageIndex]);
   useEffect(() => {
     setCursor(0);
+    setVisited(0);
     setPhase("fetch");
     setClock("idle");
   }, [caseIndex, replayCase]);
+
+  // `visited` tracks the furthest committed cycle — scrubbing back with
+  // `cursor` must never shrink the rows already walked. Reaching the end of
+  // a public case marks it observed for the core-stage submit gate.
+  useEffect(() => {
+    setVisited((v) => Math.max(v, effectiveCursor));
+    if (replayCase === null && maxCursor > 0 && effectiveCursor >= maxCursor) {
+      setObservedCases((s) => (s.has(caseIndex) ? s : new Set(s).add(caseIndex)));
+    }
+  }, [effectiveCursor, maxCursor, caseIndex, replayCase]);
 
   // While a data-pinned prompt is unanswered the picker follows it — and
   // switching cases restarts playback, which the effect above handles.
@@ -239,6 +264,7 @@ export function CpuLabPage() {
         expect: { cycles: stage.maxCycles },
       });
       setCursor(0);
+      setVisited(0);
       setPhase("fetch");
       setClock("idle");
     },
@@ -467,6 +493,7 @@ export function CpuLabPage() {
                       onClick={() => {
                         setClock("idle");
                         setCursor(0);
+                        setVisited(0);
                         setPhase("fetch");
                       }}
                       type="button"
@@ -582,6 +609,7 @@ export function CpuLabPage() {
                     setPhase("fetch");
                   }}
                   run={run}
+                  visited={visited}
                 />
               </section>
             ) : null}
@@ -598,17 +626,27 @@ export function CpuLabPage() {
                 </button>
                 <button
                   className="button button-primary"
-                  disabled={submitting || rows.length === 0 || (guided && !complete)}
+                  disabled={
+                    submitting || rows.length === 0 || (guided && !complete) || !observationComplete
+                  }
                   onClick={() => void onSubmit()}
-                  title={guided && !complete ? "先完成上面的引导任务" : undefined}
+                  title={
+                    !observationComplete
+                      ? "先把每份演示数据按时钟走到停机"
+                      : guided && !complete
+                        ? "先完成上面的引导任务"
+                        : undefined
+                  }
                   type="button"
                 >
                   {submitting ? "判定中…" : "提交判定"}
                 </button>
                 <span className="submit-note">
-                  {guided && !complete
-                    ? "这一关要先完成上面的引导任务才能提交。"
-                    : "服务器会用带隐藏数据的用例判定——公开测试只是热身。"}
+                  {!observationComplete
+                    ? `这一关是纯观察——把每份演示数据按时钟走完到停机再提交（已看 ${observedCases.size} / ${publicCases.length} 份）。`
+                    : guided && !complete
+                      ? "这一关要先完成上面的引导任务才能提交。"
+                      : "服务器会用带隐藏数据的用例判定——公开测试只是热身。"}
                 </span>
               </div>
             ) : null}

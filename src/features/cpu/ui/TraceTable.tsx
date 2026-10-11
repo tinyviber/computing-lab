@@ -9,20 +9,25 @@ export const REASON_LABEL: Record<RunReason, string> = {
 
 /**
  * The per-cycle rows shared by the live trace table and the judge's
- * counterexample replay. `cursor`/`onScrub` make the rows interactive;
- * leave them out for a read-only rendering.
+ * counterexample replay. `trace` is the FULL run — each row's "regs after"
+ * reads the next row's `regsBefore` (or `finalRegs` on the last). Only the
+ * first `visibleCount` rows render, so a truncated reveal can't mistake the
+ * terminal register value for an intermediate one. `cursor`/`onScrub` make
+ * the rows interactive; leave them out for a read-only rendering.
  */
 export function TraceRows(props: {
   trace: readonly TraceRow[];
   /** Terminal A/B — the last row's "regs after". */
   finalRegs: { A: number; B: number };
+  /** Render only the first N rows; regs-after still reads the full trace. */
+  visibleCount?: number;
   cursor?: number;
   onScrub?: (cycle: number) => void;
 }) {
-  const { trace, finalRegs, cursor, onScrub } = props;
+  const { trace, finalRegs, visibleCount = trace.length, cursor, onScrub } = props;
   return (
     <>
-      {trace.map((row) => {
+      {trace.slice(0, visibleCount).map((row) => {
         const next = trace[row.cycle];
         const regsAfter = next ? next.regsBefore : finalRegs;
         const changed = (reg: "A" | "B") => regsAfter[reg] !== row.regsBefore[reg];
@@ -94,15 +99,18 @@ export const TRACE_HEAD = (
  */
 export function TraceTable(props: {
   run: MachineRun | null;
-  /** Cycles executed so far — the highlighted row. */
+  /** Cycle the machine view is showing — the highlighted row. */
   cursor: number;
+  /** Furthest cycle the student has committed — rows only ever accumulate. */
+  visited: number;
   onScrub: (cycle: number) => void;
 }) {
-  const { run, cursor, onScrub } = props;
+  const { run, cursor, visited, onScrub } = props;
   if (!run) return null;
-  // Rows the student has actually stepped to — never the future.
-  const walked = run.trace.slice(0, Math.min(cursor, run.trace.length));
-  const finished = cursor >= run.trace.length;
+  // Rows the student has actually stepped to — never the future. The full
+  // trace goes in so each row's "regs after" reads its real next state, not
+  // the terminal value.
+  const finished = visited >= run.trace.length;
   return (
     <section aria-label="执行轨迹" className="cpu-trace">
       <div className="cpu-panel-heading">
@@ -126,7 +134,8 @@ export function TraceTable(props: {
               cursor={cursor}
               finalRegs={run.final.regs}
               onScrub={onScrub}
-              trace={walked}
+              trace={run.trace}
+              visibleCount={Math.min(visited, run.trace.length)}
             />
             {finished ? (
               <tr
