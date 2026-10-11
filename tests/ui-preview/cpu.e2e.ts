@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+/** PNG IHDR height: 8-byte signature, length(4) + "IHDR"(4), then width(4), height(4). */
+async function pngHeight(path: string): Promise<number> {
+  return (await readFile(path)).readUInt32BE(20);
+}
 
 const scenarios = [
   "initial",
@@ -37,6 +43,22 @@ for (const viewport of ["desktop", "tablet", "mobile"]) {
     await page.goto(`__dev/labs/cpu?scenario=initial&viewport=${viewport}`);
     await expect(page.getByRole("heading", { name: "CPU 视觉开发预览" })).toBeVisible();
     const frame = page.frameLocator('iframe[title="CPU 实验预览"]');
+    // The frame resizes to its document: outer-page captures must cover the
+    // entire fixture, not a viewport-only window into it.
+    const frameSize = () =>
+      page.locator("iframe").evaluate((el) => {
+        const iframe = el as HTMLIFrameElement;
+        return iframe.contentDocument?.documentElement.scrollHeight ?? 0;
+      });
+    await expect
+      .poll(async () => {
+        const scroll = await frameSize();
+        const styled = await page
+          .locator("iframe")
+          .evaluate((el) => Number.parseFloat((el as HTMLIFrameElement).style.height) || 0);
+        return scroll > 0 && styled === scroll;
+      })
+      .toBe(true);
     for (const scenario of scenarios) {
       await page.getByLabel("固定场景").selectOption(scenario);
       await expect(page).toHaveURL(new RegExp(`scenario=${scenario}`));
@@ -68,9 +90,11 @@ for (const viewport of ["desktop", "tablet", "mobile"]) {
         await frame.locator(".cpu-viz-grid").scrollIntoViewIfNeeded();
       }
       // Save review evidence outside the checkout; no machine-specific baselines.
-      await page.screenshot({
-        path: join(tmpdir(), `computing-lab-cpu-${viewport}-${scenario}.png`),
-      });
+      // fullPage covers the whole scroll height, including the auto-sized frame.
+      const shot = join(tmpdir(), `computing-lab-cpu-${viewport}-${scenario}.png`);
+      const docHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      await page.screenshot({ path: shot, fullPage: true });
+      expect(await pngHeight(shot)).toBeGreaterThanOrEqual(docHeight);
     }
     await page.getByLabel("预览视口").selectOption(viewport === "mobile" ? "desktop" : "mobile");
     await expect(page.locator("iframe")).toHaveCSS(
