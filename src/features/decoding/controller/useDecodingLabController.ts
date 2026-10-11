@@ -81,7 +81,7 @@ export function useDecodingLabController({
 
   useEffect(() => warmPyodide(), []);
 
-  const { projectLoaded, loadError } = useLabProject<
+  const { projectLoaded, loadError, fetchProject } = useLabProject<
     DecodingDraft,
     { payloads: Record<number, LabPayload> },
     DecodingLessonAction
@@ -93,6 +93,7 @@ export function useDecodingLabController({
       type: "load-project",
       currentStage: project.currentStage,
       passedStages: project.passedStages,
+      draftRevisions: project.draftRevisions,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -104,13 +105,35 @@ export function useDecodingLabController({
   useAutosaveDraft<DecodingDraft>({
     classId,
     labId: "decoding",
-    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
+    expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
-    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => {
+      // Reconcile only the conflicted stage against the server's copy —
+      // other stages keep their unsaved local drafts and flags.
+      void fetchProject().then((project) => {
+        if (!project) {
+          dispatch({ type: "mark-save-conflict", stageIndex: s });
+          return;
+        }
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex: s,
+          draft: project.drafts?.[s],
+          revision: project.draftRevisions?.[s],
+        });
+      });
+    },
   });
 
   // Execution channels: the student decode run is versioned by the draft
