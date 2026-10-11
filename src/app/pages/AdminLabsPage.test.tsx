@@ -20,6 +20,14 @@ const labs = [
     visible: true,
     visibleClassIds: [],
   },
+  {
+    id: "audio-encoding",
+    stageCount: 0,
+    hidden: false,
+    openClassIds: null,
+    visible: true,
+    visibleClassIds: ["c1", "c2"],
+  },
 ];
 const classes = [
   { id: "c1", name: "一班", inviteCode: "C1", memberCount: 0 },
@@ -120,6 +128,28 @@ describe("AdminLabsPage", () => {
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/admin/labs/calculator/visibility",
+        expect.objectContaining({
+          method: "PUT",
+          body: JSON.stringify({ hidden: true, openClassIds: null }),
+        }),
+      ),
+    );
+  });
+
+  it("lets an admin hide the audio demo", async () => {
+    const fetchMock = mockApi();
+    const user = userEvent.setup();
+
+    await renderAppAt("/admin/labs", { auth: adminAuthState });
+
+    const audio = labRow("声音编码（演示）");
+    await waitFor(() => expect(audio.getByRole("radio", { name: "开放" })).toBeChecked());
+    await user.click(audio.getByRole("radio", { name: /隐藏/ }));
+    await user.click(audio.getByRole("button", { name: "保存" }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/admin/labs/audio-encoding/visibility",
         expect.objectContaining({
           method: "PUT",
           body: JSON.stringify({ hidden: true, openClassIds: null }),

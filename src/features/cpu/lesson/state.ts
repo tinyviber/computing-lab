@@ -89,7 +89,7 @@ export type CpuLessonAction =
   | { type: "insert-row"; index: number }
   | { type: "remove-row"; index: number }
   | { type: "move-row"; index: number; dir: -1 | 1 }
-  | { type: "answer-prompt"; promptId: string; option: number }
+  | { type: "answer-prompt"; stageIndex?: number; promptId: string; option: number }
   | { type: "set-byte"; value: number }
   | { type: "run-public-tests"; cases: CpuCase[] }
   | { type: "judge-result"; outcome: CpuJudgeResult }
@@ -349,6 +349,7 @@ export function transitionCpuLesson(
     }
 
     case "answer-prompt": {
+      if (action.stageIndex !== undefined && action.stageIndex !== state.stageIndex) return state;
       const stage = stageOf(state);
       const prompt = stage?.guided?.prompts.find((p) => p.id === action.promptId);
       if (!stage?.guided || !prompt) return state;
@@ -358,11 +359,14 @@ export function transitionCpuLesson(
       if (prompt.requiresByte !== undefined && state.playgroundByte !== prompt.requiresByte) {
         return state;
       }
-      if (!option.correct) {
-        return { ...state, wrongPick: { promptId: action.promptId, option: action.option } };
-      }
       const answered = state.guidedAnswers[state.stageIndex] ?? {};
       if (action.promptId in answered) return state;
+      if (!option.correct) {
+        return {
+          ...state,
+          wrongPick: { promptId: action.promptId, option: action.option },
+        };
+      }
       return {
         ...state,
         guidedAnswers: {

@@ -20,7 +20,7 @@ import type {
   CpuJudgeResult,
   CpuProjectPayload,
 } from "../domain/protocol.ts";
-import { seedFor } from "../domain/rng.ts";
+import { seedFor, shuffledIndices } from "../domain/rng.ts";
 import { cpuStageUnlocked, type CpuStageDef } from "../domain/stages.ts";
 import {
   answeredPromptIds,
@@ -94,6 +94,7 @@ export function CpuLabPage() {
     createCpuLessonState(1),
   );
   const [submitting, setSubmitting] = useState(false);
+  const [recordingPrompt, setRecordingPrompt] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   // The machine view: which public case feeds memory, and how far through
   // its trace the display sits. Derived data — never persisted.
@@ -150,6 +151,18 @@ export function CpuLabPage() {
     () => (stage ? publicCasesFor(stage.index, seedFor(userId, "cpu", stage.index)) : []),
     [stage, userId],
   );
+  const promptOptionOrders = useMemo(() => {
+    if (!stage?.guided) return {};
+    return Object.fromEntries(
+      stage.guided.prompts.map((prompt) => [
+        prompt.id,
+        shuffledIndices(
+          prompt.options.length,
+          seedFor(userId, `cpu-prompt-${prompt.id}`, stage.index),
+        ),
+      ]),
+    );
+  }, [stage, userId]);
   const machineCase =
     replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
   const run = useMemo(
@@ -293,6 +306,27 @@ export function CpuLabPage() {
     }
   }, [classId, stage, draft, state.guidedAnswers]);
 
+  const onPromptAnswer = useCallback(
+    async (promptId: string, option: number) => {
+      if (!classId || !stage || recordingPrompt) return;
+      setRecordingPrompt(true);
+      setSubmitError(null);
+      try {
+        await api.post<{ optionIndex: number }>(`/api/classes/${classId}/labs/cpu/guided-answer`, {
+          stageIndex: stage.index,
+          promptId,
+          optionIndex: option,
+        });
+        dispatch({ type: "answer-prompt", stageIndex: stage.index, promptId, option });
+      } catch (error) {
+        setSubmitError(`记录预测失败：${describeApiError(error)}`);
+      } finally {
+        setRecordingPrompt(false);
+      }
+    },
+    [classId, stage, recordingPrompt],
+  );
+
   const lastOp = display?.lastRow?.decoded.op ?? null;
   const pendingIsMemRead =
     pending !== null &&
@@ -377,9 +411,9 @@ export function CpuLabPage() {
                 answered={answeredPrompts}
                 blocking={blockingPrompt}
                 currentByte={state.playgroundByte}
-                onAnswer={(promptId, option) =>
-                  dispatch({ type: "answer-prompt", promptId, option })
-                }
+                disabled={recordingPrompt}
+                onAnswer={onPromptAnswer}
+                optionOrders={promptOptionOrders}
                 stage={stage}
                 wrongPick={state.wrongPick}
               />

@@ -23,9 +23,22 @@ export function GuidedPanel(props: {
   blocking: CpuPrompt | null;
   /** The byte currently dialed in the C4 playground, when the stage has one. */
   currentByte?: number;
+  /** Persist a first pick before accepting another click. */
+  disabled?: boolean;
+  /** Stable per-user display order; values are original option indices. */
+  optionOrders: Readonly<Record<string, readonly number[]>>;
   onAnswer: (promptId: string, option: number) => void;
 }) {
-  const { stage, answered, wrongPick, blocking, currentByte, onAnswer } = props;
+  const {
+    stage,
+    answered,
+    wrongPick,
+    blocking,
+    currentByte,
+    disabled = false,
+    optionOrders,
+    onAnswer,
+  } = props;
   const prompts = stage.guided?.prompts ?? [];
   if (prompts.length === 0) return null;
   const nextIndex = prompts.findIndex((p) => !answered.has(p.id));
@@ -71,13 +84,15 @@ export function GuidedPanel(props: {
                       ，再回答。
                     </p>
                   ) : null}
-                  {prompt.options.map((option, oi) => {
+                  {(optionOrders[prompt.id] ?? prompt.options.map((_, oi) => oi)).map((oi) => {
+                    const option = prompt.options[oi];
+                    if (!option) return null;
                     const wasPickedWrong =
                       wrongPick?.promptId === prompt.id && wrongPick.option === oi;
                     return (
                       <button
                         className={`cpu-guide-option${wasPickedWrong ? " is-wrong" : ""}`}
-                        disabled={byteGated}
+                        disabled={byteGated || disabled}
                         key={oi}
                         onClick={() => onAnswer(prompt.id, oi)}
                         type="button"

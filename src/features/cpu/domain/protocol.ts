@@ -51,6 +51,13 @@ export type CpuCounterexample = {
 
 export type CpuTestSummary = {
   categories: Record<string, { passed: number; total: number }>;
+  /** First prediction submitted for each answered guided prompt. */
+  predictions?: {
+    promptId: string;
+    prompt: string;
+    selected: string;
+    correct: boolean;
+  }[];
   results: { name: string; category: string; passed: boolean }[];
   /** First failing case, in run order; null on a full pass. */
   counterexample: CpuCounterexample | null;

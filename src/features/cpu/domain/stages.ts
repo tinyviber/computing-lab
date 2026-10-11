@@ -279,7 +279,7 @@ export const CPU_STAGES: CpuStageDef[] = [
     scratchCells: [],
     decoyCells: [10, 11],
     prefillRows: [
-      { op: "LOAD", reg: 0, operand: 14 },
+      { op: "ADD", reg: 0, operand: 14 },
       { op: "HALT", reg: 0, operand: 0 },
     ],
     guided: {
@@ -555,7 +555,7 @@ export const CPU_STAGES: CpuStageDef[] = [
     englishTitle: "Jump Backwards",
     track: "core",
     ops: ["JMP", "STORE", "SUB", "JZ", "HALT"],
-    maxCycles: 32,
+    maxCycles: 40,
     scratchCells: [],
     decoyCells: [10, 11, 12, 13],
     // No branchTwoWays here: the only JZ in the program is the loop exit —

@@ -3,8 +3,10 @@
 ## 运行时边界
 
 仓库是一个 Vite 包和一个 Node API 进程。前端入口是 `src/main.tsx`，应用路由集中在
-`src/app/router.tsx`；课程 feature 有 `calculator`、`cpu`、`image-sampling`、
-`color-quantization`、`is-sim`、`decoding` 六个，另有跨课程的 `task-sheets`（任务单）功能。
+`src/app/router.tsx`；六个有阶段和判题的课程 feature 是 `calculator`、`cpu`、
+`image-sampling`、`color-quantization`、`is-sim`、`decoding`。`audio-encoding` 是无
+阶段、无判题 API 的浏览器演示；它仍在实验注册表中，默认隐藏并沿用管理员与班级可见性设置。
+另有跨课程的 `task-sheets`（任务单）功能。
 
 ```text
 src/app
@@ -18,6 +20,9 @@ src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is
 
 src/features/task-sheets
   └─ 任务单模板、班级布置、学生作答与批改界面
+
+src/features/audio-encoding
+  └─ 本地音频采样 / 量化演示；可见性由 `server/labs.ts` 控制，页面入口也检查目录权限
 
 src/shared/lab
   └─ 各实验页共用的薄封装：useLabProject（加载）、
@@ -36,6 +41,10 @@ server
 POST judge 跑隐藏用例并推进 `passedStages`。每个实验只提供 spec（labId、
 关卡数、saveDraft、judge）；不引入通用 `LessonRuntime`/
 `Stepper` 框架。
+
+CPU 引导题的首答通过独立的 `/guided-answer` 请求在判题前写入
+`cpu_guided_first_answers`；唯一键让记录不可覆盖，判题从服务端读取它生成教师预测详情，
+不接受 `/judge` 客户端提交的首答副本。
 
 实验可见性由管理员维护的 `hidden` 状态控制：未隐藏的实验向班级成员开放；隐藏时
 非管理员无法访问首页入口、实验 API 或教师看板，管理员仍保留访问能力。

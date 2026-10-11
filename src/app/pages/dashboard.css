@@ -196,6 +196,14 @@ button.cell-pass:hover {
   font-weight: 600;
 }
 
+.drawer-categories li span:first-child small {
+  display: block;
+  margin-top: 4px;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 400;
+}
+
 .drawer-categories li.is-pass {
   border-color: #b7e0cd;
   background: #f0faf6;
@@ -206,6 +214,15 @@ button.cell-pass:hover {
   border-color: #f0cfcb;
   background: #fdf0ef;
   color: var(--danger);
+}
+
+.drawer-predictions li {
+  align-items: flex-start;
+  flex-direction: column;
+}
+
+.drawer-predictions li span:first-child {
+  font-family: inherit;
 }
 
 .drawer-note {

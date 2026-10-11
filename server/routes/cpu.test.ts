@@ -5,6 +5,8 @@ import { hashPassword } from "../auth/password.ts";
 import { createSession } from "../auth/session.ts";
 import { openMemoryDb, newId } from "../db/client.ts";
 import { attachDb, attachSession, type AppVariables } from "../http/context.ts";
+import { hiddenCasesFor } from "../judge/cpu/hiddenSet.ts";
+import { seedFor } from "../../src/features/cpu/domain/rng.ts";
 import { cpuRoutes } from "./cpu.ts";
 
 async function setup() {
@@ -15,8 +17,7 @@ async function setup() {
     "实验班",
     "invite-1",
   );
-  const mkUser = async (no: string, role: string, memberRole: string | null) => {
-    const id = newId();
+  const mkUser = async (no: string, role: string, memberRole: string | null, id = newId()) => {
     db.prepare(
       "INSERT INTO users (id, student_no, name, password_hash, role) VALUES (?, ?, ?, ?, ?)",
     ).run(id, no, no, await hashPassword("pass"), role);
@@ -30,7 +31,7 @@ async function setup() {
     }
     return id;
   };
-  const studentId = await mkUser("stu-1", "user", "student");
+  const studentId = await mkUser("stu-1", "user", "student", "c6-boundary-3");
   const teacherId = await mkUser("tea-1", "teacher", "teacher");
   const app = new Hono<{ Variables: AppVariables }>();
   app.use("/api/*", attachDb(db), attachSession());
@@ -45,6 +46,14 @@ const url = (classId: string, path: string) =>
 const SOLVED_C1 = [
   { op: "LOAD", reg: 0, operand: 14 },
   { op: "STORE", reg: 0, operand: 15 },
+  { op: "HALT", reg: 0, operand: 0 },
+];
+
+const SOLVED_C6 = [
+  { op: "STORE", reg: 1, operand: 14 },
+  { op: "JZ", reg: 1, operand: 4 },
+  { op: "SUB", reg: 1, operand: 15 },
+  { op: "JMP", reg: 0, operand: 0 },
   { op: "HALT", reg: 0, operand: 0 },
 ];
 
@@ -127,12 +136,34 @@ describe("cpu routes", () => {
     expect(body.drafts["1"].rows).toEqual(SOLVED_C1);
   });
 
-  it("judges the stage-1 reference solution end-to-end", async () => {
+  it("keeps the first guided pick on the server across retries and judges", async () => {
     const { app, classId, studentId, cookieFor } = await setup();
+    const firstPrompt = getCpuStage(1)!.guided!.prompts[0];
+    const firstWrongIndex = firstPrompt.options.findIndex((option) => option.correct !== true);
+    const correctIndex = firstPrompt.options.findIndex((option) => option.correct === true);
+    const cookie = cookieFor(studentId);
+    const recordFirstPick = (optionIndex: number) =>
+      app.fetch(
+        new Request(url(classId, "/guided-answer"), {
+          method: "POST",
+          headers: { cookie, "content-type": "application/json" },
+          body: JSON.stringify({ stageIndex: 1, promptId: firstPrompt.id, optionIndex }),
+        }),
+      );
+    const firstPick = await recordFirstPick(firstWrongIndex);
+    expect(firstPick.status).toBe(200);
+    expect(await firstPick.json()).toEqual({ optionIndex: firstWrongIndex });
+
+    // Simulate a refreshed client retrying with a different choice. The
+    // server's first event remains authoritative even if /judge is forged.
+    const retry = await recordFirstPick(correctIndex);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toEqual({ optionIndex: firstWrongIndex });
     const res = await judge(app, classId, cookieFor(studentId), {
       stageIndex: 1,
       draft: { rows: SOLVED_C1 },
       guidedAnswers: guidedAnswersFor(1),
+      guidedFirstAnswers: { [firstPrompt.id]: correctIndex },
     });
     expect(res.status).toBe(200);
     const outcome = (await res.json()) as {
@@ -140,8 +171,45 @@ describe("cpu routes", () => {
       score: number;
       total: number;
       currentStage: number;
+      testSummary: {
+        predictions: { promptId: string; selected: string; correct: boolean }[];
+      };
     };
     expect(outcome).toMatchObject({ passed: true, score: outcome.total, currentStage: 2 });
+    expect(outcome.testSummary.predictions).toContainEqual(
+      expect.objectContaining({
+        promptId: firstPrompt.id,
+        selected: firstPrompt.options[firstWrongIndex].label,
+        correct: false,
+      }),
+    );
+  });
+
+  it("lets the C6 countdown finish with the fixed hidden B=8 boundary", async () => {
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const hiddenCases = hiddenCasesFor(6, seedFor(studentId, "cpu", 6));
+    expect(hiddenCases.some((testCase) => testCase.initRegs?.B === 8)).toBe(true);
+    const cookie = cookieFor(studentId);
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1, 2, 3, 4, 5]), studentId, classId);
+
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 6,
+      draft: { rows: SOLVED_C6 },
+      guidedAnswers: guidedAnswersFor(6),
+    });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as {
+      passed: boolean;
+      score: number;
+      total: number;
+      testSummary: { results: { passed: boolean }[] };
+    };
+    expect(outcome.passed).toBe(true);
+    expect(outcome.score).toBe(outcome.total);
+    expect(outcome.testSummary.results.every((result) => result.passed)).toBe(true);
   });
 
   it("rejects a guided stage until the prompt sequence is complete", async () => {

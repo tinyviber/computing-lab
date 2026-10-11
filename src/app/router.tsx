@@ -28,6 +28,7 @@ import { AdminPage } from "./pages/AdminPage";
 import { AdminClassesPage } from "./pages/AdminClassesPage";
 import { AdminLabsPage } from "./pages/AdminLabsPage";
 import { TeacherLabsPage } from "./pages/TeacherLabsPage";
+import { AudioEncodingEntryPage } from "./pages/AudioEncodingEntryPage";
 
 function RootLayout() {
   return <Outlet />;
@@ -191,11 +192,7 @@ const audioEncodingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/labs/audio-encoding",
   validateSearch: passThroughSearch,
-  // Lazy: keeps the workbench + worker glue out of the main bundle.
-  component: lazyRouteComponent(
-    () => import("../features/audio-encoding"),
-    "AudioEncodingDemoPage",
-  ),
+  component: AudioEncodingEntryPage,
   errorComponent: LabErrorPage,
 });
 

@@ -17,6 +17,10 @@ function fixtureDb(version: number): DatabaseSync {
   const db = new DatabaseSync(":memory:");
   db.exec("PRAGMA foreign_keys = ON");
   db.exec(schemaSql);
+  if (version < 9) db.exec("DROP TABLE IF EXISTS cpu_guided_first_answers");
+  if (version < 8) db.exec("DROP TABLE IF EXISTS lab_class_settings");
+  if (version < 7) db.exec("ALTER TABLE lab_settings DROP COLUMN open_class_ids");
+  if (version < 6) db.exec("DROP TABLE lab_settings");
   if (version < 5) db.exec("DROP INDEX IF EXISTS idx_submissions_user_stage");
   if (version < 4) {
     db.exec("DROP TABLE task_responses");
@@ -37,12 +41,17 @@ const tableExists = (db: DatabaseSync, name: string) =>
   undefined;
 
 describe("migrate", () => {
-  it.each([1, 2, 3, 4])("upgrades a v%i database to the current schema", (version) => {
+  it.each([1, 2, 3, 4, 5, 6, 7, 8])("upgrades a v%i database to the current schema", (version) => {
     const db = fixtureDb(version);
     migrate(db);
 
     expect(versionOf(db)).toBe(SCHEMA_VERSION);
-    for (const table of ["task_sheets", "task_assignments", "task_responses"]) {
+    for (const table of [
+      "task_sheets",
+      "task_assignments",
+      "task_responses",
+      "cpu_guided_first_answers",
+    ]) {
       expect(tableExists(db, table), table).toBe(true);
     }
     // v2/v3 columns exist after the chain ran.
@@ -70,6 +79,7 @@ describe("migrate", () => {
 
     expect(versionOf(db)).toBe(SCHEMA_VERSION);
     expect(tableExists(db, "task_sheets")).toBe(true);
+    expect(tableExists(db, "cpu_guided_first_answers")).toBe(true);
     expect(
       (
         db.prepare("SELECT passed_stages FROM student_projects WHERE id = 'p1'").get() as {

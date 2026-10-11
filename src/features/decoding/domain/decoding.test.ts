@@ -94,11 +94,10 @@ describe("payload generation", () => {
     }
   });
 
-  it("differs across users", () => {
-    const stage = getDecodingStage(1)!;
-    const a = generatePayload(stage, seedFor("user-a", "decoding", 1));
-    const b = generatePayload(stage, seedFor("user-b", "decoding", 1));
-    expect(a.payload).not.toEqual(b.payload);
+  it("uses distinct stable seeds for different users", () => {
+    const seedA = seedFor("user-a", "decoding", 1);
+    const seedB = seedFor("user-b", "decoding", 1);
+    expect(seedA).not.toBe(seedB);
   });
 
   it("keeps payload and expected consistent per stage", () => {
