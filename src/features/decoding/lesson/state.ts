@@ -32,6 +32,9 @@ export type DecodingLessonState = {
   currentStage: number;
   passedStages: number[];
   drafts: Record<number, DecodingDraft>;
+  /** Server-assigned revision of each stage's latest applied write — the
+   *  next autosave for that stage sends it back as `expectedRevision`. */
+  draftRevisions: Record<number, number>;
   /** Per-user stage payloads issued by the server at project load. */
   payloads: Record<number, LabPayload>;
   judgeOutcome: DecodingJudgeResult | null;
@@ -45,6 +48,8 @@ export type DecodingLessonAction =
       currentStage: number;
       passedStages: number[];
       drafts: Record<number, DecodingDraft>;
+      /** Server revisions of the applied drafts, seeded into expectedRevision. */
+      draftRevisions?: Record<number, number>;
       payloads: Record<number, LabPayload>;
     }
   | { type: "select-stage"; stageIndex: number }
@@ -62,9 +67,17 @@ export type DecodingLessonAction =
     }
   | { type: "judge-result"; outcome: DecodingJudgeResult }
   | { type: "mark-saving"; stageIndex: number }
-  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number; revision?: number }
   | { type: "mark-save-error"; stageIndex: number }
   | { type: "mark-save-conflict"; stageIndex: number }
+  | {
+      type: "resolve-save-conflict";
+      stageIndex: number;
+      /** The draft the server holds for the stage; absent → the stage's empty draft. */
+      draft?: DecodingDraft;
+      /** Server revision now stored for the stage — seeds the next save. */
+      revision?: number;
+    }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -103,6 +116,7 @@ export function createDecodingLessonState(stageIndex = 1): DecodingLessonState {
     currentStage: stageIndex,
     passedStages: [],
     drafts: {},
+    draftRevisions: {},
     payloads: {},
     judgeOutcome: null,
     saveStatusByStage: {},
@@ -125,6 +139,10 @@ export function transitionDecodingLesson(
   switch (action.type) {
     case "load-project": {
       const drafts: Record<number, DecodingDraft> = {};
+      const draftRevisions: Record<number, number> = {};
+      for (const [key, rev] of Object.entries(action.draftRevisions ?? {})) {
+        draftRevisions[Number(key)] = rev;
+      }
       for (const [key, draft] of Object.entries(action.drafts)) {
         drafts[Number(key)] = sanitizeDraft(draft);
       }
@@ -140,6 +158,7 @@ export function transitionDecodingLesson(
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
+        draftRevisions,
         payloads: action.payloads,
         saveStatusByStage: {},
         judgeOutcome: null,
@@ -204,13 +223,18 @@ export function transitionDecodingLesson(
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
       };
-    case "mark-saved":
+    case "mark-saved": {
       // Only a save started from the stage's current dirty state may settle it.
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
       return {
         ...state,
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
       };
+    }
     case "mark-save-error":
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
       return {
@@ -224,6 +248,25 @@ export function transitionDecodingLesson(
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
+
+    case "resolve-save-conflict": {
+      // Per-stage reconcile after a refused write: swap ONLY the conflicted
+      // stage's draft for the server's copy and land its conflict flag in the
+      // same transition — every other stage's local draft and save flag is
+      // left untouched. Settles only while the stage still waits on its save:
+      // a newer local edit (dirty) retries its own save and reconciles later.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
+      };
+    }
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

@@ -21,6 +21,9 @@ export type LabProjectPayload<TDraft> = {
   passedStages: number[];
   /** Per-stage drafts keyed by stage index (`draft_graph` column). */
   drafts: Record<string, TDraft>;
+  /** Server-assigned revision of the latest applied write per stage — the
+   *  client's next PUT sends it back as `expectedRevision` (compare-and-swap). */
+  draftRevisions?: Record<string, number>;
 };
 
 /** Autosave lifecycle flags shared by every lab's lesson state. "conflict"

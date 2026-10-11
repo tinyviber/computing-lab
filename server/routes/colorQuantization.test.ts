@@ -88,8 +88,7 @@ describe("color-quantization routes", () => {
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({
           stageIndex: 2,
-          revision: 1,
-          saveToken: "test",
+          expectedRevision: 0,
           draft: { toners: [0, 1, 2, 5], code: "x" },
         }),
       }),

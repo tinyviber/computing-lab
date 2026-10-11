@@ -29,7 +29,7 @@ import {
   insertSubmission,
   saveStageDraft,
   gateStage,
-  type DraftWrite,
+  type DraftSaveResult,
   type LabJudgeError,
   type ProjectRow,
 } from "./pipeline.ts";
@@ -102,15 +102,15 @@ export function saveDraft(
   stageIndex: number,
   graph: unknown,
   rawComponents?: unknown,
-  write?: DraftWrite,
-): boolean {
+  expectedRevision?: number,
+): DraftSaveResult {
   const submodules =
     rawComponents === undefined
       ? undefined
       : [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
   return saveStageDraft(db, project, stageIndex, sanitizeGraph(graph), {
     unlockedSubmodules: submodules,
-    write,
+    expectedRevision,
   });
 }
 

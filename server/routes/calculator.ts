@@ -9,8 +9,8 @@ export function calculatorRoutes() {
     labId: "calculator",
     stageCount: CALCULATOR_STAGES.length,
     projectExtras: (_db, project) => ({ unlockedSubmodules: project.unlockedSubmodules }),
-    saveDraft: (db, project, stageIndex, body, write) =>
-      saveDraft(db, project, stageIndex, body.graph ?? {}, body.components, write),
+    saveDraft: (db, project, stageIndex, body, expectedRevision) =>
+      saveDraft(db, project, stageIndex, body.graph ?? {}, body.components, expectedRevision),
     judge: (db, project, stageIndex, body) =>
       judgeSubmission(db, project, stageIndex, body.graph, body.components),
   });

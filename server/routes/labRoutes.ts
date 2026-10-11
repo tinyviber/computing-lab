@@ -17,7 +17,7 @@ import {
 } from "../http/context.ts";
 import {
   getOrCreateProject,
-  type DraftWrite,
+  type DraftSaveResult,
   type LabJudgeError,
   type ProjectRow,
 } from "../judge/pipeline.ts";
@@ -36,8 +36,8 @@ type LabSpec<TDraft, TOutcome> = {
     project: ProjectRow<TDraft>,
     stageIndex: number,
     body: Record<string, unknown>,
-    write: DraftWrite,
-  ) => boolean;
+    expectedRevision: number,
+  ) => DraftSaveResult;
   judge: (
     db: DatabaseSync,
     project: ProjectRow<TDraft>,
@@ -81,6 +81,9 @@ export function labRoutes<TDraft, TOutcome extends object>(
       currentStage: project.currentStage,
       passedStages: project.passedStages,
       drafts: project.drafts,
+      // Per-stage revision of the latest applied write — the client seeds its
+      // expectedRevision from this so its next save is a compare-and-swap.
+      draftRevisions: project.draftRevisions,
       ...(spec.projectExtras?.(c.get("db"), project) ?? {}),
     });
   });
@@ -91,23 +94,32 @@ export function labRoutes<TDraft, TOutcome extends object>(
     const body = await c.req.json().catch(() => null);
     const stageIndex = stageIndexOf(body);
     if (stageIndex === null) return jsonError(c, 400, "invalid-stage");
-    const revision = body?.revision;
-    if (typeof revision !== "number" || !Number.isFinite(revision) || revision < 0) {
+    // Optimistic concurrency: the client states which server revision its
+    // write builds on (0/null on the first write); the server applies it only
+    // while that is still the stored revision, assigning stored+1 itself.
+    const rawExpected = body?.expectedRevision;
+    const expectedRevision = rawExpected === null ? 0 : rawExpected;
+    if (
+      typeof expectedRevision !== "number" ||
+      !Number.isInteger(expectedRevision) ||
+      expectedRevision < 0
+    ) {
       return jsonError(c, 400, "invalid-revision");
     }
-    const saveToken = body?.saveToken;
-    if (typeof saveToken !== "string" || saveToken.length === 0) {
-      return jsonError(c, 400, "invalid-save-token");
-    }
     const db = c.get("db");
-    const applied = spec.saveDraft(
+    const result = spec.saveDraft(
       db,
       projectOf(db, auth),
       stageIndex,
       body as Record<string, unknown>,
-      { revision, saveToken },
+      expectedRevision,
     );
-    return c.json({ ok: true, savedAt: new Date().toISOString(), applied });
+    return c.json({
+      ok: true,
+      applied: result.applied,
+      revision: result.revision,
+      savedAt: new Date().toISOString(),
+    });
   });
 
   app.post("/judge", async (c) => {

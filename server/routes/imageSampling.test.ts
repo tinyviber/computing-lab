@@ -88,8 +88,7 @@ describe("image-sampling routes", () => {
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({
           stageIndex: 1,
-          revision: 1,
-          saveToken: "test",
+          expectedRevision: 0,
           draft: { width: 16, height: 16, code: "x" },
         }),
       }),

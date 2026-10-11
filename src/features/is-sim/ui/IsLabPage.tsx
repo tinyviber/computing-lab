@@ -97,7 +97,7 @@ export function IsLabPage() {
   const draft = draftOf(state);
   const topology = useMemo(() => topologyOf(state), [state.drafts, state.stageIndex]);
 
-  const { projectLoaded, loadError, reload } = useLabProject<
+  const { projectLoaded, loadError, fetchProject } = useLabProject<
     IsDraft,
     Record<string, never>,
     IsLessonAction
@@ -109,6 +109,7 @@ export function IsLabPage() {
       type: "load-project",
       currentStage: project.currentStage,
       passedStages: project.passedStages,
+      draftRevisions: project.draftRevisions,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -125,14 +126,28 @@ export function IsLabPage() {
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
+    expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
-    onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
+    onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
     // The server dropped this write because a newer one already exists
     // elsewhere: refetch so local state reconciles to the winning draft,
     // then flag the conflict briefly on the stage.
     onConflict: (s) => {
-      void reload().finally(() => dispatch({ type: "mark-save-conflict", stageIndex: s }));
+      // Reconcile only the conflicted stage against the server's copy —
+      // other stages keep their unsaved local drafts and flags.
+      void fetchProject().then((project) => {
+        if (!project) {
+          dispatch({ type: "mark-save-conflict", stageIndex: s });
+          return;
+        }
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex: s,
+          draft: project.drafts?.[s],
+          revision: project.draftRevisions?.[s],
+        });
+      });
     },
   });
 

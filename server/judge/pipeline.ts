@@ -14,7 +14,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import type { ComponentDef } from "../../src/features/calculator/domain/graph.ts";
-import { newId, parseJsonColumn } from "../db/client.ts";
+import { newId, parseJsonColumn, withTransaction } from "../db/client.ts";
 
 /** Machine-readable failure returned by any lab judge before grading starts. */
 export type LabJudgeError = { error: string; status: number };
@@ -32,14 +32,16 @@ export type ProjectRow<TDraft = unknown> = {
   passedStages: number[];
   unlockedSubmodules: ComponentDef[];
   drafts: Record<string, TDraft>;
-  /** Latest accepted write per stage. Writes order by (revision, saveToken);
-   *  strictly-older writes are dropped, equal-revision writes from different
-   *  tabs resolve deterministically on the token instead of arrival order. */
-  draftRevisions: Record<string, DraftWrite>;
+  /** Server-assigned revision of the latest applied write per stage. Draft
+   *  saves are compare-and-swap on this counter: the client sends the
+   *  revision it last saw applied (`expectedRevision`) and the server only
+   *  applies the write when it still matches, assigning `stored + 1`. */
+  draftRevisions: Record<string, number>;
 };
 
-/** One ordered draft write: wall-clock revision plus the saver's per-mount token. */
-export type DraftWrite = { revision: number; saveToken: string };
+/** Outcome of a compare-and-swap draft write: `revision` is the newly
+ *  assigned revision when applied, or the current stored one when refused. */
+export type DraftSaveResult = { applied: boolean; revision: number };
 
 type RawProject = {
   id: string;
@@ -64,18 +66,22 @@ function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
     unlockedSubmodules: parseJsonColumn<ComponentDef[]>(row.unlocked_submodules, []),
     drafts: parseJsonColumn<Record<string, TDraft>>(row.draft_graph, {}),
     draftRevisions: toDraftRevisions(
-      parseJsonColumn<Record<string, DraftWrite | number>>(row.draft_revisions, {}),
+      parseJsonColumn<Record<string, number | { revision?: unknown }>>(row.draft_revisions, {}),
     ),
   };
 }
 
-/** Older rows stored a bare revision number; read them as tokenless writes. */
-function toDraftRevisions(raw: Record<string, DraftWrite | number>): Record<string, DraftWrite> {
+/** Rows pre-dating server revisions stored a bare number, and the short-lived
+ *  client-clock protocol stored `{revision, saveToken}` objects — read every
+ *  shape as a plain counter. */
+function toDraftRevisions(
+  raw: Record<string, number | { revision?: unknown }>,
+): Record<string, number> {
   return Object.fromEntries(
-    Object.entries(raw).map(([key, value]) => [
-      key,
-      typeof value === "number" ? { revision: value, saveToken: "" } : value,
-    ]),
+    Object.entries(raw).flatMap(([key, value]) => {
+      const revision = typeof value === "number" ? value : Number(value?.revision);
+      return Number.isFinite(revision) ? [[key, revision]] : [];
+    }),
   );
 }
 
@@ -112,44 +118,66 @@ export function gateStage<TStage>(
 }
 
 /**
- * Persists one stage's already-sanitized draft into the project's drafts map.
- * `extras.unlockedSubmodules` additionally rewrites the component library in
- * the same update (calculator autosaves learner-made components with drafts).
+ * Persists one stage's already-sanitized draft into the project's drafts map
+ * via optimistic concurrency: the write applies only when
+ * `extras.expectedRevision` still equals the stage's stored revision, and is
+ * then assigned `stored + 1` — client clocks never order writes, so a stale
+ * device can never resurrect an older draft, and a normal device is never
+ * locked out by another device's fast clock. A refused write reports the
+ * current stored revision so the caller can reconcile.
+ *
+ * The compare and the write run inside one IMMEDIATE transaction and the
+ * stored row is re-read inside it, so two writes racing the same stage
+ * serialize deterministically: the loser sees the winner's revision and is
+ * refused. `extras.unlockedSubmodules` additionally rewrites the component
+ * library in the same update (calculator autosaves learner-made components
+ * with drafts).
  */
 export function saveStageDraft<TDraft>(
   db: DatabaseSync,
   project: ProjectRow<TDraft>,
   stageIndex: number,
   draft: TDraft,
-  extras?: { unlockedSubmodules?: unknown[]; write?: DraftWrite },
-): boolean {
+  extras?: { unlockedSubmodules?: unknown[]; expectedRevision?: number },
+): DraftSaveResult {
   const key = String(stageIndex);
-  const write = extras?.write ?? { revision: Date.now(), saveToken: "" };
-  const last = project.draftRevisions[key];
-  if (
-    last !== undefined &&
-    (last.revision > write.revision ||
-      (last.revision === write.revision && last.saveToken > write.saveToken))
-  ) {
-    return false;
-  }
-  const drafts = { ...project.drafts, [key]: draft };
-  const revisions = { ...project.draftRevisions, [key]: write };
-  if (extras?.unlockedSubmodules === undefined) {
+  // Route callers always pass a validated number; an absent expectedRevision
+  // means an unconditional write — only internal callers (judge tests, seeds)
+  // use it that way.
+  const expected = extras?.expectedRevision;
+  return withTransaction(db, () => {
+    const row = db
+      .prepare("SELECT draft_graph, draft_revisions FROM student_projects WHERE id = ?")
+      .get(project.id) as { draft_graph: string; draft_revisions: string } | undefined;
+    const revisions = toDraftRevisions(
+      parseJsonColumn<Record<string, number | { revision?: unknown }>>(row?.draft_revisions, {}),
+    );
+    const stored = revisions[key] ?? 0;
+    if (expected !== undefined && stored !== expected) {
+      return { applied: false, revision: stored };
+    }
+    const revision = stored + 1;
+    const drafts = {
+      ...parseJsonColumn<Record<string, TDraft>>(row?.draft_graph, {}),
+      [key]: draft,
+    };
+    revisions[key] = revision;
+    if (extras?.unlockedSubmodules === undefined) {
+      db.prepare(
+        "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+      ).run(JSON.stringify(drafts), JSON.stringify(revisions), project.id);
+      return { applied: true, revision };
+    }
     db.prepare(
-      "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-    ).run(JSON.stringify(drafts), JSON.stringify(revisions), project.id);
-    return true;
-  }
-  db.prepare(
-    "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-  ).run(
-    JSON.stringify(drafts),
-    JSON.stringify(revisions),
-    JSON.stringify(extras.unlockedSubmodules),
-    project.id,
-  );
-  return true;
+      "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
+    ).run(
+      JSON.stringify(drafts),
+      JSON.stringify(revisions),
+      JSON.stringify(extras.unlockedSubmodules),
+      project.id,
+    );
+    return { applied: true, revision };
+  });
 }
 
 /**

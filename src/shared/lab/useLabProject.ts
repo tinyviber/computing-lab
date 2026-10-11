@@ -11,10 +11,12 @@ import { api, describeApiError, type LabProjectPayload } from "../api/client";
  * the latest request, so a slow fetch for a previous classId/labId can never
  * overwrite the state the newer request belongs to.
  *
- * `reload()` re-fetches on a fresh ticket — used to reconcile local state
- * after the server reports a newer write exists (save conflict). It resolves
- * once the reload has dispatched (or been superseded/failed), and never
- * touches `projectLoaded`/`loadError` so the workspace doesn't flicker.
+ * `fetchProject()` re-fetches on a fresh ticket and resolves with the raw
+ * payload instead of dispatching — used to reconcile one stage's draft after
+ * the server reports a newer write exists (save conflict), without touching
+ * the other stages' local state. It resolves `null` when the response is
+ * superseded or the request fails, and never touches `projectLoaded`/`loadError`
+ * so the workspace doesn't flicker.
  */
 export function useLabProject<TDraft, TExtras, TAction>(options: {
   classId: string | undefined;
@@ -23,7 +25,11 @@ export function useLabProject<TDraft, TExtras, TAction>(options: {
   ready: boolean;
   toAction: (project: LabProjectPayload<TDraft> & TExtras) => TAction;
   dispatch: (action: TAction) => void;
-}): { projectLoaded: boolean; loadError: string | null; reload: () => Promise<void> } {
+}): {
+  projectLoaded: boolean;
+  loadError: string | null;
+  fetchProject: () => Promise<(LabProjectPayload<TDraft> & TExtras) | null>;
+} {
   const { classId, labId, ready, toAction, dispatch } = options;
   const [projectLoaded, setProjectLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -53,22 +59,23 @@ export function useLabProject<TDraft, TExtras, TAction>(options: {
     };
   }, [classId, labId, ready]);
 
-  const reload = useCallback((): Promise<void> => {
-    if (!classId || !ready) return Promise.resolve();
+  const fetchProject = useCallback((): Promise<(LabProjectPayload<TDraft> & TExtras) | null> => {
+    if (!classId || !ready) return Promise.resolve(null);
     const ticket = ++requestSeq.current;
     return api
       .get<LabProjectPayload<TDraft> & TExtras>(`/api/classes/${classId}/labs/${labId}/project`)
       .then((project) => {
-        if (requestSeq.current !== ticket) return;
-        dispatch(toAction(project));
+        if (requestSeq.current !== ticket) return null;
         setProjectLoaded(true);
         setLoadError(null);
+        return project;
       })
       .catch(() => {
         // Best-effort reconcile: a failed refetch leaves the current state
-        // untouched and surfaces nothing — the conflict flag still settles.
+        // untouched and reports null — the caller still settles the flag.
+        return null;
       });
-  }, [classId, labId, ready, toAction, dispatch]);
+  }, [classId, labId, ready]);
 
-  return { projectLoaded, loadError, reload };
+  return { projectLoaded, loadError, fetchProject };
 }

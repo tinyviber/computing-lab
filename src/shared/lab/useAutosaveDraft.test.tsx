@@ -10,9 +10,10 @@ type Params = {
   saveStatus: string;
   stageIndex: number;
   draftOf: (stageIndex: number) => Draft | undefined;
+  expectedRevisionOf: (stageIndex: number) => number;
   deps?: unknown[];
   onSaving: (stageIndex: number) => void;
-  onSaved: (stageIndex: number) => void;
+  onSaved: (stageIndex: number, revision?: number) => void;
   onError: (stageIndex: number) => void;
   onConflict?: (stageIndex: number) => void;
 };
@@ -23,6 +24,7 @@ const base = (over: Partial<Params> = {}): Params => ({
   saveStatus: "dirty",
   stageIndex: 1,
   draftOf: (s) => ({ text: `stage-${s}` }),
+  expectedRevisionOf: () => 0,
   onSaving: vi.fn(),
   onSaved: vi.fn(),
   onError: vi.fn(),
@@ -39,8 +41,8 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-const ok = (applied = true) =>
-  new Response(JSON.stringify({ ok: true, applied }), {
+const ok = (applied = true, revision?: number) =>
+  new Response(JSON.stringify({ ok: true, applied, revision }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
@@ -82,7 +84,7 @@ describe("useAutosaveDraft", () => {
     });
   };
 
-  it("debounces continuous edits into one PUT carrying the freshest revision", async () => {
+  it("debounces continuous edits into one PUT carrying the expected revision", async () => {
     const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
       initialProps: base({ deps: [1] }),
     });
@@ -99,7 +101,7 @@ describe("useAutosaveDraft", () => {
     });
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(calls[0].body.stageIndex).toBe(1);
-    expect(typeof calls[0].body.revision).toBe("number");
+    expect(calls[0].body.expectedRevision).toBe(0);
 
     calls[0].done.resolve(ok());
     await flush();
@@ -135,7 +137,7 @@ describe("useAutosaveDraft", () => {
     expect(events).toEqual(["saving:1", "saving:2", "saved:2", "saved:1"]);
   });
 
-  it("drops the stale response once a newer save for the same stage is in flight", async () => {
+  it("serializes same-stage saves behind the in-flight one, never racing itself", async () => {
     const onSaved = vi.fn();
     const onError = vi.fn();
     const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
@@ -148,19 +150,22 @@ describe("useAutosaveDraft", () => {
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
-    expect(fetch).toHaveBeenCalledTimes(2);
-    const [first, second] = calls;
-    expect(first.body.stageIndex).toBe(1);
-    expect(second.body.stageIndex).toBe(1);
-    expect(second.body.revision).toBeGreaterThan(first.body.revision as number);
+    // 同关卡的第二臂在上一次保存未完成时只能排队 —— 同一设备的两笔写入
+    // 若并发携带相同的 expectedRevision 必然自相冲突，绝不能放出去。
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].body.expectedRevision).toBe(0);
 
-    // 旧请求最后返回：不得覆盖新保存已落定的状态。
-    second.done.resolve(ok());
+    // 第一笔落地（服务器分配 revision 5）：排队臂立即以新期望号重发。
+    calls[0].done.resolve(ok(true, 5));
     await flush();
-    first.done.resolve(ok());
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.expectedRevision).toBe(5);
+
+    calls[1].done.resolve(ok(true, 6));
     await flush();
+    // 被取代的旧臂不回报；只有最终臂的 applied 结果落到 saved。
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(1);
+    expect(onSaved).toHaveBeenCalledWith(1, 6);
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -273,16 +278,21 @@ describe("useAutosaveDraft", () => {
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
-    expect(fetch).toHaveBeenCalledTimes(2);
+    // 同关卡第二臂在首个保存未完成时排队 —— 只有一个请求在途。
+    expect(fetch).toHaveBeenCalledTimes(1);
 
-    // 已被本地更新臂取代的旧写入被拒时只是迟到响应：静默，不触发冲突。
-    calls[0].done.resolve(ok(false));
+    // 已被本地更新臂取代的旧写入被拒只是迟到响应：它把队列里的新臂放出去，
+    // 自身静默，不触发冲突。
+    calls[0].done.resolve(ok(false, 7));
     await flush();
     expect(onConflict).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    // 被拒响应携带的服务端 revision 也计入下一笔的 expectedRevision。
+    expect(calls[1].body.expectedRevision).toBe(7);
 
     // 仍是最新臂的写入被拒：服务器上已有更新数据，交给 onConflict 走重取
     // 调和 —— 不得静默挂起、不得报成 saved/error。
-    calls[1].done.resolve(ok(false));
+    calls[1].done.resolve(ok(false, 8));
     await flush();
     expect(onConflict).toHaveBeenCalledTimes(1);
     expect(onConflict).toHaveBeenCalledWith(1);
@@ -290,28 +300,36 @@ describe("useAutosaveDraft", () => {
     expect(onError).not.toHaveBeenCalled();
   });
 
-  it("stamps a stable saveToken per hook instance on every PUT", async () => {
-    const first = renderHook((p: Params) => useAutosaveDraft(p), {
-      initialProps: base({ deps: [1] }),
+  it("carries expectedRevision — the project seed first, then the applied response", async () => {
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ deps: [1], expectedRevisionOf: () => 2 }),
     });
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
-    first.rerender(base({ deps: [2] }));
-    await act(async () => {
-      vi.advanceTimersByTime(1500);
-    });
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(typeof calls[0].body.saveToken).toBe("string");
-    expect(calls[1].body.saveToken).toBe(calls[0].body.saveToken);
+    // 项目载入时种下的 lastAppliedRevision 是第一笔的期望值。
+    expect(calls[0].body.expectedRevision).toBe(2);
 
-    first.unmount();
-    renderHook((p: Params) => useAutosaveDraft(p), { initialProps: base() });
+    calls[0].done.resolve(ok(true, 4));
+    await flush();
+    rerender(base({ deps: [2], expectedRevisionOf: () => 2 }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    // 之后以最近一次 applied 响应���配��的 revision 为期望 —— expectedRevision
+    // 在发送时刻计算，arm 与 send 之间落地的保存也会算进来。
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.expectedRevision).toBe(4);
+
+    // reducer 侧读到更高的 seed（如项目重载）时以它为准。
+    calls[1].done.resolve(ok(true, 4));
+    await flush();
+    rerender(base({ deps: [3], expectedRevisionOf: () => 9 }));
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });
     expect(fetch).toHaveBeenCalledTimes(3);
-    expect(calls[2].body.saveToken).not.toBe(calls[0].body.saveToken);
+    expect(calls[2].body.expectedRevision).toBe(9);
   });
 
   it("reports a rejection only while its arm is still current", async () => {

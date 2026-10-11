@@ -126,8 +126,7 @@ describe("cpu routes", () => {
         headers: { cookie, "content-type": "application/json" },
         body: JSON.stringify({
           stageIndex: 1,
-          revision: 1,
-          saveToken: "test",
+          expectedRevision: 0,
           draft: { rows: [...SOLVED_C1, { op: "HAX", reg: 9, operand: 99 }] },
         }),
       }),

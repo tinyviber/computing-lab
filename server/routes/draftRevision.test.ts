@@ -28,7 +28,7 @@ async function setup() {
   app.use("/api/*", attachDb(db), attachSession());
   app.route("/api/classes/:classId/labs/image-sampling", imageSamplingRoutes());
   const cookie = `lab_session=${createSession(db, studentId).id}`;
-  return { app, classId, cookie };
+  return { app, classId, cookie, db, studentId };
 }
 
 const url = (classId: string, path: string) =>
@@ -48,162 +48,228 @@ const putDraft = (
     }),
   );
 
-const draftsOf = async (
+const projectOf = async (
   app: Hono<{ Variables: AppVariables }>,
   classId: string,
   cookie: string,
 ) => {
   const project = await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
-  const body = (await project.json()) as { drafts: Record<string, { code: string }> };
-  return body.drafts;
+  return (await project.json()) as {
+    drafts: Record<string, { code?: string }>;
+    draftRevisions: Record<string, number>;
+  };
 };
 
-describe("draft revision ordering", () => {
-  it("rejects saves without a revision", async () => {
+describe("draft optimistic concurrency", () => {
+  it("rejects saves without expectedRevision", async () => {
     const { app, classId, cookie } = await setup();
     const res = await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      saveToken: "t",
       draft: { a: 1 },
     });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid-revision" });
   });
 
-  it("rejects non-numeric revisions", async () => {
+  it("rejects non-numeric or negative expectedRevision", async () => {
+    const { app, classId, cookie } = await setup();
+    for (const expectedRevision of ["12", -1, 1.5]) {
+      const res = await putDraft(app, classId, cookie, {
+        stageIndex: 1,
+        expectedRevision,
+        draft: { a: 1 },
+      });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: "invalid-revision" });
+    }
+  });
+
+  it("applies the first write at expected 0 and assigns revision 1", async () => {
     const { app, classId, cookie } = await setup();
     const res = await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: "12",
-      saveToken: "t",
-      draft: { a: 1 },
+      expectedRevision: 0,
+      draft: { code: "first" },
     });
-    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ ok: true, applied: true, revision: 1 });
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toBe("first");
   });
 
-  it("rejects saves without a saveToken", async () => {
-    const { app, classId, cookie } = await setup();
-    const res = await putDraft(app, classId, cookie, {
-      stageIndex: 1,
-      revision: 1,
-      draft: { a: 1 },
-    });
-    expect(res.status).toBe(400);
-    expect(await res.json()).toMatchObject({ error: "invalid-save-token" });
-  });
-
-  it("keeps the newer draft when an older revision arrives late", async () => {
-    const { app, classId, cookie } = await setup();
-    const fresh = await putDraft(app, classId, cookie, {
-      stageIndex: 1,
-      revision: 5,
-      saveToken: "t",
-      draft: { code: "newer" },
-    });
-    expect(await fresh.json()).toMatchObject({ ok: true, applied: true });
-
-    const stale = await putDraft(app, classId, cookie, {
-      stageIndex: 1,
-      revision: 4,
-      saveToken: "t",
-      draft: { code: "older" },
-    });
-    expect(stale.status).toBe(200);
-    expect(await stale.json()).toMatchObject({ ok: true, applied: false });
-
-    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("newer");
-  });
-
-  it("applies revisions in increasing order per stage", async () => {
+  it("assigns strictly increasing revisions per accepted write", async () => {
     const { app, classId, cookie } = await setup();
     await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 4,
-      saveToken: "t",
+      expectedRevision: 0,
       draft: { code: "a" },
     });
     const res = await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 5,
-      saveToken: "t",
+      expectedRevision: 1,
       draft: { code: "b" },
     });
-    expect(await res.json()).toMatchObject({ applied: true });
-    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("b");
+    expect(await res.json()).toMatchObject({ applied: true, revision: 2 });
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toBe("b");
+  });
+
+  it("rejects a stale expected revision and reports the stored one", async () => {
+    const { app, classId, cookie } = await setup();
+    // Device A lands two writes: stored revision is now 2.
+    await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 0,
+      draft: { code: "a1" },
+    });
+    await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 1,
+      draft: { code: "a2" },
+    });
+
+    // Device B still believes revision 1 is latest — its write is refused
+    // rather than resurrecting older data, and it learns the true revision.
+    const stale = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 1,
+      draft: { code: "from-b" },
+    });
+    expect(stale.status).toBe(200);
+    expect(await stale.json()).toMatchObject({ ok: true, applied: false, revision: 2 });
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toBe("a2");
+  });
+
+  it("rejects a write that skips ahead of the stored revision", async () => {
+    const { app, classId, cookie } = await setup();
+    await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 0,
+      draft: { code: "a" },
+    });
+    const res = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 3,
+      draft: { code: "jump" },
+    });
+    expect(await res.json()).toMatchObject({ applied: false, revision: 1 });
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toBe("a");
   });
 
   it("tracks revisions independently per stage", async () => {
     const { app, classId, cookie } = await setup();
-    const high = await putDraft(app, classId, cookie, {
+    const one = await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 9,
-      saveToken: "t",
+      expectedRevision: 0,
       draft: { code: "s1" },
     });
-    expect(await high.json()).toMatchObject({ applied: true });
-    const other = await putDraft(app, classId, cookie, {
+    expect(await one.json()).toMatchObject({ applied: true, revision: 1 });
+    // Stage 2 starts its own counter — stage 1's revision does not lift it.
+    const two = await putDraft(app, classId, cookie, {
       stageIndex: 2,
-      revision: 3,
-      saveToken: "t",
+      expectedRevision: 0,
       draft: { code: "s2" },
     });
-    expect(await other.json()).toMatchObject({ applied: true });
+    expect(await two.json()).toMatchObject({ applied: true, revision: 1 });
   });
 
-  it("orders equal revisions by saveToken so concurrent writers resolve deterministically", async () => {
+  it("serializes concurrent same-stage writes deterministically", async () => {
     const { app, classId, cookie } = await setup();
-
-    // Two tabs issue the same revision; the bigger token wins no matter the
-    // arrival order — here the loser arrives second and is dropped.
-    const winner = await putDraft(app, classId, cookie, {
-      stageIndex: 1,
-      revision: 5,
-      saveToken: "bbb",
-      draft: { code: "from-b" },
-    });
-    expect(await winner.json()).toMatchObject({ applied: true });
-    const loser = await putDraft(app, classId, cookie, {
-      stageIndex: 1,
-      revision: 5,
-      saveToken: "aaa",
-      draft: { code: "from-a" },
-    });
-    expect(await loser.json()).toMatchObject({ applied: false });
-    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("from-b");
+    // Two tabs both believe revision 0 is current and write at once: exactly
+    // one wins; the other learns the stored revision instead of clobbering.
+    const [a, b] = await Promise.all([
+      putDraft(app, classId, cookie, {
+        stageIndex: 1,
+        expectedRevision: 0,
+        draft: { code: "from-a" },
+      }),
+      putDraft(app, classId, cookie, {
+        stageIndex: 1,
+        expectedRevision: 0,
+        draft: { code: "from-b" },
+      }),
+    ]);
+    const bodies = (await Promise.all([a.json(), b.json()])) as {
+      applied: boolean;
+      revision: number;
+    }[];
+    expect(bodies.map((r) => r.applied).sort()).toEqual([false, true]);
+    const winner = bodies.find((r) => r.applied);
+    const loser = bodies.find((r) => !r.applied);
+    expect(winner?.revision).toBe(1);
+    expect(loser?.revision).toBe(1);
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toMatch(/from-(a|b)/);
   });
 
-  it("still applies the bigger token when it arrives after the smaller one", async () => {
+  it("round-trips expectedRevision through the project payload", async () => {
     const { app, classId, cookie } = await setup();
-
-    // Arrival order flipped: the eventual winner writes second and lands.
-    const first = await putDraft(app, classId, cookie, {
+    await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 5,
-      saveToken: "aaa",
-      draft: { code: "from-a" },
+      expectedRevision: 0,
+      draft: { code: "a1" },
     });
-    expect(await first.json()).toMatchObject({ applied: true });
     const second = await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 5,
-      saveToken: "bbb",
-      draft: { code: "from-b" },
+      expectedRevision: 1,
+      draft: { code: "a2" },
     });
-    expect(await second.json()).toMatchObject({ applied: true });
-    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("from-b");
+    expect(await second.json()).toMatchObject({ applied: true, revision: 2 });
+
+    // After a reload the client reads the stored revision back from the
+    // project payload and uses it as the next expectedRevision.
+    const project = await projectOf(app, classId, cookie);
+    expect(project.draftRevisions["1"]).toBe(2);
+    const res = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: project.draftRevisions["1"],
+      draft: { code: "a3" },
+    });
+    expect(await res.json()).toMatchObject({ applied: true, revision: 3 });
   });
 
-  it("re-applies an identical write idempotently", async () => {
+  it("a rejected writer recovers by rebasing on the stored revision", async () => {
     const { app, classId, cookie } = await setup();
-    const write = {
+    await putDraft(app, classId, cookie, {
       stageIndex: 1,
-      revision: 5,
-      saveToken: "t",
-      draft: { code: "same" },
-    };
-    await putDraft(app, classId, cookie, write);
-    const retry = await putDraft(app, classId, cookie, write);
-    expect(await retry.json()).toMatchObject({ applied: true });
-    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("same");
+      expectedRevision: 0,
+      draft: { code: "a1" },
+    });
+    const stale = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 0,
+      draft: { code: "b-stale" },
+    });
+    expect(await stale.json()).toMatchObject({ applied: false, revision: 1 });
+
+    // The conflict-recovery client refetches and rewrites under the revision
+    // the server actually holds — the write then applies.
+    const retry = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 1,
+      draft: { code: "b-rebased" },
+    });
+    expect(await retry.json()).toMatchObject({ applied: true, revision: 2 });
+    expect((await projectOf(app, classId, cookie)).drafts["1"].code).toBe("b-rebased");
+  });
+
+  it("still reads legacy {revision, saveToken} revision objects", async () => {
+    const { app, classId, cookie, db, studentId } = await setup();
+    // Rows migrated from the client-clock protocol carry object revisions —
+    // they must keep reading as plain numbers so saves keep converging.
+    const first = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 0,
+      draft: { code: "a1" },
+    });
+    expect(await first.json()).toMatchObject({ applied: true });
+    db.prepare("UPDATE student_projects SET draft_revisions = ? WHERE user_id = ?").run(
+      JSON.stringify({ "1": { revision: 5, saveToken: "old" } }),
+      studentId,
+    );
+    const project = await projectOf(app, classId, cookie);
+    expect(project.draftRevisions["1"]).toBe(5);
+    const res = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      expectedRevision: 5,
+      draft: { code: "a2" },
+    });
+    expect(await res.json()).toMatchObject({ applied: true, revision: 6 });
   });
 });

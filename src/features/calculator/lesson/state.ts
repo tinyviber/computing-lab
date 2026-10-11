@@ -70,6 +70,9 @@ export type CalculatorLessonState = {
   unlockedSubmodules: ComponentDef[];
   /** Draft graph per stage index. */
   drafts: Record<number, CircuitGraph>;
+  /** Server-assigned revision of each stage's latest applied write — the
+   *  next autosave for that stage sends it back as `expectedRevision`. */
+  draftRevisions: Record<number, number>;
   /** Undo snapshots: the graph before each edit, tagged with its stage. */
   past: UndoSnapshot[];
   /** A node drag is kept out of history until the pointer is released. */
@@ -90,6 +93,8 @@ export type CalculatorLessonAction =
       passedStages: number[];
       unlockedSubmodules: ComponentDef[];
       drafts: Record<number, CircuitGraph>;
+      /** Server revisions of the applied drafts, seeded into expectedRevision. */
+      draftRevisions?: Record<number, number>;
       /** Stage the URL asked to reopen; falls back when absent or still locked. */
       stageIndex?: number;
     }
@@ -137,9 +142,17 @@ export type CalculatorLessonAction =
   | { type: "reset-stage" }
   | { type: "run-public-tests" }
   | { type: "mark-saving"; stageIndex: number }
-  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number; revision?: number }
   | { type: "mark-save-error"; stageIndex: number }
   | { type: "mark-save-conflict"; stageIndex: number }
+  | {
+      type: "resolve-save-conflict";
+      stageIndex: number;
+      /** The draft the server holds for the stage; absent → stage scaffold. */
+      draft?: CircuitGraph;
+      /** Server revision now stored for the stage — seeds the next save. */
+      revision?: number;
+    }
   | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
   | { type: "dismiss-message" };
 
@@ -238,6 +251,7 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     passedStages: [],
     unlockedSubmodules: [],
     drafts: { [stageIndex]: scaffoldGraph(stageIndex) },
+    draftRevisions: {},
     past: [],
     nodeMove: null,
     selectedNodeId: null,
@@ -566,6 +580,10 @@ export function transitionCalculatorLesson(
       for (const [key, graph] of Object.entries(action.drafts)) {
         drafts[Number(key)] = graph;
       }
+      const draftRevisions: Record<number, number> = {};
+      for (const [key, rev] of Object.entries(action.draftRevisions ?? {})) {
+        draftRevisions[Number(key)] = rev;
+      }
       const requested = action.stageIndex ?? state.stageIndex;
       const requestedStage = getStage(requested);
       const requestedUnlocked =
@@ -582,6 +600,7 @@ export function transitionCalculatorLesson(
         passedStages: action.passedStages,
         unlockedSubmodules: action.unlockedSubmodules,
         drafts,
+        draftRevisions,
         past: [],
         nodeMove: null,
         saveStatusByStage: {},
@@ -866,13 +885,18 @@ export function transitionCalculatorLesson(
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
       };
 
-    case "mark-saved":
+    case "mark-saved": {
       // Only a save started from the stage's current dirty state may settle it.
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
       return {
         ...state,
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
       };
+    }
 
     case "mark-save-error":
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
@@ -887,6 +911,37 @@ export function transitionCalculatorLesson(
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
+
+    case "resolve-save-conflict": {
+      // Per-stage reconcile after a refused write: swap ONLY the conflicted
+      // stage's draft for the server's copy and land its conflict flag in the
+      // same transition — every other stage's local draft and save flag is
+      // left untouched. Settles only while the stage still waits on its save:
+      // a newer local edit (dirty) retries its own save and reconciles later.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      const isCurrent = action.stageIndex === state.stageIndex;
+      return {
+        ...state,
+        drafts: {
+          ...state.drafts,
+          [action.stageIndex]: withScaffold(action.draft ?? emptyGraph(), action.stageIndex),
+        },
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        // Undo history survives: restoring a pre-conflict snapshot marks the
+        // stage dirty and re-saves — the student's recovery path for the
+        // overwritten work. Selection/wiring and stale verdicts clear only
+        // when the replaced draft is the one on screen.
+        nodeMove: isCurrent ? null : state.nodeMove,
+        selectedNodeId: isCurrent ? null : state.selectedNodeId,
+        pendingWire: isCurrent ? null : state.pendingWire,
+        runOutcome: isCurrent ? null : state.runOutcome,
+        judgeOutcome: isCurrent ? null : state.judgeOutcome,
+      };
+    }
 
     case "judge-result": {
       const unlocked = action.outcome.unlockedComponent;

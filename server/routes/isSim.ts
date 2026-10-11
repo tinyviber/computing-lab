@@ -13,9 +13,9 @@ export function isSimRoutes() {
   return labRoutes<IsDraft, IsJudgeResult>({
     labId: "is-sim",
     stageCount: IS_SIM_STAGES.length,
-    saveDraft: (db, project, stageIndex, body, write) =>
+    saveDraft: (db, project, stageIndex, body, expectedRevision) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
-        write,
+        expectedRevision,
       }),
     judge: (db, project, stageIndex, body) => {
       const key = `${project.userId}|is-sim|${stageIndex}`;

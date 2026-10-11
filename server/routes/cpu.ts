@@ -36,9 +36,9 @@ export function cpuRoutes() {
     projectExtras: (db, project) => ({
       calculatorCoreComplete: calculatorCoreComplete(db, project.userId),
     }),
-    saveDraft: (db, project, stageIndex, body, write) =>
+    saveDraft: (db, project, stageIndex, body, expectedRevision) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
-        write,
+        expectedRevision,
       }),
     judge: (db, project, stageIndex, body) => {
       const key = `${project.userId}|cpu|${stageIndex}`;

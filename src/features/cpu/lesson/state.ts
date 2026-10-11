@@ -63,6 +63,9 @@ export type CpuLessonState = {
   currentStage: number;
   passedStages: number[];
   drafts: Record<number, CpuDraft>;
+  /** Server-assigned revision of each stage's latest applied write — the
+   *  next autosave for that stage sends it back as `expectedRevision`. */
+  draftRevisions: Record<number, number>;
   /** Soft gate: false → show the calculator-first banner (never blocks). */
   calculatorCoreComplete: boolean | null;
   /**
@@ -93,6 +96,8 @@ export type CpuLessonAction =
       currentStage: number;
       passedStages: number[];
       drafts: Record<number, CpuDraft>;
+      /** Server revisions of the applied drafts, seeded into expectedRevision. */
+      draftRevisions?: Record<number, number>;
       calculatorCoreComplete: boolean;
     }
   | { type: "select-stage"; stageIndex: number }
@@ -105,9 +110,17 @@ export type CpuLessonAction =
   | { type: "run-public-tests"; cases: CpuCase[] }
   | { type: "judge-result"; outcome: CpuJudgeResult }
   | { type: "mark-saving"; stageIndex: number }
-  | { type: "mark-saved"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number; revision?: number }
   | { type: "mark-save-error"; stageIndex: number }
   | { type: "mark-save-conflict"; stageIndex: number }
+  | {
+      type: "resolve-save-conflict";
+      stageIndex: number;
+      /** The draft the server holds for the stage; absent → the stage's empty draft. */
+      draft?: CpuDraft;
+      /** Server revision now stored for the stage — seeds the next save. */
+      revision?: number;
+    }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -197,6 +210,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     currentStage: stageIndex,
     passedStages: [],
     drafts: {},
+    draftRevisions: {},
     calculatorCoreComplete: null,
     guidedAnswers: {},
     playgroundByte: initialPlaygroundByte(getCpuStage(stageIndex)),
@@ -257,6 +271,10 @@ export function transitionCpuLesson(
 ): CpuLessonState {
   switch (action.type) {
     case "load-project": {
+      const draftRevisions: Record<number, number> = {};
+      for (const [key, rev] of Object.entries(action.draftRevisions ?? {})) {
+        draftRevisions[Number(key)] = rev;
+      }
       const drafts: Record<number, CpuDraft> = {};
       for (const [key, draft] of Object.entries(action.drafts)) {
         drafts[Number(key)] = sanitizeDraft(draft);
@@ -275,6 +293,7 @@ export function transitionCpuLesson(
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
+        draftRevisions,
         calculatorCoreComplete: action.calculatorCoreComplete,
         saveStatusByStage: {},
         judgeOutcome: null,
@@ -447,6 +466,10 @@ export function transitionCpuLesson(
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
       return {
         ...state,
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
       };
     case "mark-save-error":
@@ -462,6 +485,30 @@ export function transitionCpuLesson(
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
+
+    case "resolve-save-conflict": {
+      // Per-stage reconcile after a refused write: swap ONLY the conflicted
+      // stage's draft for the server's copy and land its conflict flag in the
+      // same transition — every other stage's local draft and save flag is
+      // left untouched. Settles only while the stage still waits on its save:
+      // a newer local edit (dirty) retries its own save and reconciles later.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        wrongPick: action.stageIndex === state.stageIndex ? null : state.wrongPick,
+        judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
+        runOutcome: action.stageIndex === state.stageIndex ? null : state.runOutcome,
+        // Replaced program on screen → fresh playback revision.
+        editRevision:
+          action.stageIndex === state.stageIndex ? state.editRevision + 1 : state.editRevision,
+      };
+    }
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

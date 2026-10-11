@@ -29,9 +29,9 @@ export function decodingRoutes() {
         ]),
       ),
     }),
-    saveDraft: (db, project, stageIndex, body, write) =>
+    saveDraft: (db, project, stageIndex, body, expectedRevision) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
-        write,
+        expectedRevision,
       }),
     judge: (db, project, stageIndex, body) => {
       const key = `${project.userId}|decoding|${stageIndex}`;

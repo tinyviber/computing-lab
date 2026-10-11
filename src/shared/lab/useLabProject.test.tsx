@@ -112,7 +112,7 @@ describe("useLabProject", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
-  it("reload() refetches on a fresh ticket and redispatches", async () => {
+  it("fetchProject() refetches on a fresh ticket and returns the payload without dispatching", async () => {
     const dispatch = vi.fn();
     const { result } = renderHook((p: Params) => useLabProject(p), {
       initialProps: base({ dispatch }),
@@ -121,22 +121,27 @@ describe("useLabProject", () => {
     await flush();
     expect(dispatch).toHaveBeenCalledTimes(1);
 
+    let fetched: unknown;
     await act(async () => {
-      const pending = result.current.reload();
+      const pending = result.current.fetchProject();
       calls[1].done.resolve(payload("lab"));
-      await pending;
+      fetched = await pending;
     });
     expect(calls[1].url).toBe("/api/classes/class-1/labs/lab/project");
-    expect(dispatch).toHaveBeenCalledTimes(2);
+    // 冲突调和只把原始 payload 交给调用方 —— 不重复 dispatch load-project，
+    // 其他关卡的本地状态因此不受影响。
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(fetched).toMatchObject({ labId: "lab", currentStage: 2 });
   });
 
-  it("a reload supersedes an earlier in-flight request", async () => {
+  it("a fetchProject supersedes an earlier in-flight request and resolves null for it", async () => {
     const dispatch = vi.fn();
     const { result } = renderHook((p: Params) => useLabProject(p), {
       initialProps: base({ dispatch }),
     });
+    let fetched: Promise<unknown> = Promise.resolve();
     await act(async () => {
-      void result.current.reload();
+      fetched = result.current.fetchProject();
     });
     expect(calls).toHaveLength(2);
 
@@ -146,10 +151,22 @@ describe("useLabProject", () => {
     expect(dispatch).not.toHaveBeenCalled();
     calls[1].done.resolve(payload("lab"));
     await flush();
-    expect(dispatch).toHaveBeenCalledTimes(1);
+    // fetchProject 不 dispatch；迟到或失败时resolve为 null。
+    expect(dispatch).not.toHaveBeenCalled();
+    await expect(fetched).resolves.toMatchObject({ labId: "lab" });
+
+    // 再发一次 fetchProject 把它顶掉：被取代的请求响应到达时 resolve null。
+    let stale: Promise<unknown> = Promise.resolve();
+    await act(async () => {
+      stale = result.current.fetchProject();
+      void result.current.fetchProject();
+    });
+    calls[2].done.resolve(payload("lab"));
+    await flush();
+    await expect(stale).resolves.toBeNull();
   });
 
-  it("a failing reload resolves without touching loadError", async () => {
+  it("a failing fetchProject resolves null without touching loadError", async () => {
     const dispatch = vi.fn();
     const { result } = renderHook((p: Params) => useLabProject(p), {
       initialProps: base({ dispatch }),
@@ -157,11 +174,13 @@ describe("useLabProject", () => {
     calls[0].done.resolve(payload("lab"));
     await flush();
 
+    let fetched: unknown;
     await act(async () => {
-      const pending = result.current.reload();
+      const pending = result.current.fetchProject();
       calls[1].done.resolve(new Response("boom", { status: 500 }));
-      await pending;
+      fetched = await pending;
     });
+    expect(fetched).toBeNull();
     expect(result.current.loadError).toBeNull();
     expect(dispatch).toHaveBeenCalledTimes(1);
   });
