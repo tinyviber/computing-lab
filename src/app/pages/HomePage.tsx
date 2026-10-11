@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { useLabCatalog } from "../../shared/lab/labs";
+import { labMetadata, type LabId } from "../../shared/lab/labMetadata";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
@@ -22,66 +23,27 @@ type StudentTask = {
   finalTotal: number | null;
 };
 
-const HOME_LABS = [
-  {
-    id: "calculator",
-    title: "实现ALU",
-    description: "从半加器到完整计算器：用逻辑门逐关搭出运算电路。",
-    to: "/labs/calculator",
-    stages: coreStages().length,
-    primary: true,
-  },
-  {
-    id: "cpu",
-    title: "冯诺依曼数据通路",
-    description:
-      "一台点餐机就是冯·诺依曼：拨码开关进、数码管出，按一下时钟走一拍——看五大部件怎么取指、译码、执行。",
-    to: "/labs/cpu",
-    stages: CPU_CORE_STAGES.length,
-    primary: false,
-  },
-  {
-    id: "decoding",
-    title: "解码侦探",
-    description:
-      "同一串数字是什么，全看约定的解码规则：从字码到二进制位，再到读懂一张 BMP 图片的文件头。",
-    to: "/labs/decoding",
-    stages: DECODING_CORE_STAGES.length,
-    primary: false,
-  },
-  {
-    id: "is-sim",
-    title: "小型信息系统",
-    description: "搭一个传感器、网关、数据库、执行器组成的小系统：在事件的时间线上看数据怎么流动。",
-    to: "/labs/is-sim",
-    stages: IS_SIM_CORE_STAGES.length,
-    primary: false,
-  },
-  {
-    id: "image-sampling",
-    title: "空间采样",
-    description: "把信号图压成格子发到低带宽接收端：格子数越少越省，但差异特征会先被抹平。",
-    to: "/labs/image-sampling",
-    stages: null,
-    primary: false,
-  },
-  {
-    id: "color-quantization",
-    title: "颜色量化",
-    description: "只用几种墨粉把原稿印给接收端：两个源色落进同一只粉，那部分差异就丢了。",
-    to: "/labs/color-quantization",
-    stages: null,
-    primary: false,
-  },
-  {
-    id: "audio-encoding",
-    title: "声音编码（演示）",
-    description: "把声波变成数字：调采样率看混叠折回频谱，调位深看量化阶梯——全程在浏览器本地演示。",
-    to: "/labs/audio-encoding",
-    stages: null,
-    primary: false,
-  },
-] as const;
+/**
+ * Home-card presentation knobs that are page concerns, not lab truth:
+ * whether the card shows stage progress (null = no progress block) and
+ * whether it takes the featured styling. Keyed by every manifest entry so
+ * a new lab must make both decisions explicitly.
+ */
+const HOME_LAB_CARDS: Record<LabId, { stages: number | null; primary?: true }> = {
+  calculator: { stages: coreStages().length, primary: true },
+  cpu: { stages: CPU_CORE_STAGES.length },
+  decoding: { stages: DECODING_CORE_STAGES.length },
+  "is-sim": { stages: IS_SIM_CORE_STAGES.length },
+  "image-sampling": { stages: null },
+  "color-quantization": { stages: null },
+  "audio-encoding": { stages: null },
+};
+
+const HOME_LABS = (Object.keys(labMetadata) as LabId[]).map((id) => ({
+  id,
+  ...labMetadata[id],
+  ...HOME_LAB_CARDS[id],
+}));
 
 const TASK_STATUS: Record<StudentTask["status"], string> = {
   not_started: "未开始",
@@ -271,7 +233,7 @@ function ClassroomHome() {
                     <StageProgress currentStage={project.currentStage} total={lab.stages} />
                   ) : null}
                   {classId || canOpenWithoutClass ? (
-                    <Link className="button button-primary" to={lab.to}>
+                    <Link className="button button-primary" to={lab.entryPath}>
                       {project && project.currentStage > 1 ? "继续" : "开始实验"}
                     </Link>
                   ) : (

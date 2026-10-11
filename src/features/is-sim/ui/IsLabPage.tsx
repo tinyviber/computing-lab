@@ -12,14 +12,13 @@ import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
-import { Icon } from "../../../shared/ui/Icon";
-// Cross-feature reuse per issue #58 §6 — do not lift to shared until a third
-// consumer appears. The hint annotator just renders plain text here.
-import { HintDisclosure } from "../../calculator/ui/HintDisclosure";
+import { DismissibleAlert } from "../../../shared/ui/DismissibleAlert";
+import { HintDisclosure } from "../../../shared/ui/HintDisclosure";
 import type {
   IsDraft,
   IsJudgeResult,
@@ -68,7 +67,7 @@ function StageBrief({ stage, passed }: { stage: IsStageDef; passed: boolean }) {
       </p>
       <p className="submit-note">判题方式：{stage.judgeNote}</p>
       {passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
-      <HintDisclosure hint={stage.hint} />
+      <HintDisclosure>{stage.hint}</HintDisclosure>
     </section>
   );
 }
@@ -238,7 +237,7 @@ export function IsLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("is-sim")?.visible === false}
-      labName="小型信息系统"
+      labName={labMetadata["is-sim"].title}
       role={role}
       status={status}
     >
@@ -266,7 +265,7 @@ export function IsLabPage() {
         }
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage?.title ?? "小型信息系统",
+          title: stage?.title ?? labMetadata["is-sim"].title,
         }}
       >
         <LabPageShell
@@ -287,12 +286,9 @@ export function IsLabPage() {
             ) : null}
 
             {state.message ? (
-              <p className="test-error" role="alert">
+              <DismissibleAlert onDismiss={() => dispatch({ type: "dismiss-message" })}>
                 {state.message}
-                <button onClick={() => dispatch({ type: "dismiss-message" })} type="button">
-                  <Icon name="x" size={12} />
-                </button>
-              </p>
+              </DismissibleAlert>
             ) : null}
             {(loadError ?? submitError) ? (
               <p className="test-error" role="alert">

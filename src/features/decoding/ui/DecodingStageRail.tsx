@@ -1,4 +1,5 @@
 import { StageLink } from "../../../shared/lab/StageRail";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { DECODING_CORE_STAGES, DECODING_STAGES, type DecodingStageDef } from "../domain/stages.ts";
 
 /**
@@ -64,7 +65,7 @@ export function DecodingStageRail(props: {
   return (
     <aside aria-label="关卡进度" className="lab-rail">
       <p className="eyebrow">
-        解码侦探{" "}
+        {labMetadata.decoding.title}{" "}
         <span className="cpu-rail-count">
           {corePassed} / {DECODING_CORE_STAGES.length} 主线
         </span>

@@ -5,6 +5,7 @@ import { isStaffRole, useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
@@ -206,7 +207,7 @@ export function ImageSamplingLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("image-sampling")?.visible === false}
-      labName="空间采样"
+      labName={labMetadata["image-sampling"].title}
       role={role}
       status={status}
     >
@@ -234,7 +235,7 @@ export function ImageSamplingLabPage() {
         }
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage?.title ?? "空间采样",
+          title: stage?.title ?? labMetadata["image-sampling"].title,
         }}
       >
         <LabPageShell
@@ -242,7 +243,7 @@ export function ImageSamplingLabPage() {
           labId="image-sampling"
           rail={
             <StageRail
-              label="空间采样"
+              label={labMetadata["image-sampling"].title}
               onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
               passedStages={state.passedStages}
               stageIndex={state.stageIndex}

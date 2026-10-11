@@ -2,6 +2,7 @@ import { useParams } from "@tanstack/react-router";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { useCpuLabController } from "../controller/useCpuLabController.ts";
 import { CpuWorkspace } from "./CpuWorkspace.tsx";
@@ -21,7 +22,7 @@ export function CpuLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("cpu")?.visible === false}
-      labName="冯诺依曼数据通路"
+      labName={labMetadata.cpu.title}
       role={role}
       status={status}
     >
@@ -46,7 +47,7 @@ export function CpuLabPage() {
         }
         topbarProps={{
           subtitle: model.stage?.englishTitle,
-          title: model.stage?.title ?? "冯诺依曼数据通路",
+          title: model.stage?.title ?? labMetadata.cpu.title,
         }}
       >
         <CpuWorkspace {...controller} />

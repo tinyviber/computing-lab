@@ -1,4 +1,5 @@
 import { StageLink } from "../../../shared/lab/StageRail";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { IS_SIM_CORE_STAGES, IS_SIM_STAGES, type IsStageDef } from "../domain/stages.ts";
 
 /**
@@ -63,7 +64,7 @@ export function IsStageRail(props: {
   return (
     <aside aria-label="关卡进度" className="lab-rail">
       <p className="eyebrow">
-        小型信息系统{" "}
+        {labMetadata["is-sim"].title}{" "}
         <span className="is-rail-count">
           {corePassed} / {IS_SIM_CORE_STAGES.length} 主线
         </span>

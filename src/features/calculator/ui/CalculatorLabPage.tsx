@@ -4,6 +4,7 @@ import { api, describeApiError } from "../../../shared/api/client";
 import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
@@ -215,7 +216,7 @@ export function CalculatorLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("calculator")?.visible === false}
-      labName="实现ALU"
+      labName={labMetadata.calculator.title}
       noClassHint="请用老师给的邀请码加入班级后再开始实验。"
       role={role}
       status={status}
@@ -248,7 +249,7 @@ export function CalculatorLabPage() {
         }
         topbarProps={{
           subtitle: stage ? <AnnotatedText text={stage.englishTitle} /> : undefined,
-          title: stage?.title ?? "实现ALU",
+          title: stage?.title ?? labMetadata.calculator.title,
         }}
       >
         <CalculatorLabWorkspace

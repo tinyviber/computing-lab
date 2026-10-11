@@ -1,4 +1,5 @@
 import { StageLink } from "../../../shared/lab/StageRail";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import type { CpuLabViewModel, CpuStageItem } from "../controller/viewModel.ts";
 
 /**
@@ -53,7 +54,7 @@ export function CpuStageRail({
   return (
     <aside aria-label="关卡进度" className="lab-rail">
       <p className="eyebrow">
-        冯诺依曼数据通路{" "}
+        {labMetadata.cpu.title}{" "}
         <span className="cpu-rail-count">
           {model.corePassed} / {model.coreTotal} 主线
         </span>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client";
+import { labMetadata } from "./labMetadata";
 
 /** One row of GET /api/labs — the catalog's lab identifiers and visibility. */
 export type LabVisibility = {
@@ -37,15 +38,10 @@ export type TeacherLabView = Omit<LabVisibility, "visible"> & {
   classes: TeacherLabClassGate[];
 };
 
-export const LAB_TITLES: Record<string, string> = {
-  calculator: "实现ALU",
-  cpu: "冯诺依曼数据通路",
-  "image-sampling": "空间采样",
-  "color-quantization": "颜色量化",
-  "is-sim": "小型信息系统",
-  decoding: "解码侦探",
-  "audio-encoding": "声音编码（演示）",
-};
+/** Flat id → title view of `labMetadata` for the admin/teacher lab lists. */
+export const LAB_TITLES: Record<string, string> = Object.fromEntries(
+  Object.entries(labMetadata).map(([id, meta]) => [id, meta.title]),
+);
 
 /**
  * Fetches the lab catalog once `enabled` (i.e. the caller is signed in).

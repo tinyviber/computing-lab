@@ -16,6 +16,7 @@ import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
@@ -603,7 +604,7 @@ export function DecodingLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("decoding")?.visible === false}
-      labName="解码侦探"
+      labName={labMetadata.decoding.title}
       role={role}
       status={status}
     >
@@ -631,7 +632,9 @@ export function DecodingLabPage() {
         }
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage ? `${String(stage.index).padStart(2, "0")} ${stage.title}` : "解码侦探",
+          title: stage
+            ? `${String(stage.index).padStart(2, "0")} ${stage.title}`
+            : labMetadata.decoding.title,
         }}
       >
         <LabPageShell
