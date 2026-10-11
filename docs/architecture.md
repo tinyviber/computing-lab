@@ -16,7 +16,9 @@ src/app
 src/features/<lab>（calculator / cpu / image-sampling / color-quantization / is-sim / decoding）
   ├─ domain：关卡、判题协议与纯计算（前端与服务端共享契约）
   ├─ lesson：URL/课程状态、引导和公开用例
-  └─ ui：画布、控制器、提示和提交界面
+  ├─ controller（按需）：组织 API、时钟、教学交互和界面 ViewModel
+  ├─ ui：页面入口和展示组件；CPU Workspace 只接收 model / actions
+  └─ preview（按需）：开发环境的公开固定场景，复用真实 Workspace
 
 src/features/task-sheets
   └─ 任务单模板、班级布置、学生作答与批改界面
@@ -53,6 +55,24 @@ CPU 引导题的首答通过独立的 `/guided-answer` 请求在判题前写入
 `src/shared/layout` 与 `src/shared/lab`。旧的多实验导航、通用 lesson shell、
 参数/公式/可视化面板以及 Slidev 编辑服务没有保留；它们在当前课程集合里不再
 形成有价值的边界。
+
+## 教学逻辑与视觉开发边界（CPU 试点）
+
+`CpuLabPage` 只连接路由、认证、目录访问守卫和共享页面布局。
+`cpu/controller/useCpuLabController.ts` 负责项目加载、自动保存、首答记录、判题、
+教学状态转换和时钟。`createViewModel.ts` 从同一执行轨迹派生展示数据；
+`viewModel.ts` 定义按钮可用性、关卡状态、预测题和机器展示数据及用户意图 actions。
+
+`CpuWorkspace`、`CpuStageRail` 和 `GuidedPanel` 只消费这些展示契约。
+其他专用图表仍可以使用 ISA 格式转换和只读轨迹类型，不能执行模拟器或访问 API。
+原有 `pending trace + phase + cursor` 同步语义、playback identity、完整轨迹与
+独立可见行数、全部公开用例的观察门槛保持不变。
+
+`/__dev/labs/cpu` 仅在 `import.meta.env.DEV` 分支注册，预览模块通过 lazy import
+加载并在生产构建中消除。它使用真实 Workspace 和公开数据生成的固定 fixture，
+不调用 Controller hook、认证、存储或服务器隐藏判题。
+开发预览跳过身份请求，离开该路由恢复正常认证；生产实验入口继续执行访问守卫。
+详见 [视觉任务边界与验证](agent/ui-tasks.md)。
 
 ## 删除决策
 

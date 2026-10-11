@@ -71,6 +71,10 @@
 
 ## UI contract
 
+- CPU is the Controller/Workspace pilot: `ui/CpuLabPage` wires auth/routing/layout; `controller/useCpuLabController` owns persistence, prompt recording, judge and playback. `controller/createViewModel` derives gates/highlights from the one run; `controller/viewModel` is the presentation contract. `CpuWorkspace`, rail and guide consume model/actions, never lesson dispatch or API.
+- Fixed preview scenes under `cpu/preview` reuse the real Workspace without live hooks; route `__dev/labs/cpu` and its lazy import are DEV-only. `App` skips auth refresh on that dev route and resumes on exit. iframe widths trigger real media queries; actions record intents only. See `docs/agent/ui-tasks.md` for visual task scope and standalone Vite Playwright harness.
+- CPU presentation runtime imports cannot reach controller/lesson/API/machine/stages; type-only imports and ISA display formatting are allowed. Architecture tests check transitive runtime edges including dynamic imports/re-exports.
+
 - `pending = run.trace[cursor]` is the about-to-commit row; `phase`
   (fetch/decode/exec) is a UI lens on it — no second engine.
 - Synchronized highlighting keys off the same trace row: editor `is-active`,
@@ -96,7 +100,7 @@
   a truncated last row would fall back to terminal regs and misreport
   intermediate values (e.g. showing final A=8 on a cycle that committed 3).
 - **Observation gate** (issue #100 review): `observedCases` is a Set of
-  public-case indices that reached HALT (tracked in CpuLabPage, reset per
+  public-case indices that reached HALT (tracked in the controller, reset per
   stage); `observationComplete` requires every public case on a `core`
   stage. Submit is `disabled` until it holds, with a "已看 N / M 份" note.
 - M3's ALU column add lives in `RegistersPanel`'s `ColumnAdd` — only on

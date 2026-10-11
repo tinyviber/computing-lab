@@ -1,0 +1,40 @@
+.cpu-preview-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  padding-block: 16px;
+}
+
+.cpu-preview-controls label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cpu-preview-controls p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.cpu-preview-frame-scroll {
+  overflow: auto;
+  padding: 0 var(--page-gutter) 16px;
+}
+
+.cpu-preview-frame-scroll iframe {
+  display: block;
+  height: 900px;
+  margin-inline: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.cpu-preview-event {
+  margin: 0;
+  padding: 4px var(--page-gutter);
+  color: var(--muted);
+  font-size: 12px;
+}

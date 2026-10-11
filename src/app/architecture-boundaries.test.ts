@@ -1,7 +1,8 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import ts from "typescript";
 
 const srcRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const appRoot = join(srcRoot, "app");
@@ -76,4 +77,76 @@ describe("architecture boundaries", () => {
     );
     expect(violationsFound).toEqual([]);
   });
+});
+
+/** Resolve runtime edges, including re-exports and dynamic imports; ignore type-only contracts. */
+function runtimeDependencies(entry: string, seen = new Set<string>()): Set<string> {
+  if (seen.has(entry)) return seen;
+  seen.add(entry);
+  const source = ts.createSourceFile(
+    entry,
+    readFileSync(entry, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const specifiers: string[] = [];
+  function visit(node: ts.Node) {
+    if (
+      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      if (ts.isImportDeclaration(node)) {
+        const clause = node.importClause;
+        if (clause?.isTypeOnly) return;
+        if (
+          clause &&
+          !clause.name &&
+          clause.namedBindings &&
+          ts.isNamedImports(clause.namedBindings) &&
+          clause.namedBindings.elements.every((e) => e.isTypeOnly)
+        )
+          return;
+      } else if (node.isTypeOnly) return;
+      specifiers.push(node.moduleSpecifier.text);
+    }
+    if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      ts.isStringLiteral(node.arguments[0])
+    )
+      specifiers.push(node.arguments[0].text);
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  for (const specifier of specifiers) {
+    const path = resolveImport(entry, specifier);
+    if (!path) continue;
+    const resolved = [
+      path,
+      `${path}.ts`,
+      `${path}.tsx`,
+      join(path, "index.ts"),
+      join(path, "index.tsx"),
+    ].find((p) => /\.tsx?$/.test(p) && existsSync(p));
+    if (resolved) runtimeDependencies(resolved, seen);
+  }
+  return seen;
+}
+
+it("keeps the real CPU workspace independent of controller execution, lesson state and backend", () => {
+  const dependencies = runtimeDependencies(join(featuresRoot, "cpu/ui/CpuWorkspace.tsx"));
+  const forbidden = [...dependencies].filter(
+    (path) =>
+      /[/\\](server|auth|api|controller|lesson)[/\\]/.test(path) ||
+      /cpu[/\\]domain[/\\](machine|stages)\.ts$/.test(path),
+  );
+  expect(forbidden.map((path) => relative(srcRoot, path))).toEqual([]);
+});
+
+it("keeps development previews independent of server data and live controller hooks", () => {
+  const dependencies = runtimeDependencies(join(featuresRoot, "cpu/preview/CpuPreviewPage.tsx"));
+  expect(
+    [...dependencies].filter((path) => /[/\\]server[/\\]|[/\\]controller[/\\]use/.test(path)),
+  ).toEqual([]);
 });

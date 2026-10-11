@@ -239,6 +239,21 @@ const taskAssignmentRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+// Vite erases this branch and its lazy import from production builds.
+const devRoutes = import.meta.env.DEV
+  ? [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__dev/labs/cpu",
+        validateSearch: passThroughSearch,
+        component: lazyRouteComponent(
+          () => import("../features/cpu/preview/CpuPreviewPage"),
+          "CpuPreviewPage",
+        ),
+      }),
+    ]
+  : [];
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -265,6 +280,7 @@ const routeTree = rootRoute.addChildren([
   taskSheetListRoute,
   taskSheetEditorRoute,
   taskAssignmentRoute,
+  ...devRoutes,
 ]);
 
 export function createAppRouter({

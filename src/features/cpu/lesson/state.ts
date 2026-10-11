@@ -2,7 +2,7 @@
  * Cpu lesson state: which stage, the instruction-row draft per stage, the
  * soft-gate flag, the last public-test sweep and judge verdict. Pure
  * transitions — no React, no network. The machine view's trace is derived
- * data; it lives in the page (recomputed on edit), not in this reducer.
+ * data; it lives in the controller (recomputed on edit), not in this reducer.
  *
  * Guided stages (issue #70): the draft is normalized through `guidedProgram`
  * — only a stage's editable rows may differ from its prefill, so locked rows
