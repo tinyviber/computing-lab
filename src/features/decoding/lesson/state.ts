@@ -42,6 +42,10 @@ export type DecodingLessonState = {
   draftRevisions: Record<number, number>;
   /** Per-user stage payloads issued by the server at project load. */
   payloads: Record<number, LabPayload>;
+  /** Per-stage counter over the code/fills input — bumped on each edit so
+   * an execution result can be stamped with the input it ran under and
+   * dropped once the draft moves on (edit-after-run invalidation). */
+  inputRevisions: Record<number, number>;
   judgeOutcome: DecodingJudgeResult | null;
   saveStatusByStage: SaveStatusByStage;
   /** Stages with an unreconciled sync-error — the retry stays visible
@@ -129,6 +133,7 @@ export function createDecodingLessonState(stageIndex = 1): DecodingLessonState {
     conflictedLocalDrafts: {},
     draftRevisions: {},
     payloads: {},
+    inputRevisions: {},
     judgeOutcome: null,
     saveStatusByStage: {},
     unresolvedSyncConflicts: {},
@@ -141,6 +146,16 @@ function touchDraft(state: DecodingLessonState, draft: DecodingDraft): DecodingL
     ...state,
     drafts: { ...state.drafts, [state.stageIndex]: draft },
     saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
+  };
+}
+
+/** Code/fills changed — the stage's run-input version advances; a run
+ * stamped with the old number no longer describes the current draft. */
+function bumpInputRevision(state: DecodingLessonState): DecodingLessonState {
+  const current = state.inputRevisions[state.stageIndex] ?? 0;
+  return {
+    ...state,
+    inputRevisions: { ...state.inputRevisions, [state.stageIndex]: current + 1 },
   };
 }
 
@@ -173,6 +188,7 @@ export function transitionDecodingLesson(
         conflictedLocalDrafts: {},
         draftRevisions,
         payloads: action.payloads,
+        inputRevisions: {},
         saveStatusByStage: {},
         unresolvedSyncConflicts: {},
         judgeOutcome: null,
@@ -185,14 +201,16 @@ export function transitionDecodingLesson(
     }
 
     case "set-code":
-      return touchDraft(state, { ...draftOf(state), code: action.code });
+      return bumpInputRevision(touchDraft(state, { ...draftOf(state), code: action.code }));
 
     case "set-fill": {
       const draft = draftOf(state);
-      return touchDraft(state, {
-        ...draft,
-        fills: { ...draft.fills, [action.blankId]: action.value },
-      });
+      return bumpInputRevision(
+        touchDraft(state, {
+          ...draft,
+          fills: { ...draft.fills, [action.blankId]: action.value },
+        }),
+      );
     }
 
     case "answer-prompt": {

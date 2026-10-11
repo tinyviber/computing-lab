@@ -10,7 +10,7 @@
 import { useState } from "react";
 import type { PixelMatrix } from "../domain/bmp.ts";
 import type { DecoderChoice, LabPayload } from "../domain/protocol.ts";
-import { FILE_HELPERS, runDecode } from "./pyodideRunner.ts";
+import { FILE_HELPERS, runDecode } from "../runtime/pyodideRunner.ts";
 import { PixelCanvas } from "./PixelCanvas.tsx";
 
 type FileRun = { text?: string; pixels?: PixelMatrix };

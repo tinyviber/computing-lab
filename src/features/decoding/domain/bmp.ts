@@ -123,3 +123,24 @@ export function decodeRawPixels(
   }
   return pixels;
 }
+
+/** A hovered pixel cell — the inspector's readout coordinates. */
+export type PixelHover = { x: number; y: number; rgb: Pixel };
+
+/** Cell-wise difference over the union of both matrices' bounds — missing
+ * cells count as different too, so a shrunken matrix can't report 0. */
+export function pixelDiffCount(a: PixelMatrix, b: PixelMatrix): number {
+  let n = 0;
+  const height = Math.max(a.length, b.length);
+  const width = Math.max(...a.map((r) => r.length), ...b.map((r) => r.length), 0);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const got = a[y]?.[x];
+      const want = b[y]?.[x];
+      if (!got || !want || got[0] !== want[0] || got[1] !== want[1] || got[2] !== want[2]) {
+        n += 1;
+      }
+    }
+  }
+  return n;
+}

@@ -5,9 +5,9 @@
  */
 
 import { useEffect, useRef } from "react";
-import type { Pixel, PixelMatrix } from "../domain/bmp.ts";
+import type { PixelHover, PixelMatrix } from "../domain/bmp.ts";
 
-export type PixelHover = { x: number; y: number; rgb: Pixel };
+export type { PixelHover } from "../domain/bmp.ts";
 
 export function PixelCanvas({
   pixels,

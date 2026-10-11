@@ -1,5 +1,12 @@
 # Decoding Lab (解码侦探, issue #81)
 
+Layout mirrors the cpu lab: `controller/` (`useDecodingLabController`,
+`useDecodeExecution`, `createViewModel`, `viewModel`), `ui/` (thin
+`DecodingLabPage` + `DecodingWorkspace` + panels), `runtime/` (Pyodide
+adapter), `preview/` (`/__dev/labs/decoding`, DEV only). `ui/` is under
+the same pilot ESLint boundary as cpu's (no value imports of
+controller/lesson/`domain/stages`; shared hooks banned; page file exempt).
+
 ## Teaching model
 
 - Claim: 数据 + 解码约定 = 信息. Every stage ends with a visible decoded
@@ -57,7 +64,7 @@
 
 ## Pyodide contract
 
-- `pyodide.worker.ts` posts `{phase:"executing"}` ONLY after
+- `runtime/pyodide.worker.ts` posts `{phase:"executing"}` ONLY after
   `await getPyodide()` resolves — ack before load finishes makes the main
   thread switch the 90s load budget to the 15s exec budget mid-download
   and killWorker wipes the cold start (the #79 regression).
@@ -82,7 +89,11 @@
 - `?stage=N` deep link applied once after project load (`stageLinkApplied`);
   refresh restores `currentStage` via load-project; an out-of-range pointer
   (all passed) clamps to the last stage.
-- Async run results are stage-bound: `stageIndexRef` guards every post-await
-  write (run/preview/print), `set-verdict.stageIndex` drops verdicts that
-  land after a stage switch, and submit re-checks `clozeComplete` so a stale
-  lastRun can't pass a cloze stage.
+- Async run results are stage-and-input-bound: each `useDecodeExecution`
+  channel (decode run / bmp preview / sample print) stamps every result
+  with `{stageIndex, inputRevision}`; drafts bump `inputRevisions[stage]`
+  on `set-code`/`set-fill`, so an edit invalidates the stored run and
+  gates submit again, and a late completion from another stage can land
+  neither a result nor a `running` reset. `set-verdict.stageIndex` still
+  drops verdicts that land after a stage switch; submit re-checks
+  `clozeComplete`.

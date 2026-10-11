@@ -144,9 +144,24 @@ it("keeps the real CPU workspace independent of controller execution, lesson sta
   expect(forbidden.map((path) => relative(srcRoot, path))).toEqual([]);
 });
 
+it("keeps the real decoding workspace independent of controller execution, lesson state and backend", () => {
+  const dependencies = runtimeDependencies(join(featuresRoot, "decoding/ui/DecodingWorkspace.tsx"));
+  const forbidden = [...dependencies].filter(
+    (path) =>
+      /[/\\](server|auth|api|controller|lesson)[/\\]/.test(path) ||
+      /decoding[/\\]domain[/\\](stages)\.ts$/.test(path),
+  );
+  expect(forbidden.map((path) => relative(srcRoot, path))).toEqual([]);
+});
+
 it("keeps development previews independent of server data and live controller hooks", () => {
-  const dependencies = runtimeDependencies(join(featuresRoot, "cpu/preview/CpuPreviewPage.tsx"));
-  expect(
-    [...dependencies].filter((path) => /[/\\]server[/\\]|[/\\]controller[/\\]use/.test(path)),
-  ).toEqual([]);
+  for (const entry of [
+    "cpu/preview/CpuPreviewPage.tsx",
+    "decoding/preview/DecodingPreviewPage.tsx",
+  ]) {
+    const dependencies = runtimeDependencies(join(featuresRoot, entry));
+    expect(
+      [...dependencies].filter((path) => /[/\\]server[/\\]|[/\\]controller[/\\]use/.test(path)),
+    ).toEqual([]);
+  }
 });
