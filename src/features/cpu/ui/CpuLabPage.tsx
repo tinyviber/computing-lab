@@ -86,6 +86,27 @@ const PHASES: { id: CpuPhase; label: string }[] = [
   { id: "exec", label: "执行 · 周期末提交" },
 ];
 
+/** One playback's machine-view position: cursor (display), visited
+ * (furthest committed — only ever grows), phase (fetch/decode/exec lens). */
+type PlayView = { cursor: number; visited: number; phase: CpuPhase };
+
+const ZERO_PLAY_VIEW: PlayView = { cursor: 0, visited: 0, phase: "fetch" };
+
+/** Cycle commit: cursor+1, visited never shrinks, phase back to fetch. */
+function commitView(cur: PlayView, maxCursor: number): PlayView {
+  const cursor = Math.min(cur.cursor + 1, maxCursor);
+  return { cursor, visited: Math.max(cur.visited, cursor), phase: "fetch" };
+}
+
+/** One beat: fetch → decode → exec → commit. Pure — the whole step is a
+ * single state computation, so a StrictMode-double-invoked updater can
+ * never commit a cycle twice (issue #100 review). */
+function beatView(cur: PlayView, maxCursor: number): PlayView {
+  if (cur.phase === "fetch") return { ...cur, phase: "decode" };
+  if (cur.phase === "decode") return { ...cur, phase: "exec" };
+  return commitView(cur, maxCursor);
+}
+
 export function CpuLabPage() {
   const { classId } = useParams({ from: "/classes/$classId/labs/cpu" });
   const { status, role, session } = useAuth();
@@ -102,14 +123,15 @@ export function CpuLabPage() {
   // A hidden counterexample the student replayed into the machine view —
   // overrides the public-case picker until they pick a public case again.
   const [replayCase, setReplayCase] = useState<CpuCase | null>(null);
-  // Machine-view position: cursor (display), visited (furthest committed —
-  // only ever grows), phase (fetch/decode/exec lens). Kept per playbackId so
-  // a case/program switch discards the previous run's position on the same
-  // render — the new run starts at 0 instead of inheriting a stale end
-  // cursor (issue #100 review: case-switch race + program-edit stale run).
-  const [playbackViews, setPlaybackViews] = useState<
-    Record<string, { cursor: number; visited: number; phase: CpuPhase }>
-  >({});
+  // Machine-view positions, kept per playbackId so a case/program switch
+  // discards the previous run's position on the same render — the new run
+  // starts at 0 instead of inheriting a stale end cursor (issue #100
+  // review: case-switch race + program-edit stale run).
+  const [playbackViews, setPlaybackViews] = useState<Record<string, PlayView>>({});
+  // Every counterexample load gets its own playback identity — two
+  // different hidden cases can never share a walk-through (issue #100
+  // review).
+  const [replayRevision, setReplayRevision] = useState(0);
   // Public cases this student has walked to HALT on this stage — the
   // observation gate for submitting a zero-programming core stage.
   const [observedCases, setObservedCases] = useState<ReadonlySet<number>>(new Set());
@@ -176,15 +198,17 @@ export function CpuLabPage() {
   }, [stage, userId]);
   const machineCase =
     replayCase ?? publicCases[Math.min(caseIndex, Math.max(0, publicCases.length - 1))] ?? null;
-  // The playback identity — (case, replay, program). Any change discards the
-  // previous run's view on the SAME render because `view` is keyed by it:
-  // the new run's entry is absent, so cursor/visited/phase fall back to 0.
-  // A stale end-cursor can never leak into the next run's transitional
-  // render — that was the case-switch race (fresh case wrongly marked
-  // observed + its trace flashed) and the program-edit stale run (P2).
-  const playbackId = `${caseIndex}-${replayCase === null ? "p" : "r"}-${rows
-    .map((r) => `${r.op}${r.reg}${r.operand}`)
-    .join(",")}`;
+  // The playback identity — (stage, case, replay revision, program). Any
+  // change discards the previous run's view on the SAME render because
+  // `view` is keyed by it: the new run's entry is absent, so
+  // cursor/visited/phase fall back to 0. A stale end-cursor can never leak
+  // into the next run's transitional render — that was the case-switch
+  // race (fresh case wrongly marked observed + its trace flashed), the
+  // program-edit stale run (P2), and the cross-stage collision between
+  // free-authoring stages whose empty programs produced identical keys.
+  const playbackId = `${stage?.index ?? 0}-${caseIndex}-${
+    replayCase === null ? "p" : `r${replayRevision}`
+  }-${rows.map((r) => `${r.op}${r.reg}${r.operand}`).join(",")}`;
   const run = useMemo(
     () =>
       stage && machineCase
@@ -193,7 +217,7 @@ export function CpuLabPage() {
     [stage, machineCase, rows],
   );
   const maxCursor = run?.trace.length ?? 0;
-  const view = playbackViews[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+  const view = playbackViews[playbackId] ?? ZERO_PLAY_VIEW;
   const effectiveCursor = Math.min(view.cursor, maxCursor);
   const display = useMemo(
     () => (run ? displayState(run, effectiveCursor) : null),
@@ -208,11 +232,10 @@ export function CpuLabPage() {
   );
 
   const setViewPhase = useCallback(
-    (updater: CpuPhase | ((p: CpuPhase) => CpuPhase)) => {
+    (phase: CpuPhase) => {
       setPlaybackViews((views) => {
-        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
-        const next = typeof updater === "function" ? updater(cur.phase) : updater;
-        return { ...views, [playbackId]: { ...cur, phase: next } };
+        const cur = views[playbackId] ?? ZERO_PLAY_VIEW;
+        return { ...views, [playbackId]: { ...cur, phase } };
       });
     },
     [playbackId],
@@ -221,7 +244,7 @@ export function CpuLabPage() {
   const scrubTo = useCallback(
     (cycle: number) => {
       setPlaybackViews((views) => {
-        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
+        const cur = views[playbackId] ?? ZERO_PLAY_VIEW;
         return { ...views, [playbackId]: { ...cur, cursor: cycle, phase: "fetch" } };
       });
     },
@@ -229,10 +252,7 @@ export function CpuLabPage() {
   );
   /** Restart the current run's walk-through (复位 button). */
   const resetView = useCallback(() => {
-    setPlaybackViews((views) => ({
-      ...views,
-      [playbackId]: { cursor: 0, visited: 0, phase: "fetch" },
-    }));
+    setPlaybackViews((views) => ({ ...views, [playbackId]: ZERO_PLAY_VIEW }));
   }, [playbackId]);
   const phase = view.phase;
 
@@ -287,37 +307,43 @@ export function CpuLabPage() {
         initRegs: c.initRegs,
         expect: { cycles: stage.maxCycles },
       });
+      setReplayRevision((n) => n + 1);
       setClock("idle");
     },
     [stage],
   );
 
-  /** Commit one cycle: advance cursor, grow visited, mark a finished public
-   * case observed. The cursor updater writes visited too so the two can
-   * never diverge (issue #100 review). */
-  const commitCycle = useCallback(
-    (n: number) => {
+  /** Advance the machine view — "beat" walks the phase lens then commits
+   * the cycle at exec; "cycle" commits a whole cycle (challenge fast-run).
+   * ONE pure state transition per call: phase, cursor and visited move
+   * together, so a StrictMode double-invoked updater can never commit a
+   * cycle twice (issue #100 review). */
+  const advanceView = useCallback(
+    (mode: "beat" | "cycle") => {
       setPlaybackViews((views) => {
-        const cur = views[playbackId] ?? { cursor: 0, visited: 0, phase: "fetch" as CpuPhase };
-        const cursor = Math.min(cur.cursor + n, maxCursor);
-        const visited = Math.max(cur.visited, cursor);
-        if (visited >= maxCursor && maxCursor > 0 && replayCase === null) {
-          setObservedCases((s) => (s.has(caseIndex) ? s : new Set(s).add(caseIndex)));
-        }
-        return { ...views, [playbackId]: { ...cur, cursor, visited, phase: "fetch" } };
+        const cur = views[playbackId] ?? ZERO_PLAY_VIEW;
+        const next = mode === "beat" ? beatView(cur, maxCursor) : commitView(cur, maxCursor);
+        return { ...views, [playbackId]: next };
       });
     },
-    [playbackId, maxCursor, replayCase, caseIndex],
+    [playbackId, maxCursor],
   );
 
   /** One beat: advance the phase lens, and on exec→commit the cycle. */
   const onBeat = useCallback(() => {
     if (!pending || blockingPrompt) return;
     setClock("paused");
-    if (phase === "fetch") setViewPhase("decode");
-    else if (phase === "decode") setViewPhase("exec");
-    else commitCycle(1);
-  }, [pending, blockingPrompt, phase, setViewPhase, commitCycle]);
+    advanceView("beat");
+  }, [pending, blockingPrompt, advanceView]);
+
+  // Observation is recorded from COMMITTED state, not inside an updater:
+  // when this playback's `visited` reaches the trace end on a public case
+  // the case counts as watched (issue #100 review — updaters must stay
+  // pure; StrictMode may double-invoke them in development).
+  useEffect(() => {
+    if (replayCase !== null || maxCursor === 0 || view.visited < maxCursor) return;
+    setObservedCases((s) => (s.has(caseIndex) ? s : new Set(s).add(caseIndex)));
+  }, [view.visited, maxCursor, replayCase, caseIndex]);
 
   // The clock ticks the machine forward; editing is locked while it runs.
   // Guided stages tick beat-by-beat (fetch → decode → exec → commit) so
@@ -330,24 +356,9 @@ export function CpuLabPage() {
       setClock("paused");
       return;
     }
-    const timer = setInterval(
-      () => {
-        if (guided) {
-          setViewPhase((p) => {
-            if (p === "exec") {
-              commitCycle(1);
-              return "fetch";
-            }
-            return p === "fetch" ? "decode" : "exec";
-          });
-        } else {
-          commitCycle(1);
-        }
-      },
-      guided ? 350 : 500,
-    );
+    const timer = setInterval(() => advanceView(guided ? "beat" : "cycle"), guided ? 350 : 500);
     return () => clearInterval(timer);
-  }, [clock, canStep, maxCursor, guided, setViewPhase, commitCycle]);
+  }, [clock, canStep, guided, advanceView]);
   // Reaching the trace end (or a gate) settles the clock on its own.
   useEffect(() => {
     if (clock === "running" && (effectiveCursor >= maxCursor || blockingPrompt)) {
