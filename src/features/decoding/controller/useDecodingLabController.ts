@@ -70,6 +70,13 @@ export function useDecodingLabController({
   const payload = state.payloads[state.stageIndex];
   const inputRevision = state.inputRevisions[state.stageIndex] ?? 0;
 
+  // The judge round-trip is one more async channel: a submission is stamped
+  // with the stage it ran for plus a ticket, and a stale response applies
+  // nothing — the same rule the execution channels enforce.
+  const submitTicketRef = useRef(0);
+  const stageIndexRef = useRef(state.stageIndex);
+  stageIndexRef.current = state.stageIndex;
+
   useEffect(() => warmPyodide(), []);
 
   const { projectLoaded, loadError } = useLabProject<
@@ -129,6 +136,11 @@ export function useDecodingLabController({
     decodeExec.clear();
     previewExec.clear();
     sampleExec.clear();
+    // An in-flight submit retires like a run: its late judge response may
+    // not land on the newly selected stage, nor may its flag outlive it.
+    submitTicketRef.current += 1;
+    setSubmitting(false);
+    setSubmitError(null);
     setSampleHover(null);
     setWrongPick(null);
     setSampleRevision(0);
@@ -244,6 +256,8 @@ export function useDecodingLabController({
       dispatch({ type: "message", text: blocker });
       return;
     }
+    const ticket = ++submitTicketRef.current;
+    const submittedStage = stage.index;
     setSubmitting(true);
     setSubmitError(null);
     try {
@@ -265,14 +279,18 @@ export function useDecodingLabController({
         `/api/classes/${classId}/labs/decoding/judge`,
         submission,
       );
+      // The student moved on (or submitted again) mid-flight — drop it.
+      if (submitTicketRef.current !== ticket || stageIndexRef.current !== submittedStage) {
+        return;
+      }
       dispatch({ type: "judge-result", outcome });
       if (!outcome.passed) {
         dispatch({ type: "message", text: "判定未通过——看看右侧每一项的检查结果。" });
       }
     } catch (error) {
-      setSubmitError(describeApiError(error));
+      if (submitTicketRef.current === ticket) setSubmitError(describeApiError(error));
     } finally {
-      setSubmitting(false);
+      if (submitTicketRef.current === ticket) setSubmitting(false);
     }
   }, [classId, stage, payload, model, draft, decodeExec.result]);
 
