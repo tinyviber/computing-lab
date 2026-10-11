@@ -23,8 +23,10 @@ export type LabProjectPayload<TDraft> = {
   drafts: Record<string, TDraft>;
 };
 
-/** Autosave lifecycle flags shared by every lab's lesson state. */
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+/** Autosave lifecycle flags shared by every lab's lesson state. "conflict"
+ * settles a save the server rejected for a newer write it already holds —
+ * the page reloads the project so the student sees the winning draft. */
+export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error" | "conflict";
 
 export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-credentials": "学号或密码不正确。",

@@ -48,10 +48,24 @@ const putDraft = (
     }),
   );
 
+const draftsOf = async (
+  app: Hono<{ Variables: AppVariables }>,
+  classId: string,
+  cookie: string,
+) => {
+  const project = await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+  const body = (await project.json()) as { drafts: Record<string, { code: string }> };
+  return body.drafts;
+};
+
 describe("draft revision ordering", () => {
   it("rejects saves without a revision", async () => {
     const { app, classId, cookie } = await setup();
-    const res = await putDraft(app, classId, cookie, { stageIndex: 1, draft: { a: 1 } });
+    const res = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      saveToken: "t",
+      draft: { a: 1 },
+    });
     expect(res.status).toBe(400);
     expect(await res.json()).toMatchObject({ error: "invalid-revision" });
   });
@@ -61,9 +75,21 @@ describe("draft revision ordering", () => {
     const res = await putDraft(app, classId, cookie, {
       stageIndex: 1,
       revision: "12",
+      saveToken: "t",
       draft: { a: 1 },
     });
     expect(res.status).toBe(400);
+  });
+
+  it("rejects saves without a saveToken", async () => {
+    const { app, classId, cookie } = await setup();
+    const res = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 1,
+      draft: { a: 1 },
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: "invalid-save-token" });
   });
 
   it("keeps the newer draft when an older revision arrives late", async () => {
@@ -71,6 +97,7 @@ describe("draft revision ordering", () => {
     const fresh = await putDraft(app, classId, cookie, {
       stageIndex: 1,
       revision: 5,
+      saveToken: "t",
       draft: { code: "newer" },
     });
     expect(await fresh.json()).toMatchObject({ ok: true, applied: true });
@@ -78,28 +105,31 @@ describe("draft revision ordering", () => {
     const stale = await putDraft(app, classId, cookie, {
       stageIndex: 1,
       revision: 4,
+      saveToken: "t",
       draft: { code: "older" },
     });
     expect(stale.status).toBe(200);
     expect(await stale.json()).toMatchObject({ ok: true, applied: false });
 
-    const project = await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
-    const body = (await project.json()) as { drafts: Record<string, { code: string }> };
-    expect(body.drafts["1"].code).toBe("newer");
+    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("newer");
   });
 
   it("applies revisions in increasing order per stage", async () => {
     const { app, classId, cookie } = await setup();
-    await putDraft(app, classId, cookie, { stageIndex: 1, revision: 4, draft: { code: "a" } });
+    await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 4,
+      saveToken: "t",
+      draft: { code: "a" },
+    });
     const res = await putDraft(app, classId, cookie, {
       stageIndex: 1,
       revision: 5,
+      saveToken: "t",
       draft: { code: "b" },
     });
     expect(await res.json()).toMatchObject({ applied: true });
-    const project = await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
-    const body = (await project.json()) as { drafts: Record<string, { code: string }> };
-    expect(body.drafts["1"].code).toBe("b");
+    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("b");
   });
 
   it("tracks revisions independently per stage", async () => {
@@ -107,14 +137,73 @@ describe("draft revision ordering", () => {
     const high = await putDraft(app, classId, cookie, {
       stageIndex: 1,
       revision: 9,
+      saveToken: "t",
       draft: { code: "s1" },
     });
     expect(await high.json()).toMatchObject({ applied: true });
     const other = await putDraft(app, classId, cookie, {
       stageIndex: 2,
       revision: 3,
+      saveToken: "t",
       draft: { code: "s2" },
     });
     expect(await other.json()).toMatchObject({ applied: true });
+  });
+
+  it("orders equal revisions by saveToken so concurrent writers resolve deterministically", async () => {
+    const { app, classId, cookie } = await setup();
+
+    // Two tabs issue the same revision; the bigger token wins no matter the
+    // arrival order — here the loser arrives second and is dropped.
+    const winner = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 5,
+      saveToken: "bbb",
+      draft: { code: "from-b" },
+    });
+    expect(await winner.json()).toMatchObject({ applied: true });
+    const loser = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 5,
+      saveToken: "aaa",
+      draft: { code: "from-a" },
+    });
+    expect(await loser.json()).toMatchObject({ applied: false });
+    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("from-b");
+  });
+
+  it("still applies the bigger token when it arrives after the smaller one", async () => {
+    const { app, classId, cookie } = await setup();
+
+    // Arrival order flipped: the eventual winner writes second and lands.
+    const first = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 5,
+      saveToken: "aaa",
+      draft: { code: "from-a" },
+    });
+    expect(await first.json()).toMatchObject({ applied: true });
+    const second = await putDraft(app, classId, cookie, {
+      stageIndex: 1,
+      revision: 5,
+      saveToken: "bbb",
+      draft: { code: "from-b" },
+    });
+    expect(await second.json()).toMatchObject({ applied: true });
+    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("from-b");
+  });
+
+  it("re-applies an identical write idempotently", async () => {
+    const { app, classId, cookie } = await setup();
+    const write = {
+      stageIndex: 1,
+      revision: 5,
+      saveToken: "t",
+      draft: { code: "same" },
+    };
+    await putDraft(app, classId, cookie, write);
+    const retry = await putDraft(app, classId, cookie, write);
+    expect(await retry.json()).toMatchObject({ applied: true });
+    expect((await draftsOf(app, classId, cookie))["1"].code).toBe("same");
   });
 });

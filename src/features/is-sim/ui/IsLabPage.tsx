@@ -97,7 +97,11 @@ export function IsLabPage() {
   const draft = draftOf(state);
   const topology = useMemo(() => topologyOf(state), [state.drafts, state.stageIndex]);
 
-  const { loadError } = useLabProject<IsDraft, Record<string, never>, IsLessonAction>({
+  const { projectLoaded, loadError, reload } = useLabProject<
+    IsDraft,
+    Record<string, never>,
+    IsLessonAction
+  >({
     classId,
     labId: "is-sim",
     ready: status === "authenticated",
@@ -115,13 +119,21 @@ export function IsLabPage() {
   useAutosaveDraft<IsDraft>({
     classId,
     labId: "is-sim",
-    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
     onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => {
+      void reload().finally(() => dispatch({ type: "mark-save-conflict", stageIndex: s }));
+    },
   });
 
   const userId = session?.user.id ?? "";

@@ -15,7 +15,12 @@ import {
   type GuardFailure,
   type Membership,
 } from "../http/context.ts";
-import { getOrCreateProject, type LabJudgeError, type ProjectRow } from "../judge/pipeline.ts";
+import {
+  getOrCreateProject,
+  type DraftWrite,
+  type LabJudgeError,
+  type ProjectRow,
+} from "../judge/pipeline.ts";
 import { canAccessLab } from "../labs.ts";
 
 type LabContext = Context<{ Variables: AppVariables }>;
@@ -31,7 +36,7 @@ type LabSpec<TDraft, TOutcome> = {
     project: ProjectRow<TDraft>,
     stageIndex: number,
     body: Record<string, unknown>,
-    revision: number,
+    write: DraftWrite,
   ) => boolean;
   judge: (
     db: DatabaseSync,
@@ -90,13 +95,17 @@ export function labRoutes<TDraft, TOutcome extends object>(
     if (typeof revision !== "number" || !Number.isFinite(revision) || revision < 0) {
       return jsonError(c, 400, "invalid-revision");
     }
+    const saveToken = body?.saveToken;
+    if (typeof saveToken !== "string" || saveToken.length === 0) {
+      return jsonError(c, 400, "invalid-save-token");
+    }
     const db = c.get("db");
     const applied = spec.saveDraft(
       db,
       projectOf(db, auth),
       stageIndex,
       body as Record<string, unknown>,
-      revision,
+      { revision, saveToken },
     );
     return c.json({ ok: true, savedAt: new Date().toISOString(), applied });
   });

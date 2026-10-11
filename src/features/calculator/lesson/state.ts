@@ -139,6 +139,7 @@ export type CalculatorLessonAction =
   | { type: "mark-saving"; stageIndex: number }
   | { type: "mark-saved"; stageIndex: number }
   | { type: "mark-save-error"; stageIndex: number }
+  | { type: "mark-save-conflict"; stageIndex: number }
   | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
   | { type: "dismiss-message" };
 
@@ -878,6 +879,13 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
+
+    case "mark-save-conflict":
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
 
     case "judge-result": {

@@ -112,6 +112,7 @@ describe("decoding routes", () => {
         body: JSON.stringify({
           stageIndex: 1,
           revision: 1,
+          saveToken: "test",
           draft: { code: "def decode(d): return ''", signature: "BM", verdicts: "junk" },
         }),
       }),

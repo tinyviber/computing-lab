@@ -89,6 +89,7 @@ describe("color-quantization routes", () => {
         body: JSON.stringify({
           stageIndex: 2,
           revision: 1,
+          saveToken: "test",
           draft: { toners: [0, 1, 2, 5], code: "x" },
         }),
       }),

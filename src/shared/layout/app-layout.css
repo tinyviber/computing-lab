@@ -130,6 +130,10 @@
   color: var(--danger);
 }
 
+.save-indicator.is-conflict {
+  color: var(--warning);
+}
+
 /* Stage progression rail — the shared StageRail/StageLink component. */
 .lab-rail {
   border-right: 1px solid var(--border);

@@ -112,6 +112,60 @@ describe("useLabProject", () => {
     expect(dispatch).not.toHaveBeenCalled();
   });
 
+  it("reload() refetches on a fresh ticket and redispatches", async () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook((p: Params) => useLabProject(p), {
+      initialProps: base({ dispatch }),
+    });
+    calls[0].done.resolve(payload("lab"));
+    await flush();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      const pending = result.current.reload();
+      calls[1].done.resolve(payload("lab"));
+      await pending;
+    });
+    expect(calls[1].url).toBe("/api/classes/class-1/labs/lab/project");
+    expect(dispatch).toHaveBeenCalledTimes(2);
+  });
+
+  it("a reload supersedes an earlier in-flight request", async () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook((p: Params) => useLabProject(p), {
+      initialProps: base({ dispatch }),
+    });
+    await act(async () => {
+      void result.current.reload();
+    });
+    expect(calls).toHaveLength(2);
+
+    // 重取发起后，先发的那个响应作废。
+    calls[0].done.resolve(payload("lab"));
+    await flush();
+    expect(dispatch).not.toHaveBeenCalled();
+    calls[1].done.resolve(payload("lab"));
+    await flush();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failing reload resolves without touching loadError", async () => {
+    const dispatch = vi.fn();
+    const { result } = renderHook((p: Params) => useLabProject(p), {
+      initialProps: base({ dispatch }),
+    });
+    calls[0].done.resolve(payload("lab"));
+    await flush();
+
+    await act(async () => {
+      const pending = result.current.reload();
+      calls[1].done.resolve(new Response("boom", { status: 500 }));
+      await pending;
+    });
+    expect(result.current.loadError).toBeNull();
+    expect(dispatch).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces load errors for the current request only", async () => {
     const dispatch = vi.fn();
     const { result, rerender } = renderHook((p: Params) => useLabProject(p), {

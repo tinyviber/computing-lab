@@ -121,7 +121,7 @@ describe("is-sim routes", () => {
       new Request(url(classId, "/draft"), {
         method: "PUT",
         headers: { cookie, "content-type": "application/json" },
-        body: JSON.stringify({ stageIndex: 1, revision: 1, draft: dirty }),
+        body: JSON.stringify({ stageIndex: 1, revision: 1, saveToken: "test", draft: dirty }),
       }),
     );
     expect(put.status).toBe(200);

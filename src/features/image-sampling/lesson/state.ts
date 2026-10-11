@@ -58,6 +58,7 @@ export type SamplingLessonAction =
   | { type: "mark-saving"; stageIndex: number }
   | { type: "mark-saved"; stageIndex: number }
   | { type: "mark-save-error"; stageIndex: number }
+  | { type: "mark-save-conflict"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -203,6 +204,13 @@ export function transitionSamplingLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
+
+    case "mark-save-conflict":
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
       };
     case "dismiss-message":
       return { ...state, message: null };

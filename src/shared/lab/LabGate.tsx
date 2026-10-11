@@ -11,6 +11,7 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
   saving: "保存中…",
   saved: "已保存",
   error: "保存失败",
+  conflict: "已载入最新进度",
 };
 
 export function SaveIndicator({ status }: { status: SaveStatus }) {

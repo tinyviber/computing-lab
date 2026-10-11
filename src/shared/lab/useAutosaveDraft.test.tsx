@@ -14,6 +14,7 @@ type Params = {
   onSaving: (stageIndex: number) => void;
   onSaved: (stageIndex: number) => void;
   onError: (stageIndex: number) => void;
+  onConflict?: (stageIndex: number) => void;
 };
 
 const base = (over: Partial<Params> = {}): Params => ({
@@ -45,16 +46,24 @@ const ok = (applied = true) =>
   });
 
 describe("useAutosaveDraft", () => {
-  let calls: { body: Record<string, unknown>; done: ReturnType<typeof deferred<Response>> }[];
+  let calls: {
+    url: string;
+    body: Record<string, unknown>;
+    done: ReturnType<typeof deferred<Response>>;
+  }[];
 
   beforeEach(() => {
     vi.useFakeTimers();
     calls = [];
     vi.stubGlobal(
       "fetch",
-      vi.fn((_input: unknown, init?: RequestInit) => {
+      vi.fn((input: unknown, init?: RequestInit) => {
         const done = deferred<Response>();
-        calls.push({ body: JSON.parse(String(init?.body)) as Record<string, unknown>, done });
+        calls.push({
+          url: String(input),
+          body: JSON.parse(String(init?.body)) as Record<string, unknown>,
+          done,
+        });
         return done.promise;
       }),
     );
@@ -206,6 +215,103 @@ describe("useAutosaveDraft", () => {
     calls[0].done.resolve(ok());
     await flush();
     expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("never arms the stale dirty flag that survives a class switch", async () => {
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ deps: [1] }),
+    });
+    // 切班瞬间旧班级关卡仍是 dirty（旧 lesson state 还在屏幕上）：
+    // 此时不得在新 classId 下重建定时器、更不能把旧快照 PUT 过去。
+    rerender(base({ classId: "class-2", deps: [1] }));
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(fetch).not.toHaveBeenCalled();
+
+    // 新上下文里真正产生的 dirty 仍会正常排程。
+    rerender(base({ classId: "class-2", deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].url).toBe("/api/classes/class-2/labs/lab/draft");
+  });
+
+  it("drops an in-flight write on class switch even while the screen is still dirty", async () => {
+    const onSaved = vi.fn();
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ onSaved }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    // 请求已发出、响应未回就切班，且旧 dirty 仍留在屏幕上：
+    // 既不得重排定时器，也不得把迟到的响应记成 saved。
+    rerender(base({ classId: "class-2", onSaved }));
+    calls[0].done.resolve(ok());
+    await act(async () => {
+      vi.advanceTimersByTime(3000);
+      await flush();
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(onSaved).not.toHaveBeenCalled();
+  });
+
+  it("reports a rejected write through onConflict only while still latest", async () => {
+    const onSaved = vi.fn();
+    const onError = vi.fn();
+    const onConflict = vi.fn();
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ deps: [1], onSaved, onError, onConflict }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    rerender(base({ deps: [2], onSaved, onError, onConflict }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    // 已被本地更新臂取代的旧写入被拒时只是迟到响应：静默，不触发冲突。
+    calls[0].done.resolve(ok(false));
+    await flush();
+    expect(onConflict).not.toHaveBeenCalled();
+
+    // 仍是最新臂的写入被拒：服务器上已有更新数据，交给 onConflict 走重取
+    // 调和 —— 不得静默挂起、不得报成 saved/error。
+    calls[1].done.resolve(ok(false));
+    await flush();
+    expect(onConflict).toHaveBeenCalledTimes(1);
+    expect(onConflict).toHaveBeenCalledWith(1);
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("stamps a stable saveToken per hook instance on every PUT", async () => {
+    const first = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ deps: [1] }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    first.rerender(base({ deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(typeof calls[0].body.saveToken).toBe("string");
+    expect(calls[1].body.saveToken).toBe(calls[0].body.saveToken);
+
+    first.unmount();
+    renderHook((p: Params) => useAutosaveDraft(p), { initialProps: base() });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(calls[2].body.saveToken).not.toBe(calls[0].body.saveToken);
   });
 
   it("reports a rejection only while its arm is still current", async () => {

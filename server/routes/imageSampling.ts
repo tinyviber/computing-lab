@@ -9,9 +9,9 @@ export function imageSamplingRoutes() {
   return labRoutes<StageDraft, SamplingJudgeResult>({
     labId: "image-sampling",
     stageCount: IMAGE_SAMPLING_STAGES.length,
-    saveDraft: (db, project, stageIndex, body, revision) =>
+    saveDraft: (db, project, stageIndex, body, write) =>
       saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
-        revision,
+        write,
       }),
     judge: (db, project, stageIndex, body) =>
       judgeImageSubmission(

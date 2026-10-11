@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, describeApiError, type LabProjectPayload } from "../api/client";
 
 /**
@@ -10,6 +10,11 @@ import { api, describeApiError, type LabProjectPayload } from "../api/client";
  * Every request is ticketed: a response only dispatches while it is still
  * the latest request, so a slow fetch for a previous classId/labId can never
  * overwrite the state the newer request belongs to.
+ *
+ * `reload()` re-fetches on a fresh ticket — used to reconcile local state
+ * after the server reports a newer write exists (save conflict). It resolves
+ * once the reload has dispatched (or been superseded/failed), and never
+ * touches `projectLoaded`/`loadError` so the workspace doesn't flicker.
  */
 export function useLabProject<TDraft, TExtras, TAction>(options: {
   classId: string | undefined;
@@ -18,7 +23,7 @@ export function useLabProject<TDraft, TExtras, TAction>(options: {
   ready: boolean;
   toAction: (project: LabProjectPayload<TDraft> & TExtras) => TAction;
   dispatch: (action: TAction) => void;
-}): { projectLoaded: boolean; loadError: string | null } {
+}): { projectLoaded: boolean; loadError: string | null; reload: () => Promise<void> } {
   const { classId, labId, ready, toAction, dispatch } = options;
   const [projectLoaded, setProjectLoaded] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -48,5 +53,22 @@ export function useLabProject<TDraft, TExtras, TAction>(options: {
     };
   }, [classId, labId, ready]);
 
-  return { projectLoaded, loadError };
+  const reload = useCallback((): Promise<void> => {
+    if (!classId || !ready) return Promise.resolve();
+    const ticket = ++requestSeq.current;
+    return api
+      .get<LabProjectPayload<TDraft> & TExtras>(`/api/classes/${classId}/labs/${labId}/project`)
+      .then((project) => {
+        if (requestSeq.current !== ticket) return;
+        dispatch(toAction(project));
+        setProjectLoaded(true);
+        setLoadError(null);
+      })
+      .catch(() => {
+        // Best-effort reconcile: a failed refetch leaves the current state
+        // untouched and surfaces nothing — the conflict flag still settles.
+      });
+  }, [classId, labId, ready, toAction, dispatch]);
+
+  return { projectLoaded, loadError, reload };
 }

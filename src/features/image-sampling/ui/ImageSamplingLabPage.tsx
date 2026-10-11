@@ -86,7 +86,7 @@ export function ImageSamplingLabPage() {
   // so the first run doesn't spend its load budget on the fetch itself.
   useEffect(() => warmPyodide(), []);
 
-  const { projectLoaded, loadError } = useLabProject<
+  const { projectLoaded, loadError, reload } = useLabProject<
     StageDraft,
     Record<never, never>,
     SamplingLessonAction
@@ -119,13 +119,21 @@ export function ImageSamplingLabPage() {
   useAutosaveDraft<StageDraft>({
     classId,
     labId: "image-sampling",
-    saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
     onSaved: (s) => dispatch({ type: "mark-saved", stageIndex: s }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => {
+      void reload().finally(() => dispatch({ type: "mark-save-conflict", stageIndex: s }));
+    },
   });
 
   const onSubmit = useCallback(async () => {

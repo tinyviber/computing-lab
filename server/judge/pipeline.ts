@@ -32,9 +32,14 @@ export type ProjectRow<TDraft = unknown> = {
   passedStages: number[];
   unlockedSubmodules: ComponentDef[];
   drafts: Record<string, TDraft>;
-  /** Latest accepted save revision per stage; older writes are dropped. */
-  draftRevisions: Record<string, number>;
+  /** Latest accepted write per stage. Writes order by (revision, saveToken);
+   *  strictly-older writes are dropped, equal-revision writes from different
+   *  tabs resolve deterministically on the token instead of arrival order. */
+  draftRevisions: Record<string, DraftWrite>;
 };
+
+/** One ordered draft write: wall-clock revision plus the saver's per-mount token. */
+export type DraftWrite = { revision: number; saveToken: string };
 
 type RawProject = {
   id: string;
@@ -58,8 +63,20 @@ function toProject<TDraft>(row: RawProject): ProjectRow<TDraft> {
     passedStages: parseJsonColumn<number[]>(row.passed_stages, []),
     unlockedSubmodules: parseJsonColumn<ComponentDef[]>(row.unlocked_submodules, []),
     drafts: parseJsonColumn<Record<string, TDraft>>(row.draft_graph, {}),
-    draftRevisions: parseJsonColumn<Record<string, number>>(row.draft_revisions, {}),
+    draftRevisions: toDraftRevisions(
+      parseJsonColumn<Record<string, DraftWrite | number>>(row.draft_revisions, {}),
+    ),
   };
+}
+
+/** Older rows stored a bare revision number; read them as tokenless writes. */
+function toDraftRevisions(raw: Record<string, DraftWrite | number>): Record<string, DraftWrite> {
+  return Object.fromEntries(
+    Object.entries(raw).map(([key, value]) => [
+      key,
+      typeof value === "number" ? { revision: value, saveToken: "" } : value,
+    ]),
+  );
 }
 
 export function getOrCreateProject<TDraft = unknown>(
@@ -104,19 +121,20 @@ export function saveStageDraft<TDraft>(
   project: ProjectRow<TDraft>,
   stageIndex: number,
   draft: TDraft,
-  extras?: { unlockedSubmodules?: unknown[]; revision?: number },
+  extras?: { unlockedSubmodules?: unknown[]; write?: DraftWrite },
 ): boolean {
   const key = String(stageIndex);
-  const lastRevision = project.draftRevisions[key];
+  const write = extras?.write ?? { revision: Date.now(), saveToken: "" };
+  const last = project.draftRevisions[key];
   if (
-    extras?.revision !== undefined &&
-    typeof lastRevision === "number" &&
-    lastRevision > extras.revision
+    last !== undefined &&
+    (last.revision > write.revision ||
+      (last.revision === write.revision && last.saveToken > write.saveToken))
   ) {
     return false;
   }
   const drafts = { ...project.drafts, [key]: draft };
-  const revisions = { ...project.draftRevisions, [key]: extras?.revision ?? Date.now() };
+  const revisions = { ...project.draftRevisions, [key]: write };
   if (extras?.unlockedSubmodules === undefined) {
     db.prepare(
       "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
