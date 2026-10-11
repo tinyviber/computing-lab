@@ -18,7 +18,7 @@ function seededInt(seed: number, lo: number, hi: number): number {
 }
 
 const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
-  // C1: fixed watch-it-go program — copy M[14] → A → M[15].
+  // M1: fixed watch-it-go program — copy M[14] (拨码开关) → A → M[15] (数码管).
   1: (seed) => {
     const stage = getCpuStage(1)!;
     return decorateCases(
@@ -33,14 +33,16 @@ const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C2: fill the missing STORE — same copy contract, one editable row.
+  // M2: same fixed copy as M1 (read 拨码开关 M[11] → 数码管 M[15]) — the stage
+  // is about decoding a byte, not authoring, so the contract is the fixed
+  // output cell. A program that writes anywhere else corrupts a decoy.
   2: (seed) => {
     const stage = getCpuStage(2)!;
     return decorateCases(
       [0, 9, 15, seededInt(seed, 1, 14)].map((v) => ({
-        name: `M[14] = ${v}`,
+        name: `M[11] = ${v}`,
         category: "basic",
-        initMem: mem({ 14: v }),
+        initMem: mem({ 11: v }),
         expect: { regs: { A: v }, mem: mem({ 15: v }), cycles: 4 },
       })),
       seed,
@@ -48,8 +50,9 @@ const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C3: ADD A,M[14] — seeded A/init pairs plus an exhaustive edge pack so a
-  // SUB or wrong-direction answer fails immediately.
+  // M3: LOAD → ADD → STORE — A reads 拨码开关 M[14], ALU adds M[11], the sum
+  // lands on 数码管 M[15]. Seeded pairs plus an exhaustive edge pack so a SUB
+  // or a missing STORE fails immediately; carry cases light the 第5位灯.
   3: (seed) => {
     const stage = getCpuStage(3)!;
     const edges = [
@@ -64,18 +67,17 @@ const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
     }));
     return decorateCases(
       [...edges, ...randoms].map(({ a, b }) => ({
-        name: `A=${a}, M[14]=${b}`,
+        name: `M[14]=${a}, M[11]=${b}`,
         category: a + b > 15 ? "carry" : "basic",
-        initMem: mem({ 14: b }),
-        initRegs: { A: a },
-        expect: { regs: { A: (a + b) & 0xf }, cycles: 3 },
+        initMem: mem({ 11: b, 14: a }),
+        expect: { regs: { A: (a + b) & 0xf }, mem: mem({ 15: (a + b) & 0xf }), cycles: 5 },
       })),
       seed,
       stage.decoyCells,
     );
   },
 
-  // C4: fixed program again — the stage's real content is byte decoding.
+  // 支线·丢失的一条指令: fill the missing STORE — same copy contract.
   4: (seed) => {
     const stage = getCpuStage(4)!;
     return decorateCases(
@@ -90,8 +92,8 @@ const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C5: JZ target — every value in the zero/nonzero split, both branch
-  // directions. M[15] starts nonzero so a skipped STORE can't pass.
+  // 支线·数据说了算: JZ target — every value in the zero/nonzero split, both
+  // branch directions. M[15] starts nonzero so a skipped STORE can't pass.
   5: (seed) => {
     const stage = getCpuStage(5)!;
     const values = [0, 1, 3, 7, 15, seededInt(seed, 1, 15)];
@@ -113,7 +115,7 @@ const BUILDERS: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C6: countdown loop — B walks to 0 through M[14], then halts.
+  // 支线·回到过去: countdown loop — B walks to 0 through M[14], then halts.
   6: (seed) => {
     const stage = getCpuStage(6)!;
     const values = [0, 1, 3, 7, seededInt(seed, 4, 8)];

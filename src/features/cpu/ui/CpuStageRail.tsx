@@ -2,10 +2,11 @@ import { StageLink } from "../../../shared/lab/StageRail";
 import { CPU_CORE_STAGES, CPU_STAGES, type CpuStageDef } from "../domain/stages.ts";
 
 /**
- * The cpu lab rail: the six guided core stages in order, with each
- * `railAfter` challenge anchored in a collapsible 支线练习 group right
- * behind its core stage (same pattern as the calculator rail). Challenges
- * without an anchor would land in a bottom 选做挑战 group.
+ * The cpu lab rail: the three 点餐机 core stages in order (按一下时钟 →
+ * 一个 byte 两种读法 → 上一章藏在这里), with each `railAfter` challenge
+ * anchored in a collapsible 支线练习 group right behind its core stage
+ * (same pattern as the calculator rail). Challenges without an anchor
+ * would land in a bottom 选做挑战 group.
  */
 export function CpuStageRail(props: {
   stageIndex: number;

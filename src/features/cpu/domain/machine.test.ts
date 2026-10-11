@@ -111,15 +111,18 @@ describe("machine", () => {
  * editable rows are filled correctly.
  */
 const REFERENCES: Record<number, InstrRow[]> = {
-  // C1 watch-it-go / C2 missing-instruction / C4 byte-decoder: the copy.
+  // M1 press-the-clock: 拨码→数码管 copy, no editable rows.
   1: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
-  2: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
-  // C3 alu-inside: the editable row is ADD.
-  3: [I("ADD", 0, 14), I("HALT")],
+  // M2 byte-secret: the fixed copy M[11] → M[15]; the stage is about decoding
+  // a byte, so the program is the same fixed program the learner steps.
+  2: [I("LOAD", 0, 11), I("STORE", 0, 15), I("HALT")],
+  // M3 alu-inside: the ADD row is fixed; STORE lands the sum on 数码管.
+  3: [I("LOAD", 0, 14), I("ADD", 0, 11), I("STORE", 0, 15), I("HALT")],
+  // 支线1 missing-instruction (old C2): the copy.
   4: [I("LOAD", 0, 14), I("STORE", 0, 15), I("HALT")],
-  // C5 branch-is-data: JZ target corrected to 4.
+  // 支线2 branch-is-data (old C5): JZ target corrected to 4.
   5: [I("JZ", 0, 4), I("LDI", 1, 1), I("STORE", 1, 15), I("HALT"), I("STORE", 1, 15), I("HALT")],
-  // C6 branch-back: JMP target corrected to 0 (the loop's back edge).
+  // 支线3 branch-back (old C6): JMP target corrected to 0 (the loop's back edge).
   6: [I("STORE", 1, 14), I("JZ", 1, 4), I("SUB", 1, 15), I("JMP", 0, 0), I("HALT")],
   // X1 write-an-if.
   7: [
@@ -233,21 +236,27 @@ describe("hidden-case judgement", () => {
 });
 
 describe("stage progression", () => {
-  it("gates stages linearly and challenges on their prerequisites", () => {
+  it("gates the 3-stage core linearly and challenges on unlockAfter", () => {
     expect(cpuStageUnlocked([], 1)).toBe(true);
     expect(cpuStageUnlocked([], 2)).toBe(false);
     expect(cpuStageUnlocked([1], 2)).toBe(true);
-    expect(cpuStageUnlocked([1, 2, 3, 4], 6)).toBe(false);
-    expect(cpuStageUnlocked([1, 2, 3, 4, 5], 6)).toBe(true);
-    // Challenge X1 unlocks on its explicit prerequisite (stage 5), not linearly.
-    expect(cpuStageUnlocked([4], 7)).toBe(false);
-    expect(cpuStageUnlocked([5], 7)).toBe(true);
+    expect(cpuStageUnlocked([1, 2], 3)).toBe(true);
+    // 支线1 (index 4) unlocks after core stage 1; 支线2/3 (5/6) chain after it.
+    expect(cpuStageUnlocked([1], 4)).toBe(true);
+    expect(cpuStageUnlocked([], 4)).toBe(false);
+    expect(cpuStageUnlocked([3], 5)).toBe(true);
+    expect(cpuStageUnlocked([1, 2, 3], 5)).toBe(true);
+    expect(cpuStageUnlocked([5], 6)).toBe(true);
+    expect(cpuStageUnlocked([1, 2, 3], 6)).toBe(false);
   });
 
-  it("advances to the first unpassed stage then the end marker", () => {
+  it("walks the core first, then challenges, then the end marker", () => {
     expect(nextCpuStage([])).toBe(1);
+    expect(nextCpuStage([1])).toBe(2);
     expect(nextCpuStage([1, 2])).toBe(3);
-    expect(nextCpuStage([1, 2, 3, 4, 5, 6])).toBe(7);
+    // Core done → the first unpassed challenge (not a re-ask of passed cores).
+    expect(nextCpuStage([1, 2, 3])).toBe(4);
+    expect(nextCpuStage([1, 2, 3, 4])).toBe(5);
     expect(nextCpuStage([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11])).toBe(12);
   });
 });

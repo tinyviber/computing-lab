@@ -1092,3 +1092,90 @@
   border-color: var(--accent);
   color: var(--accent);
 }
+
+/* ---------- 点餐机 I/O cells (拨码开关 / 数码管) ---------- */
+
+.cpu-mem-cell.is-input {
+  border-color: #16a34a;
+}
+
+.cpu-mem-cell.is-output {
+  border-color: #d97706;
+}
+
+.cpu-mem-port {
+  align-self: flex-start;
+  border-radius: 8px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 1px;
+  padding: 2px 5px;
+}
+
+.cpu-mem-port.is-input {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.cpu-mem-port.is-output {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.cpu-legend-input {
+  background: #dcfce7;
+  border: 1px solid #16a34a;
+}
+
+.cpu-legend-output {
+  background: #fef3c7;
+  border: 1px solid #d97706;
+}
+
+/* ---------- M3 ALU column add (4 位列加 + 第 5 位灯) ---------- */
+
+.cpu-coladd {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-control);
+  margin-top: 8px;
+  padding: 8px 10px;
+}
+
+.cpu-coladd-title {
+  color: var(--muted);
+  font-size: 10px;
+  margin: 0 0 4px;
+}
+
+.cpu-coladd-bits {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.cpu-coladd-bits .col {
+  display: inline-block;
+  text-align: center;
+  width: 1.4em;
+}
+
+.cpu-coladd-bits .col.carry-out {
+  color: var(--muted);
+}
+
+.cpu-coladd-bits .col.carry-out.is-lit {
+  color: #e0457b;
+  text-shadow: 0 0 6px #e0457b;
+}
+
+.cpu-coladd-op {
+  color: var(--muted);
+}
+
+.cpu-coladd-note {
+  color: var(--secondary);
+  font-size: 10px;
+  margin: 2px 0 0;
+}

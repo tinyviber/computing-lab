@@ -54,7 +54,9 @@ function guidedAnswersComplete(
   );
 }
 
-/** First picks are informational only; retain known answers for teacher review. */
+/**
+ * First picks are informational only; retain known answers for teacher review.
+ */
 function guidedPredictions(
   db: DatabaseSync,
   projectId: string,

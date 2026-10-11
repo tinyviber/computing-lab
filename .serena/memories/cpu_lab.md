@@ -1,67 +1,73 @@
-# CPU Lab (von Neumann teaching redesign, issue #70)
+# CPU Lab (von Neumann five-part datapath — observation-first, issue #70 + #100)
 
 ## Stage model
 
 - Stages live in `src/features/cpu/domain/stages.ts` (`CPU_STAGES`, indices 1–11).
-- Core stages 1–6 are guided and contiguous: `cpuStageUnlocked` still gates
-  them linearly (index 1, or `index-1` passed). Challenges 7–11 must set
-  explicit `unlockAfter` (prerequisite stage indices).
-- `nextCpuStage` returns the first unpassed index across the whole list, so
-  it walks core → challenges in index order.
-- Stage indices were renumbered vs the pre-#70 lab and `passed_stages` rows
-  are NOT migrated — deploy applies a CPU progress reset
-  (`UPDATE student_projects SET passed_stages='[]' WHERE lab='cpu'`).
+- Issue #100 re-cut the lab into a **zero-programming** three-stage 点餐机
+  mainline: students observe the five parts, predict, and step the clock —
+  they never author a program. 必修 2 target is parts + data/control flow +
+  fetch→decode→execute, NOT assembly.
+  - **1 `press-the-clock`** (core): LOAD→STORE→HALT fixed; `io {input:14, output:15}`.
+  - **2 `byte-secret`** (core): "一个 byte 两种读法" — same fixed copy
+    M[11]→M[15]; `bytePlayground` byte observer shows one 8-bit cell read as
+    a number AND decode as an instruction (stored-program insight).
+  - **3 `alu-inside`** (core): LOAD→ADD→STORE→HALT fixed; `io {14,15}`; the
+    ALU column-add (9+8=0001, 第5位灯) is shown.
+  - **4–6** challenges (missing-instruction / branch-is-data JZ / branch-back)
+    keep `editableRows` — optional side-branch authoring. **7–11** (X1–X4)
+    are free-assembly stages, unchanged, for students who go deeper.
+- Core stages unlock linearly (`index===1 || passed(index-1)`); challenges
+  need `unlockAfter`. `nextCpuStage` walks core first, then challenges.
+- Stage indices were re-cut at v10 (progress/submission reset in
+  `server/db/client.ts` migration). **No v11 needed** — this redesign keeps
+  the same stage indices and server contract, only reshapes the front end
+  and the M2 stage def.
+
+## 点餐机 I/O
+
+- `CpuStageDef.io` declares `{input?, output?}` — fixed cell numbers,
+  presentation only; the machine treats them as ordinary memory cells.
+- `MemoryGrid` takes `inputCell`/`outputCell` → `.is-input`/`.is-output`
+  badges + 拨码开关/数码管 legend. `BlockDiagram` takes them too and lights the
+  input/output box only when the pending op's operand equals that cell.
 
 ## Guided stages
 
 - `CpuStageDef.guided` declares `prefillRows`, `editableRows`, `blankRows`,
   `rowOps`, `prompts`, and optional `bytePlayground`.
 - `guidedProgram(stage, rows)` rebuilds the effective program: locked rows
-  come from `prefillRows`, editable rows from the draft. Apply it anywhere a
-  guided draft is executed or judged — `draftOf` in `lesson/state.ts` and
-  `judgeCpuSubmission` in `server/judge/cpu/judge.ts` both call it. Locked
-  rows must stay unreachable even via crafted drafts (tested).
+  come from `prefillRows`, editable rows from the draft. On a core stage
+  `editableRows` is `[]`, so the submitted draft is dropped entirely and the
+  fixed prefill program is judged — a hostile draft can't reach it (tested).
+  Apply it anywhere a guided draft runs: `draftOf` in `lesson/state.ts` and
+  `judgeCpuSubmission` in `server/judge/cpu/judge.ts`.
 - Pass gating: a guided submission carries `guidedAnswers` (promptId →
-  option index, from `state.guidedAnswers`) in `CpuSubmission`; the judge
-  400s `guided-incomplete` unless every prompt's picked option is correct.
-  It is a learning gate, not security.
-- Prompt flow in `lesson/state.ts`: `answer-prompt` records the option index
-  in `guidedAnswers[stage][promptId]`; a wrong pick sets `wrongPick`
-  ({promptId, option}) and the UI shows only that option's `note` —
-  un-picked options must stay indistinguishable (no pre-click hints).
-- `GuidedPanel` displays prompt options in a stable per-user seeded order but
-  sends original stage option indices to the server. `/guided-answer` stores
-  the first pick in `cpu_guided_first_answers` with a unique key per project,
-  stage, and prompt; retries cannot overwrite it. The judge reads this table
-  for `testSummary.predictions`; only final correct picks gate stage completion.
-- Prompt step-blocking: a prompt with `at <= cursor` unanswered pauses the
-  clock until answered.
-- `prompt.caseIndex` pins the demo-case picker: while that prompt is the
-  next unanswered, `CpuLabPage` force-selects the case, resets the run, and
-  disables the picker. Prompts quote demo data only with a matching pin.
-- `prompt.requiresByte` (C4) disables its options until
-  `state.playgroundByte` equals it. `playgroundByte` is lesson state (reset
-  via `initialPlaygroundByte` = `encodeInstr(prefillRows[0])`, i.e. the
-  program's own first byte 0b00001110 — deliberately not the HALT byte).
+  option index); the judge 400s `guided-incomplete` unless every prompt's
+  picked option is correct. A learning gate, not security.
+- `GuidedPanel` reads `stage.guided.prompts` directly and displays options in
+  a stable per-user seeded order but sends original option indices.
+  `/guided-answer` stores the first pick in `cpu_guided_first_answers`; the
+  judge reads this table for `testSummary.predictions`.
+- `prompt.at` blocks the stepper once `cursor >= at` until answered;
+  `prompt.caseIndex` pins the demo-case picker; `prompt.requiresByte`
+  disables options until `state.playgroundByte` equals it.
+- `initialPlaygroundByte` = `encodeInstr(prefillRows[0])` — M2's observer
+  starts on the program's own first byte (LOAD A,M[11] = 11) so the learner
+  sees a byte that also decodes.
 - Auto-run in guided mode walks beat-by-beat fetch → decode → exec → commit
   (~350 ms/beat) — never skips whole instructions; challenge stages keep the
   per-cycle 500 ms run.
-- In guided stages the editor never inserts/removes/moves rows; jump
-  retargeting applies to free stages and only to operands with
-  `opOperandMeaning === "addr"` below the row count. Removing a row that is
-  a jump target (`operand === index`) remaps it to the next row and emits a
-  notice (no silent re-point).
 
 ## Hidden cases
 
-- `server/judge/cpu/hiddenSet.ts` builds per-seed cases; `seededInt` is a
-  local helper (rng.ts exports only fnv1a/seedFor/makeRng). `decorateCases`
-  from `domain/fixtures.ts` sprinkles decoys identically for public + hidden.
-- `machine.test.ts` `REFERENCES` must hold the _effective_ program
-  (`guidedProgram` output) for guided stages.
+- `server/judge/cpu/hiddenSet.ts` builds per-seed cases; `seededInt` local;
+  `decorateCases` from `domain/fixtures.ts` sprinkles decoys identically for
+  public + hidden. M2's cases assert the fixed M[11]→M[15] copy (no seeded
+  target — that machinery was removed in the observation redesign).
+- `machine.test.ts` `REFERENCES` holds the _effective_ program
+  (`guidedProgram` output) per stage.
 - `server/routes/cpu.test.ts` `guidedAnswersFor(index)` builds a correct
-  answer map from the stage def — reuse it; add a wrong-pick variant to test
-  the 400 path.
+  answer map from the stage def — reuse it.
 
 ## UI contract
 
@@ -70,6 +76,15 @@
 - Synchronized highlighting keys off the same trace row: editor `is-active`,
   memory `is-read`/`is-pending-write`, register ghost "→ n", diagram wires
   (`EXEC_WIRES` per op, `PHASE_PARTS` per phase).
+- Trace no-spoiler (issue #100): `TraceTable` renders only walked rows
+  (`trace.slice(0,cursor)`); the end row and "共 N 个周期 + reason" header
+  appear only once `cursor >= trace.length`. The judge's `TraceRows`
+  counterexample replay still shows the full trace.
+- M3's ALU column add lives in `RegistersPanel`'s `ColumnAdd` — only on
+  stage index 3 during the exec phase it lays out `augend ± addend` as 5
+  columns with the carry-out column lit.
+- A guided stage with `editableRows: []` renders `ProgramEditor` as a
+  read-only program listing (note text adapts via `readOnly`).
 - `GuidedPanel` is controlled on `state.playgroundByte` (`currentByte` prop)
   for byte-gated prompts; `BytePlayground` is a controlled component
   (`byte`/`onByte`) over the same state.

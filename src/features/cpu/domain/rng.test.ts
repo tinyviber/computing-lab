@@ -22,7 +22,7 @@ describe("shuffled option indices", () => {
       return order.indexOf(correctIndex);
     });
 
-    expect(prompts).toHaveLength(28);
+    expect(prompts).toHaveLength(29);
     expect(new Set(correctPositions).size).toBeGreaterThan(1);
   });
 });

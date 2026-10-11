@@ -32,11 +32,12 @@ export type CpuPrompt = {
    */
   caseIndex?: number;
   /**
-   * Byte-playground gate (C4): the prompt's options stay disabled until
+   * Byte-playground gate (M2): the prompt's options stay disabled until
    * the learner has dialed the playground byte to this value — watching a
    * preset is not enough, they must flip the bits.
    */
   requiresByte?: number;
+  /** The prediction/observation question shown to the learner. */
   prompt: string;
   /** Exactly one option is correct; wrong picks can carry a per-option note. */
   options: { label: string; correct?: boolean; note?: string }[];
@@ -54,7 +55,10 @@ export type CpuGuided = {
   rowOps?: readonly OpName[];
   /** Ordered prompts; all must be answered before the stage can be submitted. */
   prompts: readonly CpuPrompt[];
-  /** C4: render the interactive bit-toggle byte playground. */
+  /**
+   * M2: render the byte observer — flip bits, watch the same 8-bit cell read
+   * as a number AND decode as an instruction (the stored-program insight).
+   */
   bytePlayground?: boolean;
 };
 
@@ -83,6 +87,12 @@ export type CpuStageDef = {
    * anywhere outside its contract corrupts them and fails the compare.
    */
   decoyCells: readonly number[];
+  /**
+   * The 点餐机's I/O box, first lit in M1/M2: `input` is the DIP-switch cell
+   * the program reads, `output` the 数码管 cell it writes. Presentation only —
+   * these are ordinary memory cells to the machine.
+   */
+  io?: { input?: number; output?: number };
   /** Rows the draft starts with — for guided stages this IS the fixed program. */
   prefillRows?: InstrRow[];
   /** Guided stage contract (see CpuGuided). Absent = free-authoring stage. */
@@ -119,10 +129,10 @@ export function guidedProgram(stage: CpuStageDef, rows: readonly InstrRow[]): In
 }
 
 export const CPU_STAGES: CpuStageDef[] = [
-  // ---------- C1 — 按一下时钟：纯观察，不写程序 ----------
+  // ---------- M1 — 按一下时钟：点餐机通电，纯观察 ----------
   {
     index: 1,
-    id: "watch-it-go",
+    id: "press-the-clock",
     title: "按一下时钟",
     englishTitle: "Press the Clock",
     track: "core",
@@ -130,6 +140,7 @@ export const CPU_STAGES: CpuStageDef[] = [
     maxCycles: 6,
     scratchCells: [],
     decoyCells: [12, 13],
+    io: { input: 14, output: 15 },
     prefillRows: [
       { op: "LOAD", reg: 0, operand: 14 },
       { op: "STORE", reg: 0, operand: 15 },
@@ -154,11 +165,11 @@ export const CPU_STAGES: CpuStageDef[] = [
           at: 0,
           prompt: "第 0 格的字节译出来，这一拍会做什么？",
           options: [
-            { label: "把 14 号格的数复制到 A", correct: true },
-            { label: "把 A 写进 15 号格", note: "那是第 1 行的指令，还没轮到它。" },
+            { label: "把拨码开关那格（M[14]）的数读进 A", correct: true },
+            { label: "把 A 写进数码管那格", note: "那是第 1 行的指令，还没轮到它。" },
             { label: "停机", note: "HALT 在第 2 行，要 PC 走到那才会执行。" },
           ],
-          reveal: "取指 → 译码 → 执行：LOAD A,M[14] 把 14 号格的数复制进寄存器 A。",
+          reveal: "取指 → 译码 → 执行：LOAD A,M[14] 把输入格（拨码开关）的数复制进寄存器 A。",
         },
         {
           id: "pc-advance",
@@ -176,11 +187,12 @@ export const CPU_STAGES: CpuStageDef[] = [
           at: 1,
           prompt: "第 1 拍是 STORE A,M[15]：谁会被改写？",
           options: [
-            { label: "15 号格，写进 A 的值", correct: true },
+            { label: "数码管那格（M[15]），写进 A 的值", correct: true },
             { label: "寄存器 A", note: "STORE 是把寄存器写出去，不改寄存器本身。" },
             { label: "14 号格", note: "14 号格是上一拍读的，这一拍写的是 15。" },
           ],
-          reveal: "STORE 把一个寄存器的值写进一个存储格——写入只在周期末提交。",
+          reveal:
+            "STORE 把一个寄存器的值写进一个存储格——这格正好是输出数码管，写入只在周期末提交。",
         },
         {
           id: "halt-end",
@@ -196,25 +208,243 @@ export const CPU_STAGES: CpuStageDef[] = [
       ],
     },
     description:
-      "这台小机器有一条 16 格的存储器：程序放前面，数据放后面。机器每个周期只做一件事——取指 → 译码 → 执行，写入在周期末一起生效。这一关不用写程序：先猜，再一格一格看着它走。",
-    task: "回答引导问题，然后单步走完整段程序，看着 5 从 M[14] 走到 M[15]。",
+      "这台点餐机有一条 16 格的存储器：程序放前面，数据放后面。第 14 格接着拨码开关（输入），第 15 格接着数码管（输出）。机器每个周期只做一件事——取指 → 译码 → 执行，写入在周期末一起生效。这一关不用写程序：先猜，再一格一格看着它把开关上的数搬到数码管。",
+    task: "回答引导问题，然后按一下时钟一格一格走完，看着拨码开关上的数从 M[14] 走到数码管 M[15]。",
     hint: "每一步先看 PC 指向哪一格；答案都藏在你即将看到的变化里，猜错了也没关系。",
-    judgeNote: "程序是固定的——服务器只核对它把 M[14] 复制到了 M[15]。重点是上面的一串引导问题。",
+    judgeNote:
+      "程序是固定的——服务器只核对它把输入格 M[14] 复制到了输出格 M[15]。重点是上面的一串引导问题。",
     takeaway:
-      "程序运行没有魔法：PC 拿出一个 byte，译码器把它解释成动作，机器改一点状态，然后 PC 再去拿下一个。",
+      "程序运行没有魔法：PC 拿出一个 byte，译码器把它解释成动作，机器改一点状态，然后 PC 再去拿下一个——输入和输出都只是存储格。",
   },
 
-  // ---------- C2 — 丢失的一条指令 ----------
+  // ---------- M2 — 一个 byte 两种读法：译码观察 ----------
   {
     index: 2,
-    id: "missing-instruction",
-    title: "丢失的一条指令",
-    englishTitle: "The Missing Instruction",
+    id: "byte-secret",
+    title: "一个 byte 两种读法",
+    englishTitle: "One Byte, Two Readings",
     track: "core",
     ops: ["LOAD", "STORE", "HALT"],
     maxCycles: 6,
     scratchCells: [],
+    decoyCells: [12, 13, 14],
+    io: { input: 11, output: 15 },
+    // Same fixed copy program as M1 — the learner never edits it. The point
+    // of M2 is not authoring; it's watching ONE 8-bit cell read as a number
+    // AND decode as an instruction.
+    prefillRows: [
+      { op: "LOAD", reg: 0, operand: 11 },
+      { op: "STORE", reg: 0, operand: 15 },
+      { op: "HALT", reg: 0, operand: 0 },
+    ],
+    guided: {
+      editableRows: [],
+      bytePlayground: true,
+      prompts: [
+        {
+          id: "opcode-field",
+          at: 0,
+          prompt: "第 0 格的字节是 00001011：高 3 位 000 属于哪个字段？",
+          options: [
+            { label: "操作码——它决定做什么动作", correct: true },
+            { label: "寄存器号", note: "寄存器只占中间那 1 位。" },
+            { label: "操作数", note: "操作数是低 4 位。" },
+          ],
+          reveal: "一个 byte 被译码器切成三段：[操作码 3b | 寄存器 1b | 操作数 4b]。",
+        },
+        {
+          id: "decode-load",
+          at: 0,
+          prompt: "操作码 000 译出来是什么操作？",
+          options: [
+            { label: "LOAD", correct: true },
+            { label: "STORE", note: "STORE 的操作码是 001——看右侧指令卡上的编码。" },
+            { label: "HALT", note: "HALT 是 111。" },
+          ],
+          reveal: "译码器把 000 变成“LOAD”这组控制信号——bit 本身不是命令，解释之后才成为命令。",
+        },
+        {
+          id: "operand-field",
+          at: 1,
+          prompt: "00001011 的低 4 位 1011 译出来是什么？",
+          options: [
+            { label: "操作数 11——要读第 11 格（拨码开关）", correct: true },
+            { label: "寄存器 11", note: "寄存器只有 A、B 两个，用 1 位就够。" },
+            { label: "跳到第 11 行", note: "11 是数据地址——跳不跳由操作码决定。" },
+          ],
+          reveal: "0000 1011 = 操作码 LOAD + 寄存器 A + 操作数 11，合起来是 LOAD A,M[11]。",
+        },
+        {
+          id: "byte-224",
+          requiresByte: 0b11100000,
+          prompt: "去下面的字节观察器把 8 个位拨成 11100000——把它当“数”读是几？",
+          options: [
+            { label: "224", correct: true },
+            { label: "7", note: "7 是操作码字段的值，整个 byte 是 128+64+32=224。" },
+            { label: "HALT", note: "HALT 是它在指令视图里的译法，不是数值。" },
+          ],
+          reveal: "11100000 当作数是 224——同一个 byte，先按“数”读。",
+        },
+        {
+          id: "byte-halt",
+          requiresByte: 0b11100000,
+          prompt: "同一个 byte 11100000，换到“指令”读法译成什么？",
+          options: [
+            { label: "HALT", correct: true },
+            { label: "LOAD", note: "LOAD 是 000 开头。" },
+            {
+              label: "看不懂，不是指令",
+              note: "每个 byte 都能被切开译码——111=HALT, 0=A, 0000=0。",
+            },
+          ],
+          reveal: "224 = HALT：同一格存储，两种读法。",
+        },
+        {
+          id: "who-knows",
+          prompt: "存储器自己知道哪一格是“数”、哪一格是“指令”吗？",
+          options: [
+            {
+              label: "不知道——它只是 8 个 bit；被 PC 取到、经译码器解释时才是指令",
+              correct: true,
+            },
+            {
+              label: "知道，格子上标着代码区",
+              note: "代码/数据的分割线是画给人看的，不是存进格子的。",
+            },
+            { label: "看数值大小决定", note: "byte 和别的数在存储器里没有任何区别。" },
+          ],
+          reveal: "存储器不区分代码和数据：一个 byte 是不是指令，取决于机器怎么用它。",
+        },
+        {
+          id: "when-instr",
+          prompt: "那一个 byte 什么时候算指令、什么时候算数据？",
+          options: [
+            {
+              label: "看机器怎么用它：PC 取到就当指令译，被指令引用就当数据读",
+              correct: true,
+            },
+            { label: "位置靠前的算指令", note: "STORE 也能往程序区写字节——位置不决定身份。" },
+            { label: "byte 自己说了算", note: "bit 没有“我是什么”的标志位。" },
+          ],
+          reveal: "这就是“存储程序”：代码和数据是同一种东西，角色的差别只在谁去用它。",
+        },
+      ],
+    },
+    description:
+      "这台点餐机还是那条固定程序：M[11] 的拨码开关数会复制到 M[15] 的数码管。但这一次不看程序怎么跑，看**一个 byte 到底是什么**。同一格存储，按“数”读是一个值，按“指令”读是一条命令——译码器把它切成 [操作码 3b | 寄存器 1b | 操作数 4b] 三段才有意义。",
+    task: "按时钟走完这条固定程序，然后在下面的字节观察器里拨同一个 byte，看它被当成“数”和当成“指令”时各读出什么，并回答引导问题。",
+    hint: "不用写任何指令——只拨字节观察器的 8 个位，看它两种读法。",
+    judgeNote:
+      "程序是固定的——服务器只核对它把输入格 M[11] 复制到了输出格 M[15]。重点是上面的一串引导问题和那个 byte。",
+    takeaway:
+      "代码和数据不是两种物质：同一格 8 位存储，被 PC 取到、经译码器解释时才是指令；被一条指令引用时就是数据。",
+  },
+
+  // ---------- M3 — 上一章藏在这里：ALU + 第 5 位灯 ----------
+  {
+    index: 3,
+    id: "alu-inside",
+    title: "上一章藏在这里",
+    englishTitle: "The ALU Inside",
+    track: "core",
+    ops: ["ADD", "SUB", "LOAD", "STORE", "HALT"],
+    maxCycles: 6,
+    scratchCells: [],
+    decoyCells: [10, 12, 13],
+    io: { input: 14, output: 15 },
+    prefillRows: [
+      { op: "LOAD", reg: 0, operand: 14 },
+      { op: "ADD", reg: 0, operand: 11 },
+      { op: "STORE", reg: 0, operand: 15 },
+      { op: "HALT", reg: 0, operand: 0 },
+    ],
+    guided: {
+      // Zero-programming mainline: the ADD row is fixed, the learner only
+      // predicts and steps — the choice of op is part of the story, not a task.
+      editableRows: [],
+      prompts: [
+        {
+          id: "which-op",
+          prompt: "第 1 行是 ADD A,M[11]：它会让哪块部件真正“算”起来？",
+          options: [
+            { label: "运算器（ALU）——把 A 和 M[11] 相加", correct: true },
+            { label: "存储器——只是又读了一格", note: "存储器供货，不动手算；算的是 ALU。" },
+            { label: "控制器——改一下 PC", note: "控制器只管发令和走 PC，加法发生在运算器。" },
+          ],
+          reveal: "ADD 把 A 和 M[11] 一起送进运算器，结果写回 A，下一拍 STORE 送去数码管。",
+        },
+        {
+          id: "where-alu",
+          prompt: "上一章你用逻辑门搭的加法器，现在在哪？",
+          options: [
+            { label: "就在数据通路的 ALU 方块里", correct: true },
+            { label: "在存储器的某一格里", note: "存储器只放 byte，不放电路。" },
+            { label: "已经不需要它了", note: "每条 ADD/SUB 指令背后还是那块电路在算。" },
+          ],
+          reveal: "你搭的 4 位加法器被封装成了 ALU 方块——一条 ADD 指令只是让控制器把数据送进它。",
+        },
+        {
+          id: "who-joins",
+          at: 1,
+          prompt: "ADD A,M[11] 这一拍，哪些部件会动起来？",
+          options: [
+            { label: "存储器 + 运算器 + 寄存器", correct: true },
+            { label: "只有运算器", note: "M[11] 要先从存储器读出来，结果要写回寄存器。" },
+            { label: "只有存储器", note: "相加这件事发生在运算器，不在存储器里。" },
+          ],
+          reveal: "通路是 M[11] → ALU ← A → A：一格存储、一个寄存器、一块运算器，同一条因果链。",
+        },
+        {
+          id: "predict-sum",
+          at: 1,
+          caseIndex: 0,
+          prompt: "A 现在是 3，M[11] 是 5：这一拍后 A 是几？",
+          options: [
+            { label: "8", correct: true },
+            { label: "5", note: "5 是 M[11] 的值——LOAD 才会得到它。" },
+            { label: "3", note: "3 是旧值；ADD 之后 A 就被覆盖了。" },
+          ],
+          reveal: "3 + 5 = 8 写回 A。",
+        },
+        {
+          id: "carry-out",
+          at: 1,
+          caseIndex: 1,
+          prompt: "换一份演示数据：A=9、M[11]=8。这一拍 A 会是几、第 5 位灯会怎样？",
+          options: [
+            { label: "A=1，第 5 位灯亮——17 装不进 4 位，只留低 4 位", correct: true },
+            { label: "A=17", note: "A 只有 4 位，最大装 15；多出来的进到第 5 位灯。" },
+            { label: "A=1，灯不亮", note: "9+8 确实进位了——第 5 位那盏灯就是为这一刻准备的。" },
+          ],
+          reveal:
+            "9+8=17=10001：A 只能留低 4 位 0001，进上来的第 5 位点亮那盏灯——溢出不是丢了，是放在灯上给你看。",
+        },
+      ],
+    },
+    description:
+      "上一章你用 XOR、AND 一路搭出了 4 位加法器。这一章它已经被封进餐机的运算器（ALU）里了——A 里装着拨码开关读进来的数，M[11] 是另一个加数，这条固定的 ADD 让这块电路转起来，再把和送去数码管。注意看那盏「第 5 位灯」。",
+    task: "按时钟走完这条固定程序，看着 A 加上 M[11] 再写进数码管 M[15]；换一份有进位的数据，看第 5 位灯亮起来。",
+    hint: "ALU 只认寄存器和存储格：ADD A,M[11] 就是“A + 11号格 → A”，然后 STORE 把 A 送去 M[15]。",
+    judgeNote:
+      "程序是固定的——服务器核对它把 A+M[11] 的和写进了数码管 M[15]（含 9+8 溢出第 5 位的用例）。重点是上面的一串引导问题。",
+    takeaway:
+      "ALU 不是旁边的新抽象：上一章的加法器就是这台机器的一个部件；4 位装不下的进位，就点亮第 5 位那盏灯。",
+  },
+
+  // ---------- 支线 1 — 丢失的一条指令（原 C2）----------
+  {
+    index: 4,
+    id: "missing-instruction",
+    title: "丢失的一条指令",
+    englishTitle: "The Missing Instruction",
+    track: "challenge",
+    railAfter: 1,
+    unlockAfter: [1],
+    ops: ["LOAD", "STORE", "HALT"],
+    maxCycles: 6,
+    scratchCells: [],
     decoyCells: [12, 13],
+    io: { input: 14, output: 15 },
     prefillRows: [
       { op: "LOAD", reg: 0, operand: 14 },
       { op: "LOAD", reg: 0, operand: 0 },
@@ -238,7 +468,7 @@ export const CPU_STAGES: CpuStageDef[] = [
         },
         {
           id: "pick-store",
-          prompt: "要让这个数最终到 15 号格，空缺的第 1 行该放哪条指令？",
+          prompt: "要让这个数最终到数码管 M[15]，空缺的第 1 行该放哪条指令？",
           options: [
             { label: "STORE A,M[15]", correct: true },
             { label: "LOAD A,M[15]", note: "方向反了——那是把 15 号格读进 A。" },
@@ -260,210 +490,22 @@ export const CPU_STAGES: CpuStageDef[] = [
       ],
     },
     description:
-      "同一段程序，但第 1 行丢了：M[14] 里的数要送到 M[15] 才算完。右边的指令卡片是它可能的样子——补全那一行，然后一格一格看它把数写进去。",
+      "主线里那段“拨码→数码管”的程序又回来了，但这次第 1 行丢了：M[14] 里的数要送到数码管 M[15] 才算完。补全那一行，然后一格一格看它把数写进去。",
     task: "把空缺的第 1 行补成正确指令，让 M[14] 的数复制到 M[15]，然后停机。",
     hint: "数已经在 A 里了——缺的是“把 A 写出去”的那一步。",
     judgeNote: "隐藏用例会换 M[14] 里的值（包括 0/9/15），并核对整张存储器——别写到别的格子。",
     takeaway: "一条指令是一个小命令：它自己只改一点状态，PC 往前走是另一回事。",
   },
 
-  // ---------- C3 — 上一章藏在这里 ----------
-  {
-    index: 3,
-    id: "alu-inside",
-    title: "上一章藏在这里",
-    englishTitle: "The ALU Inside",
-    track: "core",
-    ops: ["ADD", "SUB", "LOAD", "STORE", "HALT"],
-    maxCycles: 4,
-    scratchCells: [],
-    decoyCells: [10, 11],
-    prefillRows: [
-      { op: "ADD", reg: 0, operand: 14 },
-      { op: "HALT", reg: 0, operand: 0 },
-    ],
-    guided: {
-      editableRows: [0],
-      blankRows: [0],
-      rowOps: ["ADD", "SUB"],
-      prompts: [
-        {
-          id: "which-op",
-          prompt: "第 0 行缺了操作名：要让 ALU 把 A 和 M[14] 加起来，该选哪条指令？",
-          options: [
-            { label: "ADD A,M[14]", correct: true },
-            { label: "SUB A,M[14]", note: "SUB 也行，但算的是减——先选 ADD，等下可以换着看。" },
-            { label: "LOAD A,M[14]", note: "LOAD 只是复制，不经过 ALU。" },
-          ],
-          reveal: "把第 0 行选成 ADD——它会把 A 和 M[14] 一起送进运算器，结果写回 A。",
-        },
-        {
-          id: "where-alu",
-          prompt: "上一章你用逻辑门搭的加法器，现在在哪？",
-          options: [
-            { label: "就在数据通路的 ALU 方块里", correct: true },
-            { label: "在存储器的某一格里", note: "存储器只放 byte，不放电路。" },
-            { label: "已经不需要它了", note: "每条 ADD/SUB 指令背后还是那块电路在算。" },
-          ],
-          reveal: "你搭的 4 位加法器被封装成了 ALU 方块——一条 ADD 指令只是让控制器把数据送进它。",
-        },
-        {
-          id: "who-joins",
-          at: 0,
-          prompt: "ADD A,M[14] 这一拍，哪些部件会动起来？",
-          options: [
-            { label: "存储器 + ALU + 寄存器", correct: true },
-            { label: "只有 ALU", note: "M[14] 要先从存储器读出来，结果要写回寄存器。" },
-            { label: "只有存储器", note: "相加这件事发生在 ALU，不在存储器里。" },
-          ],
-          reveal: "通路是 M[14] → ALU ← A → A：一格存储、一个寄存器、一块运算器，同一条因果链。",
-        },
-        {
-          id: "predict-sum",
-          at: 0,
-          caseIndex: 0,
-          prompt: "A 现在是 3，M[14] 是 5：这一拍后 A 是几？",
-          options: [
-            { label: "8", correct: true },
-            { label: "5", note: "5 是 M[14] 的值——LOAD 才会得到它。" },
-            { label: "3", note: "3 是旧值；ADD 之后 A 就被覆盖了。" },
-          ],
-          reveal: "3 + 5 = 8 写回 A。答完可以换成 SUB 再看一遍（A 会变 14）——提交前换回 ADD。",
-        },
-      ],
-    },
-    description:
-      "上一章你用 XOR、AND 一路搭出了 4 位加法器。这一章它已经被封进机器的 ALU 方块里了——A 里装好了 3，M[14] 里是 5，缺的那一条指令让这块电路转起来。",
-    task: "把第 0 行选成 ADD，看着 A 从 3 变成 8；提交前确保留在 ADD。",
-    hint: "ALU 只认寄存器和存储格：ADD A,M[14] 就是“A + 14号格 → A”。",
-    judgeNote: "隐藏用例会换 A 和 M[14] 里的数（包括会溢出第 5 位的加法）——只有 ADD 能全对。",
-    takeaway: "ALU 不是旁边的新抽象：上一章的加法器就是这台机器的一个部件，指令只是驱动它的开关。",
-  },
-
-  // ---------- C4 — 八个 bit 的暗号 ----------
-  {
-    index: 4,
-    id: "byte-decoder",
-    title: "八个 bit 的暗号",
-    englishTitle: "A Byte Becomes an Action",
-    track: "core",
-    ops: ["LOAD", "STORE", "HALT"],
-    maxCycles: 6,
-    scratchCells: [],
-    decoyCells: [12, 13],
-    prefillRows: [
-      { op: "LOAD", reg: 0, operand: 14 },
-      { op: "STORE", reg: 0, operand: 15 },
-      { op: "HALT", reg: 0, operand: 0 },
-    ],
-    guided: {
-      editableRows: [],
-      bytePlayground: true,
-      prompts: [
-        {
-          id: "opcode-field",
-          at: 0,
-          prompt: "第 0 格的字节是 00001110：高 3 位 000 属于哪个字段？",
-          options: [
-            { label: "操作码——它决定做什么动作", correct: true },
-            { label: "寄存器号", note: "寄存器只占中间那 1 位。" },
-            { label: "操作数", note: "操作数是低 4 位。" },
-          ],
-          reveal: "一个 byte 被译码器切成三段：[操作码 3b | 寄存器 1b | 操作数 4b]。",
-        },
-        {
-          id: "decode-000",
-          at: 0,
-          prompt: "操作码 000 译出来是什么操作？",
-          options: [
-            { label: "LOAD", correct: true },
-            { label: "STORE", note: "STORE 的操作码是 001——看右侧指令卡上的编码。" },
-            { label: "HALT", note: "HALT 是 111。" },
-          ],
-          reveal: "译码器把 000 变成“LOAD”这组控制信号——bit 本身不是命令，解释之后才成为命令。",
-        },
-        {
-          id: "operand-field",
-          at: 1,
-          prompt: "低 4 位 1110 译出来是什么？",
-          options: [
-            { label: "操作数 14——要读第 14 格", correct: true },
-            { label: "寄存器 14", note: "寄存器只有 A、B 两个，用 1 位就够。" },
-            { label: "跳到第 14 行", note: "14 是数据地址——跳不跳由操作码决定。" },
-          ],
-          reveal: "0000 1110 = 操作码 LOAD + 寄存器 A + 操作数 14，合起来是 LOAD A,M[14]。",
-        },
-        {
-          id: "byte-224",
-          requiresByte: 0b11100000,
-          prompt: "去下面的 bit 开关把字节拨成 11100000——它在数据视图里是几？",
-          options: [
-            { label: "224", correct: true },
-            { label: "7", note: "7 是操作码字段的值，整个 byte 是 128+64+32=224。" },
-            { label: "HALT", note: "HALT 是它在指令视图里的译法，不是数值。" },
-          ],
-          reveal: "11100000 当作数是 224——存储器第 2 格里躺着的正好就是这个 byte。",
-        },
-        {
-          id: "byte-halt",
-          requiresByte: 0b11100000,
-          prompt: "同一个 byte 11100000，在指令视图里译成什么？",
-          options: [
-            { label: "HALT", correct: true },
-            { label: "LOAD", note: "LOAD 是 000 开头。" },
-            {
-              label: "看不懂，不是指令",
-              note: "每个 byte 都能被切开译码——111=HALT, 0=A, 0000=0。",
-            },
-          ],
-          reveal: "224 = HALT：同一格存储，两种读法。",
-        },
-        {
-          id: "who-knows",
-          prompt: "存储器自己知道第 2 格是“224”还是“HALT”吗？",
-          options: [
-            {
-              label: "不知道——它只是 8 个 bit；被 PC 取到、经译码器解释时才是指令",
-              correct: true,
-            },
-            {
-              label: "知道，格子上标着代码区",
-              note: "代码/数据的分割线是画给人看的，不是存进格子的。",
-            },
-            { label: "看数值大小决定", note: "224 和别的数在存储器里没有任何区别。" },
-          ],
-          reveal: "存储器不区分代码和数据：一个 byte 是不是指令，取决于机器怎么用它。",
-        },
-        {
-          id: "when-instr",
-          prompt: "那一个 byte 什么时候算指令、什么时候算数据？",
-          options: [
-            {
-              label: "看机器怎么用它：PC 取到就当指令译，被指令引用就当数据读",
-              correct: true,
-            },
-            { label: "位置靠前的算指令", note: "STORE 也能往程序区写字节——位置不决定身份。" },
-            { label: "byte 自己说了算", note: "bit 没有“我是什么”的标志位。" },
-          ],
-          reveal: "这就是“存储程序”：代码和数据是同一种东西，角色的差别只在谁去用它。",
-        },
-      ],
-    },
-    description:
-      "每一条“指令”其实就是一格 byte。译码器把它切成 [操作码 3b | 寄存器 1b | 操作数 4b] 三段来解释——同一段 bit，切给数据视图是一个数，切给指令视图是一条命令。先跑完程序，再玩下面的 bit 开关。",
-    task: "走完程序，再用 bit 开关观察一个字节的双重身份：拨成 11100000，看看它在两种视图里分别是什么。",
-    hint: "存储器第 2 格的字节就是 11100000——它平时被译成 HALT 执行，换成数据读法就是 224。",
-    judgeNote: "程序是固定的——这关的重点是下面的引导问题和 bit 开关，不是写代码。",
-    takeaway: "译码器把 bit 段变成控制选择；代码和数据不是两种物质——同一格 byte，两种读法。",
-  },
-
-  // ---------- C5 — 数据说了算 ----------
+  // ---------- 支线 2 — 数据说了算（原 C5）----------
   {
     index: 5,
     id: "branch-is-data",
     title: "数据说了算",
     englishTitle: "The Data Decides",
-    track: "core",
+    track: "challenge",
+    railAfter: 3,
+    unlockAfter: [3],
     ops: ["JZ", "LDI", "LOAD", "STORE", "HALT"],
     maxCycles: 8,
     scratchCells: [],
@@ -547,13 +589,15 @@ export const CPU_STAGES: CpuStageDef[] = [
     takeaway: "分支不是魔法：JZ 只是“寄存器为 0 就改写 PC”。数据第一次决定下一刻执行哪条指令。",
   },
 
-  // ---------- C6 — 回到过去 ----------
+  // ---------- 支线 3 — 回到过去（原 C6）----------
   {
     index: 6,
     id: "branch-back",
     title: "回到过去",
     englishTitle: "Jump Backwards",
-    track: "core",
+    track: "challenge",
+    railAfter: 3,
+    unlockAfter: [5],
     ops: ["JMP", "STORE", "SUB", "JZ", "HALT"],
     maxCycles: 40,
     scratchCells: [],
@@ -631,14 +675,14 @@ export const CPU_STAGES: CpuStageDef[] = [
     takeaway: "机器里没有“循环部件”：PC 被反复改回前面的行就是循环——数据什么时候喊停由 JZ 决定。",
   },
 
-  // ---------- X1 — 真正写一个 if（原 C3）----------
+  // ---------- X1 — 真正写一个 if ----------
   {
     index: 7,
     id: "write-an-if",
     title: "真正写一个 if",
     englishTitle: "Write a Real If",
     track: "challenge",
-    railAfter: 5,
+    railAfter: 3,
     unlockAfter: [5],
     ops: ALL_OPS,
     maxCycles: 9,
@@ -646,42 +690,42 @@ export const CPU_STAGES: CpuStageDef[] = [
     decoyCells: [9, 10, 11, 12],
     branchTwoWays: true,
     description:
-      "现在 JZ 归你了。写一个小判断：两格里的数相等就往 M[15] 写 1，否则写 0——两个分支都要以 HALT 收尾。",
+      "「数据说了算」里你见过 JZ 怎么改 PC；现在它归你了。写一个小判断：两格里的数相等就往 M[15] 写 1，否则写 0——两个分支都要以 HALT 收尾。",
     task: "M[15] = 1 当 M[13] == M[14]，否则 0。",
     hint: "SUB 把“是否相等”变成“是否为零”：a−b==0 当且仅当 a==b。想想 JMP 是干嘛用的。",
     judgeNote: "全部 256 组 (a,b) 都会跑；判题要求分支两个方向都真正走过，只写常数的程序过不了。",
     takeaway: "你已经会自己合成 if 了：算出差是不是 0，让 JZ 选 PC——数据决定控制流。",
   },
 
-  // ---------- X2 — 用循环合成算法（原 C4）----------
+  // ---------- X2 — 用循环合成算法 ----------
   {
     index: 8,
     id: "sum-to-n",
     title: "用循环合成 1+…+N",
     englishTitle: "Loop-Synthesized Sum",
     track: "challenge",
-    railAfter: 6,
+    railAfter: 3,
     unlockAfter: [6],
     ops: ALL_OPS,
     maxCycles: 128,
     scratchCells: [12],
     decoyCells: [9, 10, 11],
     description:
-      "主线里你亲手接过回边；现在自己写一个循环：算 1+2+…+N 写进 M[13]。N 在 M[14]，常数 1 在 M[15]。把循环变量装在寄存器里，每轮先判断、再干活——N 可以是 0。",
+      "「回到过去」里你亲手接过回边；现在自己写一个循环：算 1+2+…+N 写进 M[13]。N 在 M[14]，常数 1 在 M[15]。把循环变量装在寄存器里，每轮先判断、再干活——N 可以是 0。",
     task: "M[13] = (1+2+…+N) & 0xF；N = M[14]，常数 1 = M[15]。M[12] 是草稿格。",
     hint: "B 当计数器：每轮先 JZ 跳出，再累加、再 B−1。ADD 只认 M[a]——把 B 镜像进草稿格 M[12] 就能喂给它。",
     judgeNote: "N ∈ {0,1,3,5,7,12,15}，128 周期内必须停机；“先干后判”的写法会被 N=0 抓住。",
     takeaway: "循环就是“跳回开头”：PC 被同一个值反复改写，直到数据说停。",
   },
 
-  // ---------- X2' — 软件乘法（原 C5）----------
+  // ---------- X3 — 软件乘法 ----------
   {
     index: 9,
     id: "software-multiply",
     title: "软件乘法",
     englishTitle: "Software Multiply",
     track: "challenge",
-    railAfter: 6,
+    railAfter: 3,
     unlockAfter: [8],
     ops: ALL_OPS,
     maxCycles: 64,
@@ -695,14 +739,14 @@ export const CPU_STAGES: CpuStageDef[] = [
     takeaway: "ISA 里没有乘法，软件用循环把简单运算叠成复杂运算——指令集是下限，不是上限。",
   },
 
-  // ---------- X3 — 少走几步（原 X2）----------
+  // ---------- X4 — 少走几步 ----------
   {
     index: 10,
     id: "fewer-cycles",
     title: "少走几步",
     englishTitle: "Fewer Cycles",
     track: "challenge",
-    railAfter: 6,
+    railAfter: 3,
     unlockAfter: [8],
     ops: ALL_OPS,
     maxCycles: 128,
@@ -717,22 +761,22 @@ export const CPU_STAGES: CpuStageDef[] = [
       "同一道题，寄存器版比内存版每个循环省下两条访存指令——在数据通路里，走到哪一格都要花周期。",
   },
 
-  // ---------- X4 — 程序改程序（原 X3）----------
+  // ---------- X5 — 程序改程序 ----------
   {
     index: 11,
     id: "self-modify",
     title: "程序改程序",
     englishTitle: "The Program Modifies Itself",
     track: "challenge",
-    railAfter: 4,
-    unlockAfter: [4],
+    railAfter: 2,
+    unlockAfter: [2],
     ops: ALL_OPS,
     maxCycles: 32,
     scratchCells: [6, 7, 8],
     decoyCells: [10, 11, 12],
     requireSelfModFetch: true,
     description:
-      "第 4 关你已经见过：存储器里程序和数据本来就是一回事——同一个 byte 既能是 224 也能是 HALT。那如果我 STORE 一个 byte 到未来会被 PC 取到的位置呢？M[9] 里放着一条现成的 HALT(224)。写一段程序：先算出结果，再把一条自己 STORE 出来的指令写进存储器，让 PC 真的取到它、执行它。",
+      "「八个 bit 的暗号」里你见过：存储器里程序和数据本来就是一回事——同一个 byte 既能是 224 也能是 HALT。那如果我 STORE 一个 byte 到未来会被 PC 取到的位置呢？M[9] 里放着一条现成的 HALT(224)。写一段程序：先算出结果，再把一条自己 STORE 出来的指令写进存储器，让 PC 真的取到它、执行它。",
     task: "M[15] = (M[13]+M[14]) & 0xF；且轨迹里必须有一次“取指命中刚写过的格子”。M[6..8] 是草稿格。",
     hint: "LDI 一个值 → STORE 进空格 → JMP 过去。存进去的字节会被当成指令译出来——它的低 4 位决定它读哪一格。",
     judgeNote: "判定看轨迹：取指地址 ∈ 之前 STORE 过的格子，并且 M[15] 要写对。光算对数不够。",
@@ -747,8 +791,9 @@ export function getCpuStage(index: number): CpuStageDef | undefined {
 }
 
 /**
- * Core stages unlock linearly (1→2→…→6, contiguous at the front of the
- * list); challenges need their explicit prerequisites.
+ * Core stages unlock linearly (1→2→3); challenges need their explicit
+ * prerequisites (they can never be reached by the index-1 chain, since a
+ * challenge's neighbour may be another challenge or the core boundary).
  */
 export function cpuStageUnlocked(passedStages: readonly number[], index: number): boolean {
   const stage = getCpuStage(index);
@@ -758,13 +803,16 @@ export function cpuStageUnlocked(passedStages: readonly number[], index: number)
 }
 
 /**
- * The mainline pointer: first unpassed stage by index, challenges included —
- * after the core line is done it points at the next unpassed challenge, then
- * one past the last stage.
+ * The mainline pointer: the first unpassed CORE stage — an optional side
+ * branch must never block the 点餐机 mainline. Once every core stage is done
+ * it points at the next unpassed challenge, then one past the last stage.
  */
 export function nextCpuStage(passedStages: readonly number[]): number {
-  for (const stage of CPU_STAGES) {
+  for (const stage of CPU_CORE_STAGES) {
     if (!passedStages.includes(stage.index)) return stage.index;
+  }
+  for (const stage of CPU_STAGES) {
+    if (stage.track === "challenge" && !passedStages.includes(stage.index)) return stage.index;
   }
   return CPU_STAGES.length + 1;
 }

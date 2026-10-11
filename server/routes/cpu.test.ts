@@ -239,14 +239,14 @@ describe("cpu routes", () => {
     expect(await res.json()).toEqual({ error: "guided-incomplete" });
   });
 
-  it("normalizes guided submissions: locked rows in the draft are ignored", async () => {
+  it("normalizes guided submissions: a hostile draft can't reach a fixed program", async () => {
     const { db, app, classId, studentId, cookieFor } = await setup();
     const cookie = cookieFor(studentId);
     // Creating the project row first so the UPDATE below can see it.
     await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
-    // Stage 2 is guided with one editable row (index 1). A hostile draft
-    // mutating the locked LOAD row can't reach the machine — the judge
-    // rebuilds prefill + editable slots.
+    // Stage 2 has zero editable rows — the submitted draft is dropped
+    // entirely and the fixed prefill program (LOAD M[11] → STORE M[15]) is
+    // what the judge runs, whatever the client claimed.
     db.prepare(
       "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
     ).run(JSON.stringify([1]), studentId, classId);
@@ -255,7 +255,32 @@ describe("cpu routes", () => {
       draft: {
         rows: [
           { op: "HALT", reg: 0, operand: 0 },
-          { op: "STORE", reg: 0, operand: 15 },
+          { op: "STORE", reg: 0, operand: 99 },
+        ],
+      },
+      guidedAnswers: guidedAnswersFor(2),
+    });
+    expect(res.status).toBe(200);
+    const outcome = (await res.json()) as { passed: boolean };
+    expect(outcome.passed).toBe(true);
+  });
+
+  it("ignores a draft whose STORE points at the wrong cell on a fixed stage", async () => {
+    const { db, app, classId, studentId, cookieFor } = await setup();
+    const cookie = cookieFor(studentId);
+    await app.fetch(new Request(url(classId, "/project"), { headers: { cookie } }));
+    // The submission STOREs to a wrong output cell — but stage 2's program is
+    // fixed, so the judge never sees it. The fixed program still passes.
+    db.prepare(
+      "UPDATE student_projects SET passed_stages = ? WHERE user_id = ? AND class_id = ? AND lab_id = 'cpu'",
+    ).run(JSON.stringify([1]), studentId, classId);
+    const res = await judge(app, classId, cookie, {
+      stageIndex: 2,
+      draft: {
+        rows: [
+          { op: "LOAD", reg: 0, operand: 11 },
+          { op: "STORE", reg: 0, operand: 13 },
+          { op: "HALT", reg: 0, operand: 0 },
         ],
       },
       guidedAnswers: guidedAnswersFor(2),

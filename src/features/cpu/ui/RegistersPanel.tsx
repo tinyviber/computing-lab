@@ -1,7 +1,66 @@
-import { decodeInstr, formatInstr } from "../domain/isa.ts";
-import type { RegPair } from "../domain/machine.ts";
+import { decodeInstr, formatInstr, REG_NAMES } from "../domain/isa.ts";
+import type { RegPair, TraceRow } from "../domain/machine.ts";
 
 const toBin = (value: number, width: number) => value.toString(2).padStart(width, "0");
+
+/**
+ * M3's column add made visible: for a pending ADD/SUB in the exec phase,
+ * lay the 4-bit columns out (augend + addend = 5-bit raw sum) with the
+ * carry/borrow column lit when it can't fit — "装不下就丢，低 4 位留下".
+ * The augend is `regsBefore` (the register about to change), the addend the
+ * referenced memory cell — still uncommitted, so `mem` reads are safe.
+ */
+function ColumnAdd(props: { row: TraceRow; mem: readonly number[] }) {
+  const { row, mem } = props;
+  const { op, reg, operand } = row.decoded;
+  if (op !== "ADD" && op !== "SUB") return null;
+  const regName = REG_NAMES[reg] as keyof RegPair;
+  const a = row.regsBefore[regName];
+  const b = (mem[operand] ?? 0) & 0xf;
+  const raw = op === "ADD" ? a + b : a - b;
+  const kept = raw & 0xf;
+  const sign = op === "ADD" ? "+" : "−";
+  const carries = op === "ADD" ? raw > 0xf : raw < 0;
+  // 5 columns: the carry-out lamp column plus the 4 payload bits.
+  const top = ` ${toBin(a, 4)}`;
+  const bot = ` ${toBin(b, 4)}`;
+  const sum = `${carries ? "1" : "0"}${toBin(kept, 4)}`;
+  const row5 = (text: string, markCarry: boolean) =>
+    text.split("").map((ch, i) => (
+      <span
+        className={`col${i === 0 && markCarry ? " carry-out is-lit" : i === 0 ? " carry-out" : ""}`}
+        key={i}
+      >
+        {ch}
+      </span>
+    ));
+  return (
+    <div className="cpu-coladd" role="note">
+      <p className="cpu-coladd-title">
+        ALU 列加 · {regName} {sign} M[{operand}]（{a} {sign} {b}）
+      </p>
+      <div className="cpu-coladd-bits">
+        <div>
+          <span className="cpu-coladd-op"> </span>
+          {row5(top, false)}
+        </div>
+        <div>
+          <span className="cpu-coladd-op">{sign}</span>
+          {row5(bot, false)}
+        </div>
+        <div>
+          <span className="cpu-coladd-op">=</span>
+          {row5(sum, true)}
+        </div>
+      </div>
+      <p className="cpu-coladd-note">
+        {carries
+          ? `${a} ${sign} ${b} = ${raw}：4 位装不下——最左那 1 位点亮「第5位灯」后被丢掉，${regName} 只留下 ${kept}。`
+          : `${a} ${sign} ${b} = ${raw < 0 ? raw : raw}：4 位刚好装下，第5位灯不亮，${regName} ← ${kept}。`}
+      </p>
+    </div>
+  );
+}
 
 function RegCard(props: {
   name: string;
@@ -54,9 +113,27 @@ export function RegistersPanel(props: {
   carried: boolean;
   /** Predicted carry lamp once the pending cycle commits. */
   nextCarried?: boolean | null;
+  /**
+   * The pending cycle + memory — M3 only. When the exec phase previews an
+   * ADD/SUB, the panel draws the 4-bit column add under the carry lamp.
+   */
+  pendingRow?: TraceRow | null;
+  mem?: readonly number[];
 }) {
-  const { regs, prevRegs, nextRegs, pc, prevPc, nextPc, ir, irInFlight, carried, nextCarried } =
-    props;
+  const {
+    regs,
+    prevRegs,
+    nextRegs,
+    pc,
+    prevPc,
+    nextPc,
+    ir,
+    irInFlight,
+    carried,
+    nextCarried,
+    pendingRow,
+    mem,
+  } = props;
   const decoded = ir !== null ? decodeInstr(ir) : null;
   const flight = ir === null && irInFlight !== null && irInFlight !== undefined;
   const lamp = nextCarried ?? carried;
@@ -116,6 +193,7 @@ export function RegistersPanel(props: {
           <span className="cpu-carry-label">第5位灯</span>
         </div>
       </div>
+      {pendingRow && mem ? <ColumnAdd mem={mem} row={pendingRow} /> : null}
     </section>
   );
 }

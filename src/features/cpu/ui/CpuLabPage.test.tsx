@@ -8,9 +8,9 @@ describe("CpuLabPage", () => {
 
     // The stage rail shows the lab line and the anchored challenge groups.
     expect(await screen.findByRole("heading", { name: /按一下时钟/ })).toBeInTheDocument();
-    expect(screen.getByText("支线练习 · 第 4 关后")).toBeInTheDocument();
-    expect(screen.getByText("支线练习 · 第 5 关后")).toBeInTheDocument();
-    expect(screen.getByText("支线练习 · 第 6 关后")).toBeInTheDocument();
+    expect(screen.getByText("支线练习 · 第 1 关后")).toBeInTheDocument();
+    expect(screen.getByText("支线练习 · 第 2 关后")).toBeInTheDocument();
+    expect(screen.getByText("支线练习 · 第 3 关后")).toBeInTheDocument();
 
     // The instruction shelf is persistent, and the guided checklist asks.
     expect(screen.getByRole("heading", { name: "指令卡片" })).toBeInTheDocument();
@@ -27,6 +27,11 @@ describe("CpuLabPage", () => {
     expect(screen.getByRole("heading", { name: /存储器/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: /数据通路/ })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "执行轨迹" })).toBeInTheDocument();
+
+    // Trace no-spoiler (issue #100): before a single beat is walked, the end
+    // row and the total-cycle reason must not give the run's ending away.
+    expect(screen.queryByText(/结束：/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/共 \d+ 个周期/)).not.toBeInTheDocument();
 
     // Submit stays gated until the prompt sequence completes.
     expect(screen.getByRole("button", { name: "运行公开测试" })).toBeInTheDocument();

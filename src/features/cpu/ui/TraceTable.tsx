@@ -84,6 +84,13 @@ export const TRACE_HEAD = (
  * One row per executed cycle; clicking a row scrubs the machine view to
  * "after that cycle committed". The run's end state shows as a footer row
  * so a ran-off/timeout program still explains itself.
+ *
+ * Issue #100: the table reveals only cycles already WALKED — rendering the
+ * whole `run.trace` up front would spoil every prediction the guided stages
+ * ask for. Rows appear as the cursor commits them; the terminal end row
+ * (and the run's reason/total in the header) only appear once the machine
+ * has actually reached the end. The judge's counterexample replay uses the
+ * full `TraceRows`, so post-mortems still see every cycle.
  */
 export function TraceTable(props: {
   run: MachineRun | null;
@@ -93,14 +100,22 @@ export function TraceTable(props: {
 }) {
   const { run, cursor, onScrub } = props;
   if (!run) return null;
+  // Rows the student has actually stepped to — never the future.
+  const walked = run.trace.slice(0, Math.min(cursor, run.trace.length));
+  const finished = cursor >= run.trace.length;
   return (
     <section aria-label="执行轨迹" className="cpu-trace">
       <div className="cpu-panel-heading">
         <h3>执行轨迹</h3>
         <p className="cpu-panel-note">
-          每行一个周期；点一行回到那一步。共 {run.trace.length} 个周期，
-          {REASON_LABEL[run.reason]}
-          {run.selfModFetch ? " · 取到了自己写过的格子" : ""}。
+          {finished ? (
+            <>
+              共 {run.trace.length} 个周期，{REASON_LABEL[run.reason]}
+              {run.selfModFetch ? " · 取到了自己写过的格子" : ""}。
+            </>
+          ) : (
+            "每行一个周期；走一格看一格，点一行回到那一步。"
+          )}
         </p>
       </div>
       <div className="cpu-trace-scroll">
@@ -111,18 +126,20 @@ export function TraceTable(props: {
               cursor={cursor}
               finalRegs={run.final.regs}
               onScrub={onScrub}
-              trace={run.trace}
+              trace={walked}
             />
-            <tr
-              className={`cpu-trace-end${cursor === run.trace.length ? " is-current" : ""}`}
-              onClick={() => onScrub(run.trace.length)}
-            >
-              <td colSpan={8}>
-                结束：{REASON_LABEL[run.reason]}
-                {run.reason === "halted" ? `（第 ${run.trace.length} 个周期）` : ""}；A=
-                {run.final.regs.A}，B={run.final.regs.B}
-              </td>
-            </tr>
+            {finished ? (
+              <tr
+                className={`cpu-trace-end${cursor === run.trace.length ? " is-current" : ""}`}
+                onClick={() => onScrub(run.trace.length)}
+              >
+                <td colSpan={8}>
+                  结束：{REASON_LABEL[run.reason]}
+                  {run.reason === "halted" ? `（第 ${run.trace.length} 个周期）` : ""}；A=
+                  {run.final.regs.A}，B={run.final.regs.B}
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

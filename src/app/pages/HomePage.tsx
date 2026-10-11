@@ -34,7 +34,8 @@ const HOME_LABS = [
   {
     id: "cpu",
     title: "冯诺依曼数据通路",
-    description: "写一段程序驱动一台小机器：在取指、译码、执行的节拍里看数据通路怎么决定下一刻。",
+    description:
+      "一台点餐机就是冯·诺依曼：拨码开关进、数码管出，按一下时钟走一拍——看五大部件怎么取指、译码、执行。",
     to: "/labs/cpu",
     stages: CPU_CORE_STAGES.length,
     primary: false,

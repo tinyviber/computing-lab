@@ -12,7 +12,7 @@ import { getCpuStage } from "../domain/stages.ts";
 const mem = (entries: Record<number, number>) => entries;
 
 const CASES: Record<number, (seed: number) => CpuCase[]> = {
-  // C1: fixed watch-it-go program — copy M[14] → A → M[15].
+  // M1: fixed watch-it-go program — copy M[14] (拨码开关) → A → M[15] (数码管).
   1: (seed) => {
     const stage = getCpuStage(1)!;
     return decorateCases(
@@ -27,14 +27,15 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C2: fill the missing STORE — same copy contract, one editable row.
+  // M2: same fixed copy as M1 but reading the M[11] 拨码开关 — the stage is
+  // about decoding a byte, not authoring, so the output is the fixed M[15].
   2: (seed) => {
     const stage = getCpuStage(2)!;
     return decorateCases(
       [5, 9].map((v) => ({
-        name: `M[14] = ${v}`,
+        name: `M[11] = ${v}`,
         category: "basic",
-        initMem: mem({ 14: v }),
+        initMem: mem({ 11: v }),
         expect: { regs: { A: v }, mem: mem({ 15: v }), cycles: 4 },
       })),
       seed,
@@ -42,7 +43,8 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C3: ADD A,M[14] — A starts loaded, only the ALU row is editable.
+  // M3: LOAD → ADD → STORE — A reads the switch, ALU adds M[11], result to
+  // the 数码管; the second case carries so the 第5位灯 lights up.
   3: (seed) => {
     const stage = getCpuStage(3)!;
     return decorateCases(
@@ -50,18 +52,17 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
         { a: 3, b: 5 },
         { a: 9, b: 8 },
       ].map(({ a, b }) => ({
-        name: `A=${a}, M[14]=${b}`,
+        name: `M[14]=${a}, M[11]=${b}`,
         category: a + b > 15 ? "carry" : "basic",
-        initMem: mem({ 14: b }),
-        initRegs: { A: a },
-        expect: { regs: { A: (a + b) & 0xf }, cycles: 3 },
+        initMem: mem({ 11: b, 14: a }),
+        expect: { regs: { A: (a + b) & 0xf }, mem: mem({ 15: (a + b) & 0xf }), cycles: 5 },
       })),
       seed,
       stage.decoyCells,
     );
   },
 
-  // C4: fixed program again — the stage's real content is byte decoding.
+  // 支线·丢失的一条指令: fill the missing STORE — same copy contract.
   4: (seed) => {
     const stage = getCpuStage(4)!;
     return decorateCases(
@@ -76,8 +77,8 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C5: JZ target — both directions of the branch shown publicly. M[15]
-  // starts nonzero so a run that skips STORE can't sneak a pass.
+  // 支线·数据说了算: JZ target — both directions of the branch shown
+  // publicly. M[15] starts nonzero so a run that skips STORE can't pass.
   5: (seed) => {
     const stage = getCpuStage(5)!;
     return decorateCases(
@@ -94,7 +95,7 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // C6: countdown loop — B walks to 0 through M[14], then halts.
+  // 支线·回到过去: countdown loop — B walks to 0 through M[14], then halts.
   6: (seed) => {
     const stage = getCpuStage(6)!;
     return decorateCases(
@@ -146,7 +147,7 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // X2': software multiply.
+  // X3: software multiply.
   9: (seed) => {
     const stage = getCpuStage(9)!;
     return decorateCases(
@@ -165,7 +166,7 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // X3: same sum loop with a tight 5N+4 budget.
+  // X4: same sum loop with a tight 5N+4 budget.
   10: (seed) => {
     const stage = getCpuStage(10)!;
     return decorateCases(
@@ -181,7 +182,7 @@ const CASES: Record<number, (seed: number) => CpuCase[]> = {
     );
   },
 
-  // X4: result + a fetch into a written cell.
+  // X5: result + a fetch into a written cell.
   11: (seed) => {
     const stage = getCpuStage(11)!;
     return decorateCases(

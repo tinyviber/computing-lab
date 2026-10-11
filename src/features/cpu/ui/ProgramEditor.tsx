@@ -22,7 +22,7 @@ const OPERAND_LABEL: Record<ReturnType<typeof opOperandMeaning>, string> = {
  * Guided stages (issue #70): most rows are locked — rendered as read-only
  * mnemonics — and the handful in `editableRows` take normal selects with a
  * stage-scoped op list. Rows still equal to their prefill render dimmed
- * ("待补全") so the learner sees which slot is theirs to fill.
+ * ("待补全") so the learner sees which slot is theirs.
  */
 function RowEditor(props: {
   index: number;
@@ -192,14 +192,19 @@ export function ProgramEditor(props: {
 }) {
   const { rows, ops, rowOps, editableRows, blankRows, activeRow, disabled } = props;
   const guided = editableRows !== undefined;
+  // A guided stage with no editable rows is a read-only program listing —
+  // the learner steps the machine, never edits (the zero-programming mainline).
+  const readOnly = guided && editableRows.size === 0;
   return (
     <section aria-label="程序编辑器" className="cpu-editor">
       <div className="cpu-panel-heading">
         <h3>程序</h3>
         <p className="cpu-panel-note">
-          {guided
-            ? "锁定的行不许动——你只需填亮着的那几格。每行一条指令 = 一个存储格。"
-            : "每行一条指令 = 一个存储格；执行到没有 HALT 就会跑出界。"}
+          {readOnly
+            ? "这台机器装好的程序——你只需按时钟看它一格一格执行。每行一条指令 = 一个存储格。"
+            : guided
+              ? "锁定的行不许动——你只需填亮着的那几格。每行一条指令 = 一个存储格。"
+              : "每行一条指令 = 一个存储格；执行到没有 HALT 就会跑出界。"}
         </p>
       </div>
       <ol className="cpu-program">

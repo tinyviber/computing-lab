@@ -170,13 +170,13 @@ export function nextPrompt(state: CpuLessonState) {
 }
 
 /**
- * C4's playground starts on the program's own first byte (LOAD A,M[14] =
- * 00001110) so the byte-224 prompts force a real dial, not a glance at the
- * HALT byte already sitting there.
+ * M2's byte observer starts on the program's own first byte (LOAD A,M[11] =
+ * 0b00001011 = 11) so the learner sees a byte that also decodes, not 0.
+ * `requiresByte` prompts still force a real dial from there.
  */
 export function initialPlaygroundByte(stage: CpuStageDef | undefined): number {
-  const first = stage?.guided?.bytePlayground ? stage.prefillRows?.[0] : undefined;
-  return first ? encodeInstr(first) : 0;
+  const row = stage?.guided?.bytePlayground ? stage.prefillRows?.[0] : undefined;
+  return row ? encodeInstr(row) : 0;
 }
 
 export function createCpuLessonState(stageIndex = 1): CpuLessonState {

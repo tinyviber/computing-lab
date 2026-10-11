@@ -13,6 +13,10 @@ const toHex = (byte: number) => byte.toString(16).toUpperCase().padStart(2, "0")
  * fetches (`is-pc`), the data cell it reads during exec (`is-read`), the
  * cell it is about to write (`is-pending-write`), and the cell the last
  * committed cycle wrote (`is-write`).
+ *
+ * 点餐机 I/O (issue #100): stages that declare `io` mark one cell as the
+ * 拨码开关 input and one as the 数码管 output — a persistent badge, not a
+ * transient cycle highlight, since those cells ARE the machine's ports.
  */
 export function MemoryGrid(props: {
   mem: number[];
@@ -27,8 +31,22 @@ export function MemoryGrid(props: {
   /** Cell the pending cycle will write (STORE exec preview). */
   pendingWrite?: { addr: number; value: number } | null;
   scratchCells: readonly number[];
+  /** Stage's 拨码开关 input cell (点餐机 port), if it declares one. */
+  inputCell?: number;
+  /** Stage's 数码管 output cell — seeded per student on M2. */
+  outputCell?: number;
 }) {
-  const { mem, programRows, fetchCell, readCell, writtenCell, pendingWrite, scratchCells } = props;
+  const {
+    mem,
+    programRows,
+    fetchCell,
+    readCell,
+    writtenCell,
+    pendingWrite,
+    scratchCells,
+    inputCell,
+    outputCell,
+  } = props;
   const [view, setView] = useState<"instr" | "data">("instr");
   const scratch = new Set(scratchCells);
 
@@ -67,6 +85,8 @@ export function MemoryGrid(props: {
             addr === writtenCell ? "is-write" : "",
             isPendingWrite ? "is-pending-write" : "",
             scratch.has(addr) ? "is-scratch" : "",
+            addr === inputCell ? "is-input" : "",
+            addr === outputCell ? "is-output" : "",
           ]
             .filter(Boolean)
             .join(" ");
@@ -77,6 +97,16 @@ export function MemoryGrid(props: {
                 {addr === fetchCell ? <em title="PC 正在取指的格子">→</em> : null}
                 {addr}
               </span>
+              {addr === inputCell ? (
+                <span className="cpu-mem-port is-input" title="拨码开关——输入从这格读">
+                  拨码
+                </span>
+              ) : null}
+              {addr === outputCell ? (
+                <span className="cpu-mem-port is-output" title="数码管——写进这格就亮">
+                  数码
+                </span>
+              ) : null}
               <span className="cpu-mem-value">
                 {view === "instr" ? <code>{toHex(byte)}</code> : <strong>{byte}</strong>}
               </span>
@@ -105,6 +135,16 @@ export function MemoryGrid(props: {
         {scratchCells.length > 0 ? (
           <span>
             <i className="cpu-legend-scratch" /> 草稿格 {scratchCells.join("、")}
+          </span>
+        ) : null}
+        {inputCell !== undefined ? (
+          <span>
+            <i className="cpu-legend-input" /> 拨码开关 M[{inputCell}]
+          </span>
+        ) : null}
+        {outputCell !== undefined ? (
+          <span>
+            <i className="cpu-legend-output" /> 数码管 M[{outputCell}]
           </span>
         ) : null}
       </p>

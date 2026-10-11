@@ -113,6 +113,12 @@ export function CpuLabPage() {
   const draft = draftOf(state);
   const rows = programOf(state);
   const guided = stage?.guided === undefined ? false : true;
+  const userId = session?.user.id ?? "";
+  const stageSeed = stage ? seedFor(userId, "cpu", stage.index) : 0;
+  // 点餐机 I/O: the stage's 拨码开关 input cell and fixed 数码管 output cell
+  // — only stages that declare `io` get the I/O boxes lit.
+  const inputCell = stage?.io?.input;
+  const outputCell = stage?.io?.output;
 
   const { loadError } = useLabProject<
     CpuDraft,
@@ -146,10 +152,9 @@ export function CpuLabPage() {
     onError: () => dispatch({ type: "mark-save-error" }),
   });
 
-  const userId = session?.user.id ?? "";
   const publicCases = useMemo(
-    () => (stage ? publicCasesFor(stage.index, seedFor(userId, "cpu", stage.index)) : []),
-    [stage, userId],
+    () => (stage ? publicCasesFor(stage.index, stageSeed) : []),
+    [stage, stageSeed],
   );
   const promptOptionOrders = useMemo(() => {
     if (!stage?.guided) return {};
@@ -515,7 +520,8 @@ export function CpuLabPage() {
                     </select>
                   </label>
                   <span className="cpu-cycle-count">
-                    周期 {effectiveCursor} / {run.trace.length}
+                    周期 {effectiveCursor}
+                    {effectiveCursor >= run.trace.length ? ` / ${run.trace.length}` : ""}
                   </span>
                 </div>
 
@@ -531,17 +537,21 @@ export function CpuLabPage() {
                     carried={display.lastRow?.carried === true}
                     ir={pending && phase !== "fetch" ? pending.ir : null}
                     irInFlight={pending && phase === "fetch" ? pending.ir : null}
+                    mem={stage.index === 3 ? display.mem : undefined}
                     nextCarried={pending && phase === "exec" ? pending.carried === true : null}
                     nextPc={pending && phase === "exec" ? pending.nextPc : null}
                     nextRegs={nextDisplay && phase === "exec" ? nextDisplay.regs : null}
                     pc={display.pc}
+                    pendingRow={stage.index === 3 && pending && phase === "exec" ? pending : null}
                     prevPc={display.lastRow?.pc ?? null}
                     prevRegs={display.lastRow?.regsBefore ?? null}
                     regs={display.regs}
                   />
                   <MemoryGrid
                     fetchCell={pending && pending.pc < 16 ? pending.pc : -1}
+                    inputCell={inputCell}
                     mem={display.mem}
+                    outputCell={outputCell}
                     pendingWrite={
                       pending && phase === "exec" && pending.memWrite ? pending.memWrite : null
                     }
@@ -556,7 +566,13 @@ export function CpuLabPage() {
                   />
                 </div>
 
-                <BlockDiagram op={lastOp} pending={pending} phase={pending ? phase : null} />
+                <BlockDiagram
+                  inputCell={inputCell}
+                  op={lastOp}
+                  outputCell={outputCell}
+                  pending={pending}
+                  phase={pending ? phase : null}
+                />
 
                 <TraceTable
                   cursor={effectiveCursor}
