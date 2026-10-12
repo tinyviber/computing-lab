@@ -205,7 +205,14 @@ export type CalculatorLessonAction =
     }
   | { type: "restore-conflict-draft"; stageIndex: number }
   | { type: "discard-conflict-draft"; stageIndex: number }
-  | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
+  | {
+      type: "judge-result";
+      /** The stage the submission ran on, captured at dispatch time — a
+       *  late response must never attribute its verdict to the stage that
+       *  happens to be on screen when it lands. */
+      stageIndex: number;
+      outcome: NonNullable<JudgeOutcome>;
+    }
   | { type: "dismiss-message" };
 
 export function graphOf(state: CalculatorLessonState, stageIndex = state.stageIndex): CircuitGraph {
@@ -548,6 +555,30 @@ function rewriteComponentPortReferences(
   return changed ? { ...graph, edges } : graph;
 }
 
+/**
+ * A rewrite that touches several stages' drafts at once (a component
+ * rename/port edit, an undo restoring a cross-stage snapshot) must dirty
+ * every stage it actually changed — otherwise the other stages' rewritten
+ * graphs never reach the server while the library already holds the new
+ * name. `always` stays marked even when its own draft was untouched: some
+ * save has to carry the library change.
+ */
+function markDirtyStagesChanged(
+  byStage: SaveStatusByStage,
+  before: Record<number, CircuitGraph>,
+  after: Record<number, CircuitGraph>,
+  always: number,
+): SaveStatusByStage {
+  let next = markSaveStatus(byStage, always, "dirty");
+  for (const [stage, graph] of Object.entries(after)) {
+    const stageIndex = Number(stage);
+    if (stageIndex !== always && graph !== before[stageIndex]) {
+      next = markSaveStatus(next, stageIndex, "dirty");
+    }
+  }
+  return next;
+}
+
 function editCustomComponent(
   state: CalculatorLessonState,
   action: Extract<CalculatorLessonAction, { type: "edit-custom-component" }>,
@@ -624,7 +655,12 @@ function editCustomComponent(
       unlockedSubmodules: state.unlockedSubmodules,
     }),
     nodeMove: null,
-    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
+    saveStatusByStage: markDirtyStagesChanged(
+      state.saveStatusByStage,
+      state.drafts,
+      drafts,
+      state.stageIndex,
+    ),
     runOutcome: null,
     judgeOutcome: null,
     message: `已更新自定义组件“${nextName}”。`,
@@ -932,9 +968,10 @@ export function transitionCalculatorLesson(
       const top = settled.past[settled.past.length - 1];
       // Only restore a snapshot made on the stage currently on screen.
       if (!top || top.stageIndex !== settled.stageIndex) return settled;
+      const restoredDrafts = top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph };
       return {
         ...settled,
-        drafts: top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph },
+        drafts: restoredDrafts,
         unlockedSubmodules: top.unlockedSubmodules ?? settled.unlockedSubmodules,
         // An undo that rewrote the library is a library change too.
         componentsEditSeq:
@@ -944,7 +981,14 @@ export function transitionCalculatorLesson(
         componentsChanged: top.unlockedSubmodules !== undefined || settled.componentsChanged,
         past: settled.past.slice(0, -1),
         nodeMove: null,
-        saveStatusByStage: markSaveStatus(state.saveStatusByStage, settled.stageIndex, "dirty"),
+        // Component-edit snapshots hold every stage's drafts — each stage
+        // whose draft the undo restores is dirty again so autosave persists it.
+        saveStatusByStage: markDirtyStagesChanged(
+          state.saveStatusByStage,
+          settled.drafts,
+          restoredDrafts,
+          settled.stageIndex,
+        ),
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -1217,14 +1261,24 @@ export function transitionCalculatorLesson(
       const libraryDiffers =
         adoptsServerLibrary &&
         JSON.stringify(serverLibrary) !== JSON.stringify(state.unlockedSubmodules);
-      // Stages may now pass out of order; merge the judged stage into the
-      // server-reported set and derive progress from it.
-      const passedStages = action.outcome.passed
-        ? [...new Set([...action.outcome.passedStages, state.stageIndex])].sort((a, b) => a - b)
-        : state.passedStages;
+      // The verdict belongs to the stage the submission ran on — carried
+      // on the action from dispatch time, never the stage on screen when a
+      // late response lands. Progress comes from the server's authoritative
+      // set, unioned with what the client already holds so a stale response
+      // can never regress it.
+      const passedStages = [
+        ...new Set([
+          ...state.passedStages,
+          ...action.outcome.passedStages,
+          ...(action.outcome.passed ? [action.stageIndex] : []),
+        ]),
+      ].sort((a, b) => a - b);
+      // The verdict panel and banner only surface while the judged stage is
+      // still on screen — progress above lands either way.
+      const onSubmittedStage = action.stageIndex === state.stageIndex;
       return {
         ...state,
-        judgeOutcome: action.outcome,
+        judgeOutcome: onSubmittedStage ? action.outcome : state.judgeOutcome,
         passedStages,
         currentStage: nextMainlineStage(passedStages),
         unlockedSubmodules: submodules,
@@ -1243,11 +1297,13 @@ export function transitionCalculatorLesson(
           ? state.componentsEditSeq
           : state.componentsConfirmedSeq,
         componentsChanged: libraryDiffers ? false : state.componentsChanged,
-        message: action.outcome.passed
-          ? unlocked
-            ? `${getStage(state.stageIndex)?.title ?? "本关"}完成——组件 ${unlocked} 已加入「我的组件」，下一关可以直接使用。`
-            : `${getStage(state.stageIndex)?.title ?? "本关"}完成——全部隐藏用例都正确。`
-          : `得分 ${action.outcome.score} / ${action.outcome.total}，还没有全部通过。`,
+        message: !onSubmittedStage
+          ? state.message
+          : action.outcome.passed
+            ? unlocked
+              ? `${getStage(action.stageIndex)?.title ?? "本关"}完成——组件 ${unlocked} 已加入「我的组件」，下一关可以直接使用。`
+              : `${getStage(action.stageIndex)?.title ?? "本关"}完成——全部隐藏用例都正确。`
+            : `得分 ${action.outcome.score} / ${action.outcome.total}，还没有全部通过。`,
       };
     }
 

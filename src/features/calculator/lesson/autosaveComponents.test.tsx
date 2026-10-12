@@ -39,6 +39,15 @@ import {
  *       and the stage's draft persists.
  *  T3 — a stale autosave response must not regress componentsRevision after
  *       a judge already adopted a newer (snapshot, revision) pair.
+ *  T4 — renaming a component rewrites every stage's draft: the OTHER stage's
+ *       updated references must reach the server too, not only the stage on
+ *       screen — a refresh must never leave it pointing at the old name.
+ *  T5 — a judge verdict belongs to the stage the submission ran on: a stage
+ *       switch before the response can never steal the pass or its feedback.
+ *  T6 — a draft naming a component that now lives only in the conflict
+ *       backup must NOT persist a dangling reference: the send is held (the
+ *       stage keeps its dirty flag and the restorable backup) until the
+ *       learner's restore makes the definition real again.
  */
 
 function deferred<T>() {
@@ -178,6 +187,11 @@ describe("calculator component-library autosave lifecycle", () => {
       }),
       dispatch,
     });
+    const dirtyStages = Object.keys(state.saveStatusByStage)
+      .map(Number)
+      .filter(
+        (s) => s !== state.stageIndex && statusForStage(state.saveStatusByStage, s) === "dirty",
+      );
     useAutosaveDraft<CircuitGraph>({
       classId,
       labId: "calculator",
@@ -185,13 +199,20 @@ describe("calculator component-library autosave lifecycle", () => {
         ? statusForStage(state.saveStatusByStage, state.stageIndex)
         : "idle",
       stageIndex: state.stageIndex,
-      draftOf: () => graph,
+      dirtyStages,
+      draftOf: (s) => graphOf(state, s),
       bodyFor: (index, draft) => ({
         stageIndex: index,
         graph: draft,
         ...(state.componentsChanged ? { components: state.unlockedSubmodules } : {}),
       }),
-      deps: [graph, state.unlockedSubmodules],
+      holdSend: (_stage, draft) => {
+        const known = new Set(state.unlockedSubmodules.map((component) => component.name));
+        return draft.nodes.some(
+          (node) => node.kind === "component" && node.name !== undefined && !known.has(node.name),
+        );
+      },
+      deps: [graph, state.unlockedSubmodules, state.saveStatusByStage],
       expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
       expectedComponentsRevisionOf: () => state.componentsRevision,
       componentsSeqOf: () => state.componentsEditSeq,
@@ -254,6 +275,7 @@ describe("calculator component-library autosave lifecycle", () => {
     act(() => {
       exposed.dispatch?.({
         type: "judge-result",
+        stageIndex,
         outcome: {
           score: result.score,
           total: result.total,
@@ -442,5 +464,149 @@ describe("calculator component-library autosave lifecycle", () => {
     const project = await projectPayload();
     expect(project.unlockedSubmodules.map((c) => c.name)).toEqual(["NotA", "HalfAdder", "NotB"]);
     expect(project.draftRevisions["components"]).toBe(3);
+  });
+
+  it("T4: renaming a shared component persists every stage whose references were rewritten", async () => {
+    await loadProject();
+
+    // Stage 2 creates NotX; stage 3 places an instance. Both saves land.
+    selectStage(2);
+    createComponent("NotX", "Sum");
+    await advance();
+    const put1 = puts()[0];
+    expect(put1.body?.stageIndex).toBe(2);
+    await deliver(put1);
+
+    selectStage(3);
+    dispatch({ type: "add-node", kind: "component", name: "NotX", x: 300, y: 80 });
+    await advance();
+    const put2 = puts()[1];
+    expect(put2.body?.stageIndex).toBe(3);
+    await deliver(put2);
+
+    // Back on stage 2: rename NotX → NotY. Stage 3's draft was rewritten in
+    // memory — its new references must reach the server too.
+    selectStage(2);
+    dispatch({
+      type: "edit-custom-component",
+      name: "NotX",
+      newName: "NotY",
+      inputNames: ["I"],
+      outputNames: ["O"],
+    });
+    await advance();
+
+    // The current stage's save carries the renamed library; the OTHER
+    // rewritten stage's send queues behind the components slot and flushes
+    // once it frees.
+    const stage2Put = puts()[2];
+    expect(stage2Put.body?.stageIndex).toBe(2);
+    expect((stage2Put.body?.components as ComponentDef[]).map((c) => c.name)).toEqual(["NotY"]);
+    await deliver(stage2Put);
+    const stage3Put = puts()[3];
+    expect(stage3Put.body?.stageIndex).toBe(3);
+    // Its own payload already carries the rewritten name — not a stale one.
+    expect(
+      (stage3Put.body?.graph as CircuitGraph).nodes.some(
+        (node) => node.kind === "component" && node.name === "NotY",
+      ),
+    ).toBe(true);
+    await deliver(stage3Put);
+
+    // A refresh finds no dangling reference: the library and stage 3's
+    // persisted graph agree on the new name.
+    const project = await projectPayload();
+    expect(project.unlockedSubmodules.map((c) => c.name)).toEqual(["NotY"]);
+    const stage3 = project.drafts["3"];
+    expect(stage3.nodes.some((n) => n.kind === "component" && n.name === "NotY")).toBe(true);
+    expect(stage3.nodes.some((n) => n.kind === "component" && n.name === "NotX")).toBe(false);
+  });
+
+  it("T5: a late judge verdict keeps the stage it was submitted on", async () => {
+    await loadProject();
+
+    // Submit stage 2's passing circuit, then switch away before the verdict
+    // lands — the response must still belong to stage 2.
+    selectStage(2);
+    const pending = submitJudge(2, halfAdderGraph());
+    const judgeCall = calls.find((call) => call.method === "POST");
+    expect(judgeCall).toBeDefined();
+    selectStage(3);
+    await deliver(judgeCall!);
+    await pending;
+
+    // The pass is credited to the submitted stage — stage 3 is untouched.
+    expect(exposed.state.passedStages).toEqual([2]);
+    // Progress still lands (the unlock grant is adopted) — only the
+    // feedback stays gated to the stage it judged.
+    expect(componentNames()).toEqual(["HalfAdder"]);
+    expect(exposed.state.judgeOutcome).toBeNull();
+    expect(exposed.state.message).toBeNull();
+  });
+
+  it("T6: a draft referencing a component stranded in the conflict backup does not save clean", async () => {
+    await loadProject();
+
+    // Another device has already moved the library to revision 1.
+    const foreign = await foreignPut({
+      stageIndex: 3,
+      graph: { nodes: [], edges: [] },
+      components: [{ name: "ForeignPart", graph: { nodes: [], edges: [] }, custom: true }],
+      expectedRevision: 0,
+      expectedComponentsRevision: 0,
+    });
+    expect((await foreign.json()).applied).toBe(true);
+
+    // Stage 1 creates NotA — its save claims the stale library revision.
+    createComponent("NotA", "Y");
+    await advance();
+    const put1 = puts()[0];
+    expect((await put1.serverWork).status).toBe(200);
+
+    // Stage 2 draws with NotA and arms its save before the refusal lands.
+    selectStage(2);
+    dispatch({ type: "add-node", kind: "component", name: "NotA", x: 300, y: 80 });
+
+    // Stage-1's refusal lands: the project fence arms and its reconcile
+    // refetch starts (same shape as T2).
+    await deliver(put1);
+    const refetch = calls.find((call, index) => index > 0 && call.method === "GET");
+    expect(refetch?.url).toBe(`/api/classes/${classId}/labs/calculator/project`);
+
+    // Stage-2's arm fires into the armed fence — parked, never sent.
+    await advance();
+    expect(puts()).toHaveLength(1);
+
+    // The reconcile adopts the server's library: NotA now exists ONLY in the
+    // local conflict backup — stage 2's draft still references it.
+    await deliver(refetch!);
+    expect(exposed.state.conflictedComponents?.map((c) => c.name)).toEqual(["NotA"]);
+
+    // The parked arm re-evaluates: the draft names a component the server
+    // does not hold, so the send stays parked — no clean "saved" on a
+    // dangling reference, and the restorable backup keeps the recovery path.
+    await flush();
+    expect(puts()).toHaveLength(1);
+    expect(statusForStage(exposed.state.saveStatusByStage, 2)).toBe("dirty");
+    const stale = await projectPayload();
+    expect(stale.drafts["2"]).toBeUndefined();
+    expect(stale.unlockedSubmodules.map((c) => c.name)).toEqual(["ForeignPart"]);
+
+    // Restoring the backup makes NotA real again: the held send goes through
+    // carrying the library, and lands a consistent draft + definition pair.
+    dispatch({ type: "restore-conflict-draft", stageIndex: 2 });
+    await flush();
+    const put2 = puts()[1];
+    expect(put2).toBeDefined();
+    expect(put2.body?.stageIndex).toBe(2);
+    expect((put2.body?.components as ComponentDef[]).map((c) => c.name)).toEqual(["NotA"]);
+    await deliver(put2);
+    expect(statusForStage(exposed.state.saveStatusByStage, 2)).toBe("saved");
+
+    const project = await projectPayload();
+    expect(project.unlockedSubmodules.map((c) => c.name)).toEqual(["NotA"]);
+    expect(project.drafts["2"].nodes.some((n) => n.kind === "component" && n.name === "NotA")).toBe(
+      true,
+    );
   });
 });

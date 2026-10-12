@@ -95,6 +95,7 @@ describe("calculator lesson state", () => {
     });
     const completed = apply(judged, {
       type: "judge-result",
+      stageIndex: 9,
       outcome: {
         score: 4,
         total: 4,
@@ -507,6 +508,7 @@ describe("calculator lesson state", () => {
     });
     const judged = apply(loaded, {
       type: "judge-result",
+      stageIndex: 2,
       outcome: {
         score: 4,
         total: 4,
@@ -548,6 +550,7 @@ describe("calculator lesson state", () => {
     });
     const judged = apply(loaded, {
       type: "judge-result",
+      stageIndex: 2,
       outcome: {
         score: 4,
         total: 4,
@@ -589,6 +592,7 @@ describe("calculator lesson state", () => {
     loaded = { ...loaded, unlockedSubmodules: [mine], componentsChanged: true };
     const judged = apply(loaded, {
       type: "judge-result",
+      stageIndex: 2,
       outcome: {
         score: 4,
         total: 4,

@@ -108,6 +108,19 @@ export function CalculatorLabPage() {
       onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
     });
 
+  // Stages besides the one on screen whose drafts also wait on a save — a
+  // component rename rewrites references across every stage's draft, and
+  // those stages must autosave too, not only when the learner revisits them.
+  const dirtyStages = useMemo(
+    () =>
+      Object.keys(state.saveStatusByStage)
+        .map(Number)
+        .filter(
+          (s) => s !== state.stageIndex && statusForStage(state.saveStatusByStage, s) === "dirty",
+        ),
+    [state.saveStatusByStage, state.stageIndex],
+  );
+
   useAutosaveDraft<CircuitGraph>({
     classId,
     labId: "calculator",
@@ -115,7 +128,8 @@ export function CalculatorLabPage() {
     // belong to the previous context — nothing may schedule writes for it.
     saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex,
-    draftOf: () => graph,
+    dirtyStages,
+    draftOf: (s) => graphOf(state, s),
     bodyFor: (index, draft) => ({
       stageIndex: index,
       graph: draft,
@@ -125,7 +139,18 @@ export function CalculatorLabPage() {
       // expectedComponentsRevision is merged in by the hook at send time.
       ...(state.componentsChanged ? { components: state.unlockedSubmodules } : {}),
     }),
-    deps: [graph, state.unlockedSubmodules],
+    // A draft that names a component the library no longer holds — e.g. the
+    // definition moved into the conflict backup after a reconcile — may not
+    // write clean: the persisted graph would reference a definition the
+    // server lacks. Hold the send until the learner restores the backup (or
+    // rewires the node); the stage keeps its dirty flag meanwhile.
+    holdSend: (_stage, draft) => {
+      const known = new Set(state.unlockedSubmodules.map((component) => component.name));
+      return draft.nodes.some(
+        (node) => node.kind === "component" && node.name !== undefined && !known.has(node.name),
+      );
+    },
+    deps: [graph, state.unlockedSubmodules, state.saveStatusByStage],
     expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
     expectedComponentsRevisionOf: () => state.componentsRevision,
     // The library edit seq a send carried — echoed back through mark-saved
@@ -162,6 +187,10 @@ export function CalculatorLabPage() {
       );
       dispatch({
         type: "judge-result",
+        // The stage this submission ran on — captured now, not whenever the
+        // response lands, so a stage switch in between can never steal the
+        // verdict or its pass.
+        stageIndex,
         outcome: {
           score: result.score,
           total: result.total,

@@ -97,6 +97,17 @@ export function useAutosaveDraft<TDraft>(options: {
   componentsSeqOf?: () => number;
   /** PUT body; defaults to `{ stageIndex, draft }`. `expectedRevision` is merged in. */
   bodyFor?: (stageIndex: number, draft: TDraft) => Record<string, unknown>;
+  /** Other stages whose save flag is also dirty — e.g. a calculator
+   *  component rename rewrites drafts the learner is not looking at. Each
+   *  gets the same debounced arm as the stage on screen (its snapshot is
+   *  read through `draftOf`), so cross-stage edits persist without waiting
+   *  for a stage switch. */
+  dirtyStages?: number[];
+  /** Send-time veto: return true to park this arm instead of sending —
+   *  e.g. the draft references a component the server does not hold yet.
+   *  The stage keeps its pending save task and its dirty flag; every later
+   *  flush re-evaluates the veto. */
+  holdSend?: (stageIndex: number, draft: TDraft) => boolean;
   /** Extra inputs (e.g. unlocked components) whose change re-arms the timer. */
   deps?: unknown[];
   onSaving: (stageIndex: number) => void;
@@ -182,6 +193,18 @@ export function useAutosaveDraft<TDraft>(options: {
     const entry = armDraft.current.get(arm);
     if (!entry || entry.stage !== stage) return;
     const draft = entry.draft;
+    // The caller may veto a send while the draft references state the
+    // server does not hold yet (a calculator draft naming a component that
+    // now lives only in the conflict backup). The arm parks exactly like a
+    // fenced one: the stage keeps its pending save task and its dirty
+    // flag, and a later flush re-evaluates the veto — the learner's
+    // explicit restore (or fixing the reference) is what lets it through.
+    if (opts.holdSend?.(stage, draft)) {
+      const prev = queuedArm.current.get(stage);
+      if (prev !== undefined && prev !== arm) armDraft.current.delete(prev);
+      queuedArm.current.set(stage, arm);
+      return;
+    }
     const expectedRevision = Math.max(
       appliedRev.current.get(stage) ?? 0,
       opts.expectedRevisionOf(stage),
@@ -218,7 +241,7 @@ export function useAutosaveDraft<TDraft>(options: {
       const fenceRev = componentsFenceRev.current;
       if (fenceRev !== null && opts.expectedComponentsRevisionOf() < fenceRev) {
         const prev = queuedArm.current.get(stage);
-        if (prev !== undefined) armDraft.current.delete(prev);
+        if (prev !== undefined && prev !== arm) armDraft.current.delete(prev);
         queuedArm.current.set(stage, arm);
         return;
       }
@@ -226,7 +249,7 @@ export function useAutosaveDraft<TDraft>(options: {
       // would race the first's revision into a false conflict.
       if (componentsInFlight.current) {
         const prev = queuedArm.current.get(stage);
-        if (prev !== undefined) armDraft.current.delete(prev);
+        if (prev !== undefined && prev !== arm) armDraft.current.delete(prev);
         queuedArm.current.set(stage, arm);
         return;
       }
@@ -308,51 +331,77 @@ export function useAutosaveDraft<TDraft>(options: {
   };
 
   useEffect(() => {
-    if (armedClass.current !== classId) return;
-    if (saveStatus !== "dirty" || !classId) return;
-    // A fenced stage stays silent until the lesson state has reconciled to
-    // the revision the rejection reported — `expectedRevisionOf` reads the
-    // reducer's reconciled revisions. Drafts edited before that point may
-    // never arm: their content predates the server write they would claim
-    // to succeed. Once the gate passes (reconcile landed, or the learner
-    // explicitly restored their copy) the stage autosaves normally.
-    if (conflicted.current.has(stageIndex)) {
-      const fenced =
-        latestOptions.current.expectedRevisionOf(stageIndex) <
-        (appliedRev.current.get(stageIndex) ?? 0);
-      if (fenced) return;
-      conflicted.current.delete(stageIndex);
-    }
-    const draft = latestOptions.current.draftOf(stageIndex);
-    if (draft === undefined) return;
-    const arm = ++armSeq.current;
-    const prevArm = latestArm.current.get(stageIndex);
-    latestArm.current.set(stageIndex, arm);
-    armDraft.current.set(arm, { stage: stageIndex, draft });
-    const previous = timers.current.get(stageIndex);
-    if (previous) {
-      clearTimeout(previous);
-      // The cancelled arm's snapshot can never send — a pending-timer arm
-      // is by definition neither in-flight nor queued, so nothing else
-      // would ever drop it.
-      if (prevArm !== undefined) armDraft.current.delete(prevArm);
-    }
-    const timer = setTimeout(() => {
-      timers.current.delete(stageIndex);
-      // The stage's earlier save is still in flight: queue this arm and let
-      // the response flush it — same-session writes must never race each
-      // other into a conflict.
-      if (inFlight.current.has(stageIndex)) {
-        // Replacing an earlier queued arm: its snapshot can never send now —
-        // drop it the same way a cancelled debounce arm's is dropped.
-        const prev = queuedArm.current.get(stageIndex);
-        if (prev !== undefined) armDraft.current.delete(prev);
-        queuedArm.current.set(stageIndex, arm);
-        return;
+    if (armedClass.current !== classId || !classId) return;
+    // Every stage whose flag reports dirty gets its own debounced arm: the
+    // stage on screen plus any extras the page lists — a cross-stage edit
+    // like a component rename rewrites drafts the learner is not looking
+    // at, and their updated references must reach the server too, not only
+    // when the learner happens to revisit the stage.
+    const stages = [
+      ...(saveStatus === "dirty" ? [stageIndex] : []),
+      ...(latestOptions.current.dirtyStages ?? []).filter((s) => s !== stageIndex),
+    ];
+    for (const stage of stages) {
+      // A fenced stage stays silent until the lesson state has reconciled
+      // to the revision the rejection reported — `expectedRevisionOf` reads
+      // the reducer's reconciled revisions. Drafts edited before that
+      // point may never arm: their content predates the server write they
+      // would claim to succeed. Once the gate passes (reconcile landed, or
+      // the learner explicitly restored their copy) the stage autosaves
+      // normally.
+      if (conflicted.current.has(stage)) {
+        const fenced =
+          latestOptions.current.expectedRevisionOf(stage) < (appliedRev.current.get(stage) ?? 0);
+        if (fenced) continue;
+        conflicted.current.delete(stage);
       }
-      sendNow(stageIndex, arm, classId);
-    }, AUTOSAVE_DELAY_MS);
-    timers.current.set(stageIndex, timer);
+      const draft = latestOptions.current.draftOf(stage);
+      if (draft === undefined) continue;
+      // A pending arm already holding THIS draft needs no refresh — parked
+      // on a fence or a holdSend veto, still debouncing, or mid-send, it
+      // persists exactly this content. Only a newer snapshot re-arms so the
+      // latest content is what ships.
+      const pendingArm = latestArm.current.get(stage);
+      const pendingTimer = timers.current.get(stage);
+      if (pendingArm !== undefined && armDraft.current.get(pendingArm)?.draft === draft) {
+        continue;
+      }
+      const arm = ++armSeq.current;
+      latestArm.current.set(stage, arm);
+      armDraft.current.set(arm, { stage, draft });
+      if (pendingTimer) {
+        clearTimeout(pendingTimer);
+        // The cancelled arm's snapshot can never send — a pending-timer arm
+        // is by definition neither in-flight nor queued, so nothing else
+        // would ever drop it.
+        if (pendingArm !== undefined) armDraft.current.delete(pendingArm);
+      }
+      // A parked arm is superseded the same way: this fresh arm is now the
+      // stage's pending save task and carries the newer content — the stale
+      // snapshot can never legitimately send.
+      const supersededQueued = queuedArm.current.get(stage);
+      if (supersededQueued !== undefined) {
+        queuedArm.current.delete(stage);
+        armDraft.current.delete(supersededQueued);
+      }
+      const timer = setTimeout(() => {
+        timers.current.delete(stage);
+        // The stage's earlier save is still in flight: queue this arm and
+        // let the response flush it — same-session writes must never race
+        // each other into a conflict.
+        if (inFlight.current.has(stage)) {
+          // Replacing an earlier queued arm: its snapshot can never send
+          // now — drop it the same way a cancelled debounce arm's is
+          // dropped (never itself: a re-parked arm is already queued).
+          const prev = queuedArm.current.get(stage);
+          if (prev !== undefined && prev !== arm) armDraft.current.delete(prev);
+          queuedArm.current.set(stage, arm);
+          return;
+        }
+        sendNow(stage, arm, classId);
+      }, AUTOSAVE_DELAY_MS);
+      timers.current.set(stage, timer);
+    }
     // Deliberately no cleanup: the callbacks and draftOf are inline closures
     // (new identity every render), so they stay out of the dep list and the
     // timer only re-arms on the stable inputs below — never on every render,
@@ -362,15 +411,19 @@ export function useAutosaveDraft<TDraft>(options: {
   // Lift the project-wide components fence once the lesson state has
   // resynced to the revision the refusal reported (a reconcile, a judge
   // adoption, or a project reload all raise the reducer's counter). Parked
-  // arms then re-send through sendNow — a still-occupied components slot
-  // simply re-parks them. Runs after every render because the resync lands
-  // in the caller's reducer, not in any ref the arm effect depends on.
+  // arms then re-send through sendNow — and the flush itself runs after
+  // EVERY render, not only on a fence clear: a held send's veto can lift on
+  // reducer changes the hook cannot see (the learner restoring the conflict
+  // backup or fixing the dangling reference), while arms still blocked by a
+  // fence or an occupied components slot simply re-park.
   useEffect(() => {
     const fenceRev = componentsFenceRev.current;
-    if (fenceRev === null) return;
-    const resynced = (latestOptions.current.expectedComponentsRevisionOf?.() ?? 0) >= fenceRev;
-    if (!resynced) return;
-    componentsFenceRev.current = null;
+    if (
+      fenceRev !== null &&
+      (latestOptions.current.expectedComponentsRevisionOf?.() ?? 0) >= fenceRev
+    ) {
+      componentsFenceRev.current = null;
+    }
     flushQueuedArms();
   });
 
