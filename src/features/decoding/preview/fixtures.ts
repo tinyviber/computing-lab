@@ -158,5 +158,8 @@ export function createDecodingPreviewActions(record: (action: string) => void): 
     answerPrompt: (id, option) => record(`answerPrompt(${id}, ${option})`),
     setVerdict: (index) => record(`setVerdict(${index})`),
     submit: async () => record("submit"),
+    restoreConflictLocal: () => record("restoreConflictLocal"),
+    discardConflictLocal: () => record("discardConflictLocal"),
+    retrySyncConflict: () => record("retrySyncConflict"),
   };
 }

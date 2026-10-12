@@ -51,6 +51,8 @@ export type DecodingLabViewModel = Readonly<{
   }>;
   feedback: Readonly<{
     saveStatus: SaveStatus;
+    /** A pre-conflict local draft of this stage is recoverable. */
+    conflictLocalAvailable: boolean;
     message: string | null;
     error: string | null;
   }>;
@@ -113,6 +115,12 @@ export type DecodingLabActions = {
   answerPrompt(promptId: string, option: number): void;
   setVerdict(fileIndex: number, verdict: FileVerdict, expectDecoder?: DecoderChoice): void;
   submit(): Promise<void>;
+  /** Swap the reconciled (server) draft back for the pre-conflict local copy. */
+  restoreConflictLocal(): void;
+  /** Drop the recoverable local copy — the student accepts the server's draft. */
+  discardConflictLocal(): void;
+  /** Refetch after a failed post-conflict sync — the only way out of sync-error. */
+  retrySyncConflict(): void;
 };
 
 export type DecodingWorkspaceProps = {

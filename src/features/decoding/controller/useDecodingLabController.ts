@@ -8,7 +8,7 @@ import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import type { PixelHover, PixelMatrix } from "../domain/bmp.ts";
 import { assembleCloze, hasCloze } from "../domain/cloze.ts";
 import { runData } from "../domain/payload.ts";
@@ -102,6 +102,23 @@ export function useDecodingLabController({
     dispatch,
   });
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
   useAutosaveDraft<DecodingDraft>({
     classId,
     labId: "decoding",
@@ -118,22 +135,7 @@ export function useDecodingLabController({
     // The server dropped this write because a newer one already exists
     // elsewhere: refetch so local state reconciles to the winning draft,
     // then flag the conflict briefly on the stage.
-    onConflict: (s) => {
-      // Reconcile only the conflicted stage against the server's copy —
-      // other stages keep their unsaved local drafts and flags.
-      void fetchProject().then((project) => {
-        if (!project) {
-          dispatch({ type: "mark-save-conflict", stageIndex: s });
-          return;
-        }
-        dispatch({
-          type: "resolve-save-conflict",
-          stageIndex: s,
-          draft: project.drafts?.[s],
-          revision: project.draftRevisions?.[s],
-        });
-      });
-    },
+    onConflict: (s) => reconcileConflict(s),
   });
 
   // Execution channels: the student decode run is versioned by the draft
@@ -354,6 +356,11 @@ export function useDecodingLabController({
         expectDecoder,
       }),
     submit: onSubmit,
+    restoreConflictLocal: () =>
+      dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex }),
+    discardConflictLocal: () =>
+      dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex }),
+    retrySyncConflict: () => reconcileConflict(state.stageIndex),
   };
   return { model, actions };
 }

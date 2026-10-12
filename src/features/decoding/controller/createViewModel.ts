@@ -101,6 +101,7 @@ export function createDecodingViewModel(input: {
     },
     feedback: {
       saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+      conflictLocalAvailable: state.conflictedLocalDrafts[state.stageIndex] !== undefined,
       message: state.message,
       error: input.loadError ?? input.submitError,
     },
