@@ -260,6 +260,15 @@ const devRoutes = import.meta.env.DEV
           "DecodingPreviewPage",
         ),
       }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__dev/labs/cpu-direction-b",
+        validateSearch: passThroughSearch,
+        component: lazyRouteComponent(
+          () => import("../devtools/cpu-direction-b/CpuDirectionBPreviewPage"),
+          "CpuDirectionBPreviewPage",
+        ),
+      }),
     ]
   : [];
 
