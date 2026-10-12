@@ -10,6 +10,7 @@ import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stag
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
 import { TaskDashboard, type AssignmentSummary } from "../../features/task-sheets/ui/TaskDashboard";
 import { useLabCatalog } from "../../shared/lab/labs";
+import { labMetadata } from "../../shared/lab/labMetadata";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import "./dashboard.css";
@@ -25,12 +26,20 @@ type LabOption = {
 };
 
 const LAB_OPTIONS: LabOption[] = [
-  { id: "calculator", title: "实现ALU", stages: CALCULATOR_STAGES },
-  { id: "cpu", title: "冯诺依曼数据通路", stages: CPU_STAGES },
-  { id: "decoding", title: "解码侦探", stages: DECODING_STAGES },
-  { id: "is-sim", title: "小型信息系统", stages: IS_SIM_STAGES },
-  { id: "image-sampling", title: "空间采样", stages: IMAGE_SAMPLING_STAGES },
-  { id: "color-quantization", title: "颜色量化", stages: COLOR_QUANT_STAGES },
+  { id: "calculator", title: labMetadata.calculator.title, stages: CALCULATOR_STAGES },
+  { id: "cpu", title: labMetadata.cpu.title, stages: CPU_STAGES },
+  { id: "decoding", title: labMetadata.decoding.title, stages: DECODING_STAGES },
+  { id: "is-sim", title: labMetadata["is-sim"].title, stages: IS_SIM_STAGES },
+  {
+    id: "image-sampling",
+    title: labMetadata["image-sampling"].title,
+    stages: IMAGE_SAMPLING_STAGES,
+  },
+  {
+    id: "color-quantization",
+    title: labMetadata["color-quantization"].title,
+    stages: COLOR_QUANT_STAGES,
+  },
 ];
 
 type MatrixCell = {

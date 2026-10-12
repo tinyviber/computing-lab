@@ -40,7 +40,7 @@ for (const viewport of ["desktop", "tablet", "mobile"]) {
     for (const scenario of scenarios) {
       await page.getByLabel("固定场景").selectOption(scenario);
       await expect(page).toHaveURL(new RegExp(`scenario=${scenario}`));
-      await expect(frame.locator(".cpu-preview-event")).toHaveAttribute("data-scene", scenario);
+      await expect(frame.locator(".lab-preview-event")).toHaveAttribute("data-scene", scenario);
       await expect(frame.getByRole("main", { name: "CPU 数据通路实验区" })).toBeVisible();
       await expect(frame.locator("vite-error-overlay")).toHaveCount(0);
       await expect(frame.getByRole("button", { name: "提交判定", exact: true })).toBeDisabled();

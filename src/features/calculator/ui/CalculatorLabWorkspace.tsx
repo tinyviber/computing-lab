@@ -18,10 +18,10 @@ import {
   type CalculatorLessonState,
 } from "../lesson/state";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
+import { HintDisclosure } from "../../../shared/ui/HintDisclosure";
 import { BusReadout } from "./BusReadout";
 import { CircuitCanvas } from "./CircuitCanvas";
 import { CoachCard, type CalculatorCoach } from "./CoachCard";
-import { HintDisclosure } from "./HintDisclosure";
 import { StageRail } from "./StageRail";
 import { TestPanel } from "./TestPanel";
 import { AnnotatedText, CalculatorTermGuide } from "./CalculatorTerms";
@@ -123,7 +123,11 @@ export function CalculatorLabWorkspace({
             {stage && state.passedStages.includes(stage.index) ? (
               <p className="stage-takeaway">本关收获：{stage.takeaway}</p>
             ) : null}
-            {stage ? <HintDisclosure hint={stage.hint} key={stage.id} /> : null}
+            {stage ? (
+              <HintDisclosure key={stage.id}>
+                <AnnotatedText text={stage.hint} />
+              </HintDisclosure>
+            ) : null}
             {coach && projectLoaded && !coach.step ? (
               <button className="stage-guide-trigger" onClick={coach.restart} type="button">
                 查看引导

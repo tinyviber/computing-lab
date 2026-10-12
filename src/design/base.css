@@ -238,6 +238,90 @@ p {
   font-size: 13px;
 }
 
+/* Hint disclosure (src/shared/ui/HintDisclosure): the expand / confirm /
+   hide chrome shared by lab stage briefs. */
+
+.hint-disclosure {
+  margin-top: 10px;
+}
+
+.hint-disclosure-trigger,
+.hint-disclosure-action {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.hint-disclosure-trigger {
+  padding: 0;
+}
+
+.hint-disclosure-trigger:hover,
+.hint-disclosure-action:hover {
+  color: var(--focus-ring);
+  text-decoration: underline;
+}
+
+.hint-disclosure-confirmation,
+.hint-disclosure.is-revealed {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--subtle);
+}
+
+.hint-disclosure-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hint-disclosure-confirmation > p {
+  color: var(--primary);
+  font-weight: 650;
+}
+
+.hint-disclosure-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.hint-disclosure-actions .button {
+  min-height: 34px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.hint-disclosure.is-revealed {
+  border-color: #bfc2ff;
+  background: var(--accent-soft);
+}
+
+.hint-disclosure-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hint-disclosure-label {
+  color: var(--primary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.hint-disclosure.is-revealed > p {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
 /* Available to screen readers only; keeps table captions off-screen. */
 .sr-only {
   position: absolute;

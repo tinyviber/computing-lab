@@ -1,13 +1,17 @@
-import { useState } from "react";
-import { AnnotatedText } from "./CalculatorTerms";
+import { useState, type ReactNode } from "react";
 
 type HintDisclosureProps = {
-  hint: string;
+  /** The hint body, pre-formatted by the lab (plain text or annotated JSX). */
+  children: ReactNode;
 };
 
 type HintState = "closed" | "confirming" | "revealed";
 
-export function HintDisclosure({ hint }: HintDisclosureProps) {
+/**
+ * Expand / confirm / hide disclosure for a stage hint — the interaction is
+ * lab-agnostic; each lab supplies its own body formatting via `children`.
+ */
+export function HintDisclosure({ children }: HintDisclosureProps) {
   const [state, setState] = useState<HintState>("closed");
 
   if (state === "revealed") {
@@ -23,9 +27,7 @@ export function HintDisclosure({ hint }: HintDisclosureProps) {
             隐藏提示
           </button>
         </div>
-        <p>
-          <AnnotatedText text={hint} />
-        </p>
+        <p>{children}</p>
       </div>
     );
   }

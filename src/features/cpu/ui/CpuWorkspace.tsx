@@ -1,6 +1,6 @@
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
-import { Icon } from "../../../shared/ui/Icon";
-import { HintDisclosure } from "../../calculator/ui/HintDisclosure";
+import { DismissibleAlert } from "../../../shared/ui/DismissibleAlert";
+import { HintDisclosure } from "../../../shared/ui/HintDisclosure";
 import type { CpuPhase, CpuWorkspaceProps } from "../controller/viewModel.ts";
 import { BlockDiagram } from "./BlockDiagram.tsx";
 import { BytePlayground } from "./BytePlayground.tsx";
@@ -44,17 +44,12 @@ export function CpuWorkspace({ model, actions }: CpuWorkspaceProps) {
             </p>
             <p className="submit-note">判题方式：{stage.judgeNote}</p>
             {stage.passed ? <p className="stage-takeaway">本关收获：{stage.takeaway}</p> : null}
-            <HintDisclosure hint={stage.hint} />
+            <HintDisclosure>{stage.hint}</HintDisclosure>
           </section>
         ) : null}
         {stage ? <InstructionShelf ops={editor.ops} /> : null}
         {feedback.message ? (
-          <p className="test-error" role="alert">
-            {feedback.message}
-            <button onClick={actions.dismissMessage} type="button">
-              <Icon name="x" size={12} />
-            </button>
-          </p>
+          <DismissibleAlert onDismiss={actions.dismissMessage}>{feedback.message}</DismissibleAlert>
         ) : null}
         {feedback.error ? (
           <p className="test-error" role="alert">

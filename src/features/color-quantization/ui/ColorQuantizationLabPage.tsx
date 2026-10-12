@@ -5,6 +5,7 @@ import { isStaffRole, useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
+import { labMetadata } from "../../../shared/lab/labMetadata";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
@@ -193,7 +194,7 @@ export function ColorQuantizationLabPage() {
     <LabAccessGate
       classId={classId}
       closed={catalog?.get("color-quantization")?.visible === false}
-      labName="颜色量化"
+      labName={labMetadata["color-quantization"].title}
       role={role}
       status={status}
     >
@@ -221,7 +222,7 @@ export function ColorQuantizationLabPage() {
         }
         topbarProps={{
           subtitle: stage?.englishTitle,
-          title: stage?.title ?? "颜色量化",
+          title: stage?.title ?? labMetadata["color-quantization"].title,
         }}
       >
         <LabPageShell
@@ -229,7 +230,7 @@ export function ColorQuantizationLabPage() {
           labId="color-quantization"
           rail={
             <StageRail
-              label="颜色量化"
+              label={labMetadata["color-quantization"].title}
               onSelect={(index) => dispatch({ type: "select-stage", stageIndex: index })}
               passedStages={state.passedStages}
               stageIndex={state.stageIndex}
