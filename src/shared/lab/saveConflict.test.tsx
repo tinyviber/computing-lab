@@ -1,4 +1,4 @@
-import { act, render } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useReducer, type Dispatch } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { DecodingDraft } from "../../features/decoding/domain/protocol";
@@ -10,7 +10,8 @@ import {
   type DecodingLessonAction,
   type DecodingLessonState,
 } from "../../features/decoding/lesson/state";
-import { statusForStage } from "./saveStatus";
+import { statusForStage, syncConflictForStage } from "./saveStatus";
+import { SaveIndicator } from "./LabGate";
 import { useAutosaveDraft } from "./useAutosaveDraft";
 import { reconcileConflictedStage, useLabProject } from "./useLabProject";
 
@@ -337,7 +338,23 @@ describe("save conflict recovery", () => {
         onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
         onConflict: (s) => reconcile(s),
       });
-      return null;
+      // Render the real indicator exactly like the lab pages wire it — the
+      // retry button's visibility is part of what this test locks down.
+      return (
+        <SaveIndicator
+          status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+          unresolvedSyncConflict={syncConflictForStage(
+            state.unresolvedSyncConflicts,
+            state.stageIndex,
+          )}
+          onRetrySync={() => reconcile(state.stageIndex)}
+          onRestoreLocal={
+            state.conflictedLocalDrafts[state.stageIndex] !== undefined
+              ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+              : undefined
+          }
+        />
+      );
     }
 
     render(<Probe />);
@@ -366,23 +383,29 @@ describe("save conflict recovery", () => {
     refetch1?.done.resolve(new Response(null, { status: 500 }));
     await flush();
 
-    // 同步失败态：草稿原样在、revision 没动、关卡被栅栏挡住。
+    // 同步失败态：草稿原样在、revision 没动、关卡被栅栏挡住。未决的
+    // 同步冲突单独记入 unresolvedSyncConflicts —— 重试按钮据此显示。
     expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("sync-error");
+    expect(syncConflictForStage(exposed.state.unresolvedSyncConflicts, 1)).toBe(true);
     expect(exposed.state.drafts[1]?.code).toBe("mine-1");
     expect(exposed.state.draftRevisions[1]).toBeUndefined();
+    expect(screen.getByRole("button", { name: "重试同步" })).toBeDefined();
 
-    // 栅栏生效：失败后再编辑也绝不能把写放出去。
+    // 同步失败后继续编辑：flag 翻回 dirty，但栅栏仍挡着 —— 重试入口必须
+    // 保持可见，否则学习者没有任何界面路径解除栅栏。
     dispatch({ type: "set-code", code: "mine-2" });
+    expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("dirty");
+    expect(syncConflictForStage(exposed.state.unresolvedSyncConflicts, 1)).toBe(true);
+    expect(screen.getByRole("button", { name: "重试同步" })).toBeDefined();
     await act(async () => {
       vi.advanceTimersByTime(5000);
     });
     expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
     expect(exposed.state.drafts[1]?.code).toBe("mine-2");
 
-    // 网络恢复 → 显式重试：调和落地后 revision 前进、栅栏解除。
-    act(() => {
-      exposed.retrySync?.(1);
-    });
+    // 网络恢复 → 点击界面上的「重试同步」：调和落地后 revision 前进、
+    // 栅栏解除、按钮随未决标志一起消失。
+    fireEvent.click(screen.getByRole("button", { name: "重试同步" }));
     await flush();
     const refetch2 = calls.filter((c) => c.method === "GET")[2];
     refetch2?.done.resolve(
@@ -396,13 +419,15 @@ describe("save conflict recovery", () => {
     );
     await flush();
     expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("conflict");
+    expect(syncConflictForStage(exposed.state.unresolvedSyncConflicts, 1)).toBe(false);
+    expect(screen.queryByRole("button", { name: "重试同步" })).toBeNull();
     expect(exposed.state.drafts[1]?.code).toBe("server-1");
     expect(exposed.state.draftRevisions[1]).toBe(7);
-    // 调和前的本地草稿被收进备份。
+    // 调和前的本地草稿被收进备份 —— 「找回我未保存的修改」出现。
     expect(exposed.state.conflictedLocalDrafts[1]?.code).toBe("mine-2");
 
     // 找回本地版本 → dirty → 自动保存以 revision 7 合法续写。
-    dispatch({ type: "restore-conflict-draft", stageIndex: 1 });
+    fireEvent.click(screen.getByRole("button", { name: "找回我未保存的修改" }));
     await act(async () => {
       vi.advanceTimersByTime(1500);
     });

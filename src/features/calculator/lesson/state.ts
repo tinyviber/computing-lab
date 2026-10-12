@@ -29,8 +29,10 @@ import { publicCasesFor } from "./publicCases";
 export type { SaveStatus } from "../../../shared/api/client";
 import {
   markSaveStatus,
+  markSyncConflict,
   statusForStage,
   type SaveStatusByStage,
+  type SyncConflictByStage,
 } from "../../../shared/lab/saveStatus.ts";
 
 /** First failing hidden case, echoed back by the judge for display. */
@@ -97,6 +99,9 @@ export type CalculatorLessonState = {
   selectedNodeId: string | null;
   pendingWire: PendingWire;
   saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   runOutcome: RunOutcome;
   judgeOutcome: JudgeOutcome;
   message: string | null;
@@ -288,6 +293,7 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     selectedNodeId: null,
     pendingWire: null,
     saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     runOutcome: null,
     judgeOutcome: null,
     message: null,
@@ -642,6 +648,7 @@ export function transitionCalculatorLesson(
         past: [],
         nodeMove: null,
         saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -968,6 +975,11 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
       };
     }
 
@@ -1002,6 +1014,11 @@ export function transitionCalculatorLesson(
           [action.stageIndex]: withScaffold(action.draft ?? emptyGraph(), action.stageIndex),
         },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         unlockedSubmodules: action.unlockedSubmodules ?? state.unlockedSubmodules,
         conflictedComponents: libraryDiffers
           ? state.unlockedSubmodules
@@ -1046,6 +1063,11 @@ export function transitionCalculatorLesson(
         drafts:
           backup === undefined ? state.drafts : { ...state.drafts, [action.stageIndex]: backup },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         unlockedSubmodules: components ?? state.unlockedSubmodules,
         componentsChanged: components !== null ? true : state.componentsChanged,
         conflictedComponents: null,
@@ -1074,6 +1096,11 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         conflictedComponents: null,
         saveStatusByStage:
           status === "conflict"

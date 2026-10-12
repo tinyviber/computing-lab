@@ -14,8 +14,10 @@
 import type { SaveStatus } from "../../../shared/api/client";
 import {
   markSaveStatus,
+  markSyncConflict,
   statusForStage,
   type SaveStatusByStage,
+  type SyncConflictByStage,
 } from "../../../shared/lab/saveStatus.ts";
 import {
   encodeInstr,
@@ -84,6 +86,9 @@ export type CpuLessonState = {
   runOutcome: PublicRunOutcome | null;
   judgeOutcome: CpuJudgeResult | null;
   saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
   /**
    * Bumped on every draft edit — the machine view keys playback by it, so
@@ -224,6 +229,7 @@ export function createCpuLessonState(stageIndex = 1): CpuLessonState {
     runOutcome: null,
     judgeOutcome: null,
     saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     message: null,
     editRevision: 0,
   };
@@ -303,6 +309,7 @@ export function transitionCpuLesson(
         draftRevisions,
         calculatorCoreComplete: action.calculatorCoreComplete,
         saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         judgeOutcome: null,
         runOutcome: null,
       };
@@ -500,6 +507,11 @@ export function transitionCpuLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
       };
     }
 
@@ -523,6 +535,11 @@ export function transitionCpuLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -551,6 +568,11 @@ export function transitionCpuLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: backup },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         wrongPick: isCurrent ? null : state.wrongPick,
         judgeOutcome: isCurrent ? null : state.judgeOutcome,
@@ -570,6 +592,11 @@ export function transitionCpuLesson(
       return {
         ...state,
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage:
           status === "conflict"
             ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")

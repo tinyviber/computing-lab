@@ -70,6 +70,12 @@ export function useAutosaveDraft<TDraft>(options: {
    *  sent back to the server as `expectedRevision`. Read when a request
    *  sends, so it always reflects the freshest project state. */
   expectedRevisionOf: (stageIndex: number) => number;
+  /** The component library's OCC counter (calculator only) — the library-
+   *  wide counterpart of `expectedRevisionOf`. Required when `bodyFor` may
+   *  include `components`: sent back as `expectedComponentsRevision` and
+   *  likewise read when a request sends, so a queued arm always carries
+   *  the freshest counter rather than the one from arm time. */
+  expectedComponentsRevisionOf?: () => number;
   /** PUT body; defaults to `{ stageIndex, draft }`. `expectedRevision` is merged in. */
   bodyFor?: (stageIndex: number, draft: TDraft) => Record<string, unknown>;
   /** Extra inputs (e.g. unlocked components) whose change re-arms the timer. */
@@ -88,6 +94,10 @@ export function useAutosaveDraft<TDraft>(options: {
   const queuedArm = useRef(new Map<number, number>());
   const inFlight = useRef(new Set<number>());
   const appliedRev = useRef(new Map<number, number>());
+  // The component library's counter mirrors appliedRev but is project-wide
+  // (one counter shared by every stage's save): every response that reports
+  // it raises the floor a later send will claim.
+  const appliedComponentsRev = useRef(0);
   // Stages the server fenced with a rejection: nothing for them may send
   // until the lesson state reconciles to the rejection's revision (gate in
   // the arm effect below).
@@ -131,6 +141,16 @@ export function useAutosaveDraft<TDraft>(options: {
       ...(opts.bodyFor ? opts.bodyFor(stage, draft) : { stageIndex: stage, draft }),
       expectedRevision,
     } as Record<string, unknown>;
+    // The library's expected counter joins the body only when the save
+    // actually carries components — and, like expectedRevision, it is
+    // computed here rather than in bodyFor so an arm that queued behind an
+    // in-flight save claims the revision that save just reported.
+    if (body.components !== undefined && opts.expectedComponentsRevisionOf) {
+      body.expectedComponentsRevision = Math.max(
+        appliedComponentsRev.current,
+        opts.expectedComponentsRevisionOf(),
+      );
+    }
     const gen = generation.current;
     inFlight.current.add(stage);
     opts.onSaving(stage);
@@ -143,6 +163,14 @@ export function useAutosaveDraft<TDraft>(options: {
         const rev = typeof result?.revision === "number" ? result.revision : undefined;
         if (rev !== undefined) {
           appliedRev.current.set(stage, Math.max(appliedRev.current.get(stage) ?? 0, rev));
+        }
+        const componentsRev =
+          typeof result?.componentsRevision === "number" ? result.componentsRevision : undefined;
+        // Adopt the reported library counter unconditionally (applied or
+        // refused — both tell us where the server's counter now stands)
+        // BEFORE flushing a queued arm below, so its send claims it.
+        if (componentsRev !== undefined) {
+          appliedComponentsRev.current = Math.max(appliedComponentsRev.current, componentsRev);
         }
         // The server refused the write — it already holds a newer draft
         // from elsewhere. Fence the stage BEFORE touching the queue: a
@@ -182,8 +210,6 @@ export function useAutosaveDraft<TDraft>(options: {
           return;
         }
         if (latestArm.current.get(stage) !== arm) return;
-        const componentsRev =
-          typeof result?.componentsRevision === "number" ? result.componentsRevision : undefined;
         opts.onSaved(stage, rev, componentsRev);
       })
       .catch(() => {
@@ -265,6 +291,7 @@ export function useAutosaveDraft<TDraft>(options: {
     const queued = queuedArm.current;
     const flying = inFlight.current;
     const applied = appliedRev.current;
+    const appliedComponents = appliedComponentsRev;
     const fenced = conflicted.current;
     const gen = generation;
     return () => {
@@ -277,6 +304,7 @@ export function useAutosaveDraft<TDraft>(options: {
       queued.clear();
       flying.clear();
       applied.clear();
+      appliedComponents.current = 0;
       fenced.clear();
       armDraft.current.clear();
     };

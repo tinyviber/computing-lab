@@ -1,4 +1,4 @@
-import { statusForStage } from "../../../shared/lab/saveStatus.ts";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { encodeInstr, opOperandMeaning } from "../domain/isa.ts";
 import type { CpuCase, MachineRun } from "../domain/machine.ts";
 import { CPU_CORE_STAGES, CPU_STAGES, cpuStageUnlocked } from "../domain/stages.ts";
@@ -103,6 +103,7 @@ export function createCpuLabViewModel(input: {
     },
     feedback: {
       saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+      unresolvedSyncConflict: syncConflictForStage(state.unresolvedSyncConflicts, state.stageIndex),
       conflictLocalAvailable: state.conflictedLocalDrafts[state.stageIndex] !== undefined,
       recommendCalculator: state.calculatorCoreComplete === false,
       message: state.message,

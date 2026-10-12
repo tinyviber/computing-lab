@@ -11,9 +11,11 @@ type Params = {
   stageIndex: number;
   draftOf: (stageIndex: number) => Draft | undefined;
   expectedRevisionOf: (stageIndex: number) => number;
+  expectedComponentsRevisionOf?: () => number;
+  bodyFor?: (stageIndex: number, draft: Draft) => Record<string, unknown>;
   deps?: unknown[];
   onSaving: (stageIndex: number) => void;
-  onSaved: (stageIndex: number, revision?: number) => void;
+  onSaved: (stageIndex: number, revision?: number, componentsRevision?: number) => void;
   onError: (stageIndex: number) => void;
   onConflict?: (stageIndex: number) => void;
 };
@@ -41,8 +43,8 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-const ok = (applied = true, revision?: number) =>
-  new Response(JSON.stringify({ ok: true, applied, revision }), {
+const ok = (applied = true, revision?: number, componentsRevision?: number) =>
+  new Response(JSON.stringify({ ok: true, applied, revision, componentsRevision }), {
     status: 200,
     headers: { "content-type": "application/json" },
   });
@@ -167,6 +169,58 @@ describe("useAutosaveDraft", () => {
     expect(onSaved).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledWith(1, 6, undefined);
     expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("sends the bumped components revision on a queued component save, never self-conflicting", async () => {
+    // 同一标签页连续两次组件编辑：第一笔带 expectedComponentsRevision 0 在途，
+    // 第二笔排队。第一笔把组件库计数推进到 1 后，排队臂必须在发送时刻重新
+    // 读取最新计数 —— 若仍发 arm 时刻的 0，就被自己的上一笔顶回（伪冲突）。
+    const onSaved = vi.fn();
+    const onConflict = vi.fn();
+    let stateRev = 0;
+    const props = (over: Partial<Params> = {}) =>
+      base({
+        bodyFor: (s, draft) => ({
+          stageIndex: s,
+          graph: draft,
+          components: [{ name: "MyGate", graph: { nodes: [], edges: [] }, custom: true }],
+        }),
+        expectedComponentsRevisionOf: () => stateRev,
+        onSaved,
+        onConflict,
+        ...over,
+      });
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: props({ deps: [1] }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].body.expectedRevision).toBe(0);
+    expect(calls[0].body.expectedComponentsRevision).toBe(0);
+
+    // 继续编辑组件 → 第二臂在第一笔仍在途时排队。
+    rerender(props({ deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // 第一笔落地（服务端 revision 5、组件库计数 1）：排队臂立即以最新
+    // 期望号重发 —— 包括 reducer 还没来得及记下的 componentsRevision。
+    calls[0].done.resolve(ok(true, 5, 1));
+    await flush();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.expectedRevision).toBe(5);
+    expect(calls[1].body.expectedComponentsRevision).toBe(1);
+
+    calls[1].done.resolve(ok(true, 6, 2));
+    await flush();
+    expect(onConflict).not.toHaveBeenCalled();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledWith(1, 6, 2);
+    expect(stateRev).toBe(0);
   });
 
   it("never reports a server-dropped stale write as saved", async () => {

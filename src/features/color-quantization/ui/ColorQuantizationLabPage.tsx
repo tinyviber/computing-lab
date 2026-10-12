@@ -7,7 +7,7 @@ import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { statusForStage } from "../../../shared/lab/saveStatus.ts";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
@@ -202,6 +202,10 @@ export function ColorQuantizationLabPage() {
         topbar={
           <SaveIndicator
             status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+            unresolvedSyncConflict={syncConflictForStage(
+              state.unresolvedSyncConflicts,
+              state.stageIndex,
+            )}
             onRetrySync={() => reconcileConflict(state.stageIndex)}
             onRestoreLocal={
               state.conflictedLocalDrafts[state.stageIndex] !== undefined

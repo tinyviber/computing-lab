@@ -16,8 +16,10 @@ import {
 export type { SaveStatus } from "../../../shared/api/client";
 import {
   markSaveStatus,
+  markSyncConflict,
   statusForStage,
   type SaveStatusByStage,
+  type SyncConflictByStage,
 } from "../../../shared/lab/saveStatus.ts";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
@@ -46,6 +48,9 @@ export type SamplingLessonState = {
   selectedCell: CellPick | null;
   judgeOutcome: SamplingJudgeResult | null;
   saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
 };
 
@@ -121,6 +126,7 @@ export function createSamplingLessonState(stageIndex = 1): SamplingLessonState {
     selectedCell: null,
     judgeOutcome: null,
     saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     message: null,
   };
 }
@@ -153,6 +159,7 @@ export function transitionSamplingLesson(
         draftRevisions,
         selectedCell: null,
         saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         judgeOutcome: null,
       };
     }
@@ -250,6 +257,11 @@ export function transitionSamplingLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
       };
     }
 
@@ -273,6 +285,11 @@ export function transitionSamplingLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -296,6 +313,11 @@ export function transitionSamplingLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: backup },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         selectedCell: action.stageIndex === state.stageIndex ? null : state.selectedCell,
         judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
@@ -312,6 +334,11 @@ export function transitionSamplingLesson(
       return {
         ...state,
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage:
           status === "conflict"
             ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")

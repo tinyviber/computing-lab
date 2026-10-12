@@ -5,7 +5,7 @@ import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { statusForStage } from "../../../shared/lab/saveStatus.ts";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
@@ -122,15 +122,12 @@ export function CalculatorLabPage() {
       // The component library rides the save only while the learner
       // actually changed it, CAS'd on its own revision — an unchanged
       // library's stale list can never clobber another device's write.
-      ...(state.componentsChanged
-        ? {
-            components: state.unlockedSubmodules,
-            expectedComponentsRevision: state.componentsRevision,
-          }
-        : {}),
+      // expectedComponentsRevision is merged in by the hook at send time.
+      ...(state.componentsChanged ? { components: state.unlockedSubmodules } : {}),
     }),
     deps: [graph, state.unlockedSubmodules],
     expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
+    expectedComponentsRevisionOf: () => state.componentsRevision,
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
     onSaved: (s, revision, componentsRevision) =>
       dispatch({ type: "mark-saved", stageIndex: s, revision, componentsRevision }),
@@ -190,6 +187,10 @@ export function CalculatorLabPage() {
           <div className="calculator-status">
             <SaveIndicator
               status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+              unresolvedSyncConflict={syncConflictForStage(
+                state.unresolvedSyncConflicts,
+                state.stageIndex,
+              )}
               onRetrySync={() => reconcileConflict(state.stageIndex)}
               onRestoreLocal={
                 state.conflictedLocalDrafts[state.stageIndex] !== undefined ||

@@ -23,7 +23,7 @@ import type {
   CalculatorJudgeResult,
   CalculatorTestSummary,
 } from "../../src/features/calculator/domain/protocol.ts";
-import { withTransaction } from "../db/client.ts";
+import { parseJsonColumn, withTransaction } from "../db/client.ts";
 import {
   advanceStage,
   bumpComponentsRevision,
@@ -137,7 +137,11 @@ export function judgeSubmission(
   const stage = gated.stage;
 
   const graph = sanitizeGraph(rawGraph);
-  const submodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
+  // The submitted component list is evaluation input only — the circuit may
+  // reference learner-made components not yet autosaved, so judging runs
+  // against the merged view. It is never written back: the library's
+  // authoritative copy is re-read inside the write transaction below.
+  const evalSubmodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
   const cases = hiddenTestsFor(stageIndex);
   // Structural gate before any truth-table work: a graph whose contract is
   // already broken (missing/undriven pins, multi-driven ports) fails here
@@ -145,7 +149,7 @@ export function judgeSubmission(
   const structureIssues = findContractIssues(graph, stage.inputs, stage.outputs);
   const { results, score, total } = structureIssues.length
     ? { results: [] as CaseResult[], score: 0, total: cases.length }
-    : runCases(graph, cases, componentMap(submodules));
+    : runCases(graph, cases, componentMap(evalSubmodules));
 
   const categories: CalculatorTestSummary["categories"] = {};
   for (const r of results as CaseResult[]) {
@@ -196,24 +200,34 @@ export function judgeSubmission(
     });
 
     if (passed) {
+      // The only library mutation a judge may make is the stage's own
+      // unlock grant: re-read the server copy inside this transaction and
+      // append the unlocked component. The submitted list stays out of the
+      // write entirely — a stale tab's judgement can never shrink or
+      // overwrite components another tab just saved (draft OCC owns them).
+      let library: ComponentDef[] | undefined;
       if (stage.unlocks) {
         unlockedComponent = stage.unlocks;
         const unlockName = stage.unlocks.toLocaleLowerCase();
-        const rest = submodules.filter((s) => s.name.toLocaleLowerCase() !== unlockName);
-        submodules.splice(0, submodules.length, ...rest, { name: stage.unlocks, graph });
+        const row = db
+          .prepare("SELECT unlocked_submodules FROM student_projects WHERE id = ?")
+          .get(project.id) as { unlocked_submodules: string } | undefined;
+        const serverLibrary = parseJsonColumn<ComponentDef[]>(row?.unlocked_submodules, []);
+        library = [
+          ...serverLibrary.filter((s) => s.name.toLocaleLowerCase() !== unlockName),
+          { name: stage.unlocks, graph },
+        ];
       }
-      const progress = advanceStage(db, project, stageIndex, nextMainlineStage, {
-        unlockedSubmodules: submodules,
-      });
+      const progress = advanceStage(
+        db,
+        project,
+        stageIndex,
+        nextMainlineStage,
+        library === undefined ? undefined : { unlockedSubmodules: library },
+      );
       currentStage = progress.currentStage;
       passedStages = progress.passedStages;
-      componentsRevision = bumpComponentsRevision(db, project.id);
-    } else if (rawComponents !== undefined) {
-      // Keep learner-made blocks even when the current circuit still needs work.
-      db.prepare(
-        "UPDATE student_projects SET unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
-      ).run(JSON.stringify(submodules), project.id);
-      componentsRevision = bumpComponentsRevision(db, project.id);
+      if (library !== undefined) componentsRevision = bumpComponentsRevision(db, project.id);
     }
     return submissionId;
   });

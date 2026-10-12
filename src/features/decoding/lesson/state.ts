@@ -22,8 +22,10 @@ import {
 export type { SaveStatus } from "../../../shared/api/client";
 import {
   markSaveStatus,
+  markSyncConflict,
   statusForStage,
   type SaveStatusByStage,
+  type SyncConflictByStage,
 } from "../../../shared/lab/saveStatus.ts";
 
 export type DecodingLessonState = {
@@ -42,6 +44,9 @@ export type DecodingLessonState = {
   payloads: Record<number, LabPayload>;
   judgeOutcome: DecodingJudgeResult | null;
   saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
 };
 
@@ -126,6 +131,7 @@ export function createDecodingLessonState(stageIndex = 1): DecodingLessonState {
     payloads: {},
     judgeOutcome: null,
     saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     message: null,
   };
 }
@@ -168,6 +174,7 @@ export function transitionDecodingLesson(
         draftRevisions,
         payloads: action.payloads,
         saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         judgeOutcome: null,
       };
     }
@@ -262,6 +269,11 @@ export function transitionDecodingLesson(
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
       };
     }
 
@@ -285,6 +297,11 @@ export function transitionDecodingLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -307,6 +324,11 @@ export function transitionDecodingLesson(
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: backup },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
       };
@@ -323,6 +345,11 @@ export function transitionDecodingLesson(
       return {
         ...state,
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage:
           status === "conflict"
             ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")

@@ -27,3 +27,33 @@ export function markSaveStatus(
   if (map[stageIndex] === status) return map;
   return { ...map, [stageIndex]: status };
 }
+
+/**
+ * Stages whose post-refusal reconcile fetch failed ("sync-error"): the save
+ * fence still blocks them until an explicit retry reconciles, so the flag is
+ * tracked apart from the save flag — a further edit flipping the stage back
+ * to "dirty" must never hide the retry control. Cleared only by a successful
+ * reconcile, a restore/discard, or a project reload — never by editing.
+ */
+export type SyncConflictByStage = Readonly<Partial<Record<number, true>>>;
+
+/** Whether the stage still has an unreconciled sync-error pending. */
+export function syncConflictForStage(map: SyncConflictByStage, stageIndex: number): boolean {
+  return map[stageIndex] === true;
+}
+
+/** Sets one stage's sync-conflict flag without disturbing the others'. */
+export function markSyncConflict(
+  map: SyncConflictByStage,
+  stageIndex: number,
+  pending: boolean,
+): SyncConflictByStage {
+  if (!pending) {
+    if (map[stageIndex] === undefined) return map;
+    const next = { ...map };
+    delete next[stageIndex];
+    return next;
+  }
+  if (map[stageIndex] === true) return map;
+  return { ...map, [stageIndex]: true };
+}

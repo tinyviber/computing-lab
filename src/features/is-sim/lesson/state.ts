@@ -13,8 +13,10 @@
 import type { SaveStatus } from "../../../shared/api/client";
 import {
   markSaveStatus,
+  markSyncConflict,
   statusForStage,
   type SaveStatusByStage,
+  type SyncConflictByStage,
 } from "../../../shared/lab/saveStatus.ts";
 import {
   defaultParamsFor,
@@ -69,6 +71,9 @@ export type IsLessonState = {
   runOutcome: PublicRunOutcome | null;
   judgeOutcome: IsJudgeResult | null;
   saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
 };
 
@@ -145,6 +150,7 @@ export function createIsLessonState(stageIndex = 1): IsLessonState {
     runOutcome: null,
     judgeOutcome: null,
     saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     message: null,
   };
 }
@@ -201,6 +207,7 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
         conflictedLocalDrafts: {},
         draftRevisions,
         saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         judgeOutcome: null,
         runOutcome: null,
       };
@@ -374,6 +381,11 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
       return {
         ...state,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
       };
     }
 
@@ -397,6 +409,11 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -421,6 +438,11 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
         ...state,
         drafts: { ...state.drafts, [action.stageIndex]: backup },
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         judgeOutcome: isCurrent ? null : state.judgeOutcome,
         runOutcome: isCurrent ? null : state.runOutcome,
@@ -437,6 +459,11 @@ export function transitionIsLesson(state: IsLessonState, action: IsLessonAction)
       return {
         ...state,
         conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
         saveStatusByStage:
           status === "conflict"
             ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")

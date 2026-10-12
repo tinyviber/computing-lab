@@ -20,6 +20,7 @@ export function SaveIndicator({
   onRestoreLocal,
   onDiscardLocal,
   onRetrySync,
+  unresolvedSyncConflict,
 }: {
   status: SaveStatus;
   /** A recoverable local copy exists for the conflicted stage — the control
@@ -32,12 +33,16 @@ export function SaveIndicator({
   /** The post-conflict refetch failed (sync-error): refetch again — the only
    *  path that lifts the save fence. */
   onRetrySync?: () => void;
+  /** A sync-error is still unreconciled for this stage — the retry stays
+   *  visible while it is set, even after further edits flipped the save
+   *  flag back to "dirty" (the fence is still armed underneath). */
+  unresolvedSyncConflict?: boolean;
 }) {
   return (
     <span aria-live="polite" className={`save-indicator is-${status}`}>
       {status === "saved" ? <Icon name="check" size={11} /> : null}
       {SAVE_LABEL[status]}
-      {status === "sync-error" && onRetrySync ? (
+      {(status === "sync-error" || unresolvedSyncConflict === true) && onRetrySync ? (
         <button className="save-indicator-restore" onClick={onRetrySync} type="button">
           重试同步
         </button>
