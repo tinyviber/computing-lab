@@ -25,11 +25,31 @@
 
 .lab-preview-frame-scroll iframe {
   display: block;
+  /* content-box: the JS-set height maps 1:1 to the frame's inner viewport,
+     so sizing to document scrollHeight converges exactly. */
+  box-sizing: content-box;
   height: 900px;
   margin-inline: auto;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--surface);
+}
+
+/* In the preview (outer page and inside ?frame=1) the app shell must not
+   stay viewport-locked: let the document grow to its real content height
+   so full-page captures cover everything, with no inner scroll region.
+   The flex item must also give up `flex: 1`/`min-height: 0`, which pins
+   it to a viewport share instead of its content height. */
+.lab-preview-flow.page-layout {
+  height: auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+.lab-preview-flow .page-layout-content {
+  flex: none;
+  overflow-y: visible;
 }
 
 .lab-preview-event {
