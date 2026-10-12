@@ -1,13 +1,7 @@
-export {
-  TaskSheetEditor,
-  QUESTION_KIND_LABELS,
-  cleanForSave,
-  editorReducer,
-  questionProblem,
-  sheetComplete,
-  type EditorAction,
-  type EditorState,
-} from "./ui/TaskSheetEditor";
+export { TaskSheetEditor, QUESTION_KIND_LABELS } from "./ui/TaskSheetEditor";
+export { editorReducer, type EditorState } from "./lesson/editorState";
+export { type EditorAction } from "./lesson/editorActions";
+export { cleanForSave, questionProblem, sheetComplete } from "./domain/validation";
 export { QuestionAnswer, type PublicGrading } from "./ui/QuestionFields";
 export { TaskSheetPreview } from "./ui/TaskSheetPreview";
 export {
