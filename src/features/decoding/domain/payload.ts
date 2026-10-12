@@ -152,3 +152,17 @@ export function generatePayload(stage: DecodingStageDef, seed: number): Generate
 export function hiddenMessageOf(bytes: number[]): string {
   return extractChannelMessage(decodeBmp(bytes));
 }
+
+/** The value the student's `decode(data)` receives for this stage's payload. */
+export function runData(payload: LabPayload): unknown {
+  switch (payload.kind) {
+    case "codes":
+      return payload.codes;
+    case "bits":
+      return payload.groups;
+    case "bmp":
+      return payload.bytes;
+    case "files":
+      return null;
+  }
+}

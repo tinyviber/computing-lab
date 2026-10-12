@@ -251,6 +251,15 @@ const devRoutes = import.meta.env.DEV
           "CpuPreviewPage",
         ),
       }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__dev/labs/decoding",
+        validateSearch: passThroughSearch,
+        component: lazyRouteComponent(
+          () => import("../features/decoding/preview/DecodingPreviewPage"),
+          "DecodingPreviewPage",
+        ),
+      }),
     ]
   : [];
 

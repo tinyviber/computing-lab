@@ -1,50 +1,37 @@
 import { StageLink } from "../../../shared/lab/StageRail";
 import { labMetadata } from "../../../shared/lab/labMetadata";
-import { DECODING_CORE_STAGES, DECODING_STAGES, type DecodingStageDef } from "../domain/stages.ts";
+import type { DecodingLabViewModel, DecodingStageItem } from "../controller/viewModel.ts";
 
 /**
  * The decoding rail: core stages in order, with each `railAfter` challenge
  * anchored in a collapsible 支线练习 group right behind its core stage —
  * the same pattern as the cpu rail.
  */
-export function DecodingStageRail(props: {
-  stageIndex: number;
-  passedStages: readonly number[];
-  unlocked: (stage: DecodingStageDef) => boolean;
+export function DecodingStageRail({
+  model,
+  onSelect,
+}: {
+  model: DecodingLabViewModel["rail"];
   onSelect: (index: number) => void;
 }) {
-  const { stageIndex, passedStages, unlocked, onSelect } = props;
-  const challenges = DECODING_STAGES.filter((s) => s.track === "challenge");
-  const corePassed = DECODING_CORE_STAGES.filter((s) => passedStages.includes(s.index)).length;
-
-  const optionalByAnchor = new Map<number, DecodingStageDef[]>();
-  for (const challenge of challenges) {
-    if (challenge.railAfter === undefined) continue;
-    const stages = optionalByAnchor.get(challenge.railAfter) ?? [];
-    stages.push(challenge);
-    optionalByAnchor.set(challenge.railAfter, stages);
-  }
-  const lateChallenges = challenges.filter((s) => s.railAfter === undefined);
-
-  const renderStage = (stage: DecodingStageDef, optional = false) => (
+  const renderStage = (stage: DecodingStageItem, optional = false) => (
     <li key={stage.id}>
       <StageLink
-        active={stage.index === stageIndex}
+        active={stage.active}
         onSelect={() => onSelect(stage.index)}
         optional={optional}
-        passed={passedStages.includes(stage.index)}
+        passed={stage.passed}
         subtitle={stage.englishTitle}
         title={stage.title}
-        unlocked={unlocked(stage)}
+        unlocked={stage.unlocked}
       />
     </li>
   );
 
-  const renderOptionalBranch = (anchor: number) => {
-    const stages = optionalByAnchor.get(anchor) ?? [];
+  const renderOptionalBranch = (anchor: number, stages: readonly DecodingStageItem[]) => {
     if (stages.length === 0) return null;
-    const passed = stages.filter((s) => passedStages.includes(s.index)).length;
-    const active = stages.some((s) => s.index === stageIndex);
+    const passed = stages.filter((s) => s.passed).length;
+    const active = stages.some((s) => s.active);
     return (
       <li className="stage-branch-item" key={`branch-${anchor}`}>
         <details className="stage-branch" open={active}>
@@ -67,19 +54,19 @@ export function DecodingStageRail(props: {
       <p className="eyebrow">
         {labMetadata.decoding.title}{" "}
         <span className="cpu-rail-count">
-          {corePassed} / {DECODING_CORE_STAGES.length} 主线
+          {model.corePassed} / {model.coreTotal} 主线
         </span>
       </p>
       <ol className="stage-list">
-        {DECODING_CORE_STAGES.flatMap((stage) => [
+        {model.core.flatMap(({ stage, challenges }) => [
           renderStage(stage),
-          renderOptionalBranch(stage.index),
+          renderOptionalBranch(stage.index, challenges),
         ])}
       </ol>
-      {lateChallenges.length > 0 ? (
+      {model.challenges.length > 0 ? (
         <div className="cpu-rail-challenges">
           <p className="cpu-rail-group">选做挑战</p>
-          <ol className="stage-list">{lateChallenges.map((stage) => renderStage(stage))}</ol>
+          <ol className="stage-list">{model.challenges.map((stage) => renderStage(stage))}</ol>
         </div>
       ) : null}
     </aside>
