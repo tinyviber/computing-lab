@@ -79,7 +79,9 @@ export function useCpuLabController({
 
   const stage = stageOf(state);
   const draft = draftOf(state);
-  const rows = programOf(state);
+  // Stable rows reference: without memoization `run` would re-simulate the
+  // whole program on every render (e.g. a clock tick).
+  const rows = useMemo(() => programOf(state), [state.drafts, state.stageIndex]);
   const guided = stage?.guided === undefined ? false : true;
   const stageSeed = stage ? seedFor(userId, "cpu", stage.index) : 0;
   // 点餐机 I/O: the stage's 拨码开关 input cell and fixed 数码管 output cell
