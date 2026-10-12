@@ -7,7 +7,7 @@ import type { Dispatch } from "react";
 import { Icon } from "../../../shared/ui/Icon";
 import { SHEET_LIMITS, type ChoiceQuestion } from "../domain/schema";
 import type { EditorAction } from "../lesson/editorActions";
-import { blankOption } from "../lesson/editorState";
+import { blankOption, nextOptionNum } from "../lesson/editorState";
 import { NumberInput } from "./NumberInput";
 
 export function ChoiceEditor({
@@ -92,7 +92,7 @@ export function ChoiceEditor({
       <button
         className="button-ghost ts-add-inline"
         disabled={q.options.length >= SHEET_LIMITS.optionsPerQuestion}
-        onClick={() => patch({ options: [...q.options, blankOption(q.options.length + 1)] })}
+        onClick={() => patch({ options: [...q.options, blankOption(nextOptionNum(q.options))] })}
         type="button"
       >
         + 添加选项
