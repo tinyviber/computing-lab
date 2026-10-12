@@ -113,6 +113,7 @@ describe("calculator coach", () => {
       passedStages: [1],
       error: null,
       unlockedComponent: null,
+      componentsRevision: null,
     };
     let step = tour.next(
       lesson({ stageIndex: 1, graph: played, judgeOutcome: wireJudgeOutcome, passedStages: [1] }),
@@ -221,6 +222,7 @@ describe("calculator coach", () => {
       passedStages: [1, 2],
       error: null,
       unlockedComponent: "FullAdder",
+      componentsRevision: null,
     };
     step = tour.next(lesson({ stageIndex: 2, graph: b1, judgeOutcome, passedStages: [1, 2] }));
     expect(step?.id).toBe("unlock-FullAdder");

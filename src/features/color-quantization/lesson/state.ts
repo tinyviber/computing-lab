@@ -69,7 +69,7 @@ export type QuantLessonAction =
   | { type: "mark-saving"; stageIndex: number }
   | { type: "mark-saved"; stageIndex: number; revision?: number }
   | { type: "mark-save-error"; stageIndex: number }
-  | { type: "mark-save-conflict"; stageIndex: number }
+  | { type: "mark-save-sync-error"; stageIndex: number }
   | {
       type: "resolve-save-conflict";
       stageIndex: number;
@@ -79,6 +79,7 @@ export type QuantLessonAction =
       revision?: number;
     }
   | { type: "restore-conflict-draft"; stageIndex: number }
+  | { type: "discard-conflict-draft"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -198,12 +199,11 @@ export function transitionQuantLesson(
       // Only a save started from the stage's current dirty state may settle
       // it — a stale completion must not hide a newer dirty draft.
       if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
-      // A fresh applied write supersedes any conflict backup for the stage.
-      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
-      delete conflictedLocalDrafts[action.stageIndex];
+      // A saved write does NOT drop the stage's conflict backup — the
+      // recoverable local copy stays until the learner restores or
+      // explicitly discards it.
       return {
         ...state,
-        conflictedLocalDrafts,
         draftRevisions:
           typeof action.revision === "number"
             ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
@@ -218,14 +218,16 @@ export function transitionQuantLesson(
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
       };
 
-    case "mark-save-conflict": {
-      // "saving" is the write that was refused; "dirty" means the learner
-      // edited past it — the conflict still lands so it stays visible.
+    case "mark-save-sync-error": {
+      // The refused write's reconcile fetch failed: the local draft is
+      // untouched and the stage stays fenced (its revision never advanced)
+      // — only an explicit retry's resolve lifts the fence. Distinct from
+      // "conflict": nothing was loaded, so "已载入最新进度" would be a lie.
       const status = statusForStage(state.saveStatusByStage, action.stageIndex);
-      if (status !== "saving" && status !== "dirty") return state;
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
       return {
         ...state,
-        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
       };
     }
 
@@ -239,7 +241,9 @@ export function transitionQuantLesson(
       // fenced stage cannot retry its own save, so the reconcile must still
       // land (the stash keeps those newer edits recoverable the same way).
       const status = statusForStage(state.saveStatusByStage, action.stageIndex);
-      if (status !== "saving" && status !== "dirty") return state;
+      // "sync-error" is the same refusal, still unreconciled — a retry's
+      // payload lands here too.
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
       const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
       const localDraft = state.drafts[action.stageIndex];
       if (localDraft !== undefined) conflictedLocalDrafts[action.stageIndex] = localDraft;
@@ -271,6 +275,23 @@ export function transitionQuantLesson(
         conflictedLocalDrafts,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
         judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
+      };
+    }
+    case "discard-conflict-draft": {
+      // The learner accepts the server's draft: drop the recoverable local
+      // copy for good. A "conflict" flag settles to "saved" — the content
+      // on screen is the server's applied write; other flags stay put.
+      if (state.conflictedLocalDrafts[action.stageIndex] === undefined) return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      return {
+        ...state,
+        conflictedLocalDrafts,
+        saveStatusByStage:
+          status === "conflict"
+            ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")
+            : state.saveStatusByStage,
       };
     }
     case "dismiss-message":

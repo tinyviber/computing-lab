@@ -3,7 +3,14 @@ import { api } from "../api/client";
 
 const AUTOSAVE_DELAY_MS = 1500;
 
-type DraftSaveResponse = { ok?: boolean; applied?: boolean; revision?: number };
+type DraftSaveResponse = {
+  ok?: boolean;
+  applied?: boolean;
+  revision?: number;
+  /** Calculator only: the component library's own OCC counter after this
+   *  write (see `expectedComponentsRevision` in the body). */
+  componentsRevision?: number;
+};
 
 /**
  * Silent debounced autosave of the per-stage draft. Timers live in a ref keyed
@@ -32,8 +39,9 @@ type DraftSaveResponse = { ok?: boolean; applied?: boolean; revision?: number };
  *   send the wrong stage's draft once the learner has switched away.
  * - A resolving request reports its completion only while it is still the
  *   stage's latest arm, so an older in-flight save can never overwrite a
- *   newer dirty state — and a late response after an unmount or class switch
- *   finds an empty arm map and is dropped entirely.
+ *   newer dirty state — and a response from an earlier context (unmount or
+ *   class switch, including A→B→A) is generation-checked and dropped before
+ *   it can cancel the new context's timers or fire conflict handling.
  * - A rejected write (`applied: false`) means the server holds a newer
  *   write from elsewhere. The stage is then fenced: its queued arm and any
  *   still-debouncing timer die with it — letting one send would carry the
@@ -41,8 +49,10 @@ type DraftSaveResponse = { ok?: boolean; applied?: boolean; revision?: number };
  *   the winning write — `onConflict` fires so the caller can refetch and
  *   reconcile, and no new arm for that stage may leave until the lesson
  *   state has caught up to the revision the rejection reported (the re-arm
- *   gate below). Only then does a dirty flag schedule a write that
- *   legitimately supersedes the server draft.
+ *   gate below). A failed refetch leaves the fence up: the caller flags the
+ *   stage as sync-error instead of resolved and only an explicit retry may
+ *   lift it. Only then does a dirty flag schedule a write that legitimately
+ *   supersedes the server draft.
  *
  * The lifecycle callbacks all receive the stage they fired for; the lesson
  * reducer keeps flags per stage so one stage's late completion cannot
@@ -65,7 +75,7 @@ export function useAutosaveDraft<TDraft>(options: {
   /** Extra inputs (e.g. unlocked components) whose change re-arms the timer. */
   deps?: unknown[];
   onSaving: (stageIndex: number) => void;
-  onSaved: (stageIndex: number, revision?: number) => void;
+  onSaved: (stageIndex: number, revision?: number, componentsRevision?: number) => void;
   onError: (stageIndex: number) => void;
   /** The server dropped the stage's latest write because a newer one exists
    *  elsewhere — the caller should refetch the project and reconcile the
@@ -93,6 +103,11 @@ export function useAutosaveDraft<TDraft>(options: {
   // commit (creates run in declaration order), so only dirty flags raised
   // under the new state arm saves.
   const armedClass = useRef(classId);
+  // Lifecycle identity of the current mount/class context. The class-switch
+  // cleanup bumps it, so a response that arrives after a switch — including
+  // A→B→A where armedClass alone would match again — or after unmount is
+  // dropped before it can touch timers, queues, or callbacks.
+  const generation = useRef(0);
 
   useEffect(() => {
     latestOptions.current = options;
@@ -116,12 +131,13 @@ export function useAutosaveDraft<TDraft>(options: {
       ...(opts.bodyFor ? opts.bodyFor(stage, draft) : { stageIndex: stage, draft }),
       expectedRevision,
     } as Record<string, unknown>;
+    const gen = generation.current;
     inFlight.current.add(stage);
     opts.onSaving(stage);
     void api
       .put<DraftSaveResponse>(`/api/classes/${armClass}/labs/${labId}/draft`, body)
       .then((result) => {
-        if (armedClass.current !== armClass) return;
+        if (generation.current !== gen) return;
         inFlight.current.delete(stage);
         armDraft.current.delete(arm);
         const rev = typeof result?.revision === "number" ? result.revision : undefined;
@@ -166,10 +182,12 @@ export function useAutosaveDraft<TDraft>(options: {
           return;
         }
         if (latestArm.current.get(stage) !== arm) return;
-        opts.onSaved(stage, rev);
+        const componentsRev =
+          typeof result?.componentsRevision === "number" ? result.componentsRevision : undefined;
+        opts.onSaved(stage, rev, componentsRev);
       })
       .catch(() => {
-        if (armedClass.current !== armClass) return;
+        if (generation.current !== gen) return;
         inFlight.current.delete(stage);
         armDraft.current.delete(arm);
         const queued = queuedArm.current.get(stage);
@@ -218,6 +236,10 @@ export function useAutosaveDraft<TDraft>(options: {
       // the response flush it — same-session writes must never race each
       // other into a conflict.
       if (inFlight.current.has(stageIndex)) {
+        // Replacing an earlier queued arm: its snapshot can never send now —
+        // drop it the same way a cancelled debounce arm's is dropped.
+        const prev = queuedArm.current.get(stageIndex);
+        if (prev !== undefined) armDraft.current.delete(prev);
         queuedArm.current.set(stageIndex, arm);
         return;
       }
@@ -231,8 +253,9 @@ export function useAutosaveDraft<TDraft>(options: {
   }, [saveStatus, stageIndex, classId, labId, ...deps]);
 
   // Unmount or class switch: nothing armed for this context should still fire,
-  // and nothing already in flight may report back into the new context —
-  // clearing the arm/revision maps turns late responses into silent drops.
+  // and nothing already in flight may report back into the new context — the
+  // generation bump turns every earlier context's late response into a silent
+  // drop even when the classId matches again (A→B→A).
   // This effect is declared after the arm effect so its create runs last on a
   // class-switch commit: only then does the new classId become armable.
   useEffect(() => {
@@ -243,7 +266,11 @@ export function useAutosaveDraft<TDraft>(options: {
     const flying = inFlight.current;
     const applied = appliedRev.current;
     const fenced = conflicted.current;
+    const gen = generation;
     return () => {
+      // Every request sent in this context is dead: its completion must not
+      // report, fire conflicts, or cancel a newer context's timers.
+      gen.current += 1;
       for (const t of pending.values()) clearTimeout(t);
       pending.clear();
       arms.clear();

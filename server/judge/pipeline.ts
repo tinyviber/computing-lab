@@ -40,8 +40,20 @@ export type ProjectRow<TDraft = unknown> = {
 };
 
 /** Outcome of a compare-and-swap draft write: `revision` is the newly
- *  assigned revision when applied, or the current stored one when refused. */
-export type DraftSaveResult = { applied: boolean; revision: number };
+ *  assigned revision when applied, or the current stored one when refused.
+ *  `componentsRevision` is set when the write carried the component library
+ *  (calculator): the newly assigned library revision, or the stored one on
+ *  a refused compare. */
+export type DraftSaveResult = {
+  applied: boolean;
+  revision: number;
+  componentsRevision?: number;
+};
+
+/** The calculator component library's OCC counter lives in draft_revisions
+ *  under this reserved non-stage key — it shares the same transaction and
+ *  needs no column of its own. */
+export const COMPONENTS_REVISION_KEY = "components";
 
 type RawProject = {
   id: string;
@@ -138,7 +150,11 @@ export function saveStageDraft<TDraft>(
   project: ProjectRow<TDraft>,
   stageIndex: number,
   draft: TDraft,
-  extras?: { unlockedSubmodules?: unknown[]; expectedRevision?: number },
+  extras?: {
+    unlockedSubmodules?: unknown[];
+    expectedRevision?: number;
+    expectedComponentsRevision?: number;
+  },
 ): DraftSaveResult {
   const key = String(stageIndex);
   // Route callers always pass a validated number; an absent expectedRevision
@@ -153,8 +169,25 @@ export function saveStageDraft<TDraft>(
       parseJsonColumn<Record<string, number | { revision?: unknown }>>(row?.draft_revisions, {}),
     );
     const stored = revisions[key] ?? 0;
+    const carriesLibrary = extras?.unlockedSubmodules !== undefined;
+    const storedComponents = revisions[COMPONENTS_REVISION_KEY] ?? 0;
     if (expected !== undefined && stored !== expected) {
-      return { applied: false, revision: stored };
+      return {
+        applied: false,
+        revision: stored,
+        ...(carriesLibrary ? { componentsRevision: storedComponents } : {}),
+      };
+    }
+    // The library compare rides the same transaction as the stage compare:
+    // a stale component list bounces the WHOLE write — the stage graph may
+    // reference the components it was written against, so applying the
+    // draft alone would corrupt consistency.
+    if (
+      carriesLibrary &&
+      (extras?.expectedComponentsRevision === undefined ||
+        storedComponents !== extras.expectedComponentsRevision)
+    ) {
+      return { applied: false, revision: stored, componentsRevision: storedComponents };
     }
     const revision = stored + 1;
     const drafts = {
@@ -162,12 +195,14 @@ export function saveStageDraft<TDraft>(
       [key]: draft,
     };
     revisions[key] = revision;
-    if (extras?.unlockedSubmodules === undefined) {
+    if (!carriesLibrary) {
       db.prepare(
         "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
       ).run(JSON.stringify(drafts), JSON.stringify(revisions), project.id);
       return { applied: true, revision };
     }
+    const componentsRevision = storedComponents + 1;
+    revisions[COMPONENTS_REVISION_KEY] = componentsRevision;
     db.prepare(
       "UPDATE student_projects SET draft_graph = ?, draft_revisions = ?, unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
     ).run(
@@ -176,8 +211,31 @@ export function saveStageDraft<TDraft>(
       JSON.stringify(extras.unlockedSubmodules),
       project.id,
     );
-    return { applied: true, revision };
+    return { applied: true, revision, componentsRevision };
   });
+}
+
+/**
+ * The component library's revision must move on EVERY unlocked_submodules
+ * write, not only draft saves — a judgement that merges learner components
+ * rewrites the library without CAS; bumping the counter keeps a concurrent
+ * save's compare honest instead of silently clobbering the judge's merge.
+ * Call inside the writer's own transaction. Returns the new revision.
+ */
+export function bumpComponentsRevision(db: DatabaseSync, projectId: string): number {
+  const row = db
+    .prepare("SELECT draft_revisions FROM student_projects WHERE id = ?")
+    .get(projectId) as { draft_revisions: string } | undefined;
+  const revisions = toDraftRevisions(
+    parseJsonColumn<Record<string, number | { revision?: unknown }>>(row?.draft_revisions, {}),
+  );
+  const next = (revisions[COMPONENTS_REVISION_KEY] ?? 0) + 1;
+  revisions[COMPONENTS_REVISION_KEY] = next;
+  db.prepare("UPDATE student_projects SET draft_revisions = ? WHERE id = ?").run(
+    JSON.stringify(revisions),
+    projectId,
+  );
+  return next;
 }
 
 /**

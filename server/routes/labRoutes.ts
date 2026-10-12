@@ -29,6 +29,9 @@ type LabAuth = { user: SessionUser; membership: Membership };
 type LabSpec<TDraft, TOutcome> = {
   labId: string;
   stageCount: number;
+  /** The draft body may carry `components` — then `expectedComponentsRevision`
+   *  is required and CAS'd alongside the stage revision (calculator). */
+  usesComponents?: boolean;
   /** Extra top-level fields merged into the GET /project payload. */
   projectExtras?: (db: DatabaseSync, project: ProjectRow<TDraft>) => Record<string, unknown>;
   saveDraft: (
@@ -37,6 +40,7 @@ type LabSpec<TDraft, TOutcome> = {
     stageIndex: number,
     body: Record<string, unknown>,
     expectedRevision: number,
+    expectedComponentsRevision?: number,
   ) => DraftSaveResult;
   judge: (
     db: DatabaseSync,
@@ -106,6 +110,19 @@ export function labRoutes<TDraft, TOutcome extends object>(
     ) {
       return jsonError(c, 400, "invalid-revision");
     }
+    // A component-library write needs its own expected revision — without
+    // one it cannot be compared and must not write anything.
+    const rawExpectedComponents = body?.expectedComponentsRevision;
+    const expectedComponentsRevision = rawExpectedComponents === null ? 0 : rawExpectedComponents;
+    if (spec.usesComponents && body?.components !== undefined) {
+      if (
+        typeof expectedComponentsRevision !== "number" ||
+        !Number.isInteger(expectedComponentsRevision) ||
+        expectedComponentsRevision < 0
+      ) {
+        return jsonError(c, 400, "invalid-revision");
+      }
+    }
     const db = c.get("db");
     const result = spec.saveDraft(
       db,
@@ -113,11 +130,15 @@ export function labRoutes<TDraft, TOutcome extends object>(
       stageIndex,
       body as Record<string, unknown>,
       expectedRevision,
+      expectedComponentsRevision as number | undefined,
     );
     return c.json({
       ok: true,
       applied: result.applied,
       revision: result.revision,
+      ...(result.componentsRevision !== undefined
+        ? { componentsRevision: result.componentsRevision }
+        : {}),
       savedAt: new Date().toISOString(),
     });
   });

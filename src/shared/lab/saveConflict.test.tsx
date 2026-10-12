@@ -12,7 +12,7 @@ import {
 } from "../../features/decoding/lesson/state";
 import { statusForStage } from "./saveStatus";
 import { useAutosaveDraft } from "./useAutosaveDraft";
-import { useLabProject } from "./useLabProject";
+import { reconcileConflictedStage, useLabProject } from "./useLabProject";
 
 /**
  * Save-conflict recovery end to end, driven through the REAL decoding lesson
@@ -129,7 +129,7 @@ describe("save conflict recovery", () => {
         onConflict: (s) => {
           void fetchProject().then((project) => {
             if (!project) {
-              dispatch({ type: "mark-save-conflict", stageIndex: s });
+              dispatch({ type: "mark-save-sync-error", stageIndex: s });
               return;
             }
             dispatch({
@@ -270,6 +270,181 @@ describe("save conflict recovery", () => {
     expect(state.editRevision).toBe(playback + 1);
     const after = state;
     state = transitionCpuLesson(state, { type: "restore-conflict-draft", stageIndex: 7 });
+    expect(state).toBe(after);
+  });
+
+  it("flags sync-error when the reconcile fetch fails; only an explicit retry lifts the fence", async () => {
+    // 被拒的写入之后 fetchProject 失败：本地草稿原样保留、关卡仍被
+    // revision 栅栏挡住，状态是「同步失败」而不是谎称已载入最新进度的
+    // conflict —— 只有显式重试成功后的 resolve 才解锁自动保存。
+    const exposed: {
+      state: LabState;
+      dispatch: Dispatch<DecodingLessonAction> | null;
+      retrySync: ((s: number) => void) | null;
+    } = { state: createDecodingLessonState(1), dispatch: null, retrySync: null };
+
+    function Probe() {
+      const [state, dispatch] = useReducer(transitionDecodingLesson, undefined, () =>
+        createDecodingLessonState(1),
+      );
+      exposed.state = state;
+      exposed.dispatch = dispatch;
+      const { fetchProject, projectLoaded } = useLabProject<
+        DecodingDraft,
+        Record<string, never>,
+        DecodingLessonAction
+      >({
+        classId: "class-1",
+        labId: "decoding",
+        ready: true,
+        toAction: (project) => ({
+          type: "load-project",
+          currentStage: project.currentStage,
+          passedStages: project.passedStages,
+          draftRevisions: project.draftRevisions,
+          drafts: Object.fromEntries(
+            Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
+          ),
+          payloads: {},
+        }),
+        dispatch,
+      });
+      const reconcile = (s: number) =>
+        reconcileConflictedStage({
+          fetchProject,
+          stageIndex: s,
+          onResolved: (stageIndex, project) =>
+            dispatch({
+              type: "resolve-save-conflict",
+              stageIndex,
+              draft: project.drafts?.[stageIndex] ?? emptyDraft(),
+              revision: project.draftRevisions?.[stageIndex],
+            }),
+          onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+        });
+      exposed.retrySync = reconcile;
+      useAutosaveDraft<DecodingDraft>({
+        classId: "class-1",
+        labId: "decoding",
+        saveStatus: projectLoaded
+          ? statusForStage(state.saveStatusByStage, state.stageIndex)
+          : "idle",
+        stageIndex: state.stageIndex,
+        draftOf: (s) => state.drafts[s],
+        expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
+        onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+        onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
+        onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+        onConflict: (s) => reconcile(s),
+      });
+      return null;
+    }
+
+    render(<Probe />);
+    calls[0].done.resolve(
+      json({ labId: "decoding", currentStage: 1, passedStages: [1], drafts: {} }),
+    );
+    await flush();
+
+    const dispatch = (a: DecodingLessonAction) =>
+      act(() => {
+        exposed.dispatch?.(a);
+      });
+
+    dispatch({ type: "set-code", code: "mine-1" });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    const put = calls.find((c) => c.method === "PUT");
+    expect(put?.body?.stageIndex).toBe(1);
+
+    // 另一设备先写（revision 7）：拒绝 → 调和 fetch 失败（网络断）。
+    put?.done.resolve(json({ ok: true, applied: false, revision: 7 }));
+    await flush();
+    const refetch1 = calls.filter((c) => c.method === "GET")[1];
+    expect(refetch1?.url).toBe("/api/classes/class-1/labs/decoding/project");
+    refetch1?.done.resolve(new Response(null, { status: 500 }));
+    await flush();
+
+    // 同步失败态：草稿原样在、revision 没动、关卡被栅栏挡住。
+    expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("sync-error");
+    expect(exposed.state.drafts[1]?.code).toBe("mine-1");
+    expect(exposed.state.draftRevisions[1]).toBeUndefined();
+
+    // 栅栏生效：失败后再编辑也绝不能把写放出去。
+    dispatch({ type: "set-code", code: "mine-2" });
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(calls.filter((c) => c.method === "PUT")).toHaveLength(1);
+    expect(exposed.state.drafts[1]?.code).toBe("mine-2");
+
+    // 网络恢复 → 显式重试：调和落地后 revision 前进、栅栏解除。
+    act(() => {
+      exposed.retrySync?.(1);
+    });
+    await flush();
+    const refetch2 = calls.filter((c) => c.method === "GET")[2];
+    refetch2?.done.resolve(
+      json({
+        labId: "decoding",
+        currentStage: 1,
+        passedStages: [1],
+        drafts: { "1": decodingDraft("server-1") },
+        draftRevisions: { "1": 7 },
+      }),
+    );
+    await flush();
+    expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("conflict");
+    expect(exposed.state.drafts[1]?.code).toBe("server-1");
+    expect(exposed.state.draftRevisions[1]).toBe(7);
+    // 调和前的本地草稿被收进备份。
+    expect(exposed.state.conflictedLocalDrafts[1]?.code).toBe("mine-2");
+
+    // 找回本地版本 → dirty → 自动保存以 revision 7 合法续写。
+    dispatch({ type: "restore-conflict-draft", stageIndex: 1 });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    const put2 = calls.filter((c) => c.method === "PUT")[1];
+    expect(put2?.body?.expectedRevision).toBe(7);
+    put2?.done.resolve(json({ ok: true, applied: true, revision: 8 }));
+    await flush();
+    expect(statusForStage(exposed.state.saveStatusByStage, 1)).toBe("saved");
+  });
+
+  it("keeps the conflict backup across saves until the learner discards it", () => {
+    // 备份生命周期：普通保存不再清掉可找回副本；只有找回、显式丢弃、
+    // 更新冲突覆盖或项目载入才会让它消失。
+    let state = createDecodingLessonState(1);
+    state = transitionDecodingLesson(state, {
+      type: "load-project",
+      currentStage: 1,
+      passedStages: [],
+      drafts: { 1: decodingDraft("local") },
+      draftRevisions: { 1: 1 },
+      payloads: {},
+    });
+    state = transitionDecodingLesson(state, { type: "mark-saving", stageIndex: 1 });
+    state = transitionDecodingLesson(state, {
+      type: "resolve-save-conflict",
+      stageIndex: 1,
+      draft: decodingDraft("server"),
+      revision: 2,
+    });
+    expect(state.conflictedLocalDrafts[1]?.code).toBe("local");
+
+    // 冲突后学习者在服务端副本上又改了一笔并保存成功 —— 备份必须活着。
+    state = transitionDecodingLesson(state, { type: "set-code", code: "edited-on-server" });
+    state = transitionDecodingLesson(state, { type: "mark-saving", stageIndex: 1 });
+    state = transitionDecodingLesson(state, { type: "mark-saved", stageIndex: 1, revision: 3 });
+    expect(state.conflictedLocalDrafts[1]?.code).toBe("local");
+
+    // 显式丢弃 → 备份消失、flag 落定；此后找回是 no-op。
+    state = transitionDecodingLesson(state, { type: "discard-conflict-draft", stageIndex: 1 });
+    expect(state.conflictedLocalDrafts[1]).toBeUndefined();
+    const after = state;
+    state = transitionDecodingLesson(state, { type: "restore-conflict-draft", stageIndex: 1 });
     expect(state).toBe(after);
   });
 });

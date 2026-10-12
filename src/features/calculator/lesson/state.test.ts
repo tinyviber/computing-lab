@@ -104,6 +104,7 @@ describe("calculator lesson state", () => {
         passedStages: [1, 9],
         error: null,
         unlockedComponent: null,
+        componentsRevision: null,
       },
     });
     expect(completed.passedStages).toEqual([1, 9]);
@@ -514,6 +515,7 @@ describe("calculator lesson state", () => {
         passedStages: [2],
         error: null,
         unlockedComponent: "HalfAdder",
+        componentsRevision: null,
       },
     });
     expect(judged.currentStage).toBe(3);

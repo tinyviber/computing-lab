@@ -165,7 +165,7 @@ describe("useAutosaveDraft", () => {
     await flush();
     // 被取代的旧臂不回报；只有最终臂的 applied 结果落到 saved。
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(1, 6);
+    expect(onSaved).toHaveBeenCalledWith(1, 6, undefined);
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -414,6 +414,42 @@ describe("useAutosaveDraft", () => {
     });
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(calls[2].body.expectedRevision).toBe(9);
+  });
+
+  it("drops a stale response from an earlier lifecycle of the same class (A→B→A)", async () => {
+    const onSaved = vi.fn();
+    const onConflict = vi.fn();
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: base({ classId: "class-A", deps: [1], onSaved, onConflict }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    // A 生命周期 1 的请求在途。
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // 切到 B 再切回 A —— classId 又等于 A，但 generation 已推进：旧 A 的
+    // 响应必须被丢弃，不得触发 onConflict，也不得取消新 A 的排程。
+    rerender(base({ classId: "class-B", saveStatus: "idle", deps: [2], onSaved, onConflict }));
+    // 回到 A 的第一帧还挂着旧上下文的 flag（stale-dirty 保护，不 arm）；
+    // 新上下文真正产生的 dirty 才会排程。
+    rerender(base({ classId: "class-A", deps: [9], onSaved, onConflict }));
+    rerender(base({ classId: "class-A", deps: [10], onSaved, onConflict }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    // 新 A 生命周期的保存正常发出。
+    expect(fetch).toHaveBeenCalledTimes(2);
+
+    calls[0].done.resolve(ok(false, 7));
+    await flush();
+    expect(onConflict).not.toHaveBeenCalled();
+
+    // 新 A 的响应照常落地：旧响应没有弄掉它的 in-flight 记录或回调。
+    calls[1].done.resolve(ok(true, 3));
+    await flush();
+    expect(onSaved).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledWith(1, 3, undefined);
   });
 
   it("reports a rejection only while its arm is still current", async () => {

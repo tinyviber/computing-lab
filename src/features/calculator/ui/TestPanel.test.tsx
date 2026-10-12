@@ -114,6 +114,7 @@ describe("TestPanel", () => {
       passedStages: [],
       error: null,
       unlockedComponent: null,
+      componentsRevision: null,
     };
     render(<TestPanel judgeOutcome={judgeOutcome} runOutcome={null} stage={stage5} />);
 

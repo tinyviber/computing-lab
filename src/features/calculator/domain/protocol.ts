@@ -37,6 +37,10 @@ export type CalculatorJudgeResult = {
   currentStage: number;
   passedStages: number[];
   unlockedComponent: string | null;
+  /** Library revision after the judgement's own write — the client's next
+   *  components-carrying save compares against it (null when the library
+   *  was untouched). */
+  componentsRevision: number | null;
 };
 
 /** GET /project payload: the generic lab envelope plus unlocked components. */

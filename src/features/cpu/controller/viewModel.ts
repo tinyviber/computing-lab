@@ -159,6 +159,10 @@ export type CpuLabActions = {
   replayCounterexample(counterexample: CpuCounterexample): void;
   /** Swap the reconciled (server) draft back for the pre-conflict local copy. */
   restoreConflictLocal(): void;
+  /** Drop the recoverable local copy — the student accepts the server's draft. */
+  discardConflictLocal(): void;
+  /** Refetch after a failed post-conflict sync — the only way out of sync-error. */
+  retrySyncConflict(): void;
 };
 
 export type CpuWorkspaceProps = { model: CpuLabViewModel; actions: CpuLabActions };

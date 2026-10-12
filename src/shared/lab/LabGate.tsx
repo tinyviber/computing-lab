@@ -12,24 +12,50 @@ const SAVE_LABEL: Record<SaveStatus, string> = {
   saved: "已保存",
   error: "保存失败",
   conflict: "已载入最新进度",
+  "sync-error": "同步失败",
 };
 
 export function SaveIndicator({
   status,
   onRestoreLocal,
+  onDiscardLocal,
+  onRetrySync,
 }: {
   status: SaveStatus;
   /** A recoverable local copy exists for the conflicted stage — the control
-   *  swaps the server's copy back for what the learner had typed. */
+   *  swaps the server's copy back for what the learner had typed. Offered
+   *  for as long as a backup survives, not only while "conflict" shows. */
   onRestoreLocal?: () => void;
+  /** Drops the recoverable local copy — the student accepts the server's
+   *  draft as final. */
+  onDiscardLocal?: () => void;
+  /** The post-conflict refetch failed (sync-error): refetch again — the only
+   *  path that lifts the save fence. */
+  onRetrySync?: () => void;
 }) {
   return (
     <span aria-live="polite" className={`save-indicator is-${status}`}>
       {status === "saved" ? <Icon name="check" size={11} /> : null}
       {SAVE_LABEL[status]}
-      {status === "conflict" && onRestoreLocal ? (
+      {status === "sync-error" && onRetrySync ? (
+        <button className="save-indicator-restore" onClick={onRetrySync} type="button">
+          重试同步
+        </button>
+      ) : null}
+      {onRestoreLocal ? (
         <button className="save-indicator-restore" onClick={onRestoreLocal} type="button">
           找回我未保存的修改
+        </button>
+      ) : null}
+      {onDiscardLocal ? (
+        <button
+          aria-label="丢弃找回的本地修改"
+          className="save-indicator-discard"
+          onClick={onDiscardLocal}
+          title="丢弃找回的本地修改"
+          type="button"
+        >
+          <Icon name="x" size={10} />
         </button>
       ) : null}
     </span>

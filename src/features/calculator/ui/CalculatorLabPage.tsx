@@ -6,7 +6,7 @@ import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage } from "../../../shared/lab/saveStatus.ts";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
 import type { CircuitGraph, ComponentDef } from "../domain/graph";
@@ -60,6 +60,7 @@ export function CalculatorLabPage() {
       passedStages: project.passedStages,
       unlockedSubmodules: project.unlockedSubmodules,
       draftRevisions: project.draftRevisions,
+      componentsRevision: project.draftRevisions?.components ?? 0,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -88,6 +89,25 @@ export function CalculatorLabPage() {
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
   const coach = useCalculatorCoach(state, preview.pins, projectLoaded, dispatch);
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage<CircuitGraph, { unlockedSubmodules: ComponentDef[] }>({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+          unlockedSubmodules: project.unlockedSubmodules,
+          componentsRevision: project.draftRevisions?.components,
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
   useAutosaveDraft<CircuitGraph>({
     classId,
     labId: "calculator",
@@ -99,32 +119,26 @@ export function CalculatorLabPage() {
     bodyFor: (index, draft) => ({
       stageIndex: index,
       graph: draft,
-      components: state.unlockedSubmodules,
+      // The component library rides the save only while the learner
+      // actually changed it, CAS'd on its own revision — an unchanged
+      // library's stale list can never clobber another device's write.
+      ...(state.componentsChanged
+        ? {
+            components: state.unlockedSubmodules,
+            expectedComponentsRevision: state.componentsRevision,
+          }
+        : {}),
     }),
     deps: [graph, state.unlockedSubmodules],
     expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
-    onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
+    onSaved: (s, revision, componentsRevision) =>
+      dispatch({ type: "mark-saved", stageIndex: s, revision, componentsRevision }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
     // The server dropped this write because a newer one already exists
     // elsewhere: refetch so local state reconciles to the winning draft,
     // then flag the conflict briefly on the stage.
-    onConflict: (s) => {
-      // Reconcile only the conflicted stage against the server's copy —
-      // other stages keep their unsaved local drafts and flags.
-      void fetchProject().then((project) => {
-        if (!project) {
-          dispatch({ type: "mark-save-conflict", stageIndex: s });
-          return;
-        }
-        dispatch({
-          type: "resolve-save-conflict",
-          stageIndex: s,
-          draft: project.drafts?.[s],
-          revision: project.draftRevisions?.[s],
-        });
-      });
-    },
+    onConflict: (s) => reconcileConflict(s),
   });
 
   const onSubmit = useCallback(async () => {
@@ -151,6 +165,7 @@ export function CalculatorLabPage() {
           passedStages: result.passedStages,
           error: result.testSummary.error,
           unlockedComponent: result.unlockedComponent,
+          componentsRevision: result.componentsRevision,
         },
       });
     } catch (error) {
@@ -175,9 +190,17 @@ export function CalculatorLabPage() {
           <div className="calculator-status">
             <SaveIndicator
               status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+              onRetrySync={() => reconcileConflict(state.stageIndex)}
               onRestoreLocal={
-                state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                state.conflictedLocalDrafts[state.stageIndex] !== undefined ||
+                state.conflictedComponents !== null
                   ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                  : undefined
+              }
+              onDiscardLocal={
+                state.conflictedLocalDrafts[state.stageIndex] !== undefined ||
+                state.conflictedComponents !== null
+                  ? () => dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex })
                   : undefined
               }
             />

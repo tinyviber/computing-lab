@@ -26,6 +26,7 @@ import type {
 import { withTransaction } from "../db/client.ts";
 import {
   advanceStage,
+  bumpComponentsRevision,
   insertSubmission,
   saveStageDraft,
   gateStage,
@@ -103,14 +104,19 @@ export function saveDraft(
   graph: unknown,
   rawComponents?: unknown,
   expectedRevision?: number,
+  expectedComponentsRevision?: number,
 ): DraftSaveResult {
   const submodules =
     rawComponents === undefined
       ? undefined
       : [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
+  // The component library is compare-and-swapped on its own revision inside
+  // the same transaction: a stale list bounces the whole write (the stage
+  // graph may reference the components it was drawn against).
   return saveStageDraft(db, project, stageIndex, sanitizeGraph(graph), {
     unlockedSubmodules: submodules,
     expectedRevision,
+    expectedComponentsRevision,
   });
 }
 
@@ -175,6 +181,7 @@ export function judgeSubmission(
   let currentStage = project.currentStage;
   let passedStages = project.passedStages;
   let unlockedComponent: string | null = null;
+  let componentsRevision: number | null = null;
   const submissionId = withTransaction(db, () => {
     const submissionId = insertSubmission(db, {
       projectId: project.id,
@@ -200,11 +207,13 @@ export function judgeSubmission(
       });
       currentStage = progress.currentStage;
       passedStages = progress.passedStages;
+      componentsRevision = bumpComponentsRevision(db, project.id);
     } else if (rawComponents !== undefined) {
       // Keep learner-made blocks even when the current circuit still needs work.
       db.prepare(
         "UPDATE student_projects SET unlocked_submodules = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = ?",
       ).run(JSON.stringify(submodules), project.id);
+      componentsRevision = bumpComponentsRevision(db, project.id);
     }
     return submissionId;
   });
@@ -218,5 +227,6 @@ export function judgeSubmission(
     currentStage,
     passedStages,
     unlockedComponent,
+    componentsRevision,
   };
 }

@@ -30,9 +30,15 @@ export function CpuLabPage() {
         topbar={
           <SaveIndicator
             status={model.feedback.saveStatus}
+            onRetrySync={controller.actions.retrySyncConflict}
             onRestoreLocal={
               model.feedback.conflictLocalAvailable
                 ? controller.actions.restoreConflictLocal
+                : undefined
+            }
+            onDiscardLocal={
+              model.feedback.conflictLocalAvailable
+                ? controller.actions.discardConflictLocal
                 : undefined
             }
           />

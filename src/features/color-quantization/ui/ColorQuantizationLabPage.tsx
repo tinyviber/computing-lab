@@ -8,7 +8,7 @@ import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
 import { statusForStage } from "../../../shared/lab/saveStatus.ts";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
 import type { QuantJudgeResult, QuantSubmission } from "../domain/protocol.ts";
@@ -112,6 +112,23 @@ export function ColorQuantizationLabPage() {
     // projectLoaded flips in the same batch as load-project, so `state` is fresh.
   }, [projectLoaded]);
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
   useAutosaveDraft<StageDraft>({
     classId,
     labId: "color-quantization",
@@ -128,22 +145,7 @@ export function ColorQuantizationLabPage() {
     // The server dropped this write because a newer one already exists
     // elsewhere: refetch so local state reconciles to the winning draft,
     // then flag the conflict briefly on the stage.
-    onConflict: (s) => {
-      // Reconcile only the conflicted stage against the server's copy —
-      // other stages keep their unsaved local drafts and flags.
-      void fetchProject().then((project) => {
-        if (!project) {
-          dispatch({ type: "mark-save-conflict", stageIndex: s });
-          return;
-        }
-        dispatch({
-          type: "resolve-save-conflict",
-          stageIndex: s,
-          draft: project.drafts?.[s],
-          revision: project.draftRevisions?.[s],
-        });
-      });
-    },
+    onConflict: (s) => reconcileConflict(s),
   });
 
   const canSubmit =
@@ -200,9 +202,15 @@ export function ColorQuantizationLabPage() {
         topbar={
           <SaveIndicator
             status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+            onRetrySync={() => reconcileConflict(state.stageIndex)}
             onRestoreLocal={
               state.conflictedLocalDrafts[state.stageIndex] !== undefined
                 ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                : undefined
+            }
+            onDiscardLocal={
+              state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                ? () => dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex })
                 : undefined
             }
           />

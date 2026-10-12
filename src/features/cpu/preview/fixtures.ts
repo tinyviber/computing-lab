@@ -151,5 +151,7 @@ export function createCpuPreviewActions(record: (action: string) => void): CpuLa
     submit: async () => record("submit"),
     replayCounterexample: () => record("replayCounterexample"),
     restoreConflictLocal: () => record("restoreConflictLocal"),
+    discardConflictLocal: () => record("discardConflictLocal"),
+    retrySyncConflict: () => record("retrySyncConflict"),
   };
 }

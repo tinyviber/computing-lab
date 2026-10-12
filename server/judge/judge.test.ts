@@ -437,13 +437,15 @@ describe("judge persistence and unlocking", () => {
     const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const custom = { name: "TemporaryBlock", graph: halfAdderGraph(), custom: true };
 
-    saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom]);
+    saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom], 0, 0);
     const withCustom = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(withCustom.unlockedSubmodules.map((component) => component.name)).toEqual([
       "TemporaryBlock",
     ]);
 
-    saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, []);
+    // Library writes are compare-and-swapped like stage drafts: the second
+    // call supersedes at the revision the first write was assigned.
+    saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, [], 1, 1);
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.unlockedSubmodules).toEqual([]);
   });

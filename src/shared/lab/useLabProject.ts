@@ -79,3 +79,22 @@ export function useLabProject<TDraft, TExtras, TAction>(options: {
 
   return { projectLoaded, loadError, fetchProject };
 }
+
+/**
+ * One conflict reconcile step shared by every lab's `onConflict`/retry: the
+ * refetch resolves with the payload (reconcile landed — swap the stage's
+ * draft for the server's copy) or `null` (superseded or offline — flag the
+ * stage as sync-error and keep the local draft; an explicit retry is the
+ * only path that can lift the save fence again).
+ */
+export function reconcileConflictedStage<TDraft, TExtras>(options: {
+  fetchProject: () => Promise<(LabProjectPayload<TDraft> & TExtras) | null>;
+  stageIndex: number;
+  onResolved: (stageIndex: number, project: LabProjectPayload<TDraft> & TExtras) => void;
+  onSyncError: (stageIndex: number) => void;
+}): void {
+  void options.fetchProject().then((project) => {
+    if (project) options.onResolved(options.stageIndex, project);
+    else options.onSyncError(options.stageIndex);
+  });
+}
