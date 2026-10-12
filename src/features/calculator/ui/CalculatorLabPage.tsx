@@ -128,9 +128,18 @@ export function CalculatorLabPage() {
     deps: [graph, state.unlockedSubmodules],
     expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
     expectedComponentsRevisionOf: () => state.componentsRevision,
+    // The library edit seq a send carried — echoed back through mark-saved
+    // so only those edits are confirmed; edits after the send stay dirty.
+    componentsSeqOf: () => state.componentsEditSeq,
     onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
-    onSaved: (s, revision, componentsRevision) =>
-      dispatch({ type: "mark-saved", stageIndex: s, revision, componentsRevision }),
+    onSaved: (s, revision, componentsRevision, componentsSeq) =>
+      dispatch({
+        type: "mark-saved",
+        stageIndex: s,
+        revision,
+        componentsRevision,
+        componentsSeq,
+      }),
     onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
     // The server dropped this write because a newer one already exists
     // elsewhere: refetch so local state reconciles to the winning draft,

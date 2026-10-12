@@ -78,9 +78,18 @@ export type CalculatorLessonState = {
   /** Server-assigned revision of the component library — the next save that
    *  carries `components` sends it back as `expectedComponentsRevision`. */
   componentsRevision: number;
+  /** Local edit sequence of the component library: bumped on every mutation
+   *  (create/edit/delete/undo/restore). A save can only confirm the edits it
+   *  actually carried — see componentsConfirmedSeq. */
+  componentsEditSeq: number;
+  /** Highest edit seq an applied save confirmed. Monotonic — a late response
+   *  confirms only the seq its own request carried, never the whole counter,
+   *  so edits made after that send stay unconfirmed. */
+  componentsConfirmedSeq: number;
   /** The learner edited the library since the last sync — only then does a
    *  save carry `components`; an unchanged library can never win-or-lose a
-   *  compare against another device's write. */
+   *  compare against another device's write. Derived: componentsEditSeq >
+   *  componentsConfirmedSeq. */
   componentsChanged: boolean;
   /** The local library a save conflict replaced — restorable like a
    *  conflicted stage draft. */
@@ -169,7 +178,15 @@ export type CalculatorLessonAction =
   | { type: "reset-stage" }
   | { type: "run-public-tests" }
   | { type: "mark-saving"; stageIndex: number }
-  | { type: "mark-saved"; stageIndex: number; revision?: number; componentsRevision?: number }
+  | {
+      type: "mark-saved";
+      stageIndex: number;
+      revision?: number;
+      componentsRevision?: number;
+      /** The library edit seq the confirming save actually carried — only
+       *  edits up to this seq may be marked confirmed. */
+      componentsSeq?: number;
+    }
   | { type: "mark-save-error"; stageIndex: number }
   | { type: "mark-save-sync-error"; stageIndex: number }
   | {
@@ -286,6 +303,8 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     passedStages: [],
     unlockedSubmodules: [],
     componentsRevision: 0,
+    componentsEditSeq: 0,
+    componentsConfirmedSeq: 0,
     componentsChanged: false,
     conflictedComponents: null,
     drafts: { [stageIndex]: scaffoldGraph(stageIndex) },
@@ -596,6 +615,7 @@ function editCustomComponent(
     ...state,
     drafts,
     unlockedSubmodules,
+    componentsEditSeq: state.componentsEditSeq + 1,
     componentsChanged: true,
     past: appendPast(state.past, {
       stageIndex: state.stageIndex,
@@ -643,6 +663,8 @@ export function transitionCalculatorLesson(
         passedStages: action.passedStages,
         unlockedSubmodules: action.unlockedSubmodules,
         componentsRevision: action.componentsRevision ?? 0,
+        componentsEditSeq: 0,
+        componentsConfirmedSeq: 0,
         componentsChanged: false,
         conflictedComponents: null,
         drafts,
@@ -749,6 +771,7 @@ export function transitionCalculatorLesson(
         }),
         nodeMove: null,
         unlockedSubmodules: [...state.unlockedSubmodules, result.component],
+        componentsEditSeq: state.componentsEditSeq + 1,
         componentsChanged: true,
         selectedNodeId: componentNodeId,
         pendingWire: null,
@@ -816,6 +839,7 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         unlockedSubmodules: state.unlockedSubmodules.filter((candidate) => candidate !== component),
+        componentsEditSeq: state.componentsEditSeq + 1,
         componentsChanged: true,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
@@ -913,6 +937,10 @@ export function transitionCalculatorLesson(
         drafts: top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph },
         unlockedSubmodules: top.unlockedSubmodules ?? settled.unlockedSubmodules,
         // An undo that rewrote the library is a library change too.
+        componentsEditSeq:
+          top.unlockedSubmodules !== undefined
+            ? settled.componentsEditSeq + 1
+            : settled.componentsEditSeq,
         componentsChanged: top.unlockedSubmodules !== undefined || settled.componentsChanged,
         past: settled.past.slice(0, -1),
         nodeMove: null,
@@ -943,19 +971,34 @@ export function transitionCalculatorLesson(
       // A saved write does NOT drop the stage's conflict backup — the
       // recoverable local copy stays until the learner restores or
       // explicitly discards it.
+      //
+      // The response confirms ONLY the component edits its request actually
+      // carried (`componentsSeq`, captured at send time) — edits made after
+      // that send keep the library dirty and ride the next save, whatever
+      // stage this response belongs to. The counter itself is monotonic:
+      // an older response may never drag componentsRevision (or a stage's
+      // draft revision) backwards.
+      const confirmedComponentsSeq =
+        typeof action.componentsSeq === "number"
+          ? Math.max(state.componentsConfirmedSeq, action.componentsSeq)
+          : state.componentsConfirmedSeq;
       return {
         ...state,
         componentsRevision:
           typeof action.componentsRevision === "number"
-            ? action.componentsRevision
+            ? Math.max(state.componentsRevision, action.componentsRevision)
             : state.componentsRevision,
-        // The save that carried components reports their new revision — the
-        // library is back in sync with the server.
-        componentsChanged:
-          typeof action.componentsRevision === "number" ? false : state.componentsChanged,
+        componentsConfirmedSeq: confirmedComponentsSeq,
+        componentsChanged: state.componentsEditSeq > confirmedComponentsSeq,
         draftRevisions:
           typeof action.revision === "number"
-            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            ? {
+                ...state.draftRevisions,
+                [action.stageIndex]: Math.max(
+                  state.draftRevisions[action.stageIndex] ?? 0,
+                  action.revision,
+                ),
+              }
             : state.draftRevisions,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
       };
@@ -1004,11 +1047,20 @@ export function transitionCalculatorLesson(
       const localDraft = state.drafts[action.stageIndex];
       if (localDraft !== undefined) conflictedLocalDrafts[action.stageIndex] = localDraft;
       // The server's component library replaces the local one in the same
-      // reconcile — the replaced local library is stashed as a restorable
-      // backup, but only when it actually differs (an identical server copy
-      // creates no backup and never clobbers an earlier one).
-      const libraryDiffers =
+      // reconcile — but only as the (snapshot, revision) pair the server
+      // versions it at, and only while that pair is not older than what the
+      // client already holds. A stale project read racing a newer judge
+      // write would otherwise regress both, or take the older list while
+      // keeping the newer counter — the stale-list overwrite hole again.
+      const adoptsServerLibrary =
         action.unlockedSubmodules !== undefined &&
+        typeof action.componentsRevision === "number" &&
+        action.componentsRevision >= state.componentsRevision;
+      // The replaced local library is stashed as a restorable backup, but
+      // only when it actually differs (an identical server copy creates no
+      // backup and never clobbers an earlier one).
+      const libraryDiffers =
+        adoptsServerLibrary &&
         JSON.stringify(action.unlockedSubmodules) !== JSON.stringify(state.unlockedSubmodules);
       return {
         ...state,
@@ -1022,18 +1074,33 @@ export function transitionCalculatorLesson(
           action.stageIndex,
           false,
         ),
-        unlockedSubmodules: action.unlockedSubmodules ?? state.unlockedSubmodules,
+        unlockedSubmodules: adoptsServerLibrary
+          ? (action.unlockedSubmodules ?? state.unlockedSubmodules)
+          : state.unlockedSubmodules,
         conflictedComponents: libraryDiffers
           ? state.unlockedSubmodules
           : state.conflictedComponents,
-        componentsRevision:
-          typeof action.componentsRevision === "number"
-            ? action.componentsRevision
-            : state.componentsRevision,
+        componentsRevision: adoptsServerLibrary
+          ? (action.componentsRevision ?? state.componentsRevision)
+          : state.componentsRevision,
+        // The adopted server library resolves every local edit it replaced —
+        // they live on only in the restorable backup, so the confirmed seq
+        // catches up to the edit seq instead of leaving the library dirty.
+        componentsConfirmedSeq: libraryDiffers
+          ? state.componentsEditSeq
+          : state.componentsConfirmedSeq,
         componentsChanged: libraryDiffers ? false : state.componentsChanged,
+        // Stage revisions are monotone too: a stale reconcile may never
+        // move the counter a future expectedRevision is built on backwards.
         draftRevisions:
           typeof action.revision === "number"
-            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            ? {
+                ...state.draftRevisions,
+                [action.stageIndex]: Math.max(
+                  state.draftRevisions[action.stageIndex] ?? 0,
+                  action.revision,
+                ),
+              }
             : state.draftRevisions,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
         // Undo history survives: restoring a pre-conflict snapshot marks the
@@ -1072,6 +1139,10 @@ export function transitionCalculatorLesson(
           false,
         ),
         unlockedSubmodules: components ?? state.unlockedSubmodules,
+        // Restoring the stashed library is a new local edit: it must ride the
+        // next save like any other unconfirmed change.
+        componentsEditSeq:
+          components !== null ? state.componentsEditSeq + 1 : state.componentsEditSeq,
         componentsChanged: components !== null ? true : state.componentsChanged,
         conflictedComponents: null,
         saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
@@ -1121,21 +1192,30 @@ export function transitionCalculatorLesson(
       // as a fallback for a response that names an unlock without the
       // snapshot (the new server always sends both).
       const serverLibrary = action.outcome.unlockedSubmodules ?? undefined;
-      const submodules =
-        serverLibrary ??
-        (unlocked
+      // Adopt the judge's (snapshot, revision) pair only while it is not
+      // older than the revision the client already holds — the pair is
+      // atomic: taking an older snapshot at an older confirmed counter would
+      // regress both, and clamping the counter alone would let that stale
+      // list claim a revision it holds no snapshot for.
+      const adoptsServerLibrary =
+        serverLibrary !== undefined &&
+        typeof action.outcome.componentsRevision === "number" &&
+        action.outcome.componentsRevision >= state.componentsRevision;
+      const submodules = adoptsServerLibrary
+        ? serverLibrary
+        : serverLibrary === undefined && unlocked
           ? [
               ...state.unlockedSubmodules.filter(
                 (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
               ),
               { name: unlocked, graph: graphOf(state) },
             ]
-          : state.unlockedSubmodules);
+          : state.unlockedSubmodules;
       // Unsaved local component edits are never merged into the snapshot
       // silently — they move into the same restorable backup a save
       // conflict produces, so the learner keeps an explicit restore path.
       const libraryDiffers =
-        serverLibrary !== undefined &&
+        adoptsServerLibrary &&
         JSON.stringify(serverLibrary) !== JSON.stringify(state.unlockedSubmodules);
       // Stages may now pass out of order; merge the judged stage into the
       // server-reported set and derive progress from it.
@@ -1156,10 +1236,12 @@ export function transitionCalculatorLesson(
         // revision — adopt it, but only together with the snapshot it
         // versions: a bare counter would let a stale list claim a
         // revision it holds no snapshot for.
-        componentsRevision:
-          serverLibrary !== undefined && typeof action.outcome.componentsRevision === "number"
-            ? action.outcome.componentsRevision
-            : state.componentsRevision,
+        componentsRevision: adoptsServerLibrary
+          ? (action.outcome.componentsRevision ?? state.componentsRevision)
+          : state.componentsRevision,
+        componentsConfirmedSeq: libraryDiffers
+          ? state.componentsEditSeq
+          : state.componentsConfirmedSeq,
         componentsChanged: libraryDiffers ? false : state.componentsChanged,
         message: action.outcome.passed
           ? unlocked

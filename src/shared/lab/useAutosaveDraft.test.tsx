@@ -167,7 +167,7 @@ describe("useAutosaveDraft", () => {
     await flush();
     // 被取代的旧臂不回报；只有最终臂的 applied 结果落到 saved。
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(1, 6, undefined);
+    expect(onSaved).toHaveBeenCalledWith(1, 6, undefined, undefined);
     expect(onError).not.toHaveBeenCalled();
   });
 
@@ -219,7 +219,7 @@ describe("useAutosaveDraft", () => {
     await flush();
     expect(onConflict).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(1, 6, 2);
+    expect(onSaved).toHaveBeenCalledWith(1, 6, 2, undefined);
     expect(stateRev).toBe(0);
   });
 
@@ -595,7 +595,7 @@ describe("useAutosaveDraft", () => {
     calls[1].done.resolve(ok(true, 3));
     await flush();
     expect(onSaved).toHaveBeenCalledTimes(1);
-    expect(onSaved).toHaveBeenCalledWith(1, 3, undefined);
+    expect(onSaved).toHaveBeenCalledWith(1, 3, undefined, undefined);
   });
 
   it("reports a rejection only while its arm is still current", async () => {

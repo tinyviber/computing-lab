@@ -59,7 +59,10 @@ type DraftSaveResponse = {
  *   revision into a false conflict), and a REFUSED component write fences
  *   every later component-carrying send — not only the refusing stage's —
  *   until the lesson state resyncs BOTH the library snapshot and its
- *   revision. The revision a refusal reports is a resync target, never an
+ *   revision. A fenced send is PARKED, never dropped: its stage keeps a
+ *   pending save task that re-sends once the resync lifts the fence, so a
+ *   fenced stage can never end up with neither a save task nor a recovery
+ *   path. The revision a refusal reports is a resync target, never an
  *   adopted counter: the client may only claim a new library revision
  *   after its own write applied or a full snapshot landed (the reconcile
  *   path delivers them together).
@@ -86,12 +89,23 @@ export function useAutosaveDraft<TDraft>(options: {
    *  likewise read when a request sends, so a queued arm always carries
    *  the freshest counter rather than the one from arm time. */
   expectedComponentsRevisionOf?: () => number;
+  /** The library's local edit sequence (calculator only), read when a
+   *  component-carrying request sends. Its value is echoed back through
+   *  `onSaved`'s `componentsSeq`, so the caller confirms exactly the edits
+   *  the request carried — edits made after the send stay unconfirmed and
+   *  keep `components` attached to later saves. */
+  componentsSeqOf?: () => number;
   /** PUT body; defaults to `{ stageIndex, draft }`. `expectedRevision` is merged in. */
   bodyFor?: (stageIndex: number, draft: TDraft) => Record<string, unknown>;
   /** Extra inputs (e.g. unlocked components) whose change re-arms the timer. */
   deps?: unknown[];
   onSaving: (stageIndex: number) => void;
-  onSaved: (stageIndex: number, revision?: number, componentsRevision?: number) => void;
+  onSaved: (
+    stageIndex: number,
+    revision?: number,
+    componentsRevision?: number,
+    componentsSeq?: number,
+  ) => void;
   onError: (stageIndex: number) => void;
   /** The server dropped the stage's latest write because a newer one exists
    *  elsewhere — the caller should refetch the project and reconcile the
@@ -177,6 +191,10 @@ export function useAutosaveDraft<TDraft>(options: {
       expectedRevision,
     } as Record<string, unknown>;
     const carriesComponents = body.components !== undefined;
+    // The library edit seq this send carried — echoed to onSaved so the
+    // caller confirms only the edits the request contained, never the ones
+    // made after it left.
+    let sentComponentsSeq: number | undefined;
     // The library's expected counter joins the body only when the save
     // actually carries components — and, like expectedRevision, it is
     // computed here rather than in bodyFor so an arm that queued behind an
@@ -186,17 +204,22 @@ export function useAutosaveDraft<TDraft>(options: {
         appliedComponentsRev.current,
         opts.expectedComponentsRevisionOf(),
       );
+      sentComponentsSeq = opts.componentsSeqOf?.();
       // The library is shared across stages, so its fences are too. While
       // the refusal's reconcile is still delivering the server snapshot,
       // this arm's library predates the resync — sending it under the
       // reported revision is the stale-list overwrite hole in another tab's
-      // favor. Drop it instead: the dirty flag re-arms once the snapshot
-      // lands (the refusal's onConflict already started that reconcile),
-      // and unsaved local edits keep the restorable-conflict path.
+      // favor. Park it instead: the arm keeps its draft snapshot and its
+      // place in the stage's arm queue, so the stage still has a pending
+      // save task — the flush effect re-sends it once the lesson state has
+      // resynced to the fence's revision (the refusal's onConflict already
+      // started that reconcile). Deleting it would strand the stage's draft
+      // with no save task and no recovery path.
       const fenceRev = componentsFenceRev.current;
       if (fenceRev !== null && opts.expectedComponentsRevisionOf() < fenceRev) {
-        armDraft.current.delete(arm);
-        if (latestArm.current.get(stage) === arm) latestArm.current.delete(stage);
+        const prev = queuedArm.current.get(stage);
+        if (prev !== undefined) armDraft.current.delete(prev);
+        queuedArm.current.set(stage, arm);
         return;
       }
       // One component write in flight at a time project-wide: a second
@@ -272,7 +295,7 @@ export function useAutosaveDraft<TDraft>(options: {
         // report; this arm was superseded whether it applied or not.
         flushQueuedArms();
         if (latestArm.current.get(stage) !== arm) return;
-        opts.onSaved(stage, rev, componentsRev);
+        opts.onSaved(stage, rev, componentsRev, sentComponentsSeq);
       })
       .catch(() => {
         if (generation.current !== gen) return;
@@ -335,6 +358,21 @@ export function useAutosaveDraft<TDraft>(options: {
     // timer only re-arms on the stable inputs below — never on every render,
     // and never just because saveStatus flipped.
   }, [saveStatus, stageIndex, classId, labId, ...deps]);
+
+  // Lift the project-wide components fence once the lesson state has
+  // resynced to the revision the refusal reported (a reconcile, a judge
+  // adoption, or a project reload all raise the reducer's counter). Parked
+  // arms then re-send through sendNow — a still-occupied components slot
+  // simply re-parks them. Runs after every render because the resync lands
+  // in the caller's reducer, not in any ref the arm effect depends on.
+  useEffect(() => {
+    const fenceRev = componentsFenceRev.current;
+    if (fenceRev === null) return;
+    const resynced = (latestOptions.current.expectedComponentsRevisionOf?.() ?? 0) >= fenceRev;
+    if (!resynced) return;
+    componentsFenceRev.current = null;
+    flushQueuedArms();
+  });
 
   // Unmount or class switch: nothing armed for this context should still fire,
   // and nothing already in flight may report back into the new context — the
