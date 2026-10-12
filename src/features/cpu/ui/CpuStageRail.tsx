@@ -1,5 +1,5 @@
 import { StageLink } from "../../../shared/lab/StageRail";
-import { CPU_CORE_STAGES, CPU_STAGES, type CpuStageDef } from "../domain/stages.ts";
+import type { CpuLabViewModel, CpuStageItem } from "../controller/viewModel.ts";
 
 /**
  * The cpu lab rail: the three 点餐机 core stages in order (按一下时钟 →
@@ -8,44 +8,31 @@ import { CPU_CORE_STAGES, CPU_STAGES, type CpuStageDef } from "../domain/stages.
  * (same pattern as the calculator rail). Challenges without an anchor
  * would land in a bottom 选做挑战 group.
  */
-export function CpuStageRail(props: {
-  stageIndex: number;
-  passedStages: readonly number[];
-  unlocked: (stage: CpuStageDef) => boolean;
+export function CpuStageRail({
+  model,
+  onSelect,
+}: {
+  model: CpuLabViewModel["rail"];
   onSelect: (index: number) => void;
 }) {
-  const { stageIndex, passedStages, unlocked, onSelect } = props;
-  const challenges = CPU_STAGES.filter((s) => s.track === "challenge");
-  const corePassed = CPU_CORE_STAGES.filter((s) => passedStages.includes(s.index)).length;
-
-  const optionalByAnchor = new Map<number, CpuStageDef[]>();
-  for (const challenge of challenges) {
-    if (challenge.railAfter === undefined) continue;
-    const stages = optionalByAnchor.get(challenge.railAfter) ?? [];
-    stages.push(challenge);
-    optionalByAnchor.set(challenge.railAfter, stages);
-  }
-  const lateChallenges = challenges.filter((s) => s.railAfter === undefined);
-
-  const renderStage = (stage: CpuStageDef, optional = false) => (
+  const renderStage = (stage: CpuStageItem, optional = false) => (
     <li key={stage.id}>
       <StageLink
-        active={stage.index === stageIndex}
+        active={stage.active}
         onSelect={() => onSelect(stage.index)}
         optional={optional}
-        passed={passedStages.includes(stage.index)}
+        passed={stage.passed}
         subtitle={stage.englishTitle}
         title={stage.title}
-        unlocked={unlocked(stage)}
+        unlocked={stage.unlocked}
       />
     </li>
   );
 
-  const renderOptionalBranch = (anchor: number) => {
-    const stages = optionalByAnchor.get(anchor) ?? [];
+  const renderOptionalBranch = (anchor: number, stages: readonly CpuStageItem[]) => {
     if (stages.length === 0) return null;
-    const passed = stages.filter((s) => passedStages.includes(s.index)).length;
-    const active = stages.some((s) => s.index === stageIndex);
+    const passed = stages.filter((s) => s.passed).length;
+    const active = stages.some((s) => s.active);
     return (
       <li className="stage-branch-item" key={`branch-${anchor}`}>
         <details className="stage-branch" open={active}>
@@ -68,19 +55,19 @@ export function CpuStageRail(props: {
       <p className="eyebrow">
         冯诺依曼数据通路{" "}
         <span className="cpu-rail-count">
-          {corePassed} / {CPU_CORE_STAGES.length} 主线
+          {model.corePassed} / {model.coreTotal} 主线
         </span>
       </p>
       <ol className="stage-list">
-        {CPU_CORE_STAGES.flatMap((stage) => [
+        {model.core.flatMap(({ stage, challenges }) => [
           renderStage(stage),
-          renderOptionalBranch(stage.index),
+          renderOptionalBranch(stage.index, challenges),
         ])}
       </ol>
-      {lateChallenges.length > 0 ? (
+      {model.challenges.length > 0 ? (
         <div className="cpu-rail-challenges">
           <p className="cpu-rail-group">选做挑战</p>
-          <ol className="stage-list">{lateChallenges.map((stage) => renderStage(stage))}</ol>
+          <ol className="stage-list">{model.challenges.map((stage) => renderStage(stage))}</ol>
         </div>
       ) : null}
     </aside>

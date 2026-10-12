@@ -1,3 +1,4 @@
+import type { CpuPhase } from "../controller/viewModel.ts";
 import type { OpName } from "../domain/isa.ts";
 import type { TraceRow } from "../domain/machine.ts";
 
@@ -70,8 +71,6 @@ const EXEC_WIRES: Record<OpName, { parts: PartId[]; wires: WireId[] }> = {
   LDI: { parts: ["ctrl"], wires: ["imm"] },
   HALT: { parts: ["ctrl"], wires: [] },
 };
-
-export type CpuPhase = "fetch" | "decode" | "exec";
 
 const PHASE_PARTS: Record<CpuPhase, { parts: PartId[]; wires: WireId[] }> = {
   fetch: { parts: ["ctrl", "mem"], wires: ["addr", "instr"] },

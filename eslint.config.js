@@ -35,7 +35,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          patterns: ["**/app/**", "**/features/**"],
+          patterns: [{ group: ["**/app/**"] }, { group: ["**/features/**"] }],
         },
       ],
     },
@@ -47,7 +47,17 @@ export default tseslint.config(
         "error",
         {
           paths: ["react", "react-dom"],
-          patterns: ["**/ui/**", "**/app/**", "**/features/**"],
+          patterns: [
+            { group: ["**/ui/**"] },
+            { group: ["**/app/**"] },
+            { group: ["**/features/**"] },
+            { group: ["**/controller/**"] },
+            { group: ["**/lesson/**"] },
+            {
+              group: ["**/shared/api/**", "**/shared/auth/**", "**/shared/lab/**"],
+              allowTypeImports: true,
+            },
+          ],
         },
       ],
     },
@@ -58,7 +68,7 @@ export default tseslint.config(
       "no-restricted-imports": [
         "error",
         {
-          patterns: ["**/App", "**/app/**"],
+          patterns: [{ group: ["**/App"] }, { group: ["**/app/**"] }],
         },
       ],
     },
@@ -70,18 +80,101 @@ export default tseslint.config(
         "error",
         {
           paths: ["react", "react-dom", "@tanstack/react-router"],
-          patterns: ["**/app/**", "**/ui/**"],
+          patterns: [
+            { group: ["**/app/**"] },
+            { group: ["**/ui/**"] },
+            { group: ["**/controller/**"] },
+            {
+              group: ["**/shared/api/**", "**/shared/auth/**", "**/shared/lab/**"],
+              allowTypeImports: true,
+            },
+          ],
         },
       ],
     },
   },
   {
-    files: ["src/features/**/ui/**/*.{ts,tsx}"],
+    files: ["src/features/**/controller/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
         "error",
         {
-          patterns: ["**/app/**"],
+          patterns: [
+            { group: ["**/ui/**"] },
+            { group: ["**/preview/**"] },
+            { group: ["**/app/**"] },
+            { group: ["**/*.css"] },
+            { group: ["**/server/**"] },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // Pilot boundary: other lab pages still own their application logic.
+    files: ["src/features/cpu/ui/**/*.{ts,tsx}"],
+    ignores: ["src/features/cpu/ui/CpuLabPage.tsx"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { group: ["**/app/**"] },
+            { group: ["**/server/**"] },
+            { group: ["**/preview/**"] },
+            { group: ["**/shared/api/**"] },
+            { group: ["**/shared/auth"] },
+            { group: ["**/shared/auth/**"] },
+            { group: ["**/shared/lab/use*"] },
+            {
+              group: [
+                "**/controller/**",
+                "**/lesson/**",
+                "**/domain/machine*",
+                "**/domain/stages*",
+                "**/domain/fixtures*",
+              ],
+              allowTypeImports: true,
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/features/**/preview/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            { group: ["**/server/**"] },
+            { group: ["**/shared/api/**"] },
+            { group: ["**/shared/auth"] },
+            { group: ["**/shared/auth/**"] },
+            { group: ["**/shared/lab/use*"] },
+            { group: ["**/controller/use*"] },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["server/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: ["react", "react-dom"],
+          patterns: [
+            { group: ["react/**"] },
+            { group: ["react-dom/**"] },
+            { group: ["**/ui/**"] },
+            { group: ["**/controller/**"] },
+            { group: ["**/preview/**"] },
+            { group: ["**/shared/auth/**"] },
+            { group: ["**/shared/lab/**"] },
+          ],
         },
       ],
     },
