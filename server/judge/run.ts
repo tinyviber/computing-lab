@@ -109,7 +109,7 @@ export function saveDraft(
   const submodules =
     rawComponents === undefined
       ? undefined
-      : [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
+      : [...mergeCustomComponents(project.unlockedSubmodules as ComponentDef[], rawComponents)];
   // The component library is compare-and-swapped on its own revision inside
   // the same transaction: a stale list bounces the whole write (the stage
   // graph may reference the components it was drawn against).
@@ -141,7 +141,9 @@ export function judgeSubmission(
   // reference learner-made components not yet autosaved, so judging runs
   // against the merged view. It is never written back: the library's
   // authoritative copy is re-read inside the write transaction below.
-  const evalSubmodules = [...mergeCustomComponents(project.unlockedSubmodules, rawComponents)];
+  const evalSubmodules = [
+    ...mergeCustomComponents(project.unlockedSubmodules as ComponentDef[], rawComponents),
+  ];
   const cases = hiddenTestsFor(stageIndex);
   // Structural gate before any truth-table work: a graph whose contract is
   // already broken (missing/undriven pins, multi-driven ports) fails here

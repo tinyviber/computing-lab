@@ -4,6 +4,7 @@ import { getOrCreateProject } from "./pipeline.ts";
 import { judgeSubmission, saveDraft } from "./run.ts";
 import { hiddenTestsFor } from "./testcases.ts";
 import { runCases } from "../../src/features/calculator/domain/evaluate.ts";
+import type { ComponentDef } from "../../src/features/calculator/domain/graph.ts";
 import {
   add4Graph,
   calculatorGraph,
@@ -226,7 +227,9 @@ describe("judge persistence and unlocking", () => {
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.currentStage).toBe(3);
     expect(reloaded.passedStages).toEqual([2]);
-    expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(["HalfAdder"]);
+    expect((reloaded.unlockedSubmodules as ComponentDef[]).map((s) => s.name)).toEqual([
+      "HalfAdder",
+    ]);
 
     // The unlocked component is usable by the next stage.
     const stage2 = judgeSubmission(db, reloaded, 3, fullAdderGraph());
@@ -278,8 +281,10 @@ describe("judge persistence and unlocking", () => {
     // write keeps just the server copy plus the judge's own unlock grant —
     // PackedHalfAdder persists through the draft OCC save path, not judge.
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
-    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual(["HalfAdder"]);
-    expect(reloaded.unlockedSubmodules[0].custom).toBeUndefined();
+    expect(
+      (reloaded.unlockedSubmodules as ComponentDef[]).map((component) => component.name),
+    ).toEqual(["HalfAdder"]);
+    expect((reloaded.unlockedSubmodules as ComponentDef[])[0].custom).toBeUndefined();
   });
 
   it("never lets a stale tab's judgement overwrite another tab's fresh components", () => {
@@ -299,7 +304,9 @@ describe("judge persistence and unlocking", () => {
     expect(failing.passed).toBe(false);
     expect(failing.componentsRevision).toBeNull();
     let reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
-    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual(["FreshGate"]);
+    expect(
+      (reloaded.unlockedSubmodules as ComponentDef[]).map((component) => component.name),
+    ).toEqual(["FreshGate"]);
     expect(reloaded.draftRevisions.components).toBe(1);
 
     // Even a PASSING judgement only adds the stage's own unlock to the
@@ -309,10 +316,9 @@ describe("judge persistence and unlocking", () => {
     expect(passing.passed).toBe(true);
     expect(passing.unlockedComponent).toBe("HalfAdder");
     reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
-    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
-      "FreshGate",
-      "HalfAdder",
-    ]);
+    expect(
+      (reloaded.unlockedSubmodules as ComponentDef[]).map((component) => component.name),
+    ).toEqual(["FreshGate", "HalfAdder"]);
     expect(reloaded.draftRevisions.components).toBe(2);
 
     // The judgement answers its library write with the full authoritative
@@ -340,11 +346,9 @@ describe("judge persistence and unlocking", () => {
     );
     expect(accepted).toMatchObject({ applied: true, componentsRevision: 3 });
     reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
-    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
-      "FreshGate",
-      "HalfAdder",
-      "AGate",
-    ]);
+    expect(
+      (reloaded.unlockedSubmodules as ComponentDef[]).map((component) => component.name),
+    ).toEqual(["FreshGate", "HalfAdder", "AGate"]);
   });
 
   it("does not advance on a partial pass but records the score", () => {
@@ -447,7 +451,7 @@ describe("judge persistence and unlocking", () => {
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.passedStages).toEqual([2, 3]);
     expect(reloaded.currentStage).toBe(4);
-    expect(reloaded.unlockedSubmodules.map((s) => s.name)).toEqual(
+    expect((reloaded.unlockedSubmodules as ComponentDef[]).map((s) => s.name)).toEqual(
       expect.arrayContaining(["HalfAdder", "FullAdder"]),
     );
   });
@@ -504,9 +508,9 @@ describe("judge persistence and unlocking", () => {
 
     saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom], 0, 0);
     const withCustom = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
-    expect(withCustom.unlockedSubmodules.map((component) => component.name)).toEqual([
-      "TemporaryBlock",
-    ]);
+    expect(
+      (withCustom.unlockedSubmodules as ComponentDef[]).map((component) => component.name),
+    ).toEqual(["TemporaryBlock"]);
 
     // Library writes are compare-and-swapped like stage drafts: the second
     // call supersedes at the revision the first write was assigned.
