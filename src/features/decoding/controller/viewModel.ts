@@ -51,6 +51,9 @@ export type DecodingLabViewModel = Readonly<{
   }>;
   feedback: Readonly<{
     saveStatus: SaveStatus;
+    /** A post-refusal reconcile fetch failed and is still unreconciled —
+     *  the retry stays visible while set, even when the flag reads dirty. */
+    unresolvedSyncConflict: boolean;
     /** A pre-conflict local draft of this stage is recoverable. */
     conflictLocalAvailable: boolean;
     message: string | null;

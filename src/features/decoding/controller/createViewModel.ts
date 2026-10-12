@@ -4,7 +4,7 @@
  * renders is computed here from lesson state + execution channel outputs.
  */
 
-import { statusForStage } from "../../../shared/lab/saveStatus.ts";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
 import { decodeBmp, pixelDiffCount, type PixelHover, type PixelMatrix } from "../domain/bmp.ts";
 import { assembleCloze, clozeComplete, hasCloze } from "../domain/cloze.ts";
 import type { DecodingDraft, LabPayload } from "../domain/protocol.ts";
@@ -101,6 +101,7 @@ export function createDecodingViewModel(input: {
     },
     feedback: {
       saveStatus: statusForStage(state.saveStatusByStage, state.stageIndex),
+      unresolvedSyncConflict: syncConflictForStage(state.unresolvedSyncConflicts, state.stageIndex),
       conflictLocalAvailable: state.conflictedLocalDrafts[state.stageIndex] !== undefined,
       message: state.message,
       error: input.loadError ?? input.submitError,

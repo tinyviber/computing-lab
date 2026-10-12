@@ -44,6 +44,7 @@ export function DecodingLabPage() {
         topbar={
           <SaveIndicator
             status={model.feedback.saveStatus}
+            unresolvedSyncConflict={model.feedback.unresolvedSyncConflict}
             onRetrySync={controller.actions.retrySyncConflict}
             onRestoreLocal={
               model.feedback.conflictLocalAvailable
