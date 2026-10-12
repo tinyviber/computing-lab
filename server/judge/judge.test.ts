@@ -314,6 +314,37 @@ describe("judge persistence and unlocking", () => {
       "HalfAdder",
     ]);
     expect(reloaded.draftRevisions.components).toBe(2);
+
+    // The judgement answers its library write with the full authoritative
+    // snapshot, not just a revision number: tab A adopts it wholesale, so
+    // its own next save carries BOTH B's component and the unlock under the
+    // claimed revision — FreshGate must still be there afterwards.
+    expect(passing.componentsRevision).toBe(2);
+    expect(passing.unlockedSubmodules?.map((component) => component.name)).toEqual([
+      "FreshGate",
+      "HalfAdder",
+    ]);
+    const aGate = { name: "AGate", graph: { nodes: [], edges: [] }, custom: true };
+    const adopted = passing.unlockedSubmodules ?? [];
+    // Each PUT loads its own project row — the request-time read is what
+    // the merge classifies against, never a tab's stale snapshot.
+    const requestProject = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    const accepted = saveDraft(
+      db,
+      requestProject,
+      3,
+      { nodes: [], edges: [] },
+      [...adopted, aGate],
+      0,
+      passing.componentsRevision ?? 0,
+    );
+    expect(accepted).toMatchObject({ applied: true, componentsRevision: 3 });
+    reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
+      "FreshGate",
+      "HalfAdder",
+      "AGate",
+    ]);
   });
 
   it("does not advance on a partial pass but records the score", () => {

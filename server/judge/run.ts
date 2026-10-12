@@ -186,6 +186,7 @@ export function judgeSubmission(
   let passedStages = project.passedStages;
   let unlockedComponent: string | null = null;
   let componentsRevision: number | null = null;
+  let unlockedSubmodules: ComponentDef[] | null = null;
   const submissionId = withTransaction(db, () => {
     const submissionId = insertSubmission(db, {
       projectId: project.id,
@@ -227,7 +228,14 @@ export function judgeSubmission(
       );
       currentStage = progress.currentStage;
       passedStages = progress.passedStages;
-      if (library !== undefined) componentsRevision = bumpComponentsRevision(db, project.id);
+      if (library !== undefined) {
+        componentsRevision = bumpComponentsRevision(db, project.id);
+        // The authoritative library after this write: the client must
+        // adopt it wholesale together with its revision — a bare revision
+        // bump would let a stale local list claim it and clobber another
+        // tab's components on the next save.
+        unlockedSubmodules = library;
+      }
     }
     return submissionId;
   });
@@ -242,5 +250,6 @@ export function judgeSubmission(
     passedStages,
     unlockedComponent,
     componentsRevision,
+    unlockedSubmodules,
   };
 }

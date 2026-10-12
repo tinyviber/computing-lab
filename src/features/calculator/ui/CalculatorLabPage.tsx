@@ -162,6 +162,7 @@ export function CalculatorLabPage() {
           passedStages: result.passedStages,
           error: result.testSummary.error,
           unlockedComponent: result.unlockedComponent,
+          unlockedSubmodules: result.unlockedSubmodules,
           componentsRevision: result.componentsRevision,
         },
       });

@@ -223,6 +223,98 @@ describe("useAutosaveDraft", () => {
     expect(stateRev).toBe(0);
   });
 
+  it("serializes component saves across stages, never racing two library writes", async () => {
+    // Stage-1 的组件写入在途时 stage-2 的组件保存只能排队 —— 同一客户端的
+    // 两笔库写入并发必有一笔带着对方签发前的 expectedComponentsRevision
+    // 出去，被服务器顶成伪冲突。放行后重算期望值。
+    const onConflict = vi.fn();
+    let stateRev = 0;
+    const lib = [{ name: "MyGate", graph: { nodes: [], edges: [] }, custom: true }];
+    const props = (over: Partial<Params> = {}) =>
+      base({
+        bodyFor: (s, draft) => ({ stageIndex: s, graph: draft, components: lib }),
+        expectedComponentsRevisionOf: () => stateRev,
+        onConflict,
+        ...over,
+      });
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: props({ stageIndex: 1, deps: [1] }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].body.stageIndex).toBe(1);
+    expect(calls[0].body.expectedComponentsRevision).toBe(0);
+
+    // stage-2 的组件保存在 stage-1 在途时不得发出。
+    rerender(props({ stageIndex: 2, deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // stage-1 落地：排队臂带着它签发的组件计数重发。
+    calls[0].done.resolve(ok(true, 5, 1));
+    await flush();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.stageIndex).toBe(2);
+    expect(calls[1].body.expectedComponentsRevision).toBe(1);
+
+    calls[1].done.resolve(ok(true, 6, 2));
+    await flush();
+    expect(onConflict).not.toHaveBeenCalled();
+  });
+
+  it("fences every component write project-wide until the library resyncs", async () => {
+    // Stage-1 的组件保存被拒（服务端组件库已被另一标签推进到 1）：拒绝
+    // 只报数不交付快照，appliedComponentsRev 不得吸收这个 revision ——
+    // 在整库调和落地前，任何关卡都不得携带陈旧组件表 + 新期望号发出。
+    const onConflict = vi.fn();
+    let stateRev = 0;
+    const lib = [{ name: "MyGate", graph: { nodes: [], edges: [] }, custom: true }];
+    const props = (over: Partial<Params> = {}) =>
+      base({
+        bodyFor: (s, draft) => ({ stageIndex: s, graph: draft, components: lib }),
+        expectedComponentsRevisionOf: () => stateRev,
+        onConflict,
+        ...over,
+      });
+    const { rerender } = renderHook((p: Params) => useAutosaveDraft(p), {
+      initialProps: props({ stageIndex: 1, deps: [1] }),
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(calls[0].body.stageIndex).toBe(1);
+    expect(calls[0].body.expectedComponentsRevision).toBe(0);
+
+    calls[0].done.resolve(ok(false, 5, 1));
+    await flush();
+    expect(onConflict).toHaveBeenCalledWith(1);
+
+    // 调和未落前 stage-2 的组件保存：栅栏挡住，绝不能带着陈旧库发出 —
+    // 旧实现会把拒绝回报的 1 当成已采用计数放它出去，静默顶掉另一标签。
+    rerender(props({ stageIndex: 2, deps: [2] }));
+    await act(async () => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+
+    // 调和落地（reducer 记下服务端库及其 revision 1）→ 栅栏解除，下一笔
+    // 以正确的期望号合法续写。
+    stateRev = 1;
+    rerender(props({ stageIndex: 2, saveStatus: "conflict", deps: [2] }));
+    rerender(props({ stageIndex: 2, deps: [3] }));
+    await act(async () => {
+      vi.advanceTimersByTime(1500);
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(calls[1].body.stageIndex).toBe(2);
+    expect(calls[1].body.expectedComponentsRevision).toBe(1);
+  });
+
   it("never reports a server-dropped stale write as saved", async () => {
     const onSaved = vi.fn();
     renderHook((p: Params) => useAutosaveDraft(p), {

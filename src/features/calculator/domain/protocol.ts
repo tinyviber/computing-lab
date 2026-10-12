@@ -41,6 +41,11 @@ export type CalculatorJudgeResult = {
    *  components-carrying save compares against it (null when the library
    *  was untouched). */
   componentsRevision: number | null;
+  /** The full authoritative component library after the judgement's write
+   *  — set exactly when the library mutated (same condition as
+   *  componentsRevision). The client adopts this snapshot together with
+   *  the revision; a revision never travels without its snapshot. */
+  unlockedSubmodules: ComponentDef[] | null;
 };
 
 /** GET /project payload: the generic lab envelope plus unlocked components. */

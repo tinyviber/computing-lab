@@ -105,6 +105,7 @@ describe("calculator lesson state", () => {
         error: null,
         unlockedComponent: null,
         componentsRevision: null,
+        unlockedSubmodules: null,
       },
     });
     expect(completed.passedStages).toEqual([1, 9]);
@@ -516,6 +517,7 @@ describe("calculator lesson state", () => {
         error: null,
         unlockedComponent: "HalfAdder",
         componentsRevision: null,
+        unlockedSubmodules: null,
       },
     });
     expect(judged.currentStage).toBe(3);
@@ -528,6 +530,82 @@ describe("calculator lesson state", () => {
     const stage3 = apply(judged, { type: "select-stage", stageIndex: 3 });
     expect(graphOf(stage3).nodes.map((n) => n.name)).toContain("Cin");
     expect(graphOf(stage3, 2).nodes.length).toBeGreaterThan(0);
+  });
+
+  it("adopts the judge's authoritative library snapshot instead of grafting", () => {
+    // A stale tab judges after another tab saved: the answer carries the
+    // server's whole library (here: the other tab's BGate + the unlock) —
+    // the local list must be REPLACED, never merged onto the stale copy.
+    const bGate = { name: "BGate", graph: { nodes: [], edges: [] }, custom: true };
+    const halfAdder = { name: "HalfAdder", graph: halfAdderGraph() };
+    const loaded = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [],
+      unlockedSubmodules: [],
+      drafts: {},
+      componentsRevision: 0,
+    });
+    const judged = apply(loaded, {
+      type: "judge-result",
+      outcome: {
+        score: 4,
+        total: 4,
+        passed: true,
+        categories: { basic: { passed: 4, total: 4 } },
+        counterexample: null,
+        passedStages: [2],
+        error: null,
+        unlockedComponent: "HalfAdder",
+        componentsRevision: 2,
+        unlockedSubmodules: [bGate, halfAdder],
+      },
+    });
+    // BGate survives on this tab too — the next autosave carries the adopted
+    // snapshot and can never delete it.
+    expect(judged.unlockedSubmodules.map((s) => s.name)).toEqual(["BGate", "HalfAdder"]);
+    expect(judged.componentsRevision).toBe(2);
+    expect(judged.conflictedComponents).toBeNull();
+    expect(judged.componentsChanged).toBe(false);
+  });
+
+  it("stashes unsaved local components when the judge's snapshot replaces the library", () => {
+    // The learner had a pending custom component the judge's snapshot does
+    // not know about: adopting the server list silently would lose it. It
+    // moves to conflictedComponents — the same restorable backup a refused
+    // save produces — and the library itself still syncs to the server.
+    const mine = { name: "Mine", graph: { nodes: [], edges: [] }, custom: true };
+    const other = { name: "Other", graph: { nodes: [], edges: [] }, custom: true };
+    const halfAdder = { name: "HalfAdder", graph: halfAdderGraph() };
+    let loaded = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [],
+      unlockedSubmodules: [],
+      drafts: {},
+      componentsRevision: 0,
+    });
+    // The local edit marks the library dirty exactly like a real create.
+    loaded = { ...loaded, unlockedSubmodules: [mine], componentsChanged: true };
+    const judged = apply(loaded, {
+      type: "judge-result",
+      outcome: {
+        score: 4,
+        total: 4,
+        passed: true,
+        categories: { basic: { passed: 4, total: 4 } },
+        counterexample: null,
+        passedStages: [2],
+        error: null,
+        unlockedComponent: "HalfAdder",
+        componentsRevision: 2,
+        unlockedSubmodules: [other, halfAdder],
+      },
+    });
+    expect(judged.unlockedSubmodules.map((s) => s.name)).toEqual(["Other", "HalfAdder"]);
+    expect(judged.componentsRevision).toBe(2);
+    expect(judged.componentsChanged).toBe(false);
+    expect(judged.conflictedComponents?.map((s) => s.name)).toEqual(["Mine"]);
   });
 
   it("reopens the stage named by the URL when it is unlocked", () => {

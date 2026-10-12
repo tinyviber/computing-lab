@@ -63,6 +63,9 @@ export type JudgeOutcome = {
   unlockedComponent: string | null;
   /** Library revision after the judgement's own write (null = untouched). */
   componentsRevision: number | null;
+  /** The authoritative library after the judgement's write — adopted
+   *  wholesale together with componentsRevision (null = untouched). */
+  unlockedSubmodules: ComponentDef[] | null;
 } | null;
 
 export type CalculatorLessonState = {
@@ -1111,14 +1114,29 @@ export function transitionCalculatorLesson(
 
     case "judge-result": {
       const unlocked = action.outcome.unlockedComponent;
-      const submodules = unlocked
-        ? [
-            ...state.unlockedSubmodules.filter(
-              (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
-            ),
-            { name: unlocked, graph: graphOf(state) },
-          ]
-        : state.unlockedSubmodules;
+      // The judge answers its library write with the full server snapshot:
+      // adopt it wholesale rather than grafting the unlock onto a possibly
+      // stale local list — grafting is what let the next save silently
+      // delete components another tab had just saved. The graft stays only
+      // as a fallback for a response that names an unlock without the
+      // snapshot (the new server always sends both).
+      const serverLibrary = action.outcome.unlockedSubmodules ?? undefined;
+      const submodules =
+        serverLibrary ??
+        (unlocked
+          ? [
+              ...state.unlockedSubmodules.filter(
+                (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
+              ),
+              { name: unlocked, graph: graphOf(state) },
+            ]
+          : state.unlockedSubmodules);
+      // Unsaved local component edits are never merged into the snapshot
+      // silently — they move into the same restorable backup a save
+      // conflict produces, so the learner keeps an explicit restore path.
+      const libraryDiffers =
+        serverLibrary !== undefined &&
+        JSON.stringify(serverLibrary) !== JSON.stringify(state.unlockedSubmodules);
       // Stages may now pass out of order; merge the judged stage into the
       // server-reported set and derive progress from it.
       const passedStages = action.outcome.passed
@@ -1130,12 +1148,19 @@ export function transitionCalculatorLesson(
         passedStages,
         currentStage: nextMainlineStage(passedStages),
         unlockedSubmodules: submodules,
-        // The judge persists the library server-side and bumps its revision
-        // — adopt it so the next library save compares against the truth.
+        conflictedComponents:
+          libraryDiffers && state.componentsChanged
+            ? state.unlockedSubmodules
+            : state.conflictedComponents,
+        // The judge persists the library server-side and bumps its
+        // revision — adopt it, but only together with the snapshot it
+        // versions: a bare counter would let a stale list claim a
+        // revision it holds no snapshot for.
         componentsRevision:
-          typeof action.outcome.componentsRevision === "number"
+          serverLibrary !== undefined && typeof action.outcome.componentsRevision === "number"
             ? action.outcome.componentsRevision
             : state.componentsRevision,
+        componentsChanged: libraryDiffers ? false : state.componentsChanged,
         message: action.outcome.passed
           ? unlocked
             ? `${getStage(state.stageIndex)?.title ?? "本关"}完成——组件 ${unlocked} 已加入「我的组件」，下一关可以直接使用。`

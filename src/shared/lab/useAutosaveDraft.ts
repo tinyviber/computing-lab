@@ -53,6 +53,16 @@ type DraftSaveResponse = {
  *   stage as sync-error instead of resolved and only an explicit retry may
  *   lift it. Only then does a dirty flag schedule a write that legitimately
  *   supersedes the server draft.
+ * - The component library is one project-wide resource, so its concurrency
+ *   rules are project-wide too: only one component-carrying request may be
+ *   in flight at a time (a second same-client send would race the first's
+ *   revision into a false conflict), and a REFUSED component write fences
+ *   every later component-carrying send — not only the refusing stage's —
+ *   until the lesson state resyncs BOTH the library snapshot and its
+ *   revision. The revision a refusal reports is a resync target, never an
+ *   adopted counter: the client may only claim a new library revision
+ *   after its own write applied or a full snapshot landed (the reconcile
+ *   path delivers them together).
  *
  * The lifecycle callbacks all receive the stage they fired for; the lesson
  * reducer keeps flags per stage so one stage's late completion cannot
@@ -95,9 +105,20 @@ export function useAutosaveDraft<TDraft>(options: {
   const inFlight = useRef(new Set<number>());
   const appliedRev = useRef(new Map<number, number>());
   // The component library's counter mirrors appliedRev but is project-wide
-  // (one counter shared by every stage's save): every response that reports
-  // it raises the floor a later send will claim.
+  // (one counter shared by every stage's save). Only our own APPLIED write
+  // may raise it — a refusal merely reports where the server's counter
+  // stands, and claiming that counter without the matching snapshot is the
+  // stale-list overwrite hole.
   const appliedComponentsRev = useRef(0);
+  // Project-wide fence on the shared library: a refused component-carrying
+  // write blocks EVERY later component-carrying send until the lesson
+  // state resyncs both the library snapshot and its revision (the reported
+  // counter is the resync target, not an adopted revision).
+  const componentsFenceRev = useRef<number | null>(null);
+  // Component writes serialize project-wide: a second component-carrying
+  // send while one is in flight would race its revision into a false
+  // conflict — it queues on the components slot instead.
+  const componentsInFlight = useRef(false);
   // Stages the server fenced with a rejection: nothing for them may send
   // until the lesson state reconciles to the rejection's revision (gate in
   // the arm effect below).
@@ -128,6 +149,20 @@ export function useAutosaveDraft<TDraft>(options: {
   // stage is on screen when the timer fires, not the one that was edited.
   const armDraft = useRef(new Map<number, { stage: number; draft: TDraft }>());
 
+  // Flush every parked arm whose stage has no send in flight. That covers
+  // the classic same-stage queue AND arms the components gate parked on
+  // other stages; a flushed send re-runs sendNow, so a still-occupied
+  // components slot simply re-parks it.
+  const flushQueuedArms = () => {
+    for (const [queuedStage, queued] of [...queuedArm.current]) {
+      if (inFlight.current.has(queuedStage)) continue;
+      const armClass = armedClass.current;
+      if (armClass === undefined) continue;
+      queuedArm.current.delete(queuedStage);
+      sendNow(queuedStage, queued, armClass);
+    }
+  };
+
   const sendNow = (stage: number, arm: number, armClass: string) => {
     const opts = latestOptions.current;
     const entry = armDraft.current.get(arm);
@@ -141,15 +176,38 @@ export function useAutosaveDraft<TDraft>(options: {
       ...(opts.bodyFor ? opts.bodyFor(stage, draft) : { stageIndex: stage, draft }),
       expectedRevision,
     } as Record<string, unknown>;
+    const carriesComponents = body.components !== undefined;
     // The library's expected counter joins the body only when the save
     // actually carries components — and, like expectedRevision, it is
     // computed here rather than in bodyFor so an arm that queued behind an
     // in-flight save claims the revision that save just reported.
-    if (body.components !== undefined && opts.expectedComponentsRevisionOf) {
+    if (carriesComponents && opts.expectedComponentsRevisionOf) {
       body.expectedComponentsRevision = Math.max(
         appliedComponentsRev.current,
         opts.expectedComponentsRevisionOf(),
       );
+      // The library is shared across stages, so its fences are too. While
+      // the refusal's reconcile is still delivering the server snapshot,
+      // this arm's library predates the resync — sending it under the
+      // reported revision is the stale-list overwrite hole in another tab's
+      // favor. Drop it instead: the dirty flag re-arms once the snapshot
+      // lands (the refusal's onConflict already started that reconcile),
+      // and unsaved local edits keep the restorable-conflict path.
+      const fenceRev = componentsFenceRev.current;
+      if (fenceRev !== null && opts.expectedComponentsRevisionOf() < fenceRev) {
+        armDraft.current.delete(arm);
+        if (latestArm.current.get(stage) === arm) latestArm.current.delete(stage);
+        return;
+      }
+      // One component write in flight at a time project-wide: a second
+      // would race the first's revision into a false conflict.
+      if (componentsInFlight.current) {
+        const prev = queuedArm.current.get(stage);
+        if (prev !== undefined) armDraft.current.delete(prev);
+        queuedArm.current.set(stage, arm);
+        return;
+      }
+      componentsInFlight.current = true;
     }
     const gen = generation.current;
     inFlight.current.add(stage);
@@ -160,16 +218,19 @@ export function useAutosaveDraft<TDraft>(options: {
         if (generation.current !== gen) return;
         inFlight.current.delete(stage);
         armDraft.current.delete(arm);
+        if (carriesComponents) componentsInFlight.current = false;
         const rev = typeof result?.revision === "number" ? result.revision : undefined;
         if (rev !== undefined) {
           appliedRev.current.set(stage, Math.max(appliedRev.current.get(stage) ?? 0, rev));
         }
         const componentsRev =
           typeof result?.componentsRevision === "number" ? result.componentsRevision : undefined;
-        // Adopt the reported library counter unconditionally (applied or
-        // refused — both tell us where the server's counter now stands)
-        // BEFORE flushing a queued arm below, so its send claims it.
-        if (componentsRev !== undefined) {
+        // Only our own APPLIED write raises the counter we claim: a refusal
+        // merely reports where the server stands, and adopting that number
+        // without the matching snapshot is the stale-list overwrite hole —
+        // the fence below holds every component send until the reconcile
+        // lands both the library and its revision.
+        if (componentsRev !== undefined && result?.applied !== false) {
           appliedComponentsRev.current = Math.max(appliedComponentsRev.current, componentsRev);
         }
         // The server refused the write — it already holds a newer draft
@@ -181,6 +242,11 @@ export function useAutosaveDraft<TDraft>(options: {
         // when a newer local arm exists, since the bypassed-write window is
         // exactly what must never stay silent.
         if (result?.applied === false) {
+          if (componentsRev !== undefined) {
+            // A refused component write fences the whole project, not only
+            // this stage, until the library resyncs to the reported counter.
+            componentsFenceRev.current = Math.max(componentsFenceRev.current ?? 0, componentsRev);
+          }
           conflicted.current.add(stage);
           const pendingTimer = timers.current.get(stage);
           if (pendingTimer !== undefined) {
@@ -198,17 +264,13 @@ export function useAutosaveDraft<TDraft>(options: {
             queuedArm.current.delete(stage);
             armDraft.current.delete(queued);
           }
+          flushQueuedArms();
           opts.onConflict?.(stage);
           return;
         }
         // A newer arm waited for this response — send it and let ITS result
         // report; this arm was superseded whether it applied or not.
-        const queued = queuedArm.current.get(stage);
-        if (queued !== undefined) {
-          queuedArm.current.delete(stage);
-          sendNow(stage, queued, armClass);
-          return;
-        }
+        flushQueuedArms();
         if (latestArm.current.get(stage) !== arm) return;
         opts.onSaved(stage, rev, componentsRev);
       })
@@ -216,12 +278,8 @@ export function useAutosaveDraft<TDraft>(options: {
         if (generation.current !== gen) return;
         inFlight.current.delete(stage);
         armDraft.current.delete(arm);
-        const queued = queuedArm.current.get(stage);
-        if (queued !== undefined) {
-          queuedArm.current.delete(stage);
-          sendNow(stage, queued, armClass);
-          return;
-        }
+        if (carriesComponents) componentsInFlight.current = false;
+        flushQueuedArms();
         if (latestArm.current.get(stage) === arm) opts.onError(stage);
       });
   };
@@ -292,6 +350,8 @@ export function useAutosaveDraft<TDraft>(options: {
     const flying = inFlight.current;
     const applied = appliedRev.current;
     const appliedComponents = appliedComponentsRev;
+    const componentsFence = componentsFenceRev;
+    const componentsFlying = componentsInFlight;
     const fenced = conflicted.current;
     const gen = generation;
     return () => {
@@ -305,6 +365,8 @@ export function useAutosaveDraft<TDraft>(options: {
       flying.clear();
       applied.clear();
       appliedComponents.current = 0;
+      componentsFence.current = null;
+      componentsFlying.current = false;
       fenced.clear();
       armDraft.current.clear();
     };
