@@ -11,6 +11,7 @@ import {
 import { halfAdderGraph } from "../domain/fixtures";
 import type { CircuitGraph } from "../domain/graph";
 import { CALCULATOR_STAGES } from "../domain/stages";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 function apply(
   state: CalculatorLessonState,
@@ -94,6 +95,7 @@ describe("calculator lesson state", () => {
     });
     const completed = apply(judged, {
       type: "judge-result",
+      stageIndex: 9,
       outcome: {
         score: 4,
         total: 4,
@@ -103,6 +105,8 @@ describe("calculator lesson state", () => {
         passedStages: [1, 9],
         error: null,
         unlockedComponent: null,
+        componentsRevision: null,
+        unlockedSubmodules: null,
       },
     });
     expect(completed.passedStages).toEqual([1, 9]);
@@ -122,7 +126,7 @@ describe("calculator lesson state", () => {
     );
     expect(wired.pendingWire).toBeNull();
     expect(graphOf(wired).edges).toHaveLength(1);
-    expect(wired.saveStatus).toBe("dirty");
+    expect(statusForStage(wired.saveStatusByStage, wired.stageIndex)).toBe("dirty");
   });
 
   it("toggles component collapse as one undoable graph edit", () => {
@@ -504,6 +508,7 @@ describe("calculator lesson state", () => {
     });
     const judged = apply(loaded, {
       type: "judge-result",
+      stageIndex: 2,
       outcome: {
         score: 4,
         total: 4,
@@ -513,6 +518,8 @@ describe("calculator lesson state", () => {
         passedStages: [2],
         error: null,
         unlockedComponent: "HalfAdder",
+        componentsRevision: null,
+        unlockedSubmodules: null,
       },
     });
     expect(judged.currentStage).toBe(3);
@@ -525,6 +532,84 @@ describe("calculator lesson state", () => {
     const stage3 = apply(judged, { type: "select-stage", stageIndex: 3 });
     expect(graphOf(stage3).nodes.map((n) => n.name)).toContain("Cin");
     expect(graphOf(stage3, 2).nodes.length).toBeGreaterThan(0);
+  });
+
+  it("adopts the judge's authoritative library snapshot instead of grafting", () => {
+    // A stale tab judges after another tab saved: the answer carries the
+    // server's whole library (here: the other tab's BGate + the unlock) —
+    // the local list must be REPLACED, never merged onto the stale copy.
+    const bGate = { name: "BGate", graph: { nodes: [], edges: [] }, custom: true };
+    const halfAdder = { name: "HalfAdder", graph: halfAdderGraph() };
+    const loaded = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [],
+      unlockedSubmodules: [],
+      drafts: {},
+      componentsRevision: 0,
+    });
+    const judged = apply(loaded, {
+      type: "judge-result",
+      stageIndex: 2,
+      outcome: {
+        score: 4,
+        total: 4,
+        passed: true,
+        categories: { basic: { passed: 4, total: 4 } },
+        counterexample: null,
+        passedStages: [2],
+        error: null,
+        unlockedComponent: "HalfAdder",
+        componentsRevision: 2,
+        unlockedSubmodules: [bGate, halfAdder],
+      },
+    });
+    // BGate survives on this tab too — the next autosave carries the adopted
+    // snapshot and can never delete it.
+    expect(judged.unlockedSubmodules.map((s) => s.name)).toEqual(["BGate", "HalfAdder"]);
+    expect(judged.componentsRevision).toBe(2);
+    expect(judged.conflictedComponents).toBeNull();
+    expect(judged.componentsChanged).toBe(false);
+  });
+
+  it("stashes unsaved local components when the judge's snapshot replaces the library", () => {
+    // The learner had a pending custom component the judge's snapshot does
+    // not know about: adopting the server list silently would lose it. It
+    // moves to conflictedComponents — the same restorable backup a refused
+    // save produces — and the library itself still syncs to the server.
+    const mine = { name: "Mine", graph: { nodes: [], edges: [] }, custom: true };
+    const other = { name: "Other", graph: { nodes: [], edges: [] }, custom: true };
+    const halfAdder = { name: "HalfAdder", graph: halfAdderGraph() };
+    let loaded = apply(createCalculatorLessonState(2), {
+      type: "load-project",
+      currentStage: 2,
+      passedStages: [],
+      unlockedSubmodules: [],
+      drafts: {},
+      componentsRevision: 0,
+    });
+    // The local edit marks the library dirty exactly like a real create.
+    loaded = { ...loaded, unlockedSubmodules: [mine], componentsChanged: true };
+    const judged = apply(loaded, {
+      type: "judge-result",
+      stageIndex: 2,
+      outcome: {
+        score: 4,
+        total: 4,
+        passed: true,
+        categories: { basic: { passed: 4, total: 4 } },
+        counterexample: null,
+        passedStages: [2],
+        error: null,
+        unlockedComponent: "HalfAdder",
+        componentsRevision: 2,
+        unlockedSubmodules: [other, halfAdder],
+      },
+    });
+    expect(judged.unlockedSubmodules.map((s) => s.name)).toEqual(["Other", "HalfAdder"]);
+    expect(judged.componentsRevision).toBe(2);
+    expect(judged.componentsChanged).toBe(false);
+    expect(judged.conflictedComponents?.map((s) => s.name)).toEqual(["Mine"]);
   });
 
   it("reopens the stage named by the URL when it is unlocked", () => {
@@ -647,13 +732,20 @@ describe("calculator lesson state", () => {
       x: 1,
       y: 1,
     });
-    expect(dirty.saveStatus).toBe("dirty");
-    const saving = apply(dirty, { type: "mark-saving" });
-    expect(saving.saveStatus).toBe("saving");
-    expect(apply(saving, { type: "mark-saved" }).saveStatus).toBe("saved");
+    expect(statusForStage(dirty.saveStatusByStage, dirty.stageIndex)).toBe("dirty");
+    const saving = apply(dirty, { type: "mark-saving", stageIndex: 1 });
+    expect(statusForStage(saving.saveStatusByStage, saving.stageIndex)).toBe("saving");
+    expect(
+      statusForStage(apply(saving, { type: "mark-saved", stageIndex: 1 }).saveStatusByStage, 1),
+    ).toBe("saved");
     // A save that lands after a new edit must not claim "saved".
     const editedWhileSaving = apply(saving, { type: "add-node", kind: "and", x: 2, y: 2 });
-    expect(apply(editedWhileSaving, { type: "mark-saved" }).saveStatus).toBe("dirty");
+    expect(
+      statusForStage(
+        apply(editedWhileSaving, { type: "mark-saved", stageIndex: 1 }).saveStatusByStage,
+        1,
+      ),
+    ).toBe("dirty");
   });
 
   it("undoes the most recent graph edit on the current stage", () => {
@@ -664,7 +756,7 @@ describe("calculator lesson state", () => {
     const undone = apply(edited, { type: "undo" });
     expect(graphOf(undone)).toEqual(graphOf(base));
     expect(undone.past).toHaveLength(0);
-    expect(undone.saveStatus).toBe("dirty");
+    expect(statusForStage(undone.saveStatusByStage, undone.stageIndex)).toBe("dirty");
   });
 
   it("groups continuous node dragging into one undo step", () => {

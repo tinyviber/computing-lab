@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { api, describeApiError } from "../../../shared/api/client";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { runProgram, type CpuCase } from "../domain/machine.ts";
 import type {
   CpuCounterexample,
@@ -84,7 +85,7 @@ export function useCpuLabController({
   // 点餐机 I/O: the stage's 拨码开关 input cell and fixed 数码管 output cell
   // — only stages that declare `io` get the I/O boxes lit.
 
-  const { loadError } = useLabProject<
+  const { projectLoaded, loadError, fetchProject } = useLabProject<
     CpuDraft,
     { calculatorCoreComplete: boolean },
     CpuLessonAction
@@ -96,6 +97,7 @@ export function useCpuLabController({
       type: "load-project",
       currentStage: project.currentStage,
       passedStages: project.passedStages,
+      draftRevisions: project.draftRevisions,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -104,16 +106,40 @@ export function useCpuLabController({
     dispatch,
   });
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
   useAutosaveDraft<CpuDraft>({
     classId,
     labId: "cpu",
-    saveStatus: state.saveStatus,
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => reconcileConflict(s),
   });
 
   const publicCases = useMemo(
@@ -387,6 +413,11 @@ export function useCpuLabController({
     runPublicTests: () => dispatch({ type: "run-public-tests", cases: publicCases }),
     submit: onSubmit,
     replayCounterexample: onReplayCounterexample,
+    restoreConflictLocal: () =>
+      dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex }),
+    discardConflictLocal: () =>
+      dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex }),
+    retrySyncConflict: () => reconcileConflict(state.stageIndex),
   };
   return { model, actions };
 }

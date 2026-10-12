@@ -5,7 +5,8 @@ import { useAuth } from "../../../shared/auth";
 import { LabAccessGate, SaveIndicator } from "../../../shared/lab/LabGate";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { evaluateGraph } from "../domain/evaluate";
 import type { CircuitGraph, ComponentDef } from "../domain/graph";
@@ -45,7 +46,7 @@ export function CalculatorLabPage() {
   const stage = stageOf(state);
   const stageIndex = state.stageIndex;
 
-  const { projectLoaded, loadError } = useLabProject<
+  const { projectLoaded, loadError, fetchProject } = useLabProject<
     CircuitGraph,
     { unlockedSubmodules: ComponentDef[] },
     CalculatorLessonAction
@@ -58,6 +59,8 @@ export function CalculatorLabPage() {
       currentStage: project.currentStage,
       passedStages: project.passedStages,
       unlockedSubmodules: project.unlockedSubmodules,
+      draftRevisions: project.draftRevisions,
+      componentsRevision: project.draftRevisions?.components ?? 0,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -86,21 +89,87 @@ export function CalculatorLabPage() {
   const preview = useMemo(() => evaluateGraph(graph, {}, components), [graph, components]);
   const coach = useCalculatorCoach(state, preview.pins, projectLoaded, dispatch);
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage<CircuitGraph, { unlockedSubmodules: ComponentDef[] }>({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+          unlockedSubmodules: project.unlockedSubmodules,
+          componentsRevision: project.draftRevisions?.components,
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
+  // Stages besides the one on screen whose drafts also wait on a save — a
+  // component rename rewrites references across every stage's draft, and
+  // those stages must autosave too, not only when the learner revisits them.
+  const dirtyStages = useMemo(
+    () =>
+      Object.keys(state.saveStatusByStage)
+        .map(Number)
+        .filter(
+          (s) => s !== state.stageIndex && statusForStage(state.saveStatusByStage, s) === "dirty",
+        ),
+    [state.saveStatusByStage, state.stageIndex],
+  );
+
   useAutosaveDraft<CircuitGraph>({
     classId,
     labId: "calculator",
-    saveStatus: state.saveStatus,
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex,
-    draftOf: () => graph,
+    dirtyStages,
+    draftOf: (s) => graphOf(state, s),
     bodyFor: (index, draft) => ({
       stageIndex: index,
       graph: draft,
-      components: state.unlockedSubmodules,
+      // The component library rides the save only while the learner
+      // actually changed it, CAS'd on its own revision — an unchanged
+      // library's stale list can never clobber another device's write.
+      // expectedComponentsRevision is merged in by the hook at send time.
+      ...(state.componentsChanged ? { components: state.unlockedSubmodules } : {}),
     }),
-    deps: [graph, state.unlockedSubmodules],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    // A draft that names a component the library no longer holds — e.g. the
+    // definition moved into the conflict backup after a reconcile — may not
+    // write clean: the persisted graph would reference a definition the
+    // server lacks. Hold the send until the learner restores the backup (or
+    // rewires the node); the stage keeps its dirty flag meanwhile.
+    holdSend: (_stage, draft) => {
+      const known = new Set(state.unlockedSubmodules.map((component) => component.name));
+      return draft.nodes.some(
+        (node) => node.kind === "component" && node.name !== undefined && !known.has(node.name),
+      );
+    },
+    deps: [graph, state.unlockedSubmodules, state.saveStatusByStage],
+    expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
+    expectedComponentsRevisionOf: () => state.componentsRevision,
+    // The library edit seq a send carried — echoed back through mark-saved
+    // so only those edits are confirmed; edits after the send stay dirty.
+    componentsSeqOf: () => state.componentsEditSeq,
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s, revision, componentsRevision, componentsSeq) =>
+      dispatch({
+        type: "mark-saved",
+        stageIndex: s,
+        revision,
+        componentsRevision,
+        componentsSeq,
+      }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => reconcileConflict(s),
   });
 
   const onSubmit = useCallback(async () => {
@@ -118,6 +187,10 @@ export function CalculatorLabPage() {
       );
       dispatch({
         type: "judge-result",
+        // The stage this submission ran on — captured now, not whenever the
+        // response lands, so a stage switch in between can never steal the
+        // verdict or its pass.
+        stageIndex,
         outcome: {
           score: result.score,
           total: result.total,
@@ -127,6 +200,8 @@ export function CalculatorLabPage() {
           passedStages: result.passedStages,
           error: result.testSummary.error,
           unlockedComponent: result.unlockedComponent,
+          unlockedSubmodules: result.unlockedSubmodules,
+          componentsRevision: result.componentsRevision,
         },
       });
     } catch (error) {
@@ -149,7 +224,26 @@ export function CalculatorLabPage() {
         className="calculator-lab"
         topbar={
           <div className="calculator-status">
-            <SaveIndicator status={state.saveStatus} />
+            <SaveIndicator
+              status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+              unresolvedSyncConflict={syncConflictForStage(
+                state.unresolvedSyncConflicts,
+                state.stageIndex,
+              )}
+              onRetrySync={() => reconcileConflict(state.stageIndex)}
+              onRestoreLocal={
+                state.conflictedLocalDrafts[state.stageIndex] !== undefined ||
+                state.conflictedComponents !== null
+                  ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                  : undefined
+              }
+              onDiscardLocal={
+                state.conflictedLocalDrafts[state.stageIndex] !== undefined ||
+                state.conflictedComponents !== null
+                  ? () => dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex })
+                  : undefined
+              }
+            />
           </div>
         }
         topbarProps={{

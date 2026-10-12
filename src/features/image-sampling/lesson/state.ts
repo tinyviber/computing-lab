@@ -14,7 +14,13 @@ import {
 } from "../domain/stages.ts";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  markSyncConflict,
+  statusForStage,
+  type SaveStatusByStage,
+  type SyncConflictByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 /** Per-stage student work; persisted in the generic draft_graph column. */
 export type StageDraft = {
@@ -32,10 +38,19 @@ export type SamplingLessonState = {
   currentStage: number;
   passedStages: number[];
   drafts: Record<number, StageDraft>;
+  /** The local drafts a save conflict replaced — kept so the learner can
+   *  restore their unsaved version explicitly after reconciling. */
+  conflictedLocalDrafts: Record<number, StageDraft>;
+  /** Server-assigned revision of each stage's latest applied write — the
+   *  next autosave for that stage sends it back as `expectedRevision`. */
+  draftRevisions: Record<number, number>;
   /** Output cell selected in the zoom inspector, if any. */
   selectedCell: CellPick | null;
   judgeOutcome: SamplingJudgeResult | null;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
 };
 
@@ -45,15 +60,28 @@ export type SamplingLessonAction =
       currentStage: number;
       passedStages: number[];
       drafts: Record<number, StageDraft>;
+      /** Server revisions of the applied drafts, seeded into expectedRevision. */
+      draftRevisions?: Record<number, number>;
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "set-resolution"; width: number; height: number }
   | { type: "set-code"; code: string }
   | { type: "select-cell"; cell: CellPick | null }
   | { type: "judge-result"; outcome: SamplingJudgeResult }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
+  | { type: "mark-saving"; stageIndex: number }
+  | { type: "mark-saved"; stageIndex: number; revision?: number }
+  | { type: "mark-save-error"; stageIndex: number }
+  | { type: "mark-save-sync-error"; stageIndex: number }
+  | {
+      type: "resolve-save-conflict";
+      stageIndex: number;
+      /** The draft the server holds for the stage; absent → the stage's empty draft. */
+      draft?: StageDraft;
+      /** Server revision now stored for the stage — seeds the next save. */
+      revision?: number;
+    }
+  | { type: "restore-conflict-draft"; stageIndex: number }
+  | { type: "discard-conflict-draft"; stageIndex: number }
   | { type: "dismiss-message" }
   | { type: "message"; text: string };
 
@@ -93,9 +121,12 @@ export function createSamplingLessonState(stageIndex = 1): SamplingLessonState {
     currentStage: stageIndex,
     passedStages: [],
     drafts: {},
+    conflictedLocalDrafts: {},
+    draftRevisions: {},
     selectedCell: null,
     judgeOutcome: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     message: null,
   };
 }
@@ -106,6 +137,10 @@ export function transitionSamplingLesson(
 ): SamplingLessonState {
   switch (action.type) {
     case "load-project": {
+      const draftRevisions: Record<number, number> = {};
+      for (const [key, rev] of Object.entries(action.draftRevisions ?? {})) {
+        draftRevisions[Number(key)] = rev;
+      }
       const drafts: Record<number, StageDraft> = {};
       for (const [key, draft] of Object.entries(action.drafts)) {
         const index = Number(key);
@@ -120,8 +155,11 @@ export function transitionSamplingLesson(
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         drafts,
+        conflictedLocalDrafts: {},
+        draftRevisions,
         selectedCell: null,
-        saveStatus: "idle",
+        saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         judgeOutcome: null,
       };
     }
@@ -147,7 +185,7 @@ export function transitionSamplingLesson(
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: next },
         selectedCell: null,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         // A new resolution invalidates the previous verdict.
         judgeOutcome: null,
       };
@@ -164,7 +202,7 @@ export function transitionSamplingLesson(
       return {
         ...state,
         drafts: { ...state.drafts, [state.stageIndex]: next },
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         judgeOutcome: stage?.requiresChooseSize ? null : state.judgeOutcome,
       };
     }
@@ -182,13 +220,131 @@ export function transitionSamplingLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
-    case "mark-saved":
-      // Only a save started from the current dirty state may settle it — a
-      // stale completion must not hide a newer dirty draft.
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
+    case "mark-saved": {
+      // Only a save started from the stage's current dirty state may settle
+      // it — a stale completion must not hide a newer dirty draft.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      // A saved write does NOT drop the stage's conflict backup — the
+      // recoverable local copy stays until the learner restores or
+      // explicitly discards it.
+      return {
+        ...state,
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
+    }
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
+
+    case "mark-save-sync-error": {
+      // The refused write's reconcile fetch failed: the local draft is
+      // untouched and the stage stays fenced (its revision never advanced)
+      // — only an explicit retry's resolve lifts the fence. Distinct from
+      // "conflict": nothing was loaded, so "已载入最新进度" would be a lie.
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
+      };
+    }
+
+    case "resolve-save-conflict": {
+      // Per-stage reconcile after a refused write: swap ONLY the conflicted
+      // stage's draft for the server's copy and land its conflict flag in the
+      // same transition — every other stage's local draft and save flag is
+      // left untouched. The replaced local draft is stashed in
+      // conflictedLocalDrafts so the learner can still recover it. Settles
+      // while the stage waits on its save — and on a dirty flag too: a
+      // fenced stage cannot retry its own save, so the reconcile must still
+      // land (the stash keeps those newer edits recoverable the same way).
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      // "sync-error" is the same refusal, still unreconciled — a retry's
+      // payload lands here too.
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      const localDraft = state.drafts[action.stageIndex];
+      if (localDraft !== undefined) conflictedLocalDrafts[action.stageIndex] = localDraft;
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.stageIndex]: sanitizeDraft(action.draft ?? {}) },
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        draftRevisions:
+          typeof action.revision === "number"
+            ? { ...state.draftRevisions, [action.stageIndex]: action.revision }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        selectedCell: action.stageIndex === state.stageIndex ? null : state.selectedCell,
+        judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
+      };
+    }
+
+    case "restore-conflict-draft": {
+      // The learner explicitly keeps their pre-conflict version: it returns
+      // as a dirty draft and autosave re-arms — expectedRevision is now the
+      // reconciled server revision, so the write supersedes legitimately
+      // (or loses OCC to an even newer write → a fresh conflict).
+      const backup = state.conflictedLocalDrafts[action.stageIndex];
+      if (backup === undefined) return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      return {
+        ...state,
+        drafts: { ...state.drafts, [action.stageIndex]: backup },
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
+        selectedCell: action.stageIndex === state.stageIndex ? null : state.selectedCell,
+        judgeOutcome: action.stageIndex === state.stageIndex ? null : state.judgeOutcome,
+      };
+    }
+    case "discard-conflict-draft": {
+      // The learner accepts the server's draft: drop the recoverable local
+      // copy for good. A "conflict" flag settles to "saved" — the content
+      // on screen is the server's applied write; other flags stay put.
+      if (state.conflictedLocalDrafts[action.stageIndex] === undefined) return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      return {
+        ...state,
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        saveStatusByStage:
+          status === "conflict"
+            ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")
+            : state.saveStatusByStage,
+      };
+    }
     case "dismiss-message":
       return { ...state, message: null };
     case "message":

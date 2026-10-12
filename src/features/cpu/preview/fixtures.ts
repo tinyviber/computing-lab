@@ -26,7 +26,7 @@ function fixture(
   const state = createCpuLessonState(options.stage ?? 1);
   state.passedStages = Array.from({ length: state.stageIndex - 1 }, (_, i) => i + 1);
   state.calculatorCoreComplete = false;
-  state.saveStatus = options.saveStatus ?? "idle";
+  state.saveStatusByStage = options.saveStatus ? { [state.stageIndex]: options.saveStatus } : {};
   const stage = getCpuStage(state.stageIndex)!;
   const answers = Object.fromEntries(
     (stage.guided?.prompts ?? [])
@@ -150,5 +150,8 @@ export function createCpuPreviewActions(record: (action: string) => void): CpuLa
     runPublicTests: () => record("runPublicTests"),
     submit: async () => record("submit"),
     replayCounterexample: () => record("replayCounterexample"),
+    restoreConflictLocal: () => record("restoreConflictLocal"),
+    discardConflictLocal: () => record("discardConflictLocal"),
+    retrySyncConflict: () => record("retrySyncConflict"),
   };
 }

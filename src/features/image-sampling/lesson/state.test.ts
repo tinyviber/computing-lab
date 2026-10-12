@@ -6,6 +6,7 @@ import {
   transitionSamplingLesson,
 } from "./state.ts";
 import { getSamplingStage } from "../domain/stages.ts";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 const base = () => createSamplingLessonState(1);
 
@@ -60,7 +61,7 @@ describe("sampling lesson state", () => {
       height: 8,
     });
     expect(state.judgeOutcome).toBeNull();
-    expect(state.saveStatus).toBe("dirty");
+    expect(statusForStage(state.saveStatusByStage, state.stageIndex)).toBe("dirty");
   });
 
   it("load-project restores drafts and falls back to currentStage when locked", () => {

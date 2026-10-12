@@ -6,6 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 import { createIsLessonState, draftOf, transitionIsLesson } from "./state.ts";
+import { statusForStage } from "../../../shared/lab/saveStatus.ts";
 
 describe("is-sim lesson state", () => {
   it("starts a fresh stage draft from prefill furniture", () => {
@@ -65,7 +66,7 @@ describe("is-sim lesson state", () => {
       link: { from: "scan", to: "books", port: "write" },
     });
     expect(state.runOutcome).toBeNull();
-    expect(state.saveStatus).toBe("dirty");
+    expect(statusForStage(state.saveStatusByStage, state.stageIndex)).toBe("dirty");
   });
 
   it("select-stage refuses locked stages", () => {

@@ -21,10 +21,18 @@ export type LabProjectPayload<TDraft> = {
   passedStages: number[];
   /** Per-stage drafts keyed by stage index (`draft_graph` column). */
   drafts: Record<string, TDraft>;
+  /** Server-assigned revision of the latest applied write per stage — the
+   *  client's next PUT sends it back as `expectedRevision` (compare-and-swap). */
+  draftRevisions?: Record<string, number>;
 };
 
-/** Autosave lifecycle flags shared by every lab's lesson state. */
-export type SaveStatus = "idle" | "dirty" | "saving" | "saved" | "error";
+/** Autosave lifecycle flags shared by every lab's lesson state. "conflict"
+ * settles a save the server rejected for a newer write it already holds —
+ * the page reloads the project so the student sees the winning draft.
+ * "sync-error" means the reload after a rejection itself failed: the local
+ * draft is still there and the stage stays fenced until a retry syncs it. */
+export type SaveStatus =
+  "idle" | "dirty" | "saving" | "saved" | "error" | "conflict" | "sync-error";
 
 export const API_ERROR_MESSAGES: Record<string, string> = {
   "invalid-credentials": "学号或密码不正确。",

@@ -15,7 +15,12 @@ import {
   type GuardFailure,
   type Membership,
 } from "../http/context.ts";
-import { getOrCreateProject, type LabJudgeError, type ProjectRow } from "../judge/pipeline.ts";
+import {
+  getOrCreateProject,
+  type DraftSaveResult,
+  type LabJudgeError,
+  type ProjectRow,
+} from "../judge/pipeline.ts";
 import { canAccessLab } from "../labs.ts";
 
 type LabContext = Context<{ Variables: AppVariables }>;
@@ -24,6 +29,9 @@ type LabAuth = { user: SessionUser; membership: Membership };
 type LabSpec<TDraft, TOutcome> = {
   labId: string;
   stageCount: number;
+  /** The draft body may carry `components` — then `expectedComponentsRevision`
+   *  is required and CAS'd alongside the stage revision (calculator). */
+  usesComponents?: boolean;
   /** Extra top-level fields merged into the GET /project payload. */
   projectExtras?: (db: DatabaseSync, project: ProjectRow<TDraft>) => Record<string, unknown>;
   saveDraft: (
@@ -31,7 +39,9 @@ type LabSpec<TDraft, TOutcome> = {
     project: ProjectRow<TDraft>,
     stageIndex: number,
     body: Record<string, unknown>,
-  ) => void;
+    expectedRevision: number,
+    expectedComponentsRevision?: number,
+  ) => DraftSaveResult;
   judge: (
     db: DatabaseSync,
     project: ProjectRow<TDraft>,
@@ -75,6 +85,9 @@ export function labRoutes<TDraft, TOutcome extends object>(
       currentStage: project.currentStage,
       passedStages: project.passedStages,
       drafts: project.drafts,
+      // Per-stage revision of the latest applied write — the client seeds its
+      // expectedRevision from this so its next save is a compare-and-swap.
+      draftRevisions: project.draftRevisions,
       ...(spec.projectExtras?.(c.get("db"), project) ?? {}),
     });
   });
@@ -85,9 +98,49 @@ export function labRoutes<TDraft, TOutcome extends object>(
     const body = await c.req.json().catch(() => null);
     const stageIndex = stageIndexOf(body);
     if (stageIndex === null) return jsonError(c, 400, "invalid-stage");
+    // Optimistic concurrency: the client states which server revision its
+    // write builds on (0/null on the first write); the server applies it only
+    // while that is still the stored revision, assigning stored+1 itself.
+    const rawExpected = body?.expectedRevision;
+    const expectedRevision = rawExpected === null ? 0 : rawExpected;
+    if (
+      typeof expectedRevision !== "number" ||
+      !Number.isInteger(expectedRevision) ||
+      expectedRevision < 0
+    ) {
+      return jsonError(c, 400, "invalid-revision");
+    }
+    // A component-library write needs its own expected revision — without
+    // one it cannot be compared and must not write anything.
+    const rawExpectedComponents = body?.expectedComponentsRevision;
+    const expectedComponentsRevision = rawExpectedComponents === null ? 0 : rawExpectedComponents;
+    if (spec.usesComponents && body?.components !== undefined) {
+      if (
+        typeof expectedComponentsRevision !== "number" ||
+        !Number.isInteger(expectedComponentsRevision) ||
+        expectedComponentsRevision < 0
+      ) {
+        return jsonError(c, 400, "invalid-revision");
+      }
+    }
     const db = c.get("db");
-    spec.saveDraft(db, projectOf(db, auth), stageIndex, body as Record<string, unknown>);
-    return c.json({ ok: true, savedAt: new Date().toISOString() });
+    const result = spec.saveDraft(
+      db,
+      projectOf(db, auth),
+      stageIndex,
+      body as Record<string, unknown>,
+      expectedRevision,
+      expectedComponentsRevision as number | undefined,
+    );
+    return c.json({
+      ok: true,
+      applied: result.applied,
+      revision: result.revision,
+      ...(result.componentsRevision !== undefined
+        ? { componentsRevision: result.componentsRevision }
+        : {}),
+      savedAt: new Date().toISOString(),
+    });
   });
 
   app.post("/judge", async (c) => {

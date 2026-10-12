@@ -27,7 +27,13 @@ import { getStage, nextMainlineStage, stagePrerequisites, type StageDef } from "
 import { publicCasesFor } from "./publicCases";
 
 export type { SaveStatus } from "../../../shared/api/client";
-import type { SaveStatus } from "../../../shared/api/client";
+import {
+  markSaveStatus,
+  markSyncConflict,
+  statusForStage,
+  type SaveStatusByStage,
+  type SyncConflictByStage,
+} from "../../../shared/lab/saveStatus.ts";
 
 /** First failing hidden case, echoed back by the judge for display. */
 export type Counterexample = {
@@ -55,6 +61,11 @@ export type JudgeOutcome = {
   passedStages: number[];
   error: string | null;
   unlockedComponent: string | null;
+  /** Library revision after the judgement's own write (null = untouched). */
+  componentsRevision: number | null;
+  /** The authoritative library after the judgement's write — adopted
+   *  wholesale together with componentsRevision (null = untouched). */
+  unlockedSubmodules: ComponentDef[] | null;
 } | null;
 
 export type CalculatorLessonState = {
@@ -64,15 +75,45 @@ export type CalculatorLessonState = {
   /** Stages fully passed, ascending, deduplicated. */
   passedStages: number[];
   unlockedSubmodules: ComponentDef[];
+  /** Server-assigned revision of the component library — the next save that
+   *  carries `components` sends it back as `expectedComponentsRevision`. */
+  componentsRevision: number;
+  /** Local edit sequence of the component library: bumped on every mutation
+   *  (create/edit/delete/undo/restore). A save can only confirm the edits it
+   *  actually carried — see componentsConfirmedSeq. */
+  componentsEditSeq: number;
+  /** Highest edit seq an applied save confirmed. Monotonic — a late response
+   *  confirms only the seq its own request carried, never the whole counter,
+   *  so edits made after that send stay unconfirmed. */
+  componentsConfirmedSeq: number;
+  /** The learner edited the library since the last sync — only then does a
+   *  save carry `components`; an unchanged library can never win-or-lose a
+   *  compare against another device's write. Derived: componentsEditSeq >
+   *  componentsConfirmedSeq. */
+  componentsChanged: boolean;
+  /** The local library a save conflict replaced — restorable like a
+   *  conflicted stage draft. */
+  conflictedComponents: ComponentDef[] | null;
   /** Draft graph per stage index. */
   drafts: Record<number, CircuitGraph>;
+  /** The local drafts a save conflict replaced — kept so the learner can
+   *  restore their unsaved version explicitly after reconciling. Survives
+   *  until restore, explicit discard, overwrite by a newer conflict, or a
+   *  project load — a routine save never clears it. */
+  conflictedLocalDrafts: Record<number, CircuitGraph>;
+  /** Server-assigned revision of each stage's latest applied write — the
+   *  next autosave for that stage sends it back as `expectedRevision`. */
+  draftRevisions: Record<number, number>;
   /** Undo snapshots: the graph before each edit, tagged with its stage. */
   past: UndoSnapshot[];
   /** A node drag is kept out of history until the pointer is released. */
   nodeMove: { stageIndex: number; nodeId: string; graph: CircuitGraph } | null;
   selectedNodeId: string | null;
   pendingWire: PendingWire;
-  saveStatus: SaveStatus;
+  saveStatusByStage: SaveStatusByStage;
+  /** Stages with an unreconciled sync-error — the retry stays visible
+   *  while set, even after further edits flip the save flag to dirty. */
+  unresolvedSyncConflicts: SyncConflictByStage;
   runOutcome: RunOutcome;
   judgeOutcome: JudgeOutcome;
   message: string | null;
@@ -86,6 +127,10 @@ export type CalculatorLessonAction =
       passedStages: number[];
       unlockedSubmodules: ComponentDef[];
       drafts: Record<number, CircuitGraph>;
+      /** Server revisions of the applied drafts, seeded into expectedRevision. */
+      draftRevisions?: Record<number, number>;
+      /** Server revision of the component library — seeds expectedComponentsRevision. */
+      componentsRevision?: number;
       /** Stage the URL asked to reopen; falls back when absent or still locked. */
       stageIndex?: number;
     }
@@ -132,10 +177,42 @@ export type CalculatorLessonAction =
   | { type: "delete-edge"; id: string }
   | { type: "reset-stage" }
   | { type: "run-public-tests" }
-  | { type: "mark-saving" }
-  | { type: "mark-saved" }
-  | { type: "mark-save-error" }
-  | { type: "judge-result"; outcome: NonNullable<JudgeOutcome> }
+  | { type: "mark-saving"; stageIndex: number }
+  | {
+      type: "mark-saved";
+      stageIndex: number;
+      revision?: number;
+      componentsRevision?: number;
+      /** The library edit seq the confirming save actually carried — only
+       *  edits up to this seq may be marked confirmed. */
+      componentsSeq?: number;
+    }
+  | { type: "mark-save-error"; stageIndex: number }
+  | { type: "mark-save-sync-error"; stageIndex: number }
+  | {
+      type: "resolve-save-conflict";
+      stageIndex: number;
+      /** The draft the server holds for the stage; absent → stage scaffold. */
+      draft?: CircuitGraph;
+      /** Server revision now stored for the stage — seeds the next save. */
+      revision?: number;
+      /** The component library the server holds — swapped in alongside the
+       *  stage draft so a stale local library re-syncs instead of staying
+       *  fenced forever. */
+      unlockedSubmodules?: ComponentDef[];
+      /** Server revision of that library. */
+      componentsRevision?: number;
+    }
+  | { type: "restore-conflict-draft"; stageIndex: number }
+  | { type: "discard-conflict-draft"; stageIndex: number }
+  | {
+      type: "judge-result";
+      /** The stage the submission ran on, captured at dispatch time — a
+       *  late response must never attribute its verdict to the stage that
+       *  happens to be on screen when it lands. */
+      stageIndex: number;
+      outcome: NonNullable<JudgeOutcome>;
+    }
   | { type: "dismiss-message" };
 
 export function graphOf(state: CalculatorLessonState, stageIndex = state.stageIndex): CircuitGraph {
@@ -232,12 +309,20 @@ export function createCalculatorLessonState(stageIndex = 1): CalculatorLessonSta
     currentStage: stageIndex,
     passedStages: [],
     unlockedSubmodules: [],
+    componentsRevision: 0,
+    componentsEditSeq: 0,
+    componentsConfirmedSeq: 0,
+    componentsChanged: false,
+    conflictedComponents: null,
     drafts: { [stageIndex]: scaffoldGraph(stageIndex) },
+    conflictedLocalDrafts: {},
+    draftRevisions: {},
     past: [],
     nodeMove: null,
     selectedNodeId: null,
     pendingWire: null,
-    saveStatus: "idle",
+    saveStatusByStage: {},
+    unresolvedSyncConflicts: {},
     runOutcome: null,
     judgeOutcome: null,
     message: null,
@@ -377,7 +462,7 @@ function updateGraph(
           unlockedSubmodules: state.unlockedSubmodules,
         })
       : state.past,
-    saveStatus: "dirty",
+    saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
     // Editing invalidates any previous verdict.
     runOutcome: null,
     judgeOutcome: null,
@@ -470,6 +555,30 @@ function rewriteComponentPortReferences(
   return changed ? { ...graph, edges } : graph;
 }
 
+/**
+ * A rewrite that touches several stages' drafts at once (a component
+ * rename/port edit, an undo restoring a cross-stage snapshot) must dirty
+ * every stage it actually changed — otherwise the other stages' rewritten
+ * graphs never reach the server while the library already holds the new
+ * name. `always` stays marked even when its own draft was untouched: some
+ * save has to carry the library change.
+ */
+function markDirtyStagesChanged(
+  byStage: SaveStatusByStage,
+  before: Record<number, CircuitGraph>,
+  after: Record<number, CircuitGraph>,
+  always: number,
+): SaveStatusByStage {
+  let next = markSaveStatus(byStage, always, "dirty");
+  for (const [stage, graph] of Object.entries(after)) {
+    const stageIndex = Number(stage);
+    if (stageIndex !== always && graph !== before[stageIndex]) {
+      next = markSaveStatus(next, stageIndex, "dirty");
+    }
+  }
+  return next;
+}
+
 function editCustomComponent(
   state: CalculatorLessonState,
   action: Extract<CalculatorLessonAction, { type: "edit-custom-component" }>,
@@ -537,6 +646,8 @@ function editCustomComponent(
     ...state,
     drafts,
     unlockedSubmodules,
+    componentsEditSeq: state.componentsEditSeq + 1,
+    componentsChanged: true,
     past: appendPast(state.past, {
       stageIndex: state.stageIndex,
       graph: graphOf(state),
@@ -544,7 +655,12 @@ function editCustomComponent(
       unlockedSubmodules: state.unlockedSubmodules,
     }),
     nodeMove: null,
-    saveStatus: "dirty",
+    saveStatusByStage: markDirtyStagesChanged(
+      state.saveStatusByStage,
+      state.drafts,
+      drafts,
+      state.stageIndex,
+    ),
     runOutcome: null,
     judgeOutcome: null,
     message: `已更新自定义组件“${nextName}”。`,
@@ -561,6 +677,12 @@ export function transitionCalculatorLesson(
       for (const [key, graph] of Object.entries(action.drafts)) {
         drafts[Number(key)] = graph;
       }
+      const draftRevisions: Record<number, number> = {};
+      for (const [key, rev] of Object.entries(action.draftRevisions ?? {})) {
+        // The library's own revision shares the map under a reserved
+        // non-numeric key — never seed it as a stage revision.
+        if (Number.isInteger(Number(key))) draftRevisions[Number(key)] = rev;
+      }
       const requested = action.stageIndex ?? state.stageIndex;
       const requestedStage = getStage(requested);
       const requestedUnlocked =
@@ -576,10 +698,18 @@ export function transitionCalculatorLesson(
         currentStage: action.currentStage,
         passedStages: action.passedStages,
         unlockedSubmodules: action.unlockedSubmodules,
+        componentsRevision: action.componentsRevision ?? 0,
+        componentsEditSeq: 0,
+        componentsConfirmedSeq: 0,
+        componentsChanged: false,
+        conflictedComponents: null,
         drafts,
+        conflictedLocalDrafts: {},
+        draftRevisions,
         past: [],
         nodeMove: null,
-        saveStatus: "idle",
+        saveStatusByStage: {},
+        unresolvedSyncConflicts: {},
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -677,9 +807,11 @@ export function transitionCalculatorLesson(
         }),
         nodeMove: null,
         unlockedSubmodules: [...state.unlockedSubmodules, result.component],
+        componentsEditSeq: state.componentsEditSeq + 1,
+        componentsChanged: true,
         selectedNodeId: componentNodeId,
         pendingWire: null,
-        saveStatus: "dirty",
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
         message: `已封装“${name}”，现在可以从“我的组件”中重复放置。`,
@@ -743,7 +875,9 @@ export function transitionCalculatorLesson(
       return {
         ...state,
         unlockedSubmodules: state.unlockedSubmodules.filter((candidate) => candidate !== component),
-        saveStatus: "dirty",
+        componentsEditSeq: state.componentsEditSeq + 1,
+        componentsChanged: true,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, state.stageIndex, "dirty"),
         runOutcome: null,
         judgeOutcome: null,
         message: `已删除自定义组件“${component.name}”。`,
@@ -834,13 +968,27 @@ export function transitionCalculatorLesson(
       const top = settled.past[settled.past.length - 1];
       // Only restore a snapshot made on the stage currently on screen.
       if (!top || top.stageIndex !== settled.stageIndex) return settled;
+      const restoredDrafts = top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph };
       return {
         ...settled,
-        drafts: top.drafts ?? { ...settled.drafts, [settled.stageIndex]: top.graph },
+        drafts: restoredDrafts,
         unlockedSubmodules: top.unlockedSubmodules ?? settled.unlockedSubmodules,
+        // An undo that rewrote the library is a library change too.
+        componentsEditSeq:
+          top.unlockedSubmodules !== undefined
+            ? settled.componentsEditSeq + 1
+            : settled.componentsEditSeq,
+        componentsChanged: top.unlockedSubmodules !== undefined || settled.componentsChanged,
         past: settled.past.slice(0, -1),
         nodeMove: null,
-        saveStatus: "dirty",
+        // Component-edit snapshots hold every stage's drafts — each stage
+        // whose draft the undo restores is dirty again so autosave persists it.
+        saveStatusByStage: markDirtyStagesChanged(
+          state.saveStatusByStage,
+          settled.drafts,
+          restoredDrafts,
+          settled.stageIndex,
+        ),
         runOutcome: null,
         judgeOutcome: null,
       };
@@ -856,40 +1004,306 @@ export function transitionCalculatorLesson(
     }
 
     case "mark-saving":
-      return { ...state, saveStatus: "saving" };
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saving"),
+      };
 
-    case "mark-saved":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "saved" : state.saveStatus };
+    case "mark-saved": {
+      // Only a save started from the stage's current dirty state may settle it.
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      // A saved write does NOT drop the stage's conflict backup — the
+      // recoverable local copy stays until the learner restores or
+      // explicitly discards it.
+      //
+      // The response confirms ONLY the component edits its request actually
+      // carried (`componentsSeq`, captured at send time) — edits made after
+      // that send keep the library dirty and ride the next save, whatever
+      // stage this response belongs to. The counter itself is monotonic:
+      // an older response may never drag componentsRevision (or a stage's
+      // draft revision) backwards.
+      const confirmedComponentsSeq =
+        typeof action.componentsSeq === "number"
+          ? Math.max(state.componentsConfirmedSeq, action.componentsSeq)
+          : state.componentsConfirmedSeq;
+      return {
+        ...state,
+        componentsRevision:
+          typeof action.componentsRevision === "number"
+            ? Math.max(state.componentsRevision, action.componentsRevision)
+            : state.componentsRevision,
+        componentsConfirmedSeq: confirmedComponentsSeq,
+        componentsChanged: state.componentsEditSeq > confirmedComponentsSeq,
+        draftRevisions:
+          typeof action.revision === "number"
+            ? {
+                ...state.draftRevisions,
+                [action.stageIndex]: Math.max(
+                  state.draftRevisions[action.stageIndex] ?? 0,
+                  action.revision,
+                ),
+              }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved"),
+      };
+    }
 
     case "mark-save-error":
-      return { ...state, saveStatus: state.saveStatus === "saving" ? "error" : state.saveStatus };
+      if (statusForStage(state.saveStatusByStage, action.stageIndex) !== "saving") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "error"),
+      };
+
+    case "mark-save-sync-error": {
+      // The refused write's reconcile fetch failed: the local draft is
+      // untouched and the stage stays fenced (its revision never advanced)
+      // — only an explicit retry's resolve lifts the fence. Distinct from
+      // "conflict": nothing was loaded, so "已载入最新进度" would be a lie.
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
+      return {
+        ...state,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "sync-error"),
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          true,
+        ),
+      };
+    }
+
+    case "resolve-save-conflict": {
+      // Per-stage reconcile after a refused write: swap ONLY the conflicted
+      // stage's draft for the server's copy and land its conflict flag in the
+      // same transition — every other stage's local draft and save flag is
+      // left untouched. The replaced local draft is stashed in
+      // conflictedLocalDrafts so the learner can still recover it. Settles
+      // while the stage waits on its save — and on a dirty flag too: a
+      // fenced stage cannot retry its own save, so the reconcile must still
+      // land (the stash keeps those newer edits recoverable the same way).
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      // "sync-error" is the same refusal, still unreconciled — a retry's
+      // payload lands here too.
+      if (status !== "saving" && status !== "dirty" && status !== "sync-error") return state;
+      const isCurrent = action.stageIndex === state.stageIndex;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      const localDraft = state.drafts[action.stageIndex];
+      if (localDraft !== undefined) conflictedLocalDrafts[action.stageIndex] = localDraft;
+      // The server's component library replaces the local one in the same
+      // reconcile — but only as the (snapshot, revision) pair the server
+      // versions it at, and only while that pair is not older than what the
+      // client already holds. A stale project read racing a newer judge
+      // write would otherwise regress both, or take the older list while
+      // keeping the newer counter — the stale-list overwrite hole again.
+      const adoptsServerLibrary =
+        action.unlockedSubmodules !== undefined &&
+        typeof action.componentsRevision === "number" &&
+        action.componentsRevision >= state.componentsRevision;
+      // The replaced local library is stashed as a restorable backup, but
+      // only when it actually differs (an identical server copy creates no
+      // backup and never clobbers an earlier one).
+      const libraryDiffers =
+        adoptsServerLibrary &&
+        JSON.stringify(action.unlockedSubmodules) !== JSON.stringify(state.unlockedSubmodules);
+      return {
+        ...state,
+        drafts: {
+          ...state.drafts,
+          [action.stageIndex]: withScaffold(action.draft ?? emptyGraph(), action.stageIndex),
+        },
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        unlockedSubmodules: adoptsServerLibrary
+          ? (action.unlockedSubmodules ?? state.unlockedSubmodules)
+          : state.unlockedSubmodules,
+        conflictedComponents: libraryDiffers
+          ? state.unlockedSubmodules
+          : state.conflictedComponents,
+        componentsRevision: adoptsServerLibrary
+          ? (action.componentsRevision ?? state.componentsRevision)
+          : state.componentsRevision,
+        // The adopted server library resolves every local edit it replaced —
+        // they live on only in the restorable backup, so the confirmed seq
+        // catches up to the edit seq instead of leaving the library dirty.
+        componentsConfirmedSeq: libraryDiffers
+          ? state.componentsEditSeq
+          : state.componentsConfirmedSeq,
+        componentsChanged: libraryDiffers ? false : state.componentsChanged,
+        // Stage revisions are monotone too: a stale reconcile may never
+        // move the counter a future expectedRevision is built on backwards.
+        draftRevisions:
+          typeof action.revision === "number"
+            ? {
+                ...state.draftRevisions,
+                [action.stageIndex]: Math.max(
+                  state.draftRevisions[action.stageIndex] ?? 0,
+                  action.revision,
+                ),
+              }
+            : state.draftRevisions,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "conflict"),
+        // Undo history survives: restoring a pre-conflict snapshot marks the
+        // stage dirty and re-saves — the student's recovery path for the
+        // overwritten work. Selection/wiring and stale verdicts clear only
+        // when the replaced draft is the one on screen.
+        nodeMove: isCurrent ? null : state.nodeMove,
+        selectedNodeId: isCurrent ? null : state.selectedNodeId,
+        pendingWire: isCurrent ? null : state.pendingWire,
+        runOutcome: isCurrent ? null : state.runOutcome,
+        judgeOutcome: isCurrent ? null : state.judgeOutcome,
+      };
+    }
+
+    case "restore-conflict-draft": {
+      // The learner explicitly keeps their pre-conflict version: it returns
+      // as a dirty draft and autosave re-arms — expectedRevision is now the
+      // reconciled server revision, so the write supersedes legitimately
+      // (or loses OCC to an even newer write → a fresh conflict). A stashed
+      // component library comes back the same way: restored, marked
+      // changed, and re-sent on the next save.
+      const backup = state.conflictedLocalDrafts[action.stageIndex];
+      const components = state.conflictedComponents;
+      if (backup === undefined && components === null) return state;
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      const isCurrent = action.stageIndex === state.stageIndex;
+      return {
+        ...state,
+        drafts:
+          backup === undefined ? state.drafts : { ...state.drafts, [action.stageIndex]: backup },
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        unlockedSubmodules: components ?? state.unlockedSubmodules,
+        // Restoring the stashed library is a new local edit: it must ride the
+        // next save like any other unconfirmed change.
+        componentsEditSeq:
+          components !== null ? state.componentsEditSeq + 1 : state.componentsEditSeq,
+        componentsChanged: components !== null ? true : state.componentsChanged,
+        conflictedComponents: null,
+        saveStatusByStage: markSaveStatus(state.saveStatusByStage, action.stageIndex, "dirty"),
+        nodeMove: isCurrent ? null : state.nodeMove,
+        selectedNodeId: isCurrent ? null : state.selectedNodeId,
+        pendingWire: isCurrent ? null : state.pendingWire,
+        runOutcome: isCurrent ? null : state.runOutcome,
+        judgeOutcome: isCurrent ? null : state.judgeOutcome,
+      };
+    }
+
+    case "discard-conflict-draft": {
+      // The learner accepts the server's draft (and library): drop every
+      // recoverable local copy for good. A "conflict" flag settles to
+      // "saved" — the content on screen is the server's applied write.
+      if (
+        state.conflictedLocalDrafts[action.stageIndex] === undefined &&
+        state.conflictedComponents === null
+      ) {
+        return state;
+      }
+      const conflictedLocalDrafts = { ...state.conflictedLocalDrafts };
+      delete conflictedLocalDrafts[action.stageIndex];
+      const status = statusForStage(state.saveStatusByStage, action.stageIndex);
+      return {
+        ...state,
+        conflictedLocalDrafts,
+        unresolvedSyncConflicts: markSyncConflict(
+          state.unresolvedSyncConflicts,
+          action.stageIndex,
+          false,
+        ),
+        conflictedComponents: null,
+        saveStatusByStage:
+          status === "conflict"
+            ? markSaveStatus(state.saveStatusByStage, action.stageIndex, "saved")
+            : state.saveStatusByStage,
+      };
+    }
 
     case "judge-result": {
       const unlocked = action.outcome.unlockedComponent;
-      const submodules = unlocked
-        ? [
-            ...state.unlockedSubmodules.filter(
-              (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
-            ),
-            { name: unlocked, graph: graphOf(state) },
-          ]
-        : state.unlockedSubmodules;
-      // Stages may now pass out of order; merge the judged stage into the
-      // server-reported set and derive progress from it.
-      const passedStages = action.outcome.passed
-        ? [...new Set([...action.outcome.passedStages, state.stageIndex])].sort((a, b) => a - b)
-        : state.passedStages;
+      // The judge answers its library write with the full server snapshot:
+      // adopt it wholesale rather than grafting the unlock onto a possibly
+      // stale local list — grafting is what let the next save silently
+      // delete components another tab had just saved. The graft stays only
+      // as a fallback for a response that names an unlock without the
+      // snapshot (the new server always sends both).
+      const serverLibrary = action.outcome.unlockedSubmodules ?? undefined;
+      // Adopt the judge's (snapshot, revision) pair only while it is not
+      // older than the revision the client already holds — the pair is
+      // atomic: taking an older snapshot at an older confirmed counter would
+      // regress both, and clamping the counter alone would let that stale
+      // list claim a revision it holds no snapshot for.
+      const adoptsServerLibrary =
+        serverLibrary !== undefined &&
+        typeof action.outcome.componentsRevision === "number" &&
+        action.outcome.componentsRevision >= state.componentsRevision;
+      const submodules = adoptsServerLibrary
+        ? serverLibrary
+        : serverLibrary === undefined && unlocked
+          ? [
+              ...state.unlockedSubmodules.filter(
+                (s) => s.name.toLocaleLowerCase() !== unlocked.toLocaleLowerCase(),
+              ),
+              { name: unlocked, graph: graphOf(state) },
+            ]
+          : state.unlockedSubmodules;
+      // Unsaved local component edits are never merged into the snapshot
+      // silently — they move into the same restorable backup a save
+      // conflict produces, so the learner keeps an explicit restore path.
+      const libraryDiffers =
+        adoptsServerLibrary &&
+        JSON.stringify(serverLibrary) !== JSON.stringify(state.unlockedSubmodules);
+      // The verdict belongs to the stage the submission ran on — carried
+      // on the action from dispatch time, never the stage on screen when a
+      // late response lands. Progress comes from the server's authoritative
+      // set, unioned with what the client already holds so a stale response
+      // can never regress it.
+      const passedStages = [
+        ...new Set([
+          ...state.passedStages,
+          ...action.outcome.passedStages,
+          ...(action.outcome.passed ? [action.stageIndex] : []),
+        ]),
+      ].sort((a, b) => a - b);
+      // The verdict panel and banner only surface while the judged stage is
+      // still on screen — progress above lands either way.
+      const onSubmittedStage = action.stageIndex === state.stageIndex;
       return {
         ...state,
-        judgeOutcome: action.outcome,
+        judgeOutcome: onSubmittedStage ? action.outcome : state.judgeOutcome,
         passedStages,
         currentStage: nextMainlineStage(passedStages),
         unlockedSubmodules: submodules,
-        message: action.outcome.passed
-          ? unlocked
-            ? `${getStage(state.stageIndex)?.title ?? "本关"}完成——组件 ${unlocked} 已加入「我的组件」，下一关可以直接使用。`
-            : `${getStage(state.stageIndex)?.title ?? "本关"}完成——全部隐藏用例都正确。`
-          : `得分 ${action.outcome.score} / ${action.outcome.total}，还没有全部通过。`,
+        conflictedComponents:
+          libraryDiffers && state.componentsChanged
+            ? state.unlockedSubmodules
+            : state.conflictedComponents,
+        // The judge persists the library server-side and bumps its
+        // revision — adopt it, but only together with the snapshot it
+        // versions: a bare counter would let a stale list claim a
+        // revision it holds no snapshot for.
+        componentsRevision: adoptsServerLibrary
+          ? (action.outcome.componentsRevision ?? state.componentsRevision)
+          : state.componentsRevision,
+        componentsConfirmedSeq: libraryDiffers
+          ? state.componentsEditSeq
+          : state.componentsConfirmedSeq,
+        componentsChanged: libraryDiffers ? false : state.componentsChanged,
+        message: !onSubmittedStage
+          ? state.message
+          : action.outcome.passed
+            ? unlocked
+              ? `${getStage(action.stageIndex)?.title ?? "本关"}完成——组件 ${unlocked} 已加入「我的组件」，下一关可以直接使用。`
+              : `${getStage(action.stageIndex)?.title ?? "本关"}完成——全部隐藏用例都正确。`
+            : `得分 ${action.outcome.score} / ${action.outcome.total}，还没有全部通过。`,
       };
     }
 

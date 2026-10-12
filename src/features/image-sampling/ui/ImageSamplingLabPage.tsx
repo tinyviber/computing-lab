@@ -7,7 +7,8 @@ import { LabPageShell } from "../../../shared/lab/LabPageShell";
 import { useLabCatalog } from "../../../shared/lab/labs";
 import { StageRail } from "../../../shared/lab/StageRail";
 import { useAutosaveDraft } from "../../../shared/lab/useAutosaveDraft";
-import { useLabProject } from "../../../shared/lab/useLabProject";
+import { statusForStage, syncConflictForStage } from "../../../shared/lab/saveStatus.ts";
+import { reconcileConflictedStage, useLabProject } from "../../../shared/lab/useLabProject";
 import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { Icon } from "../../../shared/ui/Icon";
 import type { SamplingJudgeResult, SamplingSubmission } from "../domain/protocol.ts";
@@ -85,7 +86,7 @@ export function ImageSamplingLabPage() {
   // so the first run doesn't spend its load budget on the fetch itself.
   useEffect(() => warmPyodide(), []);
 
-  const { projectLoaded, loadError } = useLabProject<
+  const { projectLoaded, loadError, fetchProject } = useLabProject<
     StageDraft,
     Record<never, never>,
     SamplingLessonAction
@@ -97,6 +98,7 @@ export function ImageSamplingLabPage() {
       type: "load-project",
       currentStage: project.currentStage,
       passedStages: project.passedStages,
+      draftRevisions: project.draftRevisions,
       drafts: Object.fromEntries(
         Object.entries(project.drafts ?? {}).map(([key, value]) => [Number(key), value]),
       ),
@@ -115,16 +117,40 @@ export function ImageSamplingLabPage() {
     // projectLoaded flips in the same batch as load-project, so `state` is fresh.
   }, [projectLoaded]);
 
+  // Reconcile one conflicted stage against the server's copy — also used by
+  // the explicit retry the sync-error state offers; a failed refetch flags
+  // sync-error and keeps the local draft, never a fake "已载入最新进度".
+  const reconcileConflict = (s: number) =>
+    reconcileConflictedStage({
+      fetchProject,
+      stageIndex: s,
+      onResolved: (stageIndex, project) =>
+        dispatch({
+          type: "resolve-save-conflict",
+          stageIndex,
+          draft: project.drafts?.[stageIndex],
+          revision: project.draftRevisions?.[stageIndex],
+        }),
+      onSyncError: (stageIndex) => dispatch({ type: "mark-save-sync-error", stageIndex }),
+    });
+
   useAutosaveDraft<StageDraft>({
     classId,
     labId: "image-sampling",
-    saveStatus: state.saveStatus,
+    // While the (new class's) project is loading the flags on screen still
+    // belong to the previous context — nothing may schedule writes for it.
+    saveStatus: projectLoaded ? statusForStage(state.saveStatusByStage, state.stageIndex) : "idle",
     stageIndex: state.stageIndex,
     draftOf: (index) => draftOf(state, index),
     deps: [state.drafts],
-    onSaving: () => dispatch({ type: "mark-saving" }),
-    onSaved: () => dispatch({ type: "mark-saved" }),
-    onError: () => dispatch({ type: "mark-save-error" }),
+    expectedRevisionOf: (s) => state.draftRevisions[s] ?? 0,
+    onSaving: (s) => dispatch({ type: "mark-saving", stageIndex: s }),
+    onSaved: (s, revision) => dispatch({ type: "mark-saved", stageIndex: s, revision }),
+    onError: (s) => dispatch({ type: "mark-save-error", stageIndex: s }),
+    // The server dropped this write because a newer one already exists
+    // elsewhere: refetch so local state reconciles to the winning draft,
+    // then flag the conflict briefly on the stage.
+    onConflict: (s) => reconcileConflict(s),
   });
 
   const onSubmit = useCallback(async () => {
@@ -186,7 +212,26 @@ export function ImageSamplingLabPage() {
     >
       <AppPageLayout
         className="sampling-lab"
-        topbar={<SaveIndicator status={state.saveStatus} />}
+        topbar={
+          <SaveIndicator
+            status={statusForStage(state.saveStatusByStage, state.stageIndex)}
+            unresolvedSyncConflict={syncConflictForStage(
+              state.unresolvedSyncConflicts,
+              state.stageIndex,
+            )}
+            onRetrySync={() => reconcileConflict(state.stageIndex)}
+            onRestoreLocal={
+              state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                ? () => dispatch({ type: "restore-conflict-draft", stageIndex: state.stageIndex })
+                : undefined
+            }
+            onDiscardLocal={
+              state.conflictedLocalDrafts[state.stageIndex] !== undefined
+                ? () => dispatch({ type: "discard-conflict-draft", stageIndex: state.stageIndex })
+                : undefined
+            }
+          />
+        }
         topbarProps={{
           subtitle: stage?.englishTitle,
           title: stage?.title ?? "空间采样",

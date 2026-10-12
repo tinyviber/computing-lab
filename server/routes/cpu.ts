@@ -36,8 +36,10 @@ export function cpuRoutes() {
     projectExtras: (db, project) => ({
       calculatorCoreComplete: calculatorCoreComplete(db, project.userId),
     }),
-    saveDraft: (db, project, stageIndex, body) =>
-      saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {})),
+    saveDraft: (db, project, stageIndex, body, expectedRevision) =>
+      saveStageDraft(db, project, stageIndex, sanitizeDraft(body.draft ?? {}), {
+        expectedRevision,
+      }),
     judge: (db, project, stageIndex, body) => {
       const key = `${project.userId}|cpu|${stageIndex}`;
       if (judgeLimiter.exceeded(key)) return { error: "rate-limited", status: 429 };

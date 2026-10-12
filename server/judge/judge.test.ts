@@ -235,7 +235,7 @@ describe("judge persistence and unlocking", () => {
     expect(stage2.currentStage).toBe(4);
   });
 
-  it("judges with a learner-made component and persists it", () => {
+  it("judges with a learner-made component but never persists the submitted list", () => {
     const { db, userId, classId } = setup();
     const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const custom = { name: "PackedHalfAdder", graph: halfAdderGraph(), custom: true };
@@ -274,12 +274,77 @@ describe("judge persistence and unlocking", () => {
     const outcome = judgeSubmission(db, project, 2, graph, [custom]);
     if ("error" in outcome) throw new Error(outcome.error);
     expect(outcome.passed).toBe(true);
+    // The submitted component list is an evaluation view only: the library
+    // write keeps just the server copy plus the judge's own unlock grant —
+    // PackedHalfAdder persists through the draft OCC save path, not judge.
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual(["HalfAdder"]);
+    expect(reloaded.unlockedSubmodules[0].custom).toBeUndefined();
+  });
+
+  it("never lets a stale tab's judgement overwrite another tab's fresh components", () => {
+    const { db, userId, classId } = setup();
+    // Tab A's project view — read before tab B created anything.
+    const staleProject = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    // Tab B creates a component and autosaves it through the OCC path —
+    // the library's revision moves to 1.
+    const fresh = { name: "FreshGate", graph: { nodes: [], edges: [] }, custom: true };
+    const saved = saveDraft(db, staleProject, 1, { nodes: [], edges: [] }, [fresh], 0, 0);
+    expect(saved).toMatchObject({ applied: true, componentsRevision: 1 });
+
+    // Tab A judges stage 2 with its stale (empty) component list — a
+    // FAILING judgement must not write that list back over B's save.
+    const failing = judgeSubmission(db, staleProject, 2, wireGraph(), []);
+    if ("error" in failing) throw new Error(failing.error);
+    expect(failing.passed).toBe(false);
+    expect(failing.componentsRevision).toBeNull();
+    let reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual(["FreshGate"]);
+    expect(reloaded.draftRevisions.components).toBe(1);
+
+    // Even a PASSING judgement only adds the stage's own unlock to the
+    // server copy — B's component survives alongside it.
+    const passing = judgeSubmission(db, staleProject, 2, halfAdderGraph(), []);
+    if ("error" in passing) throw new Error(passing.error);
+    expect(passing.passed).toBe(true);
+    expect(passing.unlockedComponent).toBe("HalfAdder");
+    reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
-      "PackedHalfAdder",
+      "FreshGate",
       "HalfAdder",
     ]);
-    expect(reloaded.unlockedSubmodules[0].custom).toBe(true);
+    expect(reloaded.draftRevisions.components).toBe(2);
+
+    // The judgement answers its library write with the full authoritative
+    // snapshot, not just a revision number: tab A adopts it wholesale, so
+    // its own next save carries BOTH B's component and the unlock under the
+    // claimed revision — FreshGate must still be there afterwards.
+    expect(passing.componentsRevision).toBe(2);
+    expect(passing.unlockedSubmodules?.map((component) => component.name)).toEqual([
+      "FreshGate",
+      "HalfAdder",
+    ]);
+    const aGate = { name: "AGate", graph: { nodes: [], edges: [] }, custom: true };
+    const adopted = passing.unlockedSubmodules ?? [];
+    // Each PUT loads its own project row — the request-time read is what
+    // the merge classifies against, never a tab's stale snapshot.
+    const requestProject = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    const accepted = saveDraft(
+      db,
+      requestProject,
+      3,
+      { nodes: [], edges: [] },
+      [...adopted, aGate],
+      0,
+      passing.componentsRevision ?? 0,
+    );
+    expect(accepted).toMatchObject({ applied: true, componentsRevision: 3 });
+    reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
+    expect(reloaded.unlockedSubmodules.map((component) => component.name)).toEqual([
+      "FreshGate",
+      "HalfAdder",
+      "AGate",
+    ]);
   });
 
   it("does not advance on a partial pass but records the score", () => {
@@ -437,13 +502,15 @@ describe("judge persistence and unlocking", () => {
     const project = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     const custom = { name: "TemporaryBlock", graph: halfAdderGraph(), custom: true };
 
-    saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom]);
+    saveDraft(db, project, 1, { nodes: [], edges: [] }, [custom], 0, 0);
     const withCustom = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(withCustom.unlockedSubmodules.map((component) => component.name)).toEqual([
       "TemporaryBlock",
     ]);
 
-    saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, []);
+    // Library writes are compare-and-swapped like stage drafts: the second
+    // call supersedes at the revision the first write was assigned.
+    saveDraft(db, withCustom, 1, { nodes: [], edges: [] }, [], 1, 1);
     const reloaded = getOrCreateProject<CircuitGraph>(db, userId, classId, "calculator");
     expect(reloaded.unlockedSubmodules).toEqual([]);
   });

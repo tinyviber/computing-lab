@@ -59,6 +59,11 @@ export type CpuLabViewModel = Readonly<{
   }>;
   feedback: Readonly<{
     saveStatus: SaveStatus;
+    /** A post-refusal reconcile fetch failed and is still unreconciled —
+     *  the retry stays visible while set, even when the flag reads dirty. */
+    unresolvedSyncConflict: boolean;
+    /** A pre-conflict local draft of this stage is recoverable. */
+    conflictLocalAvailable: boolean;
     recommendCalculator: boolean;
     message: string | null;
     error: string | null;
@@ -155,6 +160,12 @@ export type CpuLabActions = {
   runPublicTests(): void;
   submit(): Promise<void>;
   replayCounterexample(counterexample: CpuCounterexample): void;
+  /** Swap the reconciled (server) draft back for the pre-conflict local copy. */
+  restoreConflictLocal(): void;
+  /** Drop the recoverable local copy — the student accepts the server's draft. */
+  discardConflictLocal(): void;
+  /** Refetch after a failed post-conflict sync — the only way out of sync-error. */
+  retrySyncConflict(): void;
 };
 
 export type CpuWorkspaceProps = { model: CpuLabViewModel; actions: CpuLabActions };
