@@ -15,11 +15,10 @@ export const labMetadata = {
     entryPath: "/labs/calculator",
     category: "computer-architecture",
   },
-  cpu: {
-    title: "冯诺依曼数据通路",
-    description:
-      "一台点餐机就是冯·诺依曼：拨码开关进、数码管出，按一下时钟走一拍——看五大部件怎么取指、译码、执行。",
-    entryPath: "/labs/cpu",
+  "five-parts": {
+    title: "计算机是怎么工作的？",
+    description: "看计算机一步步算出结果，断电看看内存和外存的区别，再找找手机里的五大部件。",
+    entryPath: "/labs/five-parts",
     category: "computer-architecture",
   },
   decoding: {

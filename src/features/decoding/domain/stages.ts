@@ -12,8 +12,8 @@
  *                   the student's code composes decoders instead
  *   "files"       – three mystery payloads, two provided decoders, judgment
  *
- * Concept prompts are server-verified option questions (same authority model
- * as the cpu lab's guided answers): passing means a complete all-correct set.
+ * Concept prompts are server-verified option questions: passing means a
+ * complete all-correct set.
  */
 
 export type DecodingKind = "codes" | "bits" | "bmp" | "bmp-script" | "files";

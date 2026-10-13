@@ -134,12 +134,12 @@ function runtimeDependencies(entry: string, seen = new Set<string>()): Set<strin
   return seen;
 }
 
-it("keeps the real CPU workspace independent of controller execution, lesson state and backend", () => {
-  const dependencies = runtimeDependencies(join(featuresRoot, "cpu/ui/CpuWorkspace.tsx"));
-  const forbidden = [...dependencies].filter(
-    (path) =>
-      /[/\\](server|auth|api|controller|lesson)[/\\]/.test(path) ||
-      /cpu[/\\]domain[/\\](machine|stages)\.ts$/.test(path),
+it("keeps the five-parts workspace independent of lesson state and backend", () => {
+  const dependencies = runtimeDependencies(
+    join(featuresRoot, "five-parts/ui/FivePartsWorkspace.tsx"),
+  );
+  const forbidden = [...dependencies].filter((path) =>
+    /[/\\](server|auth|api|controller|lesson)[/\\]/.test(path),
   );
   expect(forbidden.map((path) => relative(srcRoot, path))).toEqual([]);
 });
@@ -156,7 +156,7 @@ it("keeps the real decoding workspace independent of controller execution, lesso
 
 it("keeps development previews independent of server data and live controller hooks", () => {
   for (const entry of [
-    "cpu/preview/CpuPreviewPage.tsx",
+    "five-parts/preview/FivePartsPreviewPage.tsx",
     "decoding/preview/DecodingPreviewPage.tsx",
   ]) {
     const dependencies = runtimeDependencies(join(featuresRoot, entry));

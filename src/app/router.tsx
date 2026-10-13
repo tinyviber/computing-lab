@@ -16,8 +16,8 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { CalculatorRedirectPage } from "./pages/CalculatorRedirectPage";
 import { ImageSamplingRedirectPage } from "./pages/ImageSamplingRedirectPage";
 import { ColorQuantizationRedirectPage } from "./pages/ColorQuantizationRedirectPage";
-import { CpuRedirectPage } from "./pages/CpuRedirectPage";
 import { DecodingRedirectPage } from "./pages/DecodingRedirectPage";
+import { FivePartsRedirectPage } from "./pages/FivePartsRedirectPage";
 import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
@@ -140,18 +140,18 @@ const colorQuantizationLabRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
-const cpuEntryRoute = createRoute({
+const fivePartsEntryRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/labs/cpu",
-  component: CpuRedirectPage,
+  path: "/labs/five-parts",
+  component: FivePartsRedirectPage,
   errorComponent: LabErrorPage,
 });
 
-const cpuLabRoute = createRoute({
+const fivePartsLabRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/classes/$classId/labs/cpu",
+  path: "/classes/$classId/labs/five-parts",
   validateSearch: passThroughSearch,
-  component: lazyRouteComponent(() => import("../features/cpu"), "CpuLabPage"),
+  component: lazyRouteComponent(() => import("../features/five-parts"), "FivePartsLabPage"),
   errorComponent: LabErrorPage,
 });
 
@@ -244,11 +244,11 @@ const devRoutes = import.meta.env.DEV
   ? [
       createRoute({
         getParentRoute: () => rootRoute,
-        path: "/__dev/labs/cpu",
+        path: "/__dev/labs/five-parts",
         validateSearch: passThroughSearch,
         component: lazyRouteComponent(
-          () => import("../features/cpu/preview/CpuPreviewPage"),
-          "CpuPreviewPage",
+          () => import("../features/five-parts/preview/FivePartsPreviewPage"),
+          "FivePartsPreviewPage",
         ),
       }),
       createRoute({
@@ -277,8 +277,8 @@ const routeTree = rootRoute.addChildren([
   imageSamplingLabRoute,
   colorQuantizationEntryRoute,
   colorQuantizationLabRoute,
-  cpuEntryRoute,
-  cpuLabRoute,
+  fivePartsEntryRoute,
+  fivePartsLabRoute,
   decodingEntryRoute,
   decodingLabRoute,
   isSimEntryRoute,

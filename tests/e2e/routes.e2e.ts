@@ -28,9 +28,15 @@ test("serves the root app, calculator entry, and not-found fallback", async ({ p
   expect(audio?.status()).toBe(200);
   await expect(page.locator("h1").first()).toHaveText("登录");
 
-  await page.goto("__dev/labs/cpu?scenario=challenge", { waitUntil: "networkidle" });
-  await expect(page.getByRole("heading", { name: /实验不存在/ })).toBeVisible();
-  await expect(page.getByRole("main", { name: "CPU 数据通路实验区" })).toHaveCount(0);
+  // The retired assembly lab must stay unreachable: its entry URL now falls
+  // to the not-found page rather than reopening the old experiment.
+  const cpuEntry = await page.goto("labs/cpu", { waitUntil: "networkidle" });
+  expect(cpuEntry?.status()).toBe(200);
+  await expect(page.locator("h1").first()).toHaveText(/实验不存在/);
+
+  const fiveParts = await page.goto("labs/five-parts", { waitUntil: "networkidle" });
+  expect(fiveParts?.status()).toBe(200);
+  await expect(page.locator("h1").first()).toHaveText("登录");
 
   const missing = await page.goto("missing-route", { waitUntil: "networkidle" });
   expect(missing?.status()).toBe(200);

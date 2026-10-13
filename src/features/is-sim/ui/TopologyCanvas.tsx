@@ -4,7 +4,7 @@
  * Wiring is two clicks — pick a source's out port, then a legal in-port.
  * A driven in-port shows its source; clicking it removes the wire
  * (one driver per port). Editing is paused while playback runs, mirroring
- * the cpu lab's "lock while running" rule.
+ * the same "lock while running" rule.
  */
 
 import { useMemo, useState } from "react";

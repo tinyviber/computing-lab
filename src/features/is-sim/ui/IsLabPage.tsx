@@ -2,7 +2,7 @@
  * Is-sim lab page: stage rail, light canvas (palette + wiring +
  * inspector), and a scenario preview — pick a public case (or replay a
  * hidden counterexample) and the whole trace steps across the wiring,
- * scrubbed row by row like the cpu lab's per-cycle view.
+ * scrubbed row by row on a shared event timeline.
  */
 
 import { useParams } from "@tanstack/react-router";

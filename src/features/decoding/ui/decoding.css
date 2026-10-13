@@ -31,17 +31,17 @@
   min-width: 0;
 }
 
-/* Rail counters and the late-challenge group reuse the cpu rail's markup. */
-.cpu-rail-count {
+/* Rail counters and the late-challenge group. */
+.decoding-rail-count {
   color: var(--muted);
   font-size: 11px;
 }
 
-.cpu-rail-challenges {
+.decoding-rail-challenges {
   margin-top: 14px;
 }
 
-.cpu-rail-group {
+.decoding-rail-group {
   color: var(--muted);
   font-size: 10px;
   font-weight: 700;
@@ -542,7 +542,7 @@
   color: var(--color-text-3, #6b7280);
 }
 
-/* ---- concept checks (mirrors cpu-guide) ---- */
+/* ---- concept checks ---- */
 
 .decoding-guide {
   border: 1px solid var(--color-line, #d9dee7);

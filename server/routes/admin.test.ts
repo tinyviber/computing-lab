@@ -1017,7 +1017,7 @@ describe("lab visibility", () => {
     const toggled = await request(
       app,
       "PUT",
-      "/api/admin/labs/cpu/visibility",
+      "/api/admin/labs/five-parts/visibility",
       { hidden: true },
       cookie,
     );
@@ -1025,11 +1025,11 @@ describe("lab visibility", () => {
     const after = (await (await request(app, "GET", "/api/labs", undefined, cookie)).json()) as {
       labs: { id: string; hidden: boolean; openClassIds: string[] | null; visible: boolean }[];
     };
-    expect(after.labs.find((lab) => lab.id === "cpu")?.hidden).toBe(true);
+    expect(after.labs.find((lab) => lab.id === "five-parts")?.hidden).toBe(true);
     expect(after.labs.find((lab) => lab.id === "calculator")?.hidden).toBe(false);
     expect(after.labs.find((lab) => lab.id === "audio-encoding")?.hidden).toBe(true);
     // Admins keep `visible` even on hidden labs so they can preview them.
-    expect(after.labs.find((lab) => lab.id === "cpu")?.visible).toBe(true);
+    expect(after.labs.find((lab) => lab.id === "five-parts")?.visible).toBe(true);
   });
 
   it("keeps the audio demo closed by default and allows a class-scoped opening", async () => {

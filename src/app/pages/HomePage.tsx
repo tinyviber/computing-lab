@@ -7,8 +7,8 @@ import { labMetadata, type LabId } from "../../shared/lab/labMetadata";
 import { AppPageLayout } from "../../shared/layout/AppTopbar";
 import { Icon } from "../../shared/ui/Icon";
 import { coreStages } from "../../features/calculator";
-import { CPU_CORE_STAGES } from "../../features/cpu";
 import { DECODING_CORE_STAGES } from "../../features/decoding";
+import { FIVE_PARTS_STAGES } from "../../features/five-parts/domain/stages";
 import { IS_SIM_CORE_STAGES } from "../../features/is-sim";
 import "./home.css";
 
@@ -31,7 +31,7 @@ type StudentTask = {
  */
 const HOME_LAB_CARDS: Record<LabId, { stages: number | null; primary?: true }> = {
   calculator: { stages: coreStages().length, primary: true },
-  cpu: { stages: CPU_CORE_STAGES.length },
+  "five-parts": { stages: FIVE_PARTS_STAGES.length },
   decoding: { stages: DECODING_CORE_STAGES.length },
   "is-sim": { stages: IS_SIM_CORE_STAGES.length },
   "image-sampling": { stages: null },
