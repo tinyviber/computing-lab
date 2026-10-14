@@ -20,6 +20,7 @@ import { CpuRedirectPage } from "./pages/CpuRedirectPage";
 import { DecodingRedirectPage } from "./pages/DecodingRedirectPage";
 import { IsSimRedirectPage } from "./pages/IsSimRedirectPage";
 import { TeacherDashboardPage } from "./pages/TeacherDashboardPage";
+import { ClassMembersPage } from "./pages/ClassMembersPage";
 import { StudentLabPreviewPage } from "./pages/StudentLabPreviewPage";
 import { TaskSheetListPage } from "./pages/TaskSheetListPage";
 import { TaskAssignmentPage } from "./pages/TaskAssignmentPage";
@@ -204,6 +205,15 @@ const dashboardRoute = createRoute({
   errorComponent: LabErrorPage,
 });
 
+/** Teacher-scoped roster management: enroll/rename/reset/remove students of
+ * classes the caller teaches. */
+const classMembersRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/classes/$classId/members",
+  component: ClassMembersPage,
+  errorComponent: LabErrorPage,
+});
+
 /**
  * Admin-only replay of a student's calculator lab — deliberately separate
  * from the student's own /classes/$classId/labs/calculator route so a
@@ -285,6 +295,7 @@ const routeTree = rootRoute.addChildren([
   isSimLabRoute,
   audioEncodingRoute,
   dashboardRoute,
+  classMembersRoute,
   studentLabPreviewRoute,
   taskSheetListRoute,
   taskSheetEditorRoute,

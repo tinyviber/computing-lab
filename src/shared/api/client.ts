@@ -64,6 +64,8 @@ export const API_ERROR_MESSAGES: Record<string, string> = {
   "user-not-found": "账号不存在。",
   "class-not-empty": "班级里还有成员，请先移除全部成员。",
   "membership-not-found": "该用户不在这个班级里。",
+  "student-member-required": "只能对本班学生执行该操作。",
+  "not-a-student-account": "该账号不是学生账号，请让管理员处理。",
   "stage-locked": "这一关还没有解锁。",
   "invalid-stage": "关卡编号无效。",
   "unknown-stage": "关卡不存在。",

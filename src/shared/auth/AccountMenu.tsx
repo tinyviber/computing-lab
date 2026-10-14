@@ -60,6 +60,17 @@ export function AccountMenu() {
               班级看板
             </Link>
           ) : null}
+          {session.user.role === "teacher" && primaryMembership?.classId ? (
+            <Link
+              className="account-menu-item"
+              onClick={() => setOpen(false)}
+              params={{ classId: primaryMembership.classId }}
+              role="menuitem"
+              to="/classes/$classId/members"
+            >
+              班级成员
+            </Link>
+          ) : null}
           {isStaffRole(session.user.role) ? (
             <Link
               className="account-menu-item"
