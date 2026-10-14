@@ -17,6 +17,10 @@ type MembersPayload = {
 
 type RemoveTarget = { label: string; description: string; userId: string };
 
+/** Banners are tagged with the class they belong to so a slow response or an
+ * in-flight action from a previous class can never surface on the new one. */
+type Banner = { classId: string; text: string };
+
 const MIN_STUDENT_PASSWORD = 4;
 
 /**
@@ -30,8 +34,8 @@ export function ClassMembersPage() {
   const navigate = useNavigate();
   const { status, session } = useAuth();
   const [payload, setPayload] = useState<MembersPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [error, setError] = useState<Banner | null>(null);
+  const [notice, setNotice] = useState<Banner | null>(null);
   const [busy, setBusy] = useState(false);
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
@@ -50,11 +54,25 @@ export function ClassMembersPage() {
     if (!classId) return;
     void api
       .get<MembersPayload>(`/api/classes/${classId}/members`)
-      .then(setPayload)
+      .then((data) => {
+        setPayload(data);
+        setError(null);
+      })
       .catch((caught) => {
         setPayload(null);
-        setError(describeApiError(caught));
+        setError({ classId, text: describeApiError(caught) });
       });
+  }, [classId]);
+
+  // Class switch: drop the previous roster and any open dialog so a stale row
+  // can never be renamed/reset/removed under the new classId.
+  useEffect(() => {
+    setPayload(null);
+    setError(null);
+    setNotice(null);
+    setRenameTarget(null);
+    setResetTarget(null);
+    setRemoveTarget(null);
   }, [classId]);
 
   useEffect(() => {
@@ -70,7 +88,7 @@ export function ClassMembersPage() {
         await action();
         reload();
       } catch (caught) {
-        setError(describeApiError(caught));
+        if (classId) setError({ classId, text: describeApiError(caught) });
       } finally {
         setBusy(false);
       }
@@ -85,7 +103,7 @@ export function ClassMembersPage() {
       void run(async () => {
         await api.post(`/api/classes/${classId}/members`, { studentNo });
         setAddStudentNo("");
-        setNotice(`已把学生 ${studentNo} 加入班级。`);
+        if (classId) setNotice({ classId, text: `已把学生 ${studentNo} 加入班级。` });
       });
     },
     [addStudentNo, classId, run],
@@ -104,7 +122,8 @@ export function ClassMembersPage() {
         setNewStudentNo("");
         setNewName("");
         setNewPassword("");
-        setNotice(`已创建学生账号 ${newStudentNo}（${name}）并加入班级。`);
+        if (classId)
+          setNotice({ classId, text: `已创建学生账号 ${newStudentNo}（${name}）并加入班级。` });
       });
     },
     [classId, newName, newPassword, newStudentNo, run],
@@ -117,7 +136,7 @@ export function ClassMembersPage() {
         await api.patch(`/api/classes/${classId}/members/${member.userId}`, { name });
         setRenameTarget(null);
         setRenameValue("");
-        setNotice(`已把 ${member.studentNo} 改名为 ${name}。`);
+        if (classId) setNotice({ classId, text: `已把 ${member.studentNo} 改名为 ${name}。` });
       });
     },
     [classId, renameValue, run],
@@ -130,7 +149,8 @@ export function ClassMembersPage() {
         await api.put(`/api/classes/${classId}/members/${member.userId}/password`, { password });
         setResetTarget(null);
         setResetPassword("");
-        setNotice(`已重置 ${member.name} 的密码，其登录会话已失效。`);
+        if (classId)
+          setNotice({ classId, text: `已重置 ${member.name} 的密码，其登录会话已失效。` });
       });
     },
     [classId, resetPassword, run],
@@ -142,7 +162,8 @@ export function ClassMembersPage() {
     void run(async () => {
       await api.del(`/api/classes/${classId}/members/${target.userId}`);
       setRemoveTarget(null);
-      setNotice(`已把${target.label}移出班级，账号和做题记录保留。`);
+      if (classId)
+        setNotice({ classId, text: `已把${target.label}移出班级，账号和做题记录保留。` });
     });
   }, [classId, removeTarget, run]);
 
@@ -175,14 +196,20 @@ export function ClassMembersPage() {
     );
   }
 
-  const students = payload?.students ?? [];
-  const teachers = payload?.teachers ?? [];
+  // Only render a roster that matches the current route — a response for the
+  // previous class may still land after a switch.
+  const current = payload !== null && payload.classId === classId ? payload : null;
+  const students = current?.students ?? [];
+  const teachers = current?.teachers ?? [];
 
   return (
     <AppPageLayout className="admin-page">
       <main className="page-content profile-main" aria-labelledby="members-page-title">
         <section className="profile-intro">
-          <p className="eyebrow">班级管理 / {payload?.className ?? ""}</p>
+          <p className="eyebrow">
+            班级管理 /{" "}
+            {teachable.find((m) => m.classId === classId)?.className ?? current?.className ?? ""}
+          </p>
           <h1 id="members-page-title">班级成员</h1>
           <p>
             管理本班学生：加入或新建学生账号、改名、重置密码、移出班级。
@@ -218,14 +245,14 @@ export function ClassMembersPage() {
           </div>
         </section>
 
-        {error ? (
+        {error && error.classId === classId ? (
           <p className="auth-error" role="alert">
-            {error}
+            {error.text}
           </p>
         ) : null}
-        {notice ? (
+        {notice && notice.classId === classId ? (
           <p className="profile-success" role="status">
-            {notice}
+            {notice.text}
           </p>
         ) : null}
 
@@ -462,12 +489,12 @@ export function ClassMembersPage() {
                     </td>
                   </tr>
                 ))}
-                {payload && students.length === 0 ? (
+                {current !== null && students.length === 0 ? (
                   <tr>
                     <td colSpan={3}>还没有学生加入这个班级。</td>
                   </tr>
                 ) : null}
-                {payload === null ? (
+                {current === null ? (
                   <tr>
                     <td colSpan={3}>正在加载名单…</td>
                   </tr>

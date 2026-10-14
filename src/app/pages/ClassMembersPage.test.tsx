@@ -105,6 +105,49 @@ describe("ClassMembersPage", () => {
     );
   });
 
+  it("drops the previous roster and dialogs while the new class loads", async () => {
+    const twoClassTeacher: AuthState = {
+      status: "authenticated",
+      session: {
+        user: { id: "u-teacher", studentNo: "teacher", name: "教师", role: "teacher" },
+        memberships: [
+          { classId: "c1", className: "测试班级", role: "teacher" },
+          { classId: "c2", className: "第二班", role: "teacher" },
+        ],
+      },
+    };
+    let releaseC2: ((response: Response) => void) | null = null;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (url.includes("/api/classes/c1/members")) {
+        if (method === "GET") return jsonResponse(membersPayload);
+        return jsonResponse({ ok: true });
+      }
+      if (url.includes("/api/classes/c2/members") && method === "GET") {
+        return new Promise<Response>((resolve) => {
+          releaseC2 = resolve;
+        });
+      }
+      return jsonResponse({});
+    });
+    const user = userEvent.setup();
+
+    await renderAppAt("/classes/c1/members", { auth: twoClassTeacher });
+    await waitFor(() => expect(screen.getByText("张三")).toBeInTheDocument());
+
+    await user.selectOptions(screen.getByLabelText("选择班级"), "c2");
+
+    // c1's roster must not be actionable under the c2 route while c2 loads.
+    await waitFor(() => expect(releaseC2).not.toBeNull());
+    expect(screen.queryByText("张三")).not.toBeInTheDocument();
+    expect(screen.getByText("正在加载名单…")).toBeInTheDocument();
+
+    const resolveC2 = releaseC2 as unknown as (response: Response) => void;
+    resolveC2(jsonResponse({ classId: "c2", className: "第二班", students: [], teachers: [] }));
+    await waitFor(() => expect(screen.getByText("还没有学生加入这个班级。")).toBeInTheDocument());
+  });
+
   it("denies students", async () => {
     mockMembersApi();
     await renderAppAt("/classes/c1/members", { auth: studentAuthState });

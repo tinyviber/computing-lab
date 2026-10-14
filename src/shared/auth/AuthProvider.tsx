@@ -86,6 +86,19 @@ export function AuthProvider({
     void refresh();
   }, [initialState, refresh]);
 
+  // Memberships change outside this tab (a teacher enrolls/removes this
+  // account, an admin edits it). Re-fetch `me` when the tab regains focus so
+  // the new class appears without a manual reload; `refresh` already rides
+  // out transient failures.
+  useEffect(() => {
+    if (initialState) return;
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [initialState, refresh]);
+
   const login = useCallback(async (input: { studentNo: string; password: string }) => {
     const session = await api.post<AuthSession>("/api/auth/login", input);
     setState({ status: "authenticated", session });
