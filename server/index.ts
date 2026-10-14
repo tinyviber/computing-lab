@@ -27,6 +27,7 @@ import { attachDb, attachSession, jsonError, type AppVariables } from "./http/co
 import { authRoutes } from "./routes/auth.ts";
 import { adminRoutes } from "./routes/admin.ts";
 import { calculatorRoutes } from "./routes/calculator.ts";
+import { classMemberRoutes } from "./routes/classMembers.ts";
 import { dashboardRoutes } from "./routes/dashboard.ts";
 import { taskSheetRoutes } from "./routes/taskSheets.ts";
 import { taskAssignmentRoutes } from "./routes/taskAssignments.ts";
@@ -95,6 +96,7 @@ export function createApp(db: DatabaseSync) {
   app.route("/api/labs", labsRoutes());
   app.route("/api/teacher", teacherRoutes());
   app.route("/api/classes/:classId/dashboard", dashboardRoutes());
+  app.route("/api/classes/:classId/members", classMemberRoutes());
   app.route("/api/task-sheets", taskSheetRoutes());
   app.route("/api/classes/:classId/task-assignments", taskAssignmentRoutes());
 

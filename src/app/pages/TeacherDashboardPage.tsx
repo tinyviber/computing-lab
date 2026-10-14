@@ -1,4 +1,4 @@
-import { useNavigate, useParams, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
@@ -337,6 +337,15 @@ export function TeacherDashboardPage() {
                 <option value="task">任务单</option>
               </select>
             </label>
+            {classId ? (
+              <Link
+                className="button button-ghost"
+                params={{ classId }}
+                to="/classes/$classId/members"
+              >
+                成员管理
+              </Link>
+            ) : null}
             {kind === "lab" ? (
               <label className="field-select" htmlFor="dashboard-lab-select">
                 <span>实验</span>

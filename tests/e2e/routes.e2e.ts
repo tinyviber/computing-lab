@@ -69,6 +69,54 @@ test("admin dropdown opens account, class, and lab management as separate pages"
   await expect(page.getByRole("tab")).toHaveCount(0);
 });
 
+test("teacher manages the roster of their own class from the members page", async ({
+  page,
+  request,
+}) => {
+  // Seed: one unattached student account that the teacher will enroll.
+  const adminLogin = await request.post("/api/auth/login", {
+    data: { studentNo: "admin", password: "admin-dev-password" },
+  });
+  expect(adminLogin.status()).toBe(200);
+  const outsiderNo = `e2e-out-${Date.now()}`;
+  const createOutsider = await request.post("/api/admin/users", {
+    data: { studentNo: outsiderNo, name: "转入学生", password: "e2e-password", role: "user" },
+  });
+  expect(createOutsider.status()).toBe(201);
+
+  await page.goto("login", { waitUntil: "networkidle" });
+  await page.getByLabel("学号").fill("teacher");
+  await page.getByLabel("密码").fill("teacher-dev-password");
+  await page.getByRole("button", { name: "登录" }).click();
+
+  // Account menu → 班级成员 lands on the roster page of the taught class.
+  await page.getByRole("button", { name: /教师/ }).click();
+  await page.getByRole("menuitem", { name: "班级成员" }).click();
+  await expect(page).toHaveURL(/\/classes\/[^/]+\/members$/);
+  await expect(page.getByRole("heading", { name: "班级成员" })).toBeVisible();
+
+  // Enroll the unattached account by student number.
+  await page.getByLabel("学生学号").fill(outsiderNo);
+  await page.getByRole("button", { name: "加入班级" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(outsiderNo) })).toBeVisible();
+
+  // Create a fresh student account directly into the class.
+  const freshmanNo = `e2e-new-${Date.now()}`;
+  await page.getByLabel("学号", { exact: true }).fill(freshmanNo);
+  await page.getByLabel("姓名").fill("新学生");
+  await page.getByLabel("初始密码").fill("pw-e2e");
+  await page.getByRole("button", { name: "创建并入班" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(freshmanNo) })).toBeVisible();
+
+  // Remove the enrolled student again; the account itself survives.
+  await page
+    .getByRole("row", { name: new RegExp(outsiderNo) })
+    .getByRole("button", { name: "移出班级" })
+    .click();
+  await page.getByRole("button", { name: "确认移出" }).click();
+  await expect(page.getByRole("row", { name: new RegExp(outsiderNo) })).toHaveCount(0);
+});
+
 test("completes the first calculator stage through the real API", async ({ page, request }) => {
   const failures = collectFailures(page);
 
