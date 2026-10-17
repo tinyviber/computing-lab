@@ -1,0 +1,24 @@
+@font-face {
+  font-family: "Archivo Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  src: url("./files/archivo-latin-wdth-normal.woff2") format("woff2-variations");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("./files/jetbrains-mono-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("./files/jetbrains-mono-latin-700-normal.woff2") format("woff2");
+}
