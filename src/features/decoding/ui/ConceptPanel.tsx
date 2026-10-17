@@ -1,5 +1,5 @@
 /**
- * The concept checks of a stage — same shape as the CPU guided checklist:
+ * The concept checks of a stage:
  * answered prompts pin their reveal, the next unanswered one asks, later
  * ones stay dimmed. An option's note shows only after that option was
  * picked wrong. All prompts must be answered correctly before submit.

@@ -5,7 +5,7 @@
  * cases teaches the same behaviour the hidden cases verify, without the
  * hidden numbers being guessable.
  *
- * Self-contained copy of the mulberry32 stream used by cpu; duplicating
+ * Self-contained mulberry32 stream; duplicating
  * ~15 lines keeps is-sim from importing another feature's code (the
  * domain layer may not import across features).
  */

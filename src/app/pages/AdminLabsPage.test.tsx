@@ -13,8 +13,8 @@ const labs = [
     visibleClassIds: [],
   },
   {
-    id: "cpu",
-    stageCount: 5,
+    id: "five-parts",
+    stageCount: 2,
     hidden: true,
     openClassIds: null,
     visible: true,
@@ -96,24 +96,24 @@ describe("AdminLabsPage", () => {
 
     await renderAppAt("/admin/labs", { auth: adminAuthState });
 
-    await waitFor(() => expect(screen.getByText("冯诺依曼数据通路")).toBeInTheDocument());
-    const cpu = labRow("冯诺依曼数据通路");
-    await waitFor(() => expect(cpu.getByRole("radio", { name: /隐藏/ })).toBeChecked());
-    expect(cpu.queryByRole("checkbox")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("计算机是怎么工作的？")).toBeInTheDocument());
+    const fiveParts = labRow("计算机是怎么工作的？");
+    await waitFor(() => expect(fiveParts.getByRole("radio", { name: /隐藏/ })).toBeChecked());
+    expect(fiveParts.queryByRole("checkbox")).not.toBeInTheDocument();
 
     // Switch to 开放, clear every class → stores an empty scope.
-    await user.click(cpu.getByRole("radio", { name: "开放" }));
-    await user.click(cpu.getByRole("button", { name: "取消全部" }));
-    expect(cpu.getByRole("checkbox", { name: "一班" })).not.toBeChecked();
-    expect(cpu.getByText("0 个班")).toBeInTheDocument();
-    await user.click(cpu.getByRole("button", { name: "全选" }));
-    expect(cpu.getByRole("checkbox", { name: "一班" })).toBeChecked();
-    await user.click(cpu.getByRole("button", { name: "取消全部" }));
+    await user.click(fiveParts.getByRole("radio", { name: "开放" }));
+    await user.click(fiveParts.getByRole("button", { name: "取消全部" }));
+    expect(fiveParts.getByRole("checkbox", { name: "一班" })).not.toBeChecked();
+    expect(fiveParts.getByText("0 个班")).toBeInTheDocument();
+    await user.click(fiveParts.getByRole("button", { name: "全选" }));
+    expect(fiveParts.getByRole("checkbox", { name: "一班" })).toBeChecked();
+    await user.click(fiveParts.getByRole("button", { name: "取消全部" }));
 
-    await user.click(cpu.getByRole("button", { name: "保存" }));
+    await user.click(fiveParts.getByRole("button", { name: "保存" }));
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
-        "/api/admin/labs/cpu/visibility",
+        "/api/admin/labs/five-parts/visibility",
         expect.objectContaining({
           method: "PUT",
           body: JSON.stringify({ hidden: false, openClassIds: [] }),

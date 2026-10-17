@@ -1,0 +1,315 @@
+/* Five-parts lab — fp- namespace; shared tokens and buttons only. */
+
+.fp-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+/* Each page stacks brief → diagram → controls → question with even gaps. */
+.fp-workspace > section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.fp-brief h1 {
+  font-size: 20px;
+  margin: 2px 0 6px;
+}
+
+.fp-brief p {
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.fp-note {
+  border-left: 3px solid var(--border);
+  color: var(--muted);
+  font-size: 13px;
+  padding-left: 10px;
+}
+
+.fp-diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fp-row {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+.fp-row-middle {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 560px) {
+  .fp-row-middle {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fp-part {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.fp-part.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(79 70 229 / 0.15);
+}
+
+.fp-part header {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.fp-part-role {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.fp-part-body {
+  margin-top: 10px;
+}
+
+.fp-part-detail {
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+
+.fp-digit {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+}
+
+.fp-digit-label {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.fp-digit-controls {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+.fp-digit-btn {
+  background: var(--surface-2, #fff);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  height: 30px;
+  line-height: 1;
+  width: 30px;
+}
+
+.fp-digit-btn:hover {
+  border-color: var(--accent);
+}
+
+.fp-digit-value {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  min-width: 20px;
+  text-align: center;
+}
+
+.fp-arrow {
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+  padding: 2px 0;
+}
+
+.fp-arrow-line {
+  background: var(--border);
+  height: 22px;
+  position: relative;
+  width: 2px;
+}
+
+.fp-arrow-line::after {
+  border: 5px solid transparent;
+  border-top-color: var(--border);
+  bottom: -8px;
+  content: "";
+  left: -4px;
+  position: absolute;
+}
+
+.fp-arrow-label {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.fp-result {
+  font-size: 28px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  margin: 0;
+  text-align: center;
+}
+
+.fp-controls {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.fp-step-caption {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0;
+}
+
+.fp-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.fp-question {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  margin: 0;
+  padding: var(--space-4);
+}
+
+.fp-question legend {
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.fp-options {
+  display: flex;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fp-option {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 10px 18px;
+}
+
+.fp-option:hover {
+  border-color: var(--accent);
+}
+
+.fp-option.is-selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(79 70 229 / 0.15);
+}
+
+.fp-verdict {
+  border-radius: 8px;
+  margin: 0;
+  padding: 10px 14px;
+}
+
+.fp-verdict.is-correct {
+  background: #ecfdf3;
+  border: 1px solid #a6e9c5;
+  color: #166534;
+}
+
+.fp-verdict.is-wrong {
+  background: #fef3f2;
+  border: 1px solid #fecdca;
+  color: #b42318;
+}
+
+.fp-actions .fp-power-off {
+  border-color: #fecdca;
+  color: #b42318;
+}
+
+/* Storage page: memory vs external storage. */
+
+.fp-part.is-off {
+  background: var(--surface-2, #f6f6f8);
+  border-style: dashed;
+}
+
+.fp-essay {
+  font-size: 14px;
+  line-height: 1.6;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.fp-file-name {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 4px;
+}
+
+.fp-empty {
+  color: var(--muted);
+  margin: 0;
+}
+
+.fp-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+}
+
+.fp-tag {
+  background: rgb(79 70 229 / 0.08);
+  border-radius: 999px;
+  color: var(--accent);
+  display: inline-block;
+  font-size: 12px;
+  margin: 6px 0 0;
+  padding: 2px 10px;
+}
+
+.fp-tag.is-warn {
+  background: #fffaeb;
+  color: #b54708;
+}
+
+/* Phone page: five equal cards in one collection. */
+
+.fp-phone-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fp-phone-grid > li,
+.fp-phone-grid .fp-part {
+  height: 100%;
+}
+
+@media (max-width: 560px) {
+  .fp-options {
+    flex-direction: column;
+  }
+}

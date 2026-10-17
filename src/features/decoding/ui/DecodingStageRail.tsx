@@ -4,8 +4,7 @@ import type { DecodingLabViewModel, DecodingStageItem } from "../controller/view
 
 /**
  * The decoding rail: core stages in order, with each `railAfter` challenge
- * anchored in a collapsible 支线练习 group right behind its core stage —
- * the same pattern as the cpu rail.
+ * anchored in a collapsible 支线练习 group right behind its core stage.
  */
 export function DecodingStageRail({
   model,
@@ -53,7 +52,7 @@ export function DecodingStageRail({
     <aside aria-label="关卡进度" className="lab-rail">
       <p className="eyebrow">
         {labMetadata.decoding.title}{" "}
-        <span className="cpu-rail-count">
+        <span className="decoding-rail-count">
           {model.corePassed} / {model.coreTotal} 主线
         </span>
       </p>
@@ -64,8 +63,8 @@ export function DecodingStageRail({
         ])}
       </ol>
       {model.challenges.length > 0 ? (
-        <div className="cpu-rail-challenges">
-          <p className="cpu-rail-group">选做挑战</p>
+        <div className="decoding-rail-challenges">
+          <p className="decoding-rail-group">选做挑战</p>
           <ol className="stage-list">{model.challenges.map((stage) => renderStage(stage))}</ol>
         </div>
       ) : null}

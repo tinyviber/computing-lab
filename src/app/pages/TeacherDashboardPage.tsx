@@ -3,8 +3,8 @@ import { useCallback, useEffect, useState } from "react";
 import { api, describeApiError } from "../../shared/api/client";
 import { isStaffRole, useAuth } from "../../shared/auth";
 import { CALCULATOR_STAGES } from "../../features/calculator";
-import { CPU_STAGES } from "../../features/cpu";
 import { DECODING_STAGES } from "../../features/decoding";
+import { FIVE_PARTS_STAGES } from "../../features/five-parts/domain/stages";
 import { IS_SIM_STAGES } from "../../features/is-sim";
 import { IMAGE_SAMPLING_STAGES } from "../../features/image-sampling/domain/stages";
 import { COLOR_QUANT_STAGES } from "../../features/color-quantization/domain/stages";
@@ -27,7 +27,11 @@ type LabOption = {
 
 const LAB_OPTIONS: LabOption[] = [
   { id: "calculator", title: labMetadata.calculator.title, stages: CALCULATOR_STAGES },
-  { id: "cpu", title: labMetadata.cpu.title, stages: CPU_STAGES },
+  {
+    id: "five-parts",
+    title: labMetadata["five-parts"].title,
+    stages: FIVE_PARTS_STAGES,
+  },
   { id: "decoding", title: labMetadata.decoding.title, stages: DECODING_STAGES },
   { id: "is-sim", title: labMetadata["is-sim"].title, stages: IS_SIM_STAGES },
   {
@@ -74,12 +78,6 @@ type SubmissionDetail = {
   testSummary: {
     categories?: Record<string, { passed: number; total: number }>;
     parts?: { id: string; label: string; ok: boolean; detail: string | null }[];
-    predictions?: {
-      promptId: string;
-      prompt: string;
-      selected: string;
-      correct: boolean;
-    }[];
     error?: string | null;
   };
 };
@@ -433,7 +431,6 @@ export function TeacherDashboardPage() {
                             if (isAdmin && lab.id === "calculator") {
                               return () => openPreview(row, cell);
                             }
-                            if (lab.id === "cpu") return () => openDetail(cell.submissionId);
                             return cell.passed ? undefined : () => openDetail(cell.submissionId);
                           })()}
                           openTitle={
@@ -527,22 +524,6 @@ export function TeacherDashboardPage() {
                 );
               })}
             </ul>
-            {detail.testSummary.predictions && detail.testSummary.predictions.length > 0 ? (
-              <section aria-label="预测首答">
-                <h3>预测首答</h3>
-                <ul className="drawer-categories drawer-predictions">
-                  {detail.testSummary.predictions.map((prediction) => (
-                    <li
-                      className={prediction.correct ? "is-pass" : "is-fail"}
-                      key={prediction.promptId}
-                    >
-                      <span>{prediction.prompt}</span>
-                      <span>首答：{prediction.selected}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ) : null}
             <p className="drawer-note">提交时间 {timeOf(detail.submittedAt)}</p>
           </aside>
         </div>

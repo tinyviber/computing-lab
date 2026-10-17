@@ -126,8 +126,11 @@ export default tseslint.config(
   },
   {
     // Pilot boundary: other lab pages still own their application logic.
-    files: ["src/features/cpu/ui/**/*.{ts,tsx}", "src/features/decoding/ui/**/*.{ts,tsx}"],
-    ignores: ["src/features/cpu/ui/CpuLabPage.tsx", "src/features/decoding/ui/DecodingLabPage.tsx"],
+    files: ["src/features/five-parts/ui/**/*.{ts,tsx}", "src/features/decoding/ui/**/*.{ts,tsx}"],
+    ignores: [
+      "src/features/five-parts/ui/FivePartsLabPage.tsx",
+      "src/features/decoding/ui/DecodingLabPage.tsx",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",

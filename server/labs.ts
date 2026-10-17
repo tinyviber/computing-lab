@@ -7,8 +7,8 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CALCULATOR_STAGES } from "../src/features/calculator/domain/stages.ts";
 import { COLOR_QUANT_STAGES } from "../src/features/color-quantization/domain/stages.ts";
-import { CPU_STAGES } from "../src/features/cpu/domain/stages.ts";
 import { DECODING_STAGES } from "../src/features/decoding/domain/stages.ts";
+import { FIVE_PARTS_STAGES } from "../src/features/five-parts/domain/stages.ts";
 import { IMAGE_SAMPLING_STAGES } from "../src/features/image-sampling/domain/stages.ts";
 import { IS_SIM_STAGES } from "../src/features/is-sim/domain/stages.ts";
 import type { SessionUser } from "./auth/session.ts";
@@ -35,7 +35,7 @@ export const LAB_REGISTRY: LabInfo[] = [
   { id: "calculator", stageCount: CALCULATOR_STAGES.length },
   { id: "image-sampling", stageCount: IMAGE_SAMPLING_STAGES.length },
   { id: "color-quantization", stageCount: COLOR_QUANT_STAGES.length },
-  { id: "cpu", stageCount: CPU_STAGES.length },
+  { id: "five-parts", stageCount: FIVE_PARTS_STAGES.length },
   { id: "decoding", stageCount: DECODING_STAGES.length },
   { id: "is-sim", stageCount: IS_SIM_STAGES.length },
   { id: "audio-encoding", stageCount: 0, defaultHidden: true },
