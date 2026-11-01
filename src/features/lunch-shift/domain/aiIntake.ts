@@ -25,7 +25,18 @@
 import type { Ticket } from "./contracts.ts";
 import { DISHES, NOTES, sameTicket, TABLES } from "./contracts.ts";
 import { INTAKE_SCENARIO } from "./scenarios.ts";
-import { readTable } from "./wordTables.ts";
+
+const TABLE_SUFFIX_PATTERN = /([1-8])\s*号桌/;
+const TABLE_PREFIX_PATTERN = /(?:桌号|桌)\s*([1-8])/;
+
+/** Literal table-number read — deterministic, the model is not consulted. */
+function readTable(request: string): string {
+  const suffix = TABLE_SUFFIX_PATTERN.exec(request);
+  const prefix = TABLE_PREFIX_PATTERN.exec(request);
+  if (suffix && (!prefix || suffix.index <= prefix.index)) return suffix[1];
+  if (prefix) return prefix[1];
+  return "";
+}
 
 export const AI_MODEL_ID = "Xenova/bge-small-zh-v1.5";
 

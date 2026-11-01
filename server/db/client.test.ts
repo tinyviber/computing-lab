@@ -163,18 +163,20 @@ describe("migrate", () => {
       draft_graph: string;
       draft_revisions: string;
     };
-    expect(row.passed_stages).toBe("[1,2,3,4]");
-    // nextLunchStage semantics: stage 5 is the first unpassed stage again.
-    expect(row.current_stage).toBe(5);
-    expect(row.draft_graph).toBe('{"2":{"code":"x"}}');
-    expect(row.draft_revisions).toBe('{"2":4}');
-    // Stage-5 submissions dropped; the stage-4 record stays.
+    // v13 drops stage 5; v15 then drops stages 2 and 4 (both redesigned
+    // around AI intake) — what survives is 1 and 3.
+    expect(row.passed_stages).toBe("[1,3]");
+    // nextLunchStage semantics: stage 2 is the first unpassed stage again.
+    expect(row.current_stage).toBe(2);
+    expect(row.draft_graph).toBe("{}");
+    expect(row.draft_revisions).toBe("{}");
+    // Stage-5 submissions dropped by v13; stage-4 dropped by v15.
     const stages = db
       .prepare(
         "SELECT stage_index FROM submissions WHERE lab_id='lunch-shift' ORDER BY stage_index",
       )
       .all() as { stage_index: number }[];
-    expect(stages.map((s) => s.stage_index)).toEqual([4]);
+    expect(stages.map((s) => s.stage_index)).toEqual([]);
     // Other labs are untouched.
     expect(
       (
@@ -183,6 +185,53 @@ describe("migrate", () => {
         }
       ).passed_stages,
     ).toBe("[1,2,3,4]");
+    db.close();
+  });
+
+  it("drops lunch-shift stage-2/4 leftovers but keeps 1/3/5 (v14 -> v15)", () => {
+    // Stages 2 and 4 were redesigned around AI intake: their submissions
+    // and drafts are stale, but the training walkthrough, the queue
+    // function and the bonus challenge carry over unchanged.
+    const db = fixtureDb(14);
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES ('c1', 'class', 'inv')").run();
+    db.prepare(
+      "INSERT INTO users (id, student_no, name, password_hash, role) VALUES ('u1', 'no1', 'n', 'h', 'user')",
+    ).run();
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id, current_stage, passed_stages, draft_graph, draft_revisions) " +
+        'VALUES (\'p1\', \'u1\', \'c1\', \'lunch-shift\', 6, \'[1,2,3,4,5]\', \'{"2":{"confirmCode":"a"},"3":{"code":"b"},"4":{"confirmCode":"c"}}\', \'{"2":1,"3":7,"4":2}\')',
+    ).run();
+    for (const stage of [2, 3, 4, 5]) {
+      db.prepare(
+        "INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary) " +
+          `VALUES ('s${stage}', 'p1', 'u1', 'lunch-shift', ${stage}, '{}', 1, 1, 1, '{}')`,
+      ).run();
+    }
+
+    migrate(db);
+
+    expect(versionOf(db)).toBe(SCHEMA_VERSION);
+    const row = db
+      .prepare(
+        "SELECT passed_stages, current_stage, draft_graph, draft_revisions FROM student_projects WHERE id='p1'",
+      )
+      .get() as {
+      passed_stages: string;
+      current_stage: number;
+      draft_graph: string;
+      draft_revisions: string;
+    };
+    expect(row.passed_stages).toBe("[1,3,5]");
+    // Stage 2 reopens as the first unpassed stage.
+    expect(row.current_stage).toBe(2);
+    expect(row.draft_graph).toBe('{"3":{"code":"b"}}');
+    expect(row.draft_revisions).toBe('{"3":7}');
+    const stages = db
+      .prepare(
+        "SELECT stage_index FROM submissions WHERE lab_id='lunch-shift' ORDER BY stage_index",
+      )
+      .all() as { stage_index: number }[];
+    expect(stages.map((s) => s.stage_index)).toEqual([3, 5]);
     db.close();
   });
 

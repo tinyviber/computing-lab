@@ -1,9 +1,10 @@
 /**
  * Stage table for the lunch-shift lab. Four stages for one class period:
- * walk one order by hand → fix intake by editing word tables (dicts and
- * lists) → fix queueing by writing priority() (a function) → AI semantic
- * intake on hidden orders, where need_confirm() prices uncertainty.
- * Stage 5 is an optional bonus that rides the stage-3 slot in the rail.
+ * walk one order by hand → AI semantic intake on practice orders, where
+ * need_confirm() learns to price uncertainty → fix queueing by writing
+ * priority() (a function) → run the whole restaurant: AI intake plus
+ * queueing on hidden orders, under a confirmation budget and a service
+ * deadline. Stage 5 is an optional bonus that rides the stage-3 slot.
  *
  * Each stage keeps one task sentence. The judging method and the takeaway
  * are only shown after the stage is passed; `hints` are the three
@@ -32,11 +33,18 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 2,
-    id: "fix-intake",
-    title: "修接单",
-    task: "有 12 句顾客原话。用字典和列表写死的信号词表（复习一下这两个数据结构），让 12 张小票全部记对。",
-    judgeNote: "服务器拿你算出的四张词表重新读这 12 张原话，小票全对才过关。",
-    takeaway: "认得全比背得多重要，通用词才盖得住没见过的说法。",
+    id: "ai-intake",
+    title: "智能接单",
+    task: "店里装了 AI 接单台：顾客说一句原话，本地模型直接记出小票，还给两个把握度分数 similarity 和 margin。可它也会听错：有 12 张练习订单带正确答案，写 need_confirm(similarity, margin) 挑出拿不准的单让顾客再确认一遍，确认的单一定记对。记对 12 张、确认不超过 4 次过关。",
+    judgeNote:
+      "服务器把你标记确认的单按正确答案记，没确认的单用 AI 的结果重新核对这 12 张订单：12 张全对且确认 ≤4 次才过关。",
+    takeaway:
+      "AI 能听懂没见过的说法，但它会拿不准。现代信息系统靠的不是 AI 永远对，而是知道什么时候该再问一遍。",
+    hints: [
+      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多，先找出最没把握的那几单。",
+      "第一行可以这样开头：if similarity < 0.75: return True。",
+      "确认有预算：哪两单的分数最低？把确认留给他们，别浪费在 AI 本来就有把握的单上。",
+    ],
   },
   {
     index: 3,
@@ -53,17 +61,17 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 4,
-    id: "ai-intake",
-    title: "智能接单",
-    task: "光一个付费加急就有「要加急」「付费加快」「加钱走急单」好几种说法，第二关写死的词表到了这批新订单就跟不上。这次换成 AI 语义接单：本地模型直接听顾客的话，给出小票和两个把握度分数。写 need_confirm(similarity, margin) 决定哪几单要让顾客再确认一遍：确认的单一定记对，但每张都让接单台停 1 拍。至少记对 11 张、确认 1～4 次过关。",
+    id: "dinner-rush",
+    title: "晚餐高峰",
+    task: "正式营业：12 张陌生订单进来，接单和排队要一起扛。同一台 AI 接单（你的 need_confirm 直接沿用），光一个付费加急就有「要加急」「付费加快」「加钱走急单」好几种说法。确认的单一律记对但停 1 拍，记错或迟到都算事故：小票 12 张全对、确认不超过 4 次、记对且准时至少 11 张才过关。",
     judgeNote:
-      "服务器把你标记确认的单按顾客复述记对（确认必对），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：小票正确数 ≥11 且确认次数在 1～4 之间才过关。",
+      "服务器把你标记确认的单按顾客复述记对（确认必对），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：12 张全对、确认 ≤4 次且记对且准时 ≥11 张才过关。",
     takeaway:
-      "写死的词表永远追不上新的说法，现代信息系统用语义模型听懂没见过的表达，但要会为不确定性买单。",
+      "真实系统里准确率、成本和速度是连在一起的：多问一句要花钱，记错一张要出事，排队函数也要兜住接单台停下来的拍子。",
     hints: [
-      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多，两个数一起看，先找出最没把握的单。",
-      "第一行可以这样开头：if similarity < 0.75: return True。",
-      "确认有预算：哪几单的分数最低？把确认留给他们，别浪费在 AI 本来就有把握的单上。",
+      "先让 AI 跑一遍，找出 similarity 或 margin 最低的那几单，确认预算留给他们。",
+      "确认停 1 拍可能把本来准时的单拖晚：哪些单确认得起，哪些确认不起？",
+      "准时差一点就调第三关的 priority：等太久的单优先，确认停过的单别让它饿死。",
     ],
   },
   {
@@ -87,16 +95,19 @@ export function getLunchStage(index: number): LunchStageDef | undefined {
 }
 
 /**
- * Stage-4 pass line, shared by the judge and the result view. Confirmed
- * orders always record correctly (the customer restated) but cost one
- * intake tick each. Measured on the hidden set, the clause-level model
- * lands 11–12 correct and flags its misses at low similarity/margin, so
- * an honest need_confirm passes with 2–4 confirmations while
- * always-confirm (12) and never-confirm (0) both fail.
+ * AI-intake pass lines, shared by the judge and the result views.
+ * Confirmed orders always record correctly (the customer restated) but
+ * cost one intake tick each. Measured on both order sets, the
+ * clause-level model flags its misses at low similarity/margin, so an
+ * honest need_confirm passes with 2–4 confirmations while always-confirm
+ * (12) and never-confirm both fail. Stage 2 grades intake alone; stage
+ * 4 additionally requires the queue run to serve ≥11 tickets both
+ * correctly and on time — confirmations stall intake and can cost a
+ * delivery.
  */
-export const AI_PASS_CORRECT = 11;
+export const AI_PASS_CORRECT = 12;
 export const AI_CONFIRM_BUDGET = 4;
-export const AI_CONFIRM_MIN = 1;
+export const AI_SERVED_MIN = 11;
 
 /** Linear unlock: a stage opens once the previous one passed. */
 export function lunchStageUnlocked(passedStages: readonly number[], index: number): boolean {

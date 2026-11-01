@@ -21,9 +21,5 @@ local/
 # Pyodide runtime vendored from node_modules by scripts/sync-pyodide.mjs
 public/vendor/pyodide-*/
 
-# Embed PoC runtime + model vendored by scripts/sync-embed-runtime.mjs
-public/vendor/onnxruntime-web-*/
-public/vendor/models/
-
 # Playwright MCP scratch artifacts
 .playwright-mcp/

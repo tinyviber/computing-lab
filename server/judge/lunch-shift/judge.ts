@@ -2,19 +2,21 @@
  * Lunch-shift judge. Stages grade differently by design:
  *
  *  - 订单旅程: validates the walkthrough record (ticket + delivery).
- *  - 修接单: replays the submitted word tables over the 12 practice
- *    requests — pass requires every ticket right. Malformed tables record
- *    a failed submission with the concrete errors (the student can retry).
+ *  - 智能接单: the browser's embedding model already turned the 12
+ *    practice orders into tickets; the submission is per-order
+ *    {ticket, confirmed}. Confirmed orders record the expected ticket
+ *    (the customer restated); unconfirmed ones keep the AI's ticket.
+ *    Pass needs 12/12 correct within the confirmation budget — so the
+ *    student must confirm the orders the model actually missed, not
+ *    just any order. Missing/invalid artefacts are refused outright
+ *    before grading (a malformed request is not an attempt).
  *  - 修排队: replays the submitted 124-cell priority table — pass at
  *    ≥10/12 on-time, star at 12.
- *  - 智能接单: the browser's embedding model already turned the hidden
- *    orders into tickets; the submission is per-order {ticket, confirmed}
- *    plus the carried-over priority table. Confirmed orders record the
- *    expected ticket and stall intake one tick (the customer restated);
- *    unconfirmed ones keep the AI's ticket. Pass needs ≥11 correct and
- *    1–4 confirmations — always-confirm wastes the budget, never-confirm
- *    keeps the AI's mistakes. Missing/invalid artefacts are refused
- *    outright before grading (a malformed request is not an attempt).
+ *  - 晚餐高峰: the same intake artefact aimed at the hidden order set,
+ *    plus the carried-over priority table. Confirmed orders stall
+ *    intake one tick. Pass needs 12/12 correct, ≤4 confirmations AND
+ *    ≥11 tickets both correct and on time — accuracy, confirmation
+ *    cost and delivery speed are judged together.
  *  - 附加挑战: the compensate table is replayed over the fixed FIFO run's
  *    problem orders — pass holds BOTH lines: expected bad reviews ≤ 4.0
  *    and compensation spend ≤ 70 元, where a refund costs the order's own
@@ -41,8 +43,8 @@ import {
 import { simulate } from "../../../src/features/lunch-shift/domain/simulator.ts";
 import {
   AI_CONFIRM_BUDGET,
-  AI_CONFIRM_MIN,
   AI_PASS_CORRECT,
+  AI_SERVED_MIN,
   getLunchStage,
   lunchStageUnlocked,
   nextLunchStage,
@@ -61,13 +63,9 @@ import {
   evaluateCompensation,
 } from "../../../src/features/lunch-shift/domain/compensate.ts";
 import {
-  checkIntakeTables,
-  evaluateIntake,
-} from "../../../src/features/lunch-shift/domain/wordTables.ts";
-import {
   sanitizeAiDraft,
+  sanitizeAiIntakeDraft,
   sanitizeCompensateDraft,
-  sanitizeIntakeDraft,
   sanitizeQueueDraft,
   sanitizeTrainingDraft,
 } from "../../../src/features/lunch-shift/lesson/state.ts";
@@ -122,31 +120,37 @@ export function judgeLunchShiftSubmission(
     total = 1;
     testSummary = { kind: "training", differences };
   } else if (stageIndex === 2) {
-    const draft = sanitizeIntakeDraft(rawDraft);
+    const draft = sanitizeAiIntakeDraft(rawDraft);
     snapshot = draft;
-    // Grade the raw submission, not the sanitized draft — dropped entries
-    // are exactly the malformed ones the student needs named.
-    const { tables, errors } = checkIntakeTables((rawDraft as { tables?: unknown } | null)?.tables);
-    if (errors.length > 0) {
-      score = 0;
-      total = INTAKE_SCENARIO.orders.length;
-      passed = false;
-      testSummary = { kind: "intake", correct: 0, total, errors };
-    } else {
-      const orders = evaluateIntake(
-        INTAKE_SCENARIO.orders.map((order) => ({
-          id: order.id,
-          request: order.request,
-          expected: order.expected!,
-        })),
-        tables,
-      );
-      const correct = orders.filter((order) => order.correct).length;
-      score = correct;
-      total = orders.length;
-      passed = correct === orders.length;
-      testSummary = { kind: "intake", correct, total, orders };
+    const { results, errors: resultErrors } = checkAiResults(
+      (rawDraft as { results?: unknown } | null)?.results,
+      INTAKE_SCENARIO.orders,
+    );
+    // Refuse before grading — a request without computed results is a
+    // client-protocol fault, not a gradeable attempt, so it records nothing.
+    if (resultErrors.length > 0 || results === null) {
+      return { error: "missing-run", status: 400 };
     }
+    // Confirmed orders record the expected ticket (the customer restated);
+    // unconfirmed ones keep the AI's ticket and stand or fall on it.
+    const orders = INTAKE_SCENARIO.orders.map((order) => {
+      const row = results.find((entry) => entry.id === order.id)!;
+      const correct = row.confirmed || sameTicket(row.ticket, order.expected!);
+      return {
+        id: order.id,
+        request: order.request,
+        correct,
+        confirmed: row.confirmed,
+        produced: row.confirmed ? order.expected! : row.ticket,
+        expected: order.expected!,
+      };
+    });
+    const correct = orders.filter((order) => order.correct).length;
+    const confirmed = orders.filter((order) => order.confirmed).length;
+    score = correct;
+    total = orders.length;
+    passed = correct === orders.length && confirmed <= AI_CONFIRM_BUDGET;
+    testSummary = { kind: "ai-intake", correct, total, confirmed, orders };
   } else if (stageIndex === 3) {
     const draft = sanitizeQueueDraft(rawDraft);
     snapshot = draft;
@@ -235,15 +239,15 @@ export function judgeLunchShiftSubmission(
     }
     const run = simulate(scenario, { tickets, confirmStalls, priority: table }).result;
     // Second metric is 记对且准时 — a wrong ticket earns no delivery point:
-    // 数据写错，后面全错， consistent with the stage-1 lesson.
+    // 数据写错，后面全错， consistent with the stage-1 lesson. It also
+    // gates the pass: confirmations stall intake, so over-confirming can
+    // fail on served even when every ticket lands right.
     const served = run.orders.filter((order) => order.correct === true && order.onTime).length;
     const confirmed = confirmStalls.size;
     score = run.correct + served;
     total = scenario.orders.length * 2;
     passed =
-      run.correct >= AI_PASS_CORRECT &&
-      confirmed >= AI_CONFIRM_MIN &&
-      confirmed <= AI_CONFIRM_BUDGET;
+      run.correct >= AI_PASS_CORRECT && confirmed <= AI_CONFIRM_BUDGET && served >= AI_SERVED_MIN;
     // The final's orders stay hidden: ids + outcomes only, no wording.
     testSummary = {
       kind: "final",

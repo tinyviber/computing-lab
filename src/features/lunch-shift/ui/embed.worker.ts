@@ -3,10 +3,10 @@
  * worker so tokenize+infer never blocks the page.
  *
  * Everything is self-hosted to match the classroom network reality: the
- * model files and the ONNX Runtime wasm are both served from
- * public/vendor (see scripts/sync-embed-runtime.mjs). No request to
- * huggingface.co or any CDN leaves the browser — allowRemoteModels is
- * deliberately off.
+ * model files are committed under public/vendor/models (pinned by
+ * scripts/sync-embed-runtime.mjs) and the ONNX Runtime wasm/mjs pair is
+ * bundled as hashed build assets. No request to huggingface.co or any
+ * CDN leaves the browser — allowRemoteModels is deliberately off.
  *
  *   kind "load":  create the feature-extraction pipeline for a device +
  *                 dtype pair; progress events are relayed to the page.
@@ -18,6 +18,8 @@
 /// <reference lib="webworker" />
 
 import { env, pipeline, type FeatureExtractionPipeline } from "@huggingface/transformers";
+import ortMjsUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.mjs?url";
+import ortWasmUrl from "onnxruntime-web/ort-wasm-simd-threaded.asyncify.wasm?url";
 
 const VENDOR_BASE = `${import.meta.env.BASE_URL}vendor`;
 
@@ -40,22 +42,13 @@ function configureRuntime(): void {
   env.allowRemoteModels = false;
   env.localModelPath = `${VENDOR_BASE}/models/`;
   env.useBrowserCache = true;
-  // Same file names transformers.js would fetch from jsDelivr — one
-  // vendored pair serves both the wasm and the WebGPU attempts.
-  const onnx = env.backends.onnx as
-    | {
-        wasm?: { wasmPaths?: unknown };
-        versions?: { web?: string };
-      }
-    | undefined;
-  const ortVersion = onnx?.versions?.web;
-  if (!onnx?.wasm || !ortVersion) {
-    throw new Error("找不到 ONNX Runtime 版本信息");
-  }
-  onnx.wasm.wasmPaths = {
-    mjs: `${VENDOR_BASE}/onnxruntime-web-${ortVersion}/ort-wasm-simd-threaded.asyncify.mjs`,
-    wasm: `${VENDOR_BASE}/onnxruntime-web-${ortVersion}/ort-wasm-simd-threaded.asyncify.wasm`,
-  };
+  // The ORT wasm/mjs pair ships as hashed build assets (imported above
+  // via ?url) so the runtime always matches the installed
+  // onnxruntime-web version — nothing vendored to drift out of sync.
+  // The same pair serves both the wasm and the WebGPU attempts.
+  const onnx = env.backends.onnx as { wasm?: { wasmPaths?: unknown } } | undefined;
+  if (!onnx?.wasm) throw new Error("找不到 ONNX Runtime 配置入口");
+  onnx.wasm.wasmPaths = { mjs: ortMjsUrl, wasm: ortWasmUrl };
 }
 
 async function handle(request: EmbedWorkerRequest): Promise<object> {

@@ -3,10 +3,6 @@ import { openMemoryDb, newId } from "../../db/client.ts";
 import { getOrCreateProject } from "../pipeline.ts";
 import { judgeLunchShiftSubmission } from "./judge.ts";
 import {
-  defaultIntakeTables,
-  type IntakeTables,
-} from "../../../src/features/lunch-shift/domain/wordTables.ts";
-import {
   priorityIndex,
   PRIORITY_TABLE_SIZE,
 } from "../../../src/features/lunch-shift/domain/priority.ts";
@@ -14,6 +10,7 @@ import {
   COMPENSATE_TABLE_SIZE,
   compensateIndex,
 } from "../../../src/features/lunch-shift/domain/compensate.ts";
+import { INTAKE_SCENARIO } from "../../../src/features/lunch-shift/domain/scenarios.ts";
 import { FINAL_PUBLIC_ORDERS, FINAL_SCENARIO } from "./hiddenSet.ts";
 
 const LAB_ID = "lunch-shift";
@@ -47,54 +44,99 @@ function tableFor(fn: (urgent: boolean, wait: number, cook: number) => number): 
   return table;
 }
 
-const GENERIC_TABLES: IntakeTables = {
-  dish: [...defaultIntakeTables().dish, ["炒饭", "蛋炒饭"]],
-  note: [...defaultIntakeTables().note, ["放香菜", "不要香菜"], ["辣", "少辣"]],
-  calm: [...defaultIntakeTables().calm, "不用", "不急"],
-  rush: [...defaultIntakeTables().rush, "快", "急单"],
-};
-
 const BOOST10 = tableFor((u, w) => (u ? 1 : 0) + (w >= 10 ? 1 : 0));
 
 describe("lunch-shift judge", () => {
-  it("stage 2 passes only at 12/12 tickets", () => {
-    const { db, project } = setupProject([1]);
-    const bad = judgeLunchShiftSubmission(db, project, 2, {
-      code: "x",
-      tables: defaultIntakeTables(),
-    });
-    expect("error" in bad).toBe(false);
-    if ("error" in bad) return;
-    expect(bad.passed).toBe(false);
-    expect(bad.score).toBe(7);
+  /** AI-intake rows over the practice set: `wrong` rows model an AI miss
+   *  the function didn't flag; `confirmIds` get confirmed. */
+  function practiceResults(wrongIds: string[] = [], confirmIds: string[] = []) {
+    return INTAKE_SCENARIO.orders.map((order) => ({
+      id: order.id,
+      ticket: wrongIds.includes(order.id)
+        ? { ...order.expected!, item: order.expected!.item === "鸡腿饭" ? "蛋炒饭" : "鸡腿饭" }
+        : { ...order.expected! },
+      confirmed: confirmIds.includes(order.id),
+    }));
+  }
+  const intakeDraft = (results: unknown) => ({ confirmCode: "x", results });
 
-    const good = judgeLunchShiftSubmission(db, project, 2, {
-      code: "x",
-      tables: GENERIC_TABLES,
-    });
+  it("stage 2 passes only when the confirmed misses cover every AI error", () => {
+    const { db, project } = setupProject([1]);
+    // AI missed P06 and P10; the function confirmed only P10 — P06 fails.
+    const partial = judgeLunchShiftSubmission(
+      db,
+      project,
+      2,
+      intakeDraft(practiceResults(["P06", "P10"], ["P10"])),
+    );
+    expect("error" in partial).toBe(false);
+    if ("error" in partial) return;
+    expect(partial.passed).toBe(false);
+    expect(partial.score).toBe(11);
+    if (partial.testSummary.kind !== "ai-intake") return;
+    expect(partial.testSummary.correct).toBe(11);
+    expect(partial.testSummary.confirmed).toBe(1);
+
+    // Confirming both misses (plus two borderline-but-right ones) passes.
+    const good = judgeLunchShiftSubmission(
+      db,
+      project,
+      2,
+      intakeDraft(practiceResults(["P06", "P10"], ["P06", "P10", "P03", "P05"])),
+    );
     expect("error" in good).toBe(false);
     if ("error" in good) return;
     expect(good.passed).toBe(true);
     expect(good.passedStages).toEqual([1, 2]);
+    if (good.testSummary.kind !== "ai-intake") return;
+    expect(good.testSummary.correct).toBe(12);
+    expect(good.testSummary.confirmed).toBe(4);
   });
 
-  it("stage 2 records a failed submission with Chinese errors on malformed tables", () => {
+  it("stage 2 fails when a stray confirmation leaves the real miss wrong", () => {
     const { db, project } = setupProject([1]);
-    const outcome = judgeLunchShiftSubmission(db, project, 2, {
-      code: "x",
-      tables: { dish: "不是表", note: [], calm: [], rush: [] },
-    });
+    // The reviewer's case: confirming an already-right order does NOT
+    // fix the miss — 11/12 stays 11/12 and cannot pass.
+    const outcome = judgeLunchShiftSubmission(
+      db,
+      project,
+      2,
+      intakeDraft(practiceResults(["P10"], ["P05"])),
+    );
     expect("error" in outcome).toBe(false);
     if ("error" in outcome) return;
     expect(outcome.passed).toBe(false);
-    expect(outcome.testSummary.kind).toBe("intake");
-    if (outcome.testSummary.kind !== "intake") return;
-    expect(outcome.testSummary.errors?.some((e) => e.includes("dish_words"))).toBe(true);
-    // recorded as a submission row, not a silent rejection
+    if (outcome.testSummary.kind !== "ai-intake") return;
+    expect(outcome.testSummary.correct).toBe(11);
+    expect(outcome.testSummary.confirmed).toBe(1);
+  });
+
+  it("stage 2 fails over the confirmation budget even when all tickets land right", () => {
+    const { db, project } = setupProject([1]);
+    const outcome = judgeLunchShiftSubmission(
+      db,
+      project,
+      2,
+      intakeDraft(practiceResults([], ["P01", "P02", "P03", "P04", "P05"])),
+    );
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "ai-intake") return;
+    expect(outcome.testSummary.correct).toBe(12);
+    expect(outcome.testSummary.confirmed).toBe(5);
+  });
+
+  it("stage 2 refuses missing results without recording a submission", () => {
+    const { db, project } = setupProject([1]);
+    const outcome = judgeLunchShiftSubmission(db, project, 2, intakeDraft(null));
+    expect("error" in outcome).toBe(true);
+    if (!("error" in outcome)) return;
+    expect(outcome.error).toBe("missing-run");
     const rows = db
       .prepare("SELECT COUNT(*) AS n FROM submissions WHERE lab_id='lunch-shift' AND stage_index=2")
       .get() as { n: number };
-    expect(rows.n).toBe(1);
+    expect(rows.n).toBe(0);
   });
 
   it("stage 3 fails below 10 on-time and passes at 10", () => {
@@ -174,7 +216,7 @@ describe("lunch-shift judge", () => {
     expect(rows.n).toBe(0);
   });
 
-  it("stage 4 fails when never-confirm keeps an AI miss — confirmation is mandatory", () => {
+  it("stage 4 fails when never-confirm keeps an AI miss — 12/12 required", () => {
     const { db, project } = setupProject([1, 2, 3]);
     const outcome = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults(["F11"], [])));
     expect("error" in outcome).toBe(false);
@@ -183,6 +225,19 @@ describe("lunch-shift judge", () => {
     if (outcome.testSummary.kind !== "final") return;
     expect(outcome.testSummary.correct).toBe(11);
     expect(outcome.testSummary.confirmed).toBe(0);
+  });
+
+  it("stage 4 fails when a stray confirmation leaves the real miss wrong", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    // AI missed F11; confirming an already-right F05 keeps 11/12 — a
+    // pass must find the orders the model actually missed.
+    const outcome = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults(["F11"], ["F05"])));
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.correct).toBe(11);
+    expect(outcome.testSummary.confirmed).toBe(1);
   });
 
   it("stage 4 fails when always-confirm burns the whole budget", () => {
@@ -198,7 +253,36 @@ describe("lunch-shift judge", () => {
     expect(outcome.testSummary.correct).toBe(12);
   });
 
-  it("stage 4 passes when confirm catches exactly the AI's misses", () => {
+  it("stage 4 fails when over-confirming starves the kitchen — served is a pass line", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    // All tickets right, four confirmations inside the budget — but this
+    // pick stalls the wrong orders: served drops to 10 < 11.
+    const draft = aiDraft(aiResults([], ["F01", "F05", "F07", "F11"]));
+    const outcome = judgeLunchShiftSubmission(db, project, 4, draft);
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.correct).toBe(12);
+    expect(outcome.testSummary.confirmed).toBe(4);
+    expect(outcome.testSummary.served).toBe(10);
+  });
+
+  it("stage 4 fails when the queue cannot absorb the stalls — priority matters", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    // Right tickets and a honest 2-confirm pick, but a FIFO queue lets
+    // everything run late — a weak stage-3 function cannot pass stage 4.
+    const draft = aiDraft(aiResults([], ["F10", "F11"]), new Array(PRIORITY_TABLE_SIZE).fill(0));
+    const outcome = judgeLunchShiftSubmission(db, project, 4, draft);
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.correct).toBe(12);
+    expect(outcome.testSummary.served).toBe(8);
+  });
+
+  it("stage 4 passes when confirm catches the misses inside budget and service", () => {
     const { db, project } = setupProject([1, 2, 3]);
     // AI missed F11 and flagged it plus three borderline-but-right ones.
     const draft = aiDraft(aiResults(["F11"], ["F11", "F01", "F03", "F08"]));
@@ -210,6 +294,7 @@ describe("lunch-shift judge", () => {
     if (outcome.testSummary.kind !== "final") return;
     expect(outcome.testSummary.correct).toBe(12);
     expect(outcome.testSummary.confirmed).toBe(4);
+    expect(outcome.testSummary.served).toBe(12);
     const f11 = outcome.testSummary.orders?.find((order) => order.id === "F11");
     expect(f11?.correct).toBe(true);
     expect(f11?.confirmed).toBe(true);
@@ -228,15 +313,15 @@ describe("lunch-shift judge", () => {
 
   it("stage 4 lets a student retry and resubmit after passing", () => {
     const { db, project } = setupProject([1, 2, 3]);
-    const failed = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults([], [])));
+    const failed = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults(["F11"], [])));
     expect("error" in failed).toBe(false);
     if ("error" in failed) return;
-    // 12 correct but zero confirmations — confirmed<1 fails it.
+    // The unflagged AI miss keeps correct at 11 — one short of the line.
     expect(failed.passed).toBe(false);
 
     const again = judgeLunchShiftSubmission(db, { ...project, passedStages: [1, 2, 3, 4] }, 4, {
       confirmCode: "x",
-      results: aiResults([], ["F05"]),
+      results: aiResults(["F11"], ["F11"]),
       queueCode: "y",
       priority: BOOST10,
     });

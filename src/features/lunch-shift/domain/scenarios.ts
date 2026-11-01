@@ -73,11 +73,13 @@ export function trainingOrderFor(seed: string): TrainingOrder {
 }
 
 /**
- * Stage 2 修接单 — 12 orders read through the student's word tables.
- * The restaurant sells a paid 加急 option, so urgency is phrased as
- * paying for speed (要加急 / 付费加急 / 走加急通道…). Default tables miss
- * P03 (炒饭), P04 (不放香菜), P08 (别太辣), P09 (不用加急 → 误认加急),
- * P11 (付费加快 → 认不出加急).
+ * Stage 2 智能接单·练习 — 12 orders the local AI reads. The restaurant
+ * sells a paid 加急 option, so urgency is phrased as paying for speed
+ * (要加急 / 付费加急 / 走加急通道…). Two orders are designed model
+ * misses at catchably-low margins: P06 wants speed without paying
+ * (想快一点但不想加钱 → reads 急, margin ≈0.01) and P10 asks for a
+ * topping we don't serve (别加葱 → reads 少辣, margin ≈0.06) — an
+ * honest need_confirm must send both back to the customer.
  */
 export const INTAKE_FIXTURES: FixtureOrder[] = [
   {
@@ -111,8 +113,8 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 6,
   },
   {
-    request: "7号桌来份鸡腿饭，加蛋，我要加急。",
-    expected: { item: "鸡腿饭", note: "加蛋", table: "7", urgent: true },
+    request: "7号桌来份鸡腿饭，加蛋，想快一点但不想加钱。",
+    expected: { item: "鸡腿饭", note: "加蛋", table: "7", urgent: false },
     cookTicks: 1,
     arrivalTick: 7,
   },
@@ -135,7 +137,7 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 11,
   },
   {
-    request: "6号桌牛肉面，无备注，正常来就好。",
+    request: "6号桌牛肉面，别加葱，不用赶时间。",
     expected: { item: "牛肉面", note: "无备注", table: "6", urgent: false },
     cookTicks: 3,
     arrivalTick: 12,

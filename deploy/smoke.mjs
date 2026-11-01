@@ -88,6 +88,20 @@ try {
   if (missingAssetResponse.status !== 404)
     throw new Error(`smoke: missing asset returned ${missingAssetResponse.status}`);
 
+  // The AI-intake stage hard-depends on the committed model files — a
+  // clean build must ship them or stage 4 404s in the classroom.
+  const modelFiles = [
+    "vendor/models/Xenova/bge-small-zh-v1.5/config.json",
+    "vendor/models/Xenova/bge-small-zh-v1.5/tokenizer.json",
+    "vendor/models/Xenova/bge-small-zh-v1.5/onnx/model_quantized.onnx",
+  ];
+  for (const file of modelFiles) {
+    const response = await fetch(`${origin}${rootPath}${file}`);
+    if (response.status !== 200)
+      throw new Error(`smoke: model file ${file} returned ${response.status}`);
+    await response.arrayBuffer();
+  }
+
   if (base !== "/") {
     const unprefixedResponse = await fetch(`${origin}/labs/calculator`);
     if (unprefixedResponse.status !== 404)

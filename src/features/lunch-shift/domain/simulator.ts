@@ -25,11 +25,8 @@ import {
   type Ticket,
 } from "./contracts.ts";
 import { priorityValue } from "./priority.ts";
-import { parseTicket, type IntakeTables } from "./wordTables.ts";
 
 export type SimConfig = {
-  /** Student intake word tables; null/absent = 小票已录对 (expected used). */
-  tables?: IntakeTables | null;
   /** 124-cell priority table; null/absent = first-come-first-served. */
   priority?: readonly number[] | null;
   /**
@@ -222,14 +219,12 @@ export function simulate(
         events.push({ tick, stage: "intake", orderId: order.source.id, action: "held" });
         continue;
       }
-      // With word tables the student's parse decides; a ticket missing its
-      // dish or table is invalid and the order keeps a null ticket. Without
-      // tables the stage runs 小票已录对 — the expected ticket is recorded.
+      // A ticket override decides what intake records (AI intake); a
+      // missing entry records nothing. Without overrides the stage runs
+      // 小票已录对 — the expected ticket is recorded.
       const output = config.tickets
         ? (config.tickets.get(order.source.id) ?? null)
-        : config.tables
-          ? parseTicket(order.source.request, config.tables)
-          : (order.source.expected ?? null);
+        : (order.source.expected ?? null);
       if (isRecordableTicket(output)) order.ticket = output;
       order.receivedTick = tick;
       kitchen.push(order);

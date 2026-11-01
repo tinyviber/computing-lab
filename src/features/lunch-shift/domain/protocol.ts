@@ -4,15 +4,14 @@
  * (consumer) so the payload shapes live exactly once.
  *
  * Drafts carry code + derived data, never functions: the browser's Pyodide
- * worker turns student code into JSON word tables / a 124-cell priority
- * table, and the server judges those. Code snapshots stay for teacher
- * review only.
+ * worker turns student code into JSON artefacts (a 124-cell priority
+ * table, per-order confirm verdicts) and the server judges those. Code
+ * snapshots stay for teacher review only.
  */
 
 import type { LabProjectPayload } from "../../../shared/api/client.ts";
 import type { AiResultRow } from "./aiIntake.ts";
 import type { RunSummary, Ticket } from "./contracts.ts";
-import type { IntakeTables } from "./wordTables.ts";
 
 /** Stage 1 draft: the guided three-station walkthrough of one order. */
 export type TrainingDraft = {
@@ -22,10 +21,14 @@ export type TrainingDraft = {
   deliveredTable: string | null;
 };
 
-/** Stage 2 draft: word-table code plus the tables it produced. */
-export type IntakeDraft = {
-  code: string;
-  tables: IntakeTables | null;
+/**
+ * Stage 2 智能接单练习 draft: the need_confirm code plus the normalized
+ * results the browser computed (AI ticket + confirm verdict per order)
+ * on the 12 practice requests — expected tickets are public here.
+ */
+export type AiIntakeDraft = {
+  confirmCode: string;
+  results: AiResultRow[] | null;
 };
 
 /** Stage 3 draft: priority code plus its 124-cell result table. */
@@ -35,14 +38,11 @@ export type QueueDraft = {
 };
 
 /**
- * Stage 4 智能接单 draft: the need_confirm code plus the normalized
- * results the browser computed (AI ticket + confirm verdict per
- * order). The queue artefact is still carried over from stage 3 —
- * confirmed tickets join the same queue simulation.
+ * Stage 4 综合挑战 draft: the same need_confirm artefact as stage 2,
+ * now aimed at the hidden order set, plus the carried-over queue
+ * artefact — confirmed tickets join the same queue simulation.
  */
-export type AiDraft = {
-  confirmCode: string;
-  results: AiResultRow[] | null;
+export type AiDraft = AiIntakeDraft & {
   queueCode: string;
   priority: number[] | null;
 };
@@ -67,19 +67,18 @@ export type CompensateOrderRow = {
   cost: number;
 };
 
-export type LunchDraft = TrainingDraft | IntakeDraft | QueueDraft | AiDraft | CompensateDraft;
+export type LunchDraft = TrainingDraft | AiIntakeDraft | QueueDraft | AiDraft | CompensateDraft;
 
-/** Stage 2 feedback: which word decided each ticket field. */
-export type IntakeOrderResult = {
+/** Stage 2 feedback: practice orders, so wording and expected tickets
+ *  are shown — the student needs them to tune need_confirm. */
+export type AiIntakeOrderResult = {
   id: string;
   request: string;
   correct: boolean;
+  /** This order was sent back for customer confirmation. */
+  confirmed: boolean;
   produced: Ticket;
   expected: Ticket;
-  itemKey: string | null;
-  noteKey: string | null;
-  urgentVia: "calm" | "rush" | "none";
-  urgentKey: string | null;
 };
 
 /** Stage 4 feedback — counts only, no order wording. */
@@ -94,11 +93,12 @@ export type AiOrderResult = {
 export type LunchTestSummary =
   | { kind: "training"; differences?: string[] }
   | {
-      kind: "intake";
+      kind: "ai-intake";
       correct: number;
       total: number;
-      errors?: string[];
-      orders?: IntakeOrderResult[];
+      /** Orders sent back for confirmation — budgeted at AI_CONFIRM_BUDGET. */
+      confirmed: number;
+      orders?: AiIntakeOrderResult[];
     }
   | {
       kind: "queue";

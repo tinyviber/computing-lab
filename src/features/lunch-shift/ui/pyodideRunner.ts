@@ -19,19 +19,6 @@ const client = createWorkerClient(
 export const warmPyodide = client.warm;
 
 /**
- * Run the word-table code and read back the four variables:
- * returns `[dishPairs, notePairs, calmWords, rushWords]` — raw JSON,
- * validated by the caller (checkIntakeTables).
- */
-export async function runIntakeTables(
-  code: string,
-  timeoutMs = WORKER_RUN_TIMEOUT_MS,
-): Promise<unknown> {
-  const payload = await client.run<{ result: unknown }>({ kind: "tables", code }, timeoutMs);
-  return payload.result;
-}
-
-/**
  * Evaluate priority(urgent, wait, cook) for all 124 input combinations.
  * Returns the raw result list — validated by the caller
  * (checkPriorityTable).
@@ -58,7 +45,7 @@ export async function runCompensateTable(
 }
 
 /**
- * AI-intake PoC: evaluate need_confirm(similarity, margin) once per
+ * AI intake: evaluate need_confirm(similarity, margin) once per
  * [similarity, margin] pair, in one run. Returns a raw list — the
  * caller validates it's all booleans.
  */
