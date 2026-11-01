@@ -139,6 +139,12 @@ export type LunchJudgeResult = {
   currentStage: number;
   passedStages: number[];
   unlockedComponent: null;
+  /**
+   * Stage-4 order wording, shipped the moment the result unlocks the
+   * stage — same payload as LunchProjectExtras.aiOrders, so a student
+   * who passes stage 3 mid-session can play stage 4 without a reload.
+   */
+  aiOrders: { id: string; request: string }[] | null;
 };
 
 /** Extra fields merged into GET /project: latest recorded summary per

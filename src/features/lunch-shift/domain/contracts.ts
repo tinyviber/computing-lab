@@ -1,9 +1,9 @@
 /**
  * Lunch-shift lab contracts — the shared vocabulary between the student
- * page, the draft store and the server judge. The lab was rebuilt around
- * student-supplied data (intake word tables) and a student-supplied
- * priority function: the old Go-engine score locks (71/74/88) and the
- * block-rule vocabulary no longer apply.
+ * page, the draft store and the server judge. The lab is built around
+ * student-supplied data (AI-intake confirmation results) and a
+ * student-supplied priority function: the old Go-engine score locks
+ * (71/74/88) and the block-rule vocabulary no longer apply.
  */
 
 export const FOCUSES = ["intake", "kitchen", "delivery"] as const;

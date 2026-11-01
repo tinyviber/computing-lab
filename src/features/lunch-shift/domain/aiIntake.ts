@@ -1,5 +1,5 @@
 /**
- * AI 智能接单 PoC — pure domain logic, no model imports.
+ * AI 智能接单 — pure domain logic, no model imports.
  *
  * The embed worker turns text into vectors; this module owns everything
  * testable without the network: which prototype phrases stand for each
@@ -156,7 +156,7 @@ function literalField<T>(value: T, matched: string): FieldPrediction<T> {
  * Clause-length phrases, each value carrying several synonyms so a
  * paraphrase (「不放香菜」「别太辣」「急着开会」) lands on the right
  * value. These are the knobs to tune first if real-device accuracy
- * disappoints; the PoC page prints every score precisely so each
+ * disappoints; the dev page prints every score precisely so each
  * knob's effect is visible.
  */
 
@@ -461,9 +461,9 @@ export function normalizedResults(
 }
 
 /* ---- Practice set ------------------------------------------------------
- * The PoC grades itself on the stage-2 practice orders — the only set
- * with public expected tickets. `confirmInputs` are the [similarity,
- * margin] pairs handed to the student's Python in one batch.
+ * The stage-2 practice orders — the only set with public expected
+ * tickets. `confirmInputs` are the [similarity, margin] pairs handed to
+ * the student's Python in one batch.
  */
 
 export const POC_ORDERS = INTAKE_SCENARIO.orders.map((order) => ({

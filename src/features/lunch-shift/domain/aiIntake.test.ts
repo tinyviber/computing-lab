@@ -1,5 +1,5 @@
 /**
- * Pure-logic checks for the AI intake PoC: scoring picks the closest
+ * Pure-logic checks for the AI intake: scoring picks the closest
  * prototype, clarify text round-trips through the fixed parser, and the
  * confirm path swaps in the clarified ticket at a one-tick cost. The
  * model itself is exercised only in the browser — none of this imports

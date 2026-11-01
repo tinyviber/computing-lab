@@ -5,11 +5,10 @@
  * stay server-only.
  *
  * Order-set properties (locked by engine.test.ts):
- *  - INTAKE set: the default word tables miss 5 of 12 — one dish short
- *    name, two reworded notes, one reworded rush phrase, one negated rush
- *    phrase. Every miss is fixable by adding a word; no fix breaks another
- *    order.
- *  - QUEUE set (小票已录对): FIFO 8/12 on-time, urgent-first 10/12, and
+ *  - INTAKE set: the AI model misses 2 of 12 outright at low margin —
+ *    P06 「想快一点但不想加钱」 → 加急 (true 普通) and P10 「别加葱」 →
+ *    少辣 (true 无备注) — so need_confirm has real work to do.
+ *  - QUEUE set (小票已录对): FIFO 8/12 on-time, urgent-first 11/12, and
  *    urgent + wait-boost reaches 12/12 for every threshold T in 8..16.
  *  - RUSH set: an optional denser 20-order round for fast finishers.
  */

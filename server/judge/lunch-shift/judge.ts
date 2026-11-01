@@ -77,7 +77,7 @@ import {
   type LabJudgeError,
   type ProjectRow,
 } from "../pipeline.ts";
-import { FINAL_SCENARIO } from "./hiddenSet.ts";
+import { FINAL_PUBLIC_ORDERS, FINAL_SCENARIO } from "./hiddenSet.ts";
 
 export function judgeLunchShiftSubmission(
   db: DatabaseSync,
@@ -273,6 +273,7 @@ export function judgeLunchShiftSubmission(
     currentStage: project.currentStage,
     passedStages: project.passedStages,
     unlockedComponent: null,
+    aiOrders: null,
   };
 
   // Submission row + progress update commit together — a crash between
@@ -296,5 +297,8 @@ export function judgeLunchShiftSubmission(
     }
   });
 
+  // A passing stage-3 run unlocks stage 4 mid-session — ship its order
+  // wording with the result so the page needs no reload (ids+text only).
+  result.aiOrders = lunchStageUnlocked(result.passedStages, 4) ? FINAL_PUBLIC_ORDERS : null;
   return result;
 }

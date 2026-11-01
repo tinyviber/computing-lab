@@ -1,5 +1,5 @@
 /**
- * Main-thread handle for the PoC embedding worker. Kept separate from
+ * Main-thread handle for the embedding worker. Kept separate from
  * shared/worker/createWorkerClient because its contract differs on
  * purpose: loading relays download progress, one successful pipeline is
  * reused for every embed call, and a failed GPU attempt falls back to
@@ -51,6 +51,10 @@ function ensureWorker(): Worker {
     for (const entry of pending.values()) entry.reject(new Error("模型 worker 崩溃了"));
     pending.clear();
     worker = null;
+    // The respawned worker is unloaded — clear the memoized state so the
+    // next loadEmbedder() retries instead of reporting stale readiness.
+    readyInfo = null;
+    loading = null;
   };
   return worker;
 }

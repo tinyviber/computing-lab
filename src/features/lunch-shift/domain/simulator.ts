@@ -1,11 +1,13 @@
 /**
  * The deterministic tick simulation. One synchronous pass over the round:
  * orders arrive, intake writes tickets, the stove cooks one at a time, the
- * runner delivers. Two student inputs plug in:
+ * runner delivers. Three knobs plug in:
  *
- *   - intake word tables: parse each request into a ticket (stage 2 work).
- *     When absent the order's expected ticket is recorded as-is — the
- *     修排队 stage starts from 小票已录对.
+ *   - tickets: a map overriding what intake records per order (the AI
+ *     intake's predicted/confirmed tickets). When absent the order's
+ *     expected ticket is recorded as-is — 修排队 starts from 小票已录对.
+ *   - confirmStalls: ids whose ticket lands one intake slot late — the
+ *     再确认一次 cost on the AI stages.
  *   - priority table: at every ≥2-candidate queue decision, pick the
  *     candidate with the largest table value; equal values keep the
  *     first-come-first-served order. When absent, plain FIFO.

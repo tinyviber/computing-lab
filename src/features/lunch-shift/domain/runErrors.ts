@@ -2,7 +2,8 @@
  * Student-facing error translation for the lunch-shift Pyodide runs:
  * raw Python/worker messages mapped to the check that fixes them, plus a
  * pre-run scan for full-width punctuation in real code (string literals
- * and comments are skipped — Chinese words inside word tables are legal).
+ * and comments are skipped — Chinese words inside string literals are
+ * legal).
  */
 
 export function friendlyRunError(raw: string): string {

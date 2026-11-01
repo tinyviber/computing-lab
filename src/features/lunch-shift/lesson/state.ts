@@ -22,6 +22,7 @@ import type {
   LunchDraft,
   LunchJudgeResult,
   LunchProjectExtras,
+  LunchTestSummary,
   QueueDraft,
   TrainingDraft,
 } from "../domain/protocol.ts";
@@ -257,6 +258,17 @@ export function createLunchLessonState(stageIndex = 1): LunchLessonState {
   };
 }
 
+// Freshly-judged summaries slot back into runSummaries so navigating
+// away and back still shows the latest result (not just page-load data).
+const SUMMARY_KEY_BY_KIND: Partial<
+  Record<LunchTestSummary["kind"], keyof LunchProjectExtras["runSummaries"]>
+> = {
+  "ai-intake": "intake",
+  queue: "queue",
+  final: "final",
+  compensate: "compensate",
+};
+
 export function transitionLunchLesson(
   state: LunchLessonState,
   action: LunchLessonAction,
@@ -325,13 +337,20 @@ export function transitionLunchLesson(
         judgeOutcome: null,
       };
 
-    case "judge-result":
+    case "judge-result": {
+      const summaryKey = SUMMARY_KEY_BY_KIND[action.outcome.testSummary.kind];
       return {
         ...state,
         judgeOutcome: action.outcome,
         passedStages: action.outcome.passedStages,
         currentStage: nextLunchStage(action.outcome.passedStages),
+        // A stage-3 pass ships the stage-4 order wording with the result.
+        aiOrders: action.outcome.aiOrders ?? state.aiOrders,
+        runSummaries: summaryKey
+          ? { ...state.runSummaries, [summaryKey]: action.outcome.testSummary }
+          : state.runSummaries,
       };
+    }
 
     case "mark-saving":
       return {

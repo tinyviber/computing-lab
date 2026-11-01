@@ -82,7 +82,7 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
   on the practice set — confirming a right order can't fix a miss, so a
   pass must find the orders the model actually got wrong.
 - Stage 4 pass: `correct == 12` AND `confirmed <= 4` AND `served >=
-  AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
+AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   delivery speed gate together. With BOOST10 priority: {F10,F11}
   confirms → served 12; a careless 4-confirm pick can sink to 9–10;
   a FIFO queue fails served even with perfect tickets (8/12) — the

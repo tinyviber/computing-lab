@@ -1,6 +1,6 @@
 /**
- * Embedding worker for the AI-intake PoC — transformers.js in a module
- * worker so tokenize+infer never blocks the page.
+ * Embedding worker for AI intake — transformers.js in a module worker
+ * so tokenize+infer never blocks the page.
  *
  * Everything is self-hosted to match the classroom network reality: the
  * model files are committed under public/vendor/models (pinned by
@@ -60,7 +60,7 @@ async function handle(request: EmbedWorkerRequest): Promise<object> {
       loadedWith.device === request.device &&
       loadedWith.dtype === request.dtype
     ) {
-      return { already: true };
+      return { already: true, device: loadedWith.device, dtype: loadedWith.dtype, ms: 0 };
     }
     const started = performance.now();
     const task = pipeline("feature-extraction", request.model, {
