@@ -56,3 +56,20 @@ export async function runCompensateTable(
   const payload = await client.run<{ result: unknown }>({ kind: "compensate", code }, timeoutMs);
   return payload.result;
 }
+
+/**
+ * AI-intake PoC: evaluate need_confirm(similarity, margin) once per
+ * [similarity, margin] pair, in one run. Returns a raw list — the
+ * caller validates it's all booleans.
+ */
+export async function runNeedConfirm(
+  code: string,
+  cases: [number, number][],
+  timeoutMs = WORKER_RUN_TIMEOUT_MS,
+): Promise<unknown> {
+  const payload = await client.run<{ result: unknown }>(
+    { kind: "confirm", code, cases },
+    timeoutMs,
+  );
+  return payload.result;
+}

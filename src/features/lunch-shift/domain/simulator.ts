@@ -32,6 +32,18 @@ export type SimConfig = {
   tables?: IntakeTables | null;
   /** 124-cell priority table; null/absent = first-come-first-served. */
   priority?: readonly number[] | null;
+  /**
+   * Per-order ticket override for the AI intake stage: intake records
+   * this map's ticket instead of parsing the request (or the expected
+   * one). Orders missing from the map record nothing.
+   */
+  tickets?: ReadonlyMap<string, Ticket | null>;
+  /**
+   * Orders whose intake stalls for one extra slot — the customer is
+   * restating (AI confirmation). The stall consumes the intake slot;
+   * the ticket lands on the next pass.
+   */
+  confirmStalls?: ReadonlySet<string>;
 };
 
 /** Drops the hidden expected tickets before a scenario leaves the server. */
@@ -56,6 +68,8 @@ type RuntimeOrder = {
   cookStartTick: number;
   readyTick: number;
   deliveredTick: number;
+  /** The one-tick confirm stall has already been spent. */
+  stalled: boolean;
 };
 
 type CookingSlot = { order: RuntimeOrder; doneTick: number };
@@ -132,6 +146,7 @@ export function simulate(
       cookStartTick: 0,
       readyTick: 0,
       deliveredTick: 0,
+      stalled: false,
     }));
   let inbox: RuntimeOrder[] = [];
   let kitchen: RuntimeOrder[] = [];
@@ -199,12 +214,22 @@ export function simulate(
     for (let processed = 0; inbox.length > 0 && processed < intakePerTick; processed++) {
       const order = fifoQueue(inbox)[0];
       inbox = removeOrder(inbox, order);
+      // A confirmed order spends this intake slot on the customer's
+      // restatement — the ticket lands next pass.
+      if (config.confirmStalls?.has(order.source.id) && !order.stalled) {
+        order.stalled = true;
+        inbox.push(order);
+        events.push({ tick, stage: "intake", orderId: order.source.id, action: "held" });
+        continue;
+      }
       // With word tables the student's parse decides; a ticket missing its
       // dish or table is invalid and the order keeps a null ticket. Without
       // tables the stage runs 小票已录对 — the expected ticket is recorded.
-      const output = config.tables
-        ? parseTicket(order.source.request, config.tables)
-        : (order.source.expected ?? null);
+      const output = config.tickets
+        ? (config.tickets.get(order.source.id) ?? null)
+        : config.tables
+          ? parseTicket(order.source.request, config.tables)
+          : (order.source.expected ?? null);
       if (isRecordableTicket(output)) order.ticket = output;
       order.receivedTick = tick;
       kitchen.push(order);

@@ -10,6 +10,7 @@
  */
 
 import type { LabProjectPayload } from "../../../shared/api/client.ts";
+import type { AiResultRow } from "./aiIntake.ts";
 import type { RunSummary, Ticket } from "./contracts.ts";
 import type { IntakeTables } from "./wordTables.ts";
 
@@ -33,10 +34,15 @@ export type QueueDraft = {
   priority: number[] | null;
 };
 
-/** Stage 4 draft: both artefacts carried over from stages 2 and 3. */
-export type FinalDraft = {
-  intakeCode: string;
-  tables: IntakeTables | null;
+/**
+ * Stage 4 智能接单 draft: the need_confirm code plus the normalized
+ * results the browser computed (AI ticket + confirm verdict per
+ * order). The queue artefact is still carried over from stage 3 —
+ * confirmed tickets join the same queue simulation.
+ */
+export type AiDraft = {
+  confirmCode: string;
+  results: AiResultRow[] | null;
   queueCode: string;
   priority: number[] | null;
 };
@@ -61,7 +67,7 @@ export type CompensateOrderRow = {
   cost: number;
 };
 
-export type LunchDraft = TrainingDraft | IntakeDraft | QueueDraft | FinalDraft | CompensateDraft;
+export type LunchDraft = TrainingDraft | IntakeDraft | QueueDraft | AiDraft | CompensateDraft;
 
 /** Stage 2 feedback: which word decided each ticket field. */
 export type IntakeOrderResult = {
@@ -77,9 +83,11 @@ export type IntakeOrderResult = {
 };
 
 /** Stage 4 feedback — counts only, no order wording. */
-export type FinalOrderResult = {
+export type AiOrderResult = {
   id: string;
   correct: boolean;
+  /** This order was sent back for customer confirmation. */
+  confirmed: boolean;
   onTime: boolean;
 };
 
@@ -105,7 +113,9 @@ export type LunchTestSummary =
       /** Orders that are BOTH correctly recorded and on time. */
       served: number;
       total: number;
-      orders?: FinalOrderResult[];
+      /** Orders sent back for confirmation — budgeted at AI_CONFIRM_BUDGET. */
+      confirmed: number;
+      orders?: AiOrderResult[];
     }
   | {
       kind: "compensate";
@@ -141,6 +151,12 @@ export type LunchProjectExtras = {
     compensate: LunchTestSummary | null;
   };
   training: { request: string; ticket: Ticket };
+  /**
+   * Stage-4 order requests for the browser's AI intake — ids and
+   * wording only, no expected tickets. Null until the stage unlocks:
+   * these are the graded orders, so they ship as late as possible.
+   */
+  aiOrders: { id: string; request: string }[] | null;
 };
 
 export type LunchProjectPayload = LabProjectPayload<LunchDraft> & LunchProjectExtras;

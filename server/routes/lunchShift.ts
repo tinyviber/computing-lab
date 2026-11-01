@@ -3,7 +3,8 @@ import type {
   LunchJudgeResult,
   LunchTestSummary,
 } from "../../src/features/lunch-shift/domain/protocol.ts";
-import { LUNCH_STAGES } from "../../src/features/lunch-shift/domain/stages.ts";
+import { LUNCH_STAGES, lunchStageUnlocked } from "../../src/features/lunch-shift/domain/stages.ts";
+import { FINAL_PUBLIC_ORDERS } from "../judge/lunch-shift/hiddenSet.ts";
 import { sanitizeLunchDraft } from "../../src/features/lunch-shift/lesson/state.ts";
 import { trainingOrderFor } from "../../src/features/lunch-shift/domain/scenarios.ts";
 import { SlidingWindowLimiter } from "../auth/rateLimit.ts";
@@ -62,6 +63,10 @@ export function lunchShiftRoutes() {
     projectExtras: (db, project) => ({
       runSummaries: latestRunSummaries(db, project.id),
       training: trainingOrderFor(project.userId),
+      // The graded orders' wording ships only once stage 4 unlocks —
+      // the browser's embedding model needs the raw sentences, but the
+      // expected tickets never leave hiddenSet.ts.
+      aiOrders: lunchStageUnlocked(project.passedStages, 4) ? FINAL_PUBLIC_ORDERS : null,
     }),
     saveDraft: (db, project, stageIndex, body, expectedRevision) =>
       saveStageDraft(db, project, stageIndex, sanitizeLunchDraft(stageIndex, body.draft ?? {}), {

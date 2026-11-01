@@ -51,7 +51,7 @@ export function defaultIntakeTables(): IntakeTables {
       ["加蛋", "加蛋"],
     ],
     calm: ["不赶时间", "不急着"],
-    rush: ["赶时间", "急着", "快一点", "尽快"],
+    rush: ["赶时间", "急着", "快一点", "尽快", "加急"],
   };
 }
 

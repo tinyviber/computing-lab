@@ -58,16 +58,16 @@ const overwrite = (t: number) => tableFor((u, w) => (w >= t ? 2 : u ? 1 : 0));
 const LITERAL_TABLES: IntakeTables = {
   dish: [...defaultIntakeTables().dish, ["炒饭", "蛋炒饭"]],
   note: [...defaultIntakeTables().note, ["不放香菜", "不要香菜"], ["别太辣", "少辣"]],
-  calm: [...defaultIntakeTables().calm, "不用赶"],
-  rush: [...defaultIntakeTables().rush, "能快点吗"],
+  calm: [...defaultIntakeTables().calm, "不用加急"],
+  rush: [...defaultIntakeTables().rush, "付费"],
 };
 
 /** Generic practice fix — shorter words that cover unseen phrasings. */
 const GENERIC_TABLES: IntakeTables = {
   dish: [...defaultIntakeTables().dish, ["炒饭", "蛋炒饭"]],
   note: [...defaultIntakeTables().note, ["放香菜", "不要香菜"], ["辣", "少辣"]],
-  calm: [...defaultIntakeTables().calm, "不用赶", "不急"],
-  rush: [...defaultIntakeTables().rush, "快", "等不及"],
+  calm: [...defaultIntakeTables().calm, "不用", "不急"],
+  rush: [...defaultIntakeTables().rush, "快", "急单"],
 };
 
 // Mirrors the hidden final set in server/judge/lunch-shift/hiddenSet.ts.
@@ -79,7 +79,7 @@ const FINAL_FIXTURES = [
     arrivalTick: 3,
   },
   {
-    request: "2号桌鸡腿饭，别放香菜，我赶时间。",
+    request: "2号桌鸡腿饭，别放香菜，这单我加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 3,
@@ -91,7 +91,7 @@ const FINAL_FIXTURES = [
     arrivalTick: 4,
   },
   {
-    request: "3号桌蛋炒饭，加蛋，麻烦快点，我等不及了。",
+    request: "3号桌蛋炒饭，加蛋，急着走，付费加急。",
     expected: { item: "蛋炒饭", note: "加蛋", table: "3", urgent: true },
     cookTicks: 3,
     arrivalTick: 1,
@@ -109,25 +109,25 @@ const FINAL_FIXTURES = [
     arrivalTick: 12,
   },
   {
-    request: "7号桌牛肉面，少放点辣，不用赶时间。",
+    request: "7号桌牛肉面，少放点辣，不用加急。",
     expected: { item: "牛肉面", note: "少辣", table: "7", urgent: false },
     cookTicks: 3,
     arrivalTick: 1,
   },
   {
-    request: "5号桌鸡腿饭，加蛋，麻烦快些。",
+    request: "5号桌鸡腿饭，加蛋，加钱走急单。",
     expected: { item: "鸡腿饭", note: "加蛋", table: "5", urgent: true },
     cookTicks: 1,
     arrivalTick: 11,
   },
   {
-    request: "6号桌牛肉面，少辣，尽快送来，我赶时间。",
+    request: "6号桌牛肉面，少辣，走加急通道，我赶时间。",
     expected: { item: "牛肉面", note: "少辣", table: "6", urgent: true },
     cookTicks: 3,
     arrivalTick: 13,
   },
   {
-    request: "给2号桌做牛肉面加蛋，尽快，我赶时间。",
+    request: "给2号桌做牛肉面加蛋，要加急，我赶时间。",
     expected: { item: "牛肉面", note: "加蛋", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 1,
@@ -139,7 +139,7 @@ const FINAL_FIXTURES = [
     arrivalTick: 15,
   },
   {
-    request: "8号桌鸡腿饭，不要香菜，赶时间。",
+    request: "8号桌鸡腿饭，不要香菜，我要加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "8", urgent: true },
     cookTicks: 1,
     arrivalTick: 16,
@@ -240,7 +240,7 @@ describe("修接单 order set", () => {
   });
 
   it("the negated-rush order needs calm checked first", () => {
-    // 「不用赶时间」误中 rush 的「赶时间」，calm 先查才能拦下来
+    // 「不用加急」误中 rush 的「加急」，calm 先查才能拦下来
     const miss = evaluateIntake(intakeOrders, defaultIntakeTables()).find((o) => o.id === "P09");
     expect(miss?.produced.urgent).toBe(true);
   });
@@ -258,8 +258,8 @@ describe("修接单 order set", () => {
       { id: "P03", patch: (t) => ({ ...t, dish: [...t.dish, ["炒饭", "蛋炒饭"]] }) },
       { id: "P04", patch: (t) => ({ ...t, note: [...t.note, ["不放香菜", "不要香菜"]] }) },
       { id: "P08", patch: (t) => ({ ...t, note: [...t.note, ["太辣", "少辣"]] }) },
-      { id: "P09", patch: (t) => ({ ...t, calm: [...t.calm, "不用赶"] }) },
-      { id: "P11", patch: (t) => ({ ...t, rush: [...t.rush, "快点"] }) },
+      { id: "P09", patch: (t) => ({ ...t, calm: [...t.calm, "不用加急"] }) },
+      { id: "P11", patch: (t) => ({ ...t, rush: [...t.rush, "付费"] }) },
     ];
     for (const { id, patch } of fixes) {
       const tables = patch(defaultIntakeTables());
@@ -307,11 +307,13 @@ describe("修排队 order set", () => {
 });
 
 describe("正式集 (mirrored hidden set)", () => {
-  it("literal practice words lose exactly the four reworded orders", () => {
+  it("literal practice words lose exactly the three reworded orders", () => {
     const wrong = FINAL.orders.filter(
       (order) => !sameTicket(parseTicket(order.request, LITERAL_TABLES), order.expected!),
     );
-    expect(wrong.map((order) => order.id)).toEqual(["F02", "F04", "F07", "F08"]);
+    // 别放香菜 and 少放点辣 reword the notes; 加钱走急单 is the
+    // paid-express idea in words the tables never listed.
+    expect(wrong.map((order) => order.id)).toEqual(["F02", "F07", "F08"]);
   });
 
   it("generic words get every ticket right and 12/12 on time (24/24)", () => {
@@ -341,6 +343,46 @@ describe("正式集 (mirrored hidden set)", () => {
       priority: tableFor((u) => (u ? 1 : 0)),
     }).result;
     expect(run.onTime).toBe(11);
+  });
+});
+
+describe("智能接单 sim mechanics", () => {
+  // The judge replays normalized AI rows: submitted ticket per order,
+  // confirmed orders swapped to the expected ticket + a one-tick stall.
+  const allCorrect = () => new Map(FINAL.orders.map((order) => [order.id, order.expected!]));
+
+  it("a submitted ticket overrides intake — an AI miss records wrong", () => {
+    const tickets = allCorrect();
+    tickets.set("F11", { item: "蛋炒饭", note: "少辣", table: "4", urgent: false });
+    const run = simulate(FINAL, { tickets, priority: boost(10) }).result;
+    expect(run.correct).toBe(11);
+    expect(run.orders.find((order) => order.id === "F11")?.correct).toBe(false);
+  });
+
+  it("an order missing from the tickets map records nothing", () => {
+    const tickets = allCorrect();
+    tickets.delete("F03");
+    const run = simulate(FINAL, { tickets, priority: boost(10) }).result;
+    expect(run.orders.find((order) => order.id === "F03")?.correct).toBe(false);
+    expect(run.correct).toBe(11);
+  });
+
+  it("a confirmed order spends one intake slot restating, then lands right", () => {
+    const ticketTickOf = (run: ReturnType<typeof simulate>, id: string) =>
+      (run.result.events ?? []).find((e) => e.action === "ticket" && e.orderId === id)!.tick;
+    const baseline = simulate(FINAL, { tickets: allCorrect(), priority: boost(10) });
+    const sim = simulate(FINAL, {
+      tickets: allCorrect(),
+      confirmStalls: new Set(["F01"]),
+      priority: boost(10),
+    });
+    const held = (sim.result.events ?? []).filter((e) => e.action === "held");
+    // Only F01 pays the restatement — exactly one intake slot.
+    expect(held.map((e) => e.orderId)).toEqual(["F01"]);
+    // Its ticket lands one tick later than it would have.
+    expect(ticketTickOf(sim, "F01")).toBe(ticketTickOf(baseline, "F01") + 1);
+    expect(sim.result.orders.find((order) => order.id === "F01")?.correct).toBe(true);
+    expect(sim.result.correct).toBe(12);
   });
 });
 

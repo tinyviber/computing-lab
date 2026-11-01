@@ -286,6 +286,15 @@ const devRoutes = import.meta.env.DEV
           "DecodingPreviewPage",
         ),
       }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/__dev/labs/lunch-shift-ai",
+        validateSearch: passThroughSearch,
+        component: lazyRouteComponent(
+          () => import("../features/lunch-shift/ai/AiIntakePocPage"),
+          "AiIntakePocPage",
+        ),
+      }),
     ]
   : [];
 

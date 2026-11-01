@@ -21,7 +21,7 @@ import { AppPageLayout } from "../../../shared/layout/AppTopbar";
 import { DismissibleAlert } from "../../../shared/ui/DismissibleAlert";
 import { HintDisclosure } from "../../../shared/ui/HintDisclosure";
 import type {
-  FinalDraft,
+  AiDraft,
   IntakeDraft,
   LunchDraft,
   LunchJudgeResult,
@@ -39,8 +39,8 @@ import {
   transitionLunchLesson,
   type LunchLessonAction,
 } from "../lesson/state.ts";
+import { AiIntakePanel } from "./AiIntakePanel.tsx";
 import { CompensatePanel } from "./CompensatePanel.tsx";
-import { FinalPanel } from "./FinalPanel.tsx";
 import { IntakePanel } from "./IntakePanel.tsx";
 import { QueuePanel } from "./QueuePanel.tsx";
 import { TrainingPanel } from "./TrainingPanel.tsx";
@@ -100,6 +100,7 @@ export function LunchShiftLabPage() {
       ),
       runSummaries: project.runSummaries,
       training: project.training,
+      aiOrders: project.aiOrders,
     }),
     dispatch,
   });
@@ -310,8 +311,9 @@ export function LunchShiftLabPage() {
             ) : null}
 
             {projectLoaded && stage?.index === 4 ? (
-              <FinalPanel
-                draft={draftOf(state, 4) as FinalDraft}
+              <AiIntakePanel
+                draft={draftOf(state, 4) as AiDraft}
+                orders={state.aiOrders ?? []}
                 onChange={(draft) => dispatch({ type: "update-final", draft })}
                 onSubmit={() => void submitJudge(4, draftOf(state, 4))}
                 result={finalResult}

@@ -15,7 +15,7 @@ import { runIntakeTables } from "./pyodideRunner.ts";
 export const INTAKE_STARTER = `dish_words = {"鸡腿饭": "鸡腿饭", "蛋炒饭": "蛋炒饭", "牛肉面": "牛肉面"}
 note_words = {"不要香菜": "不要香菜", "少辣": "少辣", "加蛋": "加蛋"}
 calm_words = ["不赶时间", "不急着"]
-rush_words = ["赶时间", "急着", "快一点", "尽快"]
+rush_words = ["赶时间", "急着", "快一点", "尽快", "加急"]
 `;
 
 function ticketText(ticket: {
@@ -196,10 +196,10 @@ export function IntakePanel({
           </li>
           <li>
             <code>calm_words</code>：普通信号词，最先查，原话命中它就是普通单。写法：
-            <code>{'["不急着", "不用赶"]'}</code>
+            <code>{'["不急着", "不用加急"]'}</code>
           </li>
           <li>
-            <code>rush_words</code>：加急信号词，calm 没中才查它，命中就是加急单。写法同上。
+            <code>rush_words</code>：付费加急的信号词，calm 没中才查它，命中就是加急单。写法同上。
           </li>
           <li>
             <code>dish_words</code>：词 → 菜名，和 note_words 一样的查法；菜名不全也可以加词。

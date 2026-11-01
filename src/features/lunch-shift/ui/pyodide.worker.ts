@@ -12,6 +12,9 @@
  *   kind "compensate": same pattern for compensate(urgent, overtime,
  *                    delivered, price) — urgent × overtime(0–30) ×
  *                    delivered × price(0–30).
+ *   kind "confirm":  AI-intake PoC — need_confirm(similarity, margin)
+ *                    over each [similarity, margin] case sent with the
+ *                    request → one boolean per order.
  *
  * Each run gets a fresh globals dict so runs can't leak state.
  */
@@ -23,7 +26,8 @@ import { installPyodideWorker } from "../../../shared/worker/workerProtocol.ts";
 
 type RunRequest =
   | { id: number; kind: "tables" | "priority"; code: string }
-  | { id: number; kind: "compensate"; code: string };
+  | { id: number; kind: "compensate"; code: string }
+  | { id: number; kind: "confirm"; code: string; cases: [number, number][] };
 
 const TABLES_CALL = `[
   list(dish_words.items()) if isinstance(dish_words, dict) else dish_words,
@@ -34,6 +38,7 @@ const TABLES_CALL = `[
 
 const PRIORITY_CALL = `[priority(u, w, c) for u in (False, True) for w in range(31) for c in (1, 3)]`;
 const COMPENSATE_CALL = `[compensate(u, o, d, p) for u in (False, True) for o in range(31) for d in (False, True) for p in range(31)]`;
+const CONFIRM_CALL = `[need_confirm(s, m) for s, m in __import__("json").loads(cases_json)]`;
 
 function mustFn(globals: ReturnType<PyodideInterface["toPy"]>, name: string, sig: string) {
   const fn = globals.get(name);
@@ -42,25 +47,48 @@ function mustFn(globals: ReturnType<PyodideInterface["toPy"]>, name: string, sig
   }
 }
 
+const SIGNATURES = {
+  priority: "priority(urgent, wait, cook)",
+  compensate: "compensate(urgent, overtime, delivered, price)",
+  confirm: "need_confirm(similarity, margin)",
+} as const;
+
 async function runRequest(pyodide: PyodideInterface, request: RunRequest): Promise<object> {
   const globals = pyodide.toPy({});
   try {
     pyodide.runPython(request.code, { globals });
-    const sig =
-      request.kind === "priority"
-        ? "priority(urgent, wait, cook)"
-        : "compensate(urgent, overtime, delivered, price)";
-    if (request.kind !== "tables") mustFn(globals, request.kind, sig);
+    if (request.kind !== "tables") {
+      const name = request.kind === "confirm" ? "need_confirm" : request.kind;
+      mustFn(globals, name, SIGNATURES[request.kind as keyof typeof SIGNATURES]);
+    }
+    if (request.kind === "confirm") {
+      globals.set("cases_json", JSON.stringify(request.cases));
+    }
     const call =
       request.kind === "tables"
         ? TABLES_CALL
         : request.kind === "compensate"
           ? COMPENSATE_CALL
-          : PRIORITY_CALL;
+          : request.kind === "confirm"
+            ? CONFIRM_CALL
+            : PRIORITY_CALL;
     const out = pyodide.runPython(call, { globals });
     try {
       const result = out.toJs() as unknown;
-      if (request.kind !== "tables" && Array.isArray(result)) {
+      if (request.kind === "confirm" && Array.isArray(result)) {
+        return {
+          result: result.map((value, index) => {
+            if (value === undefined || value === null) {
+              const [similarity, margin] = request.cases[index];
+              throw new Error(
+                `need_confirm(similarity=${similarity}, margin=${margin}) 没有返回 True/False，是不是有的情况忘了写 return？`,
+              );
+            }
+            return Boolean(value);
+          }),
+        };
+      }
+      if (request.kind !== "tables" && request.kind !== "confirm" && Array.isArray(result)) {
         // None → name the exact case instead of a table-index error later;
         // True/False are perfectly good answers → 1/0.
         const name = request.kind;

@@ -10,6 +10,9 @@
   `local/deploy/` for the production deployment scripts (`api-deploy.sh`, the
   systemd unit) before any deploy work; see `docs/deployment.md` and
   `local/README.md`.
+- `bun run sync:embed` vendors the AI-intake PoC runtime (ONNX wasm + BGE
+  model) into `public/vendor/` — run once before the dev route
+  `/__dev/labs/lunch-shift-ai` can load the model.
 
 ## Boundaries
 

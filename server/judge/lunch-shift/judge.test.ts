@@ -14,6 +14,7 @@ import {
   COMPENSATE_TABLE_SIZE,
   compensateIndex,
 } from "../../../src/features/lunch-shift/domain/compensate.ts";
+import { FINAL_PUBLIC_ORDERS, FINAL_SCENARIO } from "./hiddenSet.ts";
 
 const LAB_ID = "lunch-shift";
 
@@ -49,8 +50,8 @@ function tableFor(fn: (urgent: boolean, wait: number, cook: number) => number): 
 const GENERIC_TABLES: IntakeTables = {
   dish: [...defaultIntakeTables().dish, ["炒饭", "蛋炒饭"]],
   note: [...defaultIntakeTables().note, ["放香菜", "不要香菜"], ["辣", "少辣"]],
-  calm: [...defaultIntakeTables().calm, "不用赶", "不急"],
-  rush: [...defaultIntakeTables().rush, "快", "等不及"],
+  calm: [...defaultIntakeTables().calm, "不用", "不急"],
+  rush: [...defaultIntakeTables().rush, "快", "急单"],
 };
 
 const BOOST10 = tableFor((u, w) => (u ? 1 : 0) + (w >= 10 ? 1 : 0));
@@ -117,14 +118,40 @@ describe("lunch-shift judge", () => {
     expect(urgent.score).toBe(11);
   });
 
+  /** AI-intake draft builder: `expected` rows mirror a perfect AI guess,
+   *  `wrong` rows a miss the model didn't flag; `confirmIds` get confirmed. */
+  function aiResults(wrongIds: string[] = [], confirmIds: string[] = []) {
+    return FINAL_SCENARIO.orders.map((order) => ({
+      id: order.id,
+      ticket: wrongIds.includes(order.id)
+        ? { ...order.expected!, item: order.expected!.item === "鸡腿饭" ? "蛋炒饭" : "鸡腿饭" }
+        : { ...order.expected! },
+      confirmed: confirmIds.includes(order.id),
+    }));
+  }
+  const aiDraft = (results: unknown, priority: unknown = BOOST10) => ({
+    confirmCode: "x",
+    results,
+    queueCode: "y",
+    priority,
+  });
+
+  it("the public AI orders carry ids and wording only — no answers", () => {
+    expect(FINAL_PUBLIC_ORDERS).toHaveLength(FINAL_SCENARIO.orders.length);
+    for (const order of FINAL_PUBLIC_ORDERS) {
+      expect(Object.keys(order).sort()).toEqual(["id", "request"]);
+    }
+    const serialized = JSON.stringify(FINAL_PUBLIC_ORDERS);
+    for (const order of FINAL_SCENARIO.orders) {
+      expect(serialized).not.toContain(JSON.stringify(order.expected));
+      expect(serialized).not.toContain(`"cookTicks":${order.cookTicks}`);
+      expect(serialized).not.toContain(`"arrivalTick":${order.arrivalTick}`);
+    }
+  });
+
   it("stage 4 requires stage 3 passed", () => {
     const { db, project } = setupProject([1]);
-    const outcome = judgeLunchShiftSubmission(db, project, 4, {
-      intakeCode: "x",
-      tables: GENERIC_TABLES,
-      queueCode: "y",
-      priority: BOOST10,
-    });
+    const outcome = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults()));
     expect("error" in outcome).toBe(true);
     if (!("error" in outcome)) return;
     expect(outcome.error).toBe("stage-locked");
@@ -133,8 +160,8 @@ describe("lunch-shift judge", () => {
   it("stage 4 refuses missing artefacts without recording a submission", () => {
     const { db, project } = setupProject([1, 2, 3]);
     const outcome = judgeLunchShiftSubmission(db, project, 4, {
-      intakeCode: "x",
-      tables: null,
+      confirmCode: "x",
+      results: null,
       queueCode: "y",
       priority: null,
     });
@@ -147,68 +174,76 @@ describe("lunch-shift judge", () => {
     expect(rows.n).toBe(0);
   });
 
-  it("stage 4 records a fail below 18 and lets the student retry to a pass", () => {
+  it("stage 4 fails when never-confirm keeps an AI miss — confirmation is mandatory", () => {
     const { db, project } = setupProject([1, 2, 3]);
-    // Word tables that only catch the practice wording don't generalize:
-    // 8 correct + 8 记对且准时 = 16, under the 18 line.
-    const literal: IntakeTables = {
-      dish: [...defaultIntakeTables().dish, ["炒饭", "蛋炒饭"]],
-      note: [...defaultIntakeTables().note, ["不放香菜", "不要香菜"], ["别太辣", "少辣"]],
-      calm: [...defaultIntakeTables().calm, "不用赶"],
-      rush: [...defaultIntakeTables().rush, "能快点吗"],
-    };
-    const failed = judgeLunchShiftSubmission(db, project, 4, {
-      intakeCode: "x",
-      tables: literal,
-      queueCode: "y",
-      priority: BOOST10,
-    });
-    expect("error" in failed).toBe(false);
-    if ("error" in failed) return;
-    expect(failed.passed).toBe(false);
-    expect(failed.score).toBe(16);
-    expect(failed.passedStages).toEqual([1, 2, 3]);
-    const fails = db
+    const outcome = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults(["F11"], [])));
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.correct).toBe(11);
+    expect(outcome.testSummary.confirmed).toBe(0);
+  });
+
+  it("stage 4 fails when always-confirm burns the whole budget", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    const allIds = FINAL_SCENARIO.orders.map((order) => order.id);
+    const outcome = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults([], allIds)));
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.confirmed).toBe(12);
+    // Every confirmed order still records correctly — the budget fails it.
+    expect(outcome.testSummary.correct).toBe(12);
+  });
+
+  it("stage 4 passes when confirm catches exactly the AI's misses", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    // AI missed F11 and flagged it plus three borderline-but-right ones.
+    const draft = aiDraft(aiResults(["F11"], ["F11", "F01", "F03", "F08"]));
+    const outcome = judgeLunchShiftSubmission(db, project, 4, draft);
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(true);
+    expect(outcome.passedStages).toEqual([1, 2, 3, 4]);
+    if (outcome.testSummary.kind !== "final") return;
+    expect(outcome.testSummary.correct).toBe(12);
+    expect(outcome.testSummary.confirmed).toBe(4);
+    const f11 = outcome.testSummary.orders?.find((order) => order.id === "F11");
+    expect(f11?.correct).toBe(true);
+    expect(f11?.confirmed).toBe(true);
+    const rows = db
       .prepare(
-        "SELECT COUNT(*) AS n FROM submissions WHERE lab_id='lunch-shift' AND stage_index=4 AND passed=0",
+        "SELECT COUNT(*) AS n FROM submissions WHERE lab_id='lunch-shift' AND stage_index=4 AND passed=1",
       )
       .get() as { n: number };
-    expect(fails.n).toBe(1);
+    expect(rows.n).toBe(1);
 
-    // A failed attempt never locks the stage — the retry grades normally.
-    const draft = {
-      intakeCode: "x",
-      tables: GENERIC_TABLES,
-      queueCode: "y",
-      priority: BOOST10,
-    };
-    const retried = judgeLunchShiftSubmission(db, project, 4, draft);
-    expect("error" in retried).toBe(false);
-    if ("error" in retried) return;
-    expect(retried.passed).toBe(true);
-    expect(retried.score).toBe(24);
-    expect(retried.total).toBe(24);
-    expect(retried.passedStages).toEqual([1, 2, 3, 4]);
+    const serialized = JSON.stringify(outcome.testSummary);
+    expect(serialized).not.toContain("别放香菜");
+    expect(serialized).not.toContain("加钱走急单");
+    expect(serialized).not.toContain("request");
+  });
 
-    // Passing doesn't lock the stage either — a better score can be chased
-    // the same way stages 2/3 stay resubmittable.
+  it("stage 4 lets a student retry and resubmit after passing", () => {
+    const { db, project } = setupProject([1, 2, 3]);
+    const failed = judgeLunchShiftSubmission(db, project, 4, aiDraft(aiResults([], [])));
+    expect("error" in failed).toBe(false);
+    if ("error" in failed) return;
+    // 12 correct but zero confirmations — confirmed<1 fails it.
+    expect(failed.passed).toBe(false);
+
     const again = judgeLunchShiftSubmission(db, { ...project, passedStages: [1, 2, 3, 4] }, 4, {
-      intakeCode: "x",
-      tables: literal,
+      confirmCode: "x",
+      results: aiResults([], ["F05"]),
       queueCode: "y",
       priority: BOOST10,
     });
     expect("error" in again).toBe(false);
     if ("error" in again) return;
-    expect(again.passed).toBe(false);
-    expect(again.score).toBe(16);
+    expect(again.passed).toBe(true);
     expect(again.passedStages).toEqual([1, 2, 3, 4]);
-
-    const serialized = JSON.stringify(retried.testSummary);
-    expect(serialized).not.toContain("别放香菜");
-    expect(serialized).not.toContain("麻烦快点");
-    expect(serialized).not.toContain("少放点辣");
-    expect(serialized).not.toContain("request");
   });
 
   const compensateTableFor = (

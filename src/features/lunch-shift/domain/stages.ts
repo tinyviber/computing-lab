@@ -1,7 +1,8 @@
 /**
  * Stage table for the lunch-shift lab. Four stages for one class period:
- * walk one order by hand → fix intake by editing word tables → fix
- * queueing by writing priority() → graded run on hidden orders.
+ * walk one order by hand → fix intake by editing word tables (dicts and
+ * lists) → fix queueing by writing priority() (a function) → AI semantic
+ * intake on hidden orders, where need_confirm() prices uncertainty.
  * Stage 5 is an optional bonus that rides the stage-3 slot in the rail.
  *
  * Each stage keeps one task sentence. The judging method and the takeaway
@@ -33,7 +34,7 @@ export const LUNCH_STAGES: LunchStageDef[] = [
     index: 2,
     id: "fix-intake",
     title: "修接单",
-    task: "有 12 句顾客原话。根据下面的内容设计各种信号词，让 12 张小票全部记对。",
+    task: "有 12 句顾客原话。用字典和列表写死的信号词表（复习一下这两个数据结构），让 12 张小票全部记对。",
     judgeNote: "服务器拿你算出的四张词表重新读这 12 张原话，小票全对才过关。",
     takeaway: "认得全比背得多重要，通用词才盖得住没见过的说法。",
   },
@@ -41,7 +42,7 @@ export const LUNCH_STAGES: LunchStageDef[] = [
     index: 3,
     id: "fix-queue",
     title: "修排队",
-    task: "这一关小票都录对了。写 priority(urgent, wait, cook)，返回值越大越先做；加急单等满 9 拍、普通单等满 18 拍还没送到就算超时，至少 10 张准时过关。",
+    task: "这一关小票都录对了。复习函数：写 priority(urgent, wait, cook)，返回值越大越先做；加急单等满 9 拍、普通单等满 18 拍还没送到就算超时，至少 10 张准时过关。",
     judgeNote: "服务器拿你的结果表重排每一拍的选择：准时 10 张过关，12 张加星。",
     takeaway: "只认加急会饿死普通单，等太久的也该优先。",
     hints: [
@@ -52,16 +53,17 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 4,
-    id: "final-run",
-    title: "正式挑战",
-    task: "词表沿用第二关，这里只编辑 priority 函数。换了一批写法不同的订单，合计至少 18 分过关，没过可以改了再交。",
+    id: "ai-intake",
+    title: "智能接单",
+    task: "光一个付费加急就有「要加急」「付费加快」「加钱走急单」好几种说法，第二关写死的词表到了这批新订单就跟不上。这次换成 AI 语义接单：本地模型直接听顾客的话，给出小票和两个把握度分数。写 need_confirm(similarity, margin) 决定哪几单要让顾客再确认一遍：确认的单一定记对，但每张都让接单台停 1 拍。至少记对 11 张、确认 1～4 次过关。",
     judgeNote:
-      "服务器用同一套判法跑 12 张隐藏订单：成绩 = 小票正确数 + 记对且准时数（加急等满 9 拍、普通等满 18 拍算超时），满分 24，至少 18 分过关。",
-    takeaway: "选通用词的词表，才扛得住换说法。",
+      "服务器把你标记确认的单按顾客复述记对（确认必对），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：小票正确数 ≥11 且确认次数在 1～4 之间才过关。",
+    takeaway:
+      "写死的词表永远追不上新的说法，现代信息系统用语义模型听懂没见过的表达，但要会为不确定性买单。",
     hints: [
-      "练习里照抄原话加的词，正式订单换个说法就可能认不出。",
-      "又长又具体的练习原话，正式订单换个说法就认不出，换成更短的通用词。",
-      "哪张表里还有只在练习原话里出现过的长词？换成更通用的。",
+      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多，两个数一起看，先找出最没把握的单。",
+      "第一行可以这样开头：if similarity < 0.75: return True。",
+      "确认有预算：哪几单的分数最低？把确认留给他们，别浪费在 AI 本来就有把握的单上。",
     ],
   },
   {
@@ -85,12 +87,16 @@ export function getLunchStage(index: number): LunchStageDef | undefined {
 }
 
 /**
- * Stage-4 pass line, shared by the judge and the result view. On the hidden
- * set, generalizing word tables score ≥ 20 even under FIFO while literal
- * practice-only tables cap at 16 — 18 splits "words carried over" from
- * "didn't generalize" without re-testing stage-3 queueing skill.
+ * Stage-4 pass line, shared by the judge and the result view. Confirmed
+ * orders always record correctly (the customer restated) but cost one
+ * intake tick each. Measured on the hidden set, the clause-level model
+ * lands 11–12 correct and flags its misses at low similarity/margin, so
+ * an honest need_confirm passes with 2–4 confirmations while
+ * always-confirm (12) and never-confirm (0) both fail.
  */
-export const FINAL_PASS_SCORE = 18;
+export const AI_PASS_CORRECT = 11;
+export const AI_CONFIRM_BUDGET = 4;
+export const AI_CONFIRM_MIN = 1;
 
 /** Linear unlock: a stage opens once the previous one passed. */
 export function lunchStageUnlocked(passedStages: readonly number[], index: number): boolean {

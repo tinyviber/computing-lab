@@ -74,12 +74,14 @@ export function trainingOrderFor(seed: string): TrainingOrder {
 
 /**
  * Stage 2 修接单 — 12 orders read through the student's word tables.
- * Default tables miss P03 (炒饭), P04 (不放香菜), P08 (别太辣),
- * P09 (不用赶时间 → 误认加急), P11 (能快点吗 → 认不出加急).
+ * The restaurant sells a paid 加急 option, so urgency is phrased as
+ * paying for speed (要加急 / 付费加急 / 走加急通道…). Default tables miss
+ * P03 (炒饭), P04 (不放香菜), P08 (别太辣), P09 (不用加急 → 误认加急),
+ * P11 (付费加快 → 认不出加急).
  */
 export const INTAKE_FIXTURES: FixtureOrder[] = [
   {
-    request: "麻烦送到 3 号桌，一份鸡腿饭，不要香菜。赶时间，能快一点吗？",
+    request: "麻烦送到 3 号桌，一份鸡腿饭，不要香菜。我赶时间，这单要加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "3", urgent: true },
     cookTicks: 1,
     arrivalTick: 1,
@@ -91,13 +93,13 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 2,
   },
   {
-    request: "请给 6 号桌做炒饭，加蛋，尽快送来。",
+    request: "请给 6 号桌做炒饭，加蛋，这单付费加急。",
     expected: { item: "蛋炒饭", note: "加蛋", table: "6", urgent: true },
     cookTicks: 1,
     arrivalTick: 4,
   },
   {
-    request: "4号桌，鸡腿饭，不放香菜。麻烦快一点。",
+    request: "4号桌，鸡腿饭，不放香菜。我加钱加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "4", urgent: true },
     cookTicks: 1,
     arrivalTick: 5,
@@ -109,7 +111,7 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 6,
   },
   {
-    request: "7号桌来份鸡腿饭，加蛋，我赶时间。",
+    request: "7号桌来份鸡腿饭，加蛋，我要加急。",
     expected: { item: "鸡腿饭", note: "加蛋", table: "7", urgent: true },
     cookTicks: 1,
     arrivalTick: 7,
@@ -121,13 +123,13 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 9,
   },
   {
-    request: "请把牛肉面送去2号桌，别太辣，我急着开会，尽快。",
+    request: "请把牛肉面送去2号桌，别太辣，我急着开会，走加急通道。",
     expected: { item: "牛肉面", note: "少辣", table: "2", urgent: true },
     cookTicks: 3,
     arrivalTick: 10,
   },
   {
-    request: "3号桌鸡腿饭，不要香菜，不用赶时间，慢慢来。",
+    request: "3号桌鸡腿饭，不要香菜，不用加急，慢慢做。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "3", urgent: false },
     cookTicks: 1,
     arrivalTick: 11,
@@ -139,13 +141,13 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 12,
   },
   {
-    request: "2号桌来一份蛋炒饭，能快点吗？加蛋。",
+    request: "2号桌来一份蛋炒饭，加蛋，这单付费加快。",
     expected: { item: "蛋炒饭", note: "加蛋", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 14,
   },
   {
-    request: "4号桌鸡腿饭，不要香菜，急着要。",
+    request: "4号桌鸡腿饭，不要香菜，这单加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "4", urgent: true },
     cookTicks: 1,
     arrivalTick: 15,
@@ -204,13 +206,13 @@ export const QUEUE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 5,
   },
   {
-    request: "6号桌鸡腿饭，加蛋，尽快。",
+    request: "6号桌鸡腿饭，加蛋，这单加急。",
     expected: { item: "鸡腿饭", note: "加蛋", table: "6", urgent: true },
     cookTicks: 1,
     arrivalTick: 5,
   },
   {
-    request: "2号桌蛋炒饭，不要香菜，快一点。",
+    request: "2号桌蛋炒饭，不要香菜，我要加急。",
     expected: { item: "蛋炒饭", note: "不要香菜", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 7,
@@ -267,13 +269,13 @@ export const RUSH_FIXTURES: FixtureOrder[] = [
     arrivalTick: 2,
   },
   {
-    request: "4号桌牛肉面，少辣，尽快。",
+    request: "4号桌牛肉面，少辣，付费加急。",
     expected: { item: "牛肉面", note: "少辣", table: "4", urgent: true },
     cookTicks: 3,
     arrivalTick: 3,
   },
   {
-    request: "6号桌蛋炒饭，无备注，快一点。",
+    request: "6号桌蛋炒饭，无备注，走加急通道。",
     expected: { item: "蛋炒饭", note: "无备注", table: "6", urgent: true },
     cookTicks: 1,
     arrivalTick: 4,
@@ -321,7 +323,7 @@ export const RUSH_FIXTURES: FixtureOrder[] = [
     arrivalTick: 11,
   },
   {
-    request: "5号桌牛肉面，加蛋，尽快送来。",
+    request: "5号桌牛肉面，加蛋，加急送来。",
     expected: { item: "牛肉面", note: "加蛋", table: "5", urgent: true },
     cookTicks: 3,
     arrivalTick: 12,
@@ -351,7 +353,7 @@ export const RUSH_FIXTURES: FixtureOrder[] = [
     arrivalTick: 17,
   },
   {
-    request: "4号桌蛋炒饭，不要香菜，快一点。",
+    request: "4号桌蛋炒饭，不要香菜，这单付费加快。",
     expected: { item: "蛋炒饭", note: "不要香菜", table: "4", urgent: true },
     cookTicks: 1,
     arrivalTick: 19,

@@ -7,10 +7,13 @@
  *    a failed submission with the concrete errors (the student can retry).
  *  - 修排队: replays the submitted 124-cell priority table — pass at
  *    ≥10/12 on-time, star at 12.
- *  - 正式挑战: replays the submitted tables over the hidden 12-order set —
- *    score = correct tickets + correct-and-on-time deliveries, total 24,
- *    pass at ≥18. A failed submission records like every other stage and
- *    the student can retry; missing/invalid artefacts are still refused
+ *  - 智能接单: the browser's embedding model already turned the hidden
+ *    orders into tickets; the submission is per-order {ticket, confirmed}
+ *    plus the carried-over priority table. Confirmed orders record the
+ *    expected ticket and stall intake one tick (the customer restated);
+ *    unconfirmed ones keep the AI's ticket. Pass needs ≥11 correct and
+ *    1–4 confirmations — always-confirm wastes the budget, never-confirm
+ *    keeps the AI's mistakes. Missing/invalid artefacts are refused
  *    outright before grading (a malformed request is not an attempt).
  *  - 附加挑战: the compensate table is replayed over the fixed FIFO run's
  *    problem orders — pass holds BOTH lines: expected bad reviews ≤ 4.0
@@ -24,7 +27,12 @@
  */
 
 import type { DatabaseSync } from "node:sqlite";
-import { sameTicket, type Scenario } from "../../../src/features/lunch-shift/domain/contracts.ts";
+import { checkAiResults } from "../../../src/features/lunch-shift/domain/aiIntake.ts";
+import {
+  sameTicket,
+  type Scenario,
+  type Ticket,
+} from "../../../src/features/lunch-shift/domain/contracts.ts";
 import {
   INTAKE_SCENARIO,
   QUEUE_SCENARIO,
@@ -32,7 +40,9 @@ import {
 } from "../../../src/features/lunch-shift/domain/scenarios.ts";
 import { simulate } from "../../../src/features/lunch-shift/domain/simulator.ts";
 import {
-  FINAL_PASS_SCORE,
+  AI_CONFIRM_BUDGET,
+  AI_CONFIRM_MIN,
+  AI_PASS_CORRECT,
   getLunchStage,
   lunchStageUnlocked,
   nextLunchStage,
@@ -55,8 +65,8 @@ import {
   evaluateIntake,
 } from "../../../src/features/lunch-shift/domain/wordTables.ts";
 import {
+  sanitizeAiDraft,
   sanitizeCompensateDraft,
-  sanitizeFinalDraft,
   sanitizeIntakeDraft,
   sanitizeQueueDraft,
   sanitizeTrainingDraft,
@@ -194,36 +204,57 @@ export function judgeLunchShiftSubmission(
       };
     }
   } else {
-    const draft = sanitizeFinalDraft(rawDraft);
+    const draft = sanitizeAiDraft(rawDraft);
     snapshot = draft;
     const raw = rawDraft as {
-      tables?: unknown;
+      results?: unknown;
       priority?: unknown;
     } | null;
-    const { tables, errors: tableErrors } = checkIntakeTables(raw?.tables);
+    const { results, errors: resultErrors } = checkAiResults(raw?.results, FINAL_SCENARIO.orders);
     const { table, errors: priorityErrors } = checkPriorityTable(raw?.priority);
     // Refuse before grading — a request without computed artefacts is a
     // client-protocol fault, not a gradeable attempt, so it records nothing.
-    if (tableErrors.length > 0 || priorityErrors.length > 0 || table === null) {
+    if (
+      resultErrors.length > 0 ||
+      priorityErrors.length > 0 ||
+      results === null ||
+      table === null
+    ) {
       return { error: "missing-run", status: 400 };
     }
     const scenario: Scenario = FINAL_SCENARIO;
-    const run = simulate(scenario, { tables, priority: table }).result;
+    // Confirmed orders record the expected ticket (the customer restated)
+    // and stall intake one slot — certainty costs a tick, exactly as the
+    // stage promises.
+    const tickets = new Map<string, Ticket>();
+    const confirmStalls = new Set<string>();
+    for (const order of scenario.orders) {
+      const row = results.find((entry) => entry.id === order.id)!;
+      tickets.set(order.id, row.confirmed ? order.expected! : row.ticket);
+      if (row.confirmed) confirmStalls.add(order.id);
+    }
+    const run = simulate(scenario, { tickets, confirmStalls, priority: table }).result;
     // Second metric is 记对且准时 — a wrong ticket earns no delivery point:
     // 数据写错，后面全错， consistent with the stage-1 lesson.
     const served = run.orders.filter((order) => order.correct === true && order.onTime).length;
+    const confirmed = confirmStalls.size;
     score = run.correct + served;
     total = scenario.orders.length * 2;
-    passed = score >= FINAL_PASS_SCORE;
+    passed =
+      run.correct >= AI_PASS_CORRECT &&
+      confirmed >= AI_CONFIRM_MIN &&
+      confirmed <= AI_CONFIRM_BUDGET;
     // The final's orders stay hidden: ids + outcomes only, no wording.
     testSummary = {
       kind: "final",
       correct: run.correct,
       served,
       total: scenario.orders.length,
+      confirmed,
       orders: run.orders.map((order) => ({
         id: order.id,
         correct: order.correct === true,
+        confirmed: confirmStalls.has(order.id),
         onTime: order.correct === true && order.onTime,
       })),
     };
