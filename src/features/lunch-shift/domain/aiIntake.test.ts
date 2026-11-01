@@ -16,7 +16,7 @@ import {
   normalizedResults,
   sanitizeAiResults,
   parseClarified,
-  POC_ORDERS,
+  PRACTICE_ORDERS,
   predictField,
   predictTicket,
   resolveOrder,
@@ -127,7 +127,7 @@ describe("clarify round-trip", () => {
       expect(parseClarified(clarifiedText(ticket))).toEqual(ticket);
     }
     // Every practice order's simulated restatement must be lossless.
-    for (const order of POC_ORDERS) {
+    for (const order of PRACTICE_ORDERS) {
       expect(parseClarified(order.clarify)).toEqual(order.expected);
     }
   });
@@ -139,7 +139,7 @@ describe("clarify round-trip", () => {
 });
 
 describe("resolveOrder", () => {
-  const order = POC_ORDERS[0];
+  const order = PRACTICE_ORDERS[0];
   const wrongPrediction = {
     ticket: { item: "蛋炒饭", note: "加蛋", table: "1", urgent: false },
     similarity: 0.5,
@@ -211,7 +211,7 @@ describe("checkAiResults / sanitizeAiResults", () => {
 describe("normalizedResults", () => {
   it("emits only the fields the server judge needs", () => {
     const outcome = resolveOrder(
-      POC_ORDERS[0],
+      PRACTICE_ORDERS[0],
       predictTicket("随便一句话", () => []),
       false,
     );

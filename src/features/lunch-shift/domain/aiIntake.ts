@@ -462,11 +462,11 @@ export function normalizedResults(
 
 /* ---- Practice set ------------------------------------------------------
  * The stage-2 practice orders — the only set with public expected
- * tickets. `confirmInputs` are the [similarity, margin] pairs handed to
- * the student's Python in one batch.
+ * tickets. Each order's predicted ticket carries the order-level
+ * [similarity, margin] pair handed to the student's need_confirm.
  */
 
-export const POC_ORDERS = INTAKE_SCENARIO.orders.map((order) => ({
+export const PRACTICE_ORDERS = INTAKE_SCENARIO.orders.map((order) => ({
   id: order.id,
   request: order.request,
   clarify: clarifiedText(order.expected!),

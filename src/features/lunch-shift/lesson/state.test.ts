@@ -91,13 +91,8 @@ describe("judge-result", () => {
       outcome: outcome({ passed: true, passedStages: [1, 2, 3], testSummary: summary }),
     });
     expect(state.runSummaries.queue).toEqual(summary);
-    const back = transitionLunchLesson(
-      { ...state, stageIndex: 3 },
-      {
-        type: "select-stage",
-        stageIndex: 3,
-      },
-    );
+    const away = transitionLunchLesson(state, { type: "select-stage", stageIndex: 4 });
+    const back = transitionLunchLesson(away, { type: "select-stage", stageIndex: 3 });
     expect(back.runSummaries.queue).toEqual(summary);
   });
 });

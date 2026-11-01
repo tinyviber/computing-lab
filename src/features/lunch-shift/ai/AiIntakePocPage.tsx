@@ -17,7 +17,7 @@ import { runNeedConfirm, warmPyodide } from "../ui/pyodideRunner.ts";
 import {
   AI_MODEL_ID,
   normalizedResults,
-  POC_ORDERS,
+  PRACTICE_ORDERS,
   predictTicket,
   resolveOrder,
   textsToEmbed,
@@ -163,10 +163,10 @@ export function AiIntakePocPage() {
       const punct = describeFullWidthPunctuation(code);
       if (punct) throw new Error(punct);
       const started = performance.now();
-      const texts = textsToEmbed(POC_ORDERS.map((order) => order.request));
+      const texts = textsToEmbed(PRACTICE_ORDERS.map((order) => order.request));
       const { vectors, ms: embedMs } = await embedTexts(texts);
       const embedOf = (text: string): Vector => vectors[texts.indexOf(text)];
-      const predictions = POC_ORDERS.map((order) => predictTicket(order.request, embedOf));
+      const predictions = PRACTICE_ORDERS.map((order) => predictTicket(order.request, embedOf));
       const cases: [number, number][] = predictions.map((prediction) => [
         round4(prediction.similarity),
         round4(prediction.margin),
@@ -174,13 +174,15 @@ export function AiIntakePocPage() {
       const raw = await runNeedConfirm(code, cases);
       const confirms = Array.isArray(raw) ? raw : [];
       if (
-        confirms.length !== POC_ORDERS.length ||
+        confirms.length !== PRACTICE_ORDERS.length ||
         confirms.some((value) => typeof value !== "boolean")
       ) {
         throw new Error("need_confirm 要对每张订单返回 True 或 False。");
       }
       setOutcomes(
-        POC_ORDERS.map((order, index) => resolveOrder(order, predictions[index], confirms[index])),
+        PRACTICE_ORDERS.map((order, index) =>
+          resolveOrder(order, predictions[index], confirms[index]),
+        ),
       );
       setTiming({ embedMs, totalMs: Math.round(performance.now() - started) });
     } catch (error) {
@@ -190,7 +192,7 @@ export function AiIntakePocPage() {
     }
   };
 
-  const expectedOf = (id: string) => POC_ORDERS.find((order) => order.id === id)?.expected;
+  const expectedOf = (id: string) => PRACTICE_ORDERS.find((order) => order.id === id)?.expected;
   const predictedCorrect =
     outcomes?.filter((outcome) => {
       const expected = expectedOf(outcome.id);
@@ -289,9 +291,9 @@ export function AiIntakePocPage() {
           <section className="ai-card">
             <h2>3 · 结果</h2>
             <p className="ai-summary">
-              AI 直接记对 <b>{predictedCorrect}</b> / {POC_ORDERS.length} · 二次确认{" "}
+              AI 直接记对 <b>{predictedCorrect}</b> / {PRACTICE_ORDERS.length} · 二次确认{" "}
               <b>{confirmCount}</b> 次（额外 {confirmCount} 拍）· 最终记对 <b>{finalCorrect}</b> /{" "}
-              {POC_ORDERS.length}
+              {PRACTICE_ORDERS.length}
             </p>
             <div className="ai-order-list">
               {outcomes.map((outcome) => (

@@ -88,6 +88,8 @@ describe("lunch-shift judge", () => {
     if ("error" in good) return;
     expect(good.passed).toBe(true);
     expect(good.passedStages).toEqual([1, 2]);
+    // Stage 4 stays locked — no order wording leaks with the result.
+    expect(good.aiOrders).toBeNull();
     if (good.testSummary.kind !== "ai-intake") return;
     expect(good.testSummary.correct).toBe(12);
     expect(good.testSummary.confirmed).toBe(4);
@@ -158,6 +160,9 @@ describe("lunch-shift judge", () => {
     if ("error" in urgent) return;
     expect(urgent.passed).toBe(true);
     expect(urgent.score).toBe(11);
+    // Stage 3's pass unlocks stage 4 — the order wording rides along so
+    // the page needs no reload (ids + request text only).
+    expect(urgent.aiOrders).toEqual(FINAL_PUBLIC_ORDERS);
   });
 
   /** AI-intake draft builder: `expected` rows mirror a perfect AI guess,
