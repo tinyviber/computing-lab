@@ -63,9 +63,14 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
   misjudged 加急 (margin ~0.001–0.014, true 普通) and P10 「别加葱」→
   misjudged 少辣 (margin ~0.05, true 无备注). Direct AI correctness is
   10/12 — both misses are catchable by need_confirm.
-- ③ QUEUE_FIXTURES (小票已录对): FIFO 8/12, urgent-first 11/12 (Q07
-  starves), both scoring styles (additive urgent+1 / overwrite wait≥T→2)
-  give 12/12 for every T in 8..16 — a range, not one magic number.
+- ③ Grade = QUEUE_PROBES (domain/queueProbes.ts): 12 crafted queue
+  snapshots asking "who first" — 3 urgent-jump probes + 9 min-slack
+  probes (slack = 9−wait urgent / 18−wait normal; ties FIFO). A single
+  simulated round can't fail naive urgent-first (18-tick window is too
+  forgiving), so the battery is the grade: urgent-first scores 3,
+  FIFO/wait-only 9, boost/overwrite families 12 for T 8..14 (T=15 → 11),
+  pass = QUEUE_PASS 11. QUEUE_FIXTURES' 12-order round stays as the
+  panel's preview only (FIFO 8/12, urgent-first 11/12 starving Q07).
 - ④ hiddenSet.ts FINAL_FIXTURES: same trap classes reworded into
   paid-express phrasing; F11 「平常速度，不要催」→少辣 is the designed
   miss (lowest margin ~0.057). Same arrival shape as ③ so the boost
@@ -81,6 +86,9 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
 - Stage 2 pass: `correct == 12` AND `confirmed <= AI_CONFIRM_BUDGET(4)`
   on the practice set — confirming a right order can't fix a miss, so a
   pass must find the orders the model actually got wrong.
+- Stage 3 pass: `passedProbes >= QUEUE_PASS(11)` of 12 — the summary's
+  `onTime` field carries the probe count for compat; the per-probe rows
+  ride in `probes` (picked + answer indices, no slack math leaked).
 - Stage 4 pass: `correct == 12` AND `confirmed <= 4` AND `served >=
 AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   delivery speed gate together. With BOOST10 priority: {F10,F11}
@@ -104,7 +112,8 @@ AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   extras = `FINAL_PUBLIC_ORDERS` (id+request only) and ships ONLY once
   stage 4 is unlocked.
 - DB migration v15 drops lunch-shift stage-2 and stage-4 submissions/
-  drafts/passed flags (both redesigned) while keeping 1/3/5.
+  drafts/passed flags (both redesigned) while keeping 1/3/5; v16 drops
+  stage-3 leftovers for the probe-battery rescoring.
 
 ## AI intake — browser-local embedding (stages 2+4 share it)
 

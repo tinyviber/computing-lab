@@ -102,10 +102,20 @@ export type LunchTestSummary =
     }
   | {
       kind: "queue";
+      /** Probes passed — the layered score (field kept as onTime for
+       *  compat with older recorded summaries). */
       onTime: number;
       total: number;
       errors?: string[];
       run?: RunSummary;
+      probes?: {
+        id: string;
+        title: string;
+        passed: boolean;
+        /** Candidate the table picked (index into the probe's list). */
+        picked: number;
+        answer: number;
+      }[];
     }
   | {
       kind: "final";

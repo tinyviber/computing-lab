@@ -141,7 +141,7 @@ describe("lunch-shift judge", () => {
     expect(rows.n).toBe(0);
   });
 
-  it("stage 3 fails below 10 on-time and passes at 10", () => {
+  it("stage 3 grades the probes — naive single-axis tables cannot pass", () => {
     const { db, project } = setupProject([1, 2]);
     const fifo = judgeLunchShiftSubmission(db, project, 3, {
       code: "x",
@@ -150,19 +150,30 @@ describe("lunch-shift judge", () => {
     expect("error" in fifo).toBe(false);
     if ("error" in fifo) return;
     expect(fifo.passed).toBe(false);
-    expect(fifo.score).toBe(8);
+    // FIFO answers the 9 wait probes but loses all 3 urgent ones.
+    expect(fifo.score).toBe(9);
 
-    const urgent = judgeLunchShiftSubmission(db, project, 3, {
+    const urgentFirst = judgeLunchShiftSubmission(db, project, 3, {
       code: "x",
       priority: tableFor((u) => (u ? 1 : 0)),
     });
-    expect("error" in urgent).toBe(false);
-    if ("error" in urgent) return;
-    expect(urgent.passed).toBe(true);
-    expect(urgent.score).toBe(11);
+    expect("error" in urgentFirst).toBe(false);
+    if ("error" in urgentFirst) return;
+    expect(urgentFirst.passed).toBe(false);
+    // Urgent-first earns only the 加急要快 layer — the old 11/12 pass is gone.
+    expect(urgentFirst.score).toBe(3);
+
+    const balanced = judgeLunchShiftSubmission(db, project, 3, {
+      code: "x",
+      priority: tableFor((u, w) => (u ? 1 : 0) + (w >= 10 ? 1 : 0)),
+    });
+    expect("error" in balanced).toBe(false);
+    if ("error" in balanced) return;
+    expect(balanced.passed).toBe(true);
+    expect(balanced.score).toBe(12);
     // Stage 3's pass unlocks stage 4 — the order wording rides along so
     // the page needs no reload (ids + request text only).
-    expect(urgent.aiOrders).toEqual(FINAL_PUBLIC_ORDERS);
+    expect(balanced.aiOrders).toEqual(FINAL_PUBLIC_ORDERS);
   });
 
   /** AI-intake draft builder: `expected` rows mirror a perfect AI guess,

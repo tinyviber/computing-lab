@@ -50,13 +50,14 @@ export const LUNCH_STAGES: LunchStageDef[] = [
     index: 3,
     id: "fix-queue",
     title: "修排队",
-    task: "这一关小票都录对了。复习函数：写 priority(urgent, wait, cook)，返回值越大越先做；加急单等满 9 拍、普通单等满 18 拍还没送到就算超时，至少 10 张准时过关。",
-    judgeNote: "服务器拿你的结果表重排每一拍的选择：准时 10 张过关，12 张加星。",
-    takeaway: "只认加急会饿死普通单，等太久的也该优先。",
+    task: "这一关小票都录对了。复习函数：写 priority(urgent, wait, cook)，返回值越大越先做。服务器拿它判 12 张排队情况卡：每张卡给几张在等的单（加急单等满 9 拍、普通单等满 18 拍就算超时），问现在最该先做哪张。答对 11 张过关，12 张全对加星。",
+    judgeNote:
+      "服务器把你的结果表带进 12 张情况卡逐张判：只看加急会饿死普通单，只认等待会饿死加急，两边都用上才够 11 张。",
+    takeaway: "只认加急会饿死普通单，只认等待会饿死加急，最等不起的先做。",
     hints: [
       "加急的单，返回一个更大的数。",
       "第一行可以这样开头：if urgent: score = 1。",
-      "超时的是加急单还是普通单？它等了几拍？加急给几分、等太久给几分，谁该更大？",
+      "算算每张单还剩几拍就超时（加急 9 拍、普通 18 拍，减掉已经等的）：谁剩得最少谁先做。",
     ],
   },
   {
@@ -108,6 +109,14 @@ export function getLunchStage(index: number): LunchStageDef | undefined {
 export const AI_PASS_CORRECT = 12;
 export const AI_CONFIRM_BUDGET = 4;
 export const AI_SERVED_MIN = 11;
+
+/**
+ * Stage-3 pass line: probes passed out of QUEUE_PROBES. One miss of
+ * slack is allowed; single-axis tables can't reach it — urgent-first
+ * wins only the 3 加急要快 probes, FIFO/wait-only win the 9 wait probes
+ * but lose all 3 urgent ones (queueProbes.ts, locked by engine.test.ts).
+ */
+export const QUEUE_PASS = 11;
 
 /** Linear unlock: a stage opens once the previous one passed. */
 export function lunchStageUnlocked(passedStages: readonly number[], index: number): boolean {

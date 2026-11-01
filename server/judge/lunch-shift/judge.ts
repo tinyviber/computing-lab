@@ -48,12 +48,14 @@ import {
   getLunchStage,
   lunchStageUnlocked,
   nextLunchStage,
+  QUEUE_PASS,
 } from "../../../src/features/lunch-shift/domain/stages.ts";
 import type {
   LunchJudgeResult,
   LunchTestSummary,
 } from "../../../src/features/lunch-shift/domain/protocol.ts";
 import { checkPriorityTable } from "../../../src/features/lunch-shift/domain/priority.ts";
+import { pickProbe, QUEUE_PROBES } from "../../../src/features/lunch-shift/domain/queueProbes.ts";
 import {
   bestCompensation,
   checkCompensateTable,
@@ -163,11 +165,28 @@ export function judgeLunchShiftSubmission(
       passed = false;
       testSummary = { kind: "queue", onTime: 0, total, errors };
     } else {
+      // Layered probes — not the 12-order round: a single round can't
+      // hurt naive urgent-first enough (the 18-tick normal window is too
+      // forgiving). Each probe is a crafted queue snapshot with a
+      // deadline-derived right pick.
+      const probeRows = QUEUE_PROBES.map((probe) => {
+        const picked = pickProbe(table, probe);
+        return {
+          id: probe.id,
+          title: probe.title,
+          passed: picked === probe.answer,
+          picked,
+          answer: probe.answer,
+        };
+      });
+      const passedProbes = probeRows.filter((row) => row.passed).length;
+      // The big round stays as the preview visual (and the pick table
+      // students debug from) — it no longer gates the pass.
       const run = simulate(QUEUE_SCENARIO, { priority: table }).result;
-      score = run.onTime;
-      total = QUEUE_SCENARIO.orders.length;
-      passed = run.onTime >= 10;
-      testSummary = { kind: "queue", onTime: run.onTime, total, run };
+      score = passedProbes;
+      total = QUEUE_PROBES.length;
+      passed = passedProbes >= QUEUE_PASS;
+      testSummary = { kind: "queue", onTime: passedProbes, total, run, probes: probeRows };
     }
   } else if (stageIndex === 5) {
     const draft = sanitizeCompensateDraft(rawDraft);

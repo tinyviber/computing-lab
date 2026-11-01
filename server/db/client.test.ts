@@ -164,8 +164,9 @@ describe("migrate", () => {
       draft_revisions: string;
     };
     // v13 drops stage 5; v15 then drops stages 2 and 4 (both redesigned
-    // around AI intake) — what survives is 1 and 3.
-    expect(row.passed_stages).toBe("[1,3]");
+    // around AI intake); v16 drops stage 3 (regraded by the probe
+    // battery) — only stage 1 survives.
+    expect(row.passed_stages).toBe("[1]");
     // nextLunchStage semantics: stage 2 is the first unpassed stage again.
     expect(row.current_stage).toBe(2);
     expect(row.draft_graph).toBe("{}");
@@ -221,17 +222,68 @@ describe("migrate", () => {
       draft_graph: string;
       draft_revisions: string;
     };
-    expect(row.passed_stages).toBe("[1,3,5]");
+    // v15 keeps stage 3, but v16 (the probe battery rescoring) drops it
+    // as well — 1 and 5 survive the whole chain.
+    expect(row.passed_stages).toBe("[1,5]");
     // Stage 2 reopens as the first unpassed stage.
     expect(row.current_stage).toBe(2);
-    expect(row.draft_graph).toBe('{"3":{"code":"b"}}');
-    expect(row.draft_revisions).toBe('{"3":7}');
+    expect(row.draft_graph).toBe("{}");
+    expect(row.draft_revisions).toBe("{}");
     const stages = db
       .prepare(
         "SELECT stage_index FROM submissions WHERE lab_id='lunch-shift' ORDER BY stage_index",
       )
       .all() as { stage_index: number }[];
-    expect(stages.map((s) => s.stage_index)).toEqual([3, 5]);
+    expect(stages.map((s) => s.stage_index)).toEqual([5]);
+    db.close();
+  });
+
+  it("drops lunch-shift stage-3 leftovers when the probe battery rescoring lands (v15 -> v16)", () => {
+    // Stage 3 moved from one 12-order simulated round to 12 layered
+    // probes; a naive urgent-first table that scored 11 before scores 3
+    // now, so old passes and drafts are stale.
+    const db = fixtureDb(15);
+    db.prepare("INSERT INTO classes (id, name, invite_code) VALUES ('c1', 'class', 'inv')").run();
+    db.prepare(
+      "INSERT INTO users (id, student_no, name, password_hash, role) VALUES ('u1', 'no1', 'n', 'h', 'user')",
+    ).run();
+    db.prepare(
+      "INSERT INTO student_projects (id, user_id, class_id, lab_id, current_stage, passed_stages, draft_graph, draft_revisions) " +
+        'VALUES (\'p1\', \'u1\', \'c1\', \'lunch-shift\', 4, \'[1,2,3]\', \'{"3":{"code":"q"},"4":{"confirmCode":"c"}}\', \'{"3":9,"4":3}\')',
+    ).run();
+    db.prepare(
+      "INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary) " +
+        "VALUES ('s3', 'p1', 'u1', 'lunch-shift', 3, '{}', 11, 12, 1, '{}')",
+    ).run();
+    db.prepare(
+      "INSERT INTO submissions (id, project_id, user_id, lab_id, stage_index, snapshot_graph, score, total, passed, test_summary) " +
+        "VALUES ('s2', 'p1', 'u1', 'lunch-shift', 2, '{}', 12, 12, 1, '{}')",
+    ).run();
+
+    migrate(db);
+
+    expect(versionOf(db)).toBe(SCHEMA_VERSION);
+    const row = db
+      .prepare(
+        "SELECT passed_stages, current_stage, draft_graph, draft_revisions FROM student_projects WHERE id='p1'",
+      )
+      .get() as {
+      passed_stages: string;
+      current_stage: number;
+      draft_graph: string;
+      draft_revisions: string;
+    };
+    expect(row.passed_stages).toBe("[1,2]");
+    expect(row.current_stage).toBe(3);
+    // The stage-3 queue draft is dropped; the stage-4 AI draft survives.
+    expect(row.draft_graph).toBe('{"4":{"confirmCode":"c"}}');
+    expect(row.draft_revisions).toBe('{"4":3}');
+    const stages = db
+      .prepare(
+        "SELECT stage_index FROM submissions WHERE lab_id='lunch-shift' ORDER BY stage_index",
+      )
+      .all() as { stage_index: number }[];
+    expect(stages.map((s) => s.stage_index)).toEqual([2]);
     db.close();
   });
 

@@ -16,6 +16,7 @@
 
 import { describe, expect, it } from "vitest";
 import { priorityIndex, PRIORITY_TABLE_SIZE, checkPriorityTable } from "./priority.ts";
+import { pickProbe, probeSlack, QUEUE_PROBES } from "./queueProbes.ts";
 import { findFullWidthPunctuation } from "./runErrors.ts";
 import { buildScenario, QUEUE_SCENARIO } from "./scenarios.ts";
 import {
@@ -121,7 +122,49 @@ const FINAL_FIXTURES = [
 
 const FINAL = buildScenario("F", FINAL_FIXTURES);
 
-describe("修排队 order set", () => {
+describe("修排队 probes — the layered grade", () => {
+  const probeScore = (table: number[] | null) =>
+    QUEUE_PROBES.filter((probe) => pickProbe(table ?? [], probe) === probe.answer).length;
+
+  // Every probe's answer must be what the deadline rule gives: strictly
+  // the smallest slack, ties settled by arrival order.
+  it("each probe's answer is the min-slack pick (FIFO breaks ties)", () => {
+    for (const probe of QUEUE_PROBES) {
+      const slacks = probe.candidates.map(probeSlack);
+      expect(slacks.indexOf(Math.min(...slacks))).toBe(probe.answer);
+    }
+  });
+
+  it("naive urgent-first earns ONLY the 3 加急要快 probes", () => {
+    expect(probeScore(tableFor((u) => (u ? 1 : 0)))).toBe(3);
+  });
+
+  it("FIFO earns the 9 wait probes but loses all 3 urgent ones", () => {
+    expect(probeScore(tableFor(() => 0))).toBe(9);
+  });
+
+  it("wait-only likewise earns 9 and cannot pass either", () => {
+    expect(probeScore(tableFor((_u, w) => w))).toBe(9);
+  });
+
+  it("the taught families ace all 12 across a range of thresholds", () => {
+    for (let t = 8; t <= 14; t++) {
+      expect(probeScore(boost(t)), `boost(${t})`).toBe(12);
+      expect(probeScore(overwrite(t)), `overwrite(${t})`).toBe(12);
+    }
+    // The deadline-math form — smallest slack first — is full marks too.
+    expect(probeScore(tableFor((u, w) => w - (u ? 9 : 18)))).toBe(12);
+  });
+
+  it("a threshold one tick too loose drops to 11 — passes, but no star", () => {
+    expect(probeScore(boost(15))).toBe(11);
+    expect(probeScore(overwrite(15))).toBe(11);
+  });
+});
+
+describe("修排队 preview round", () => {
+  // The 12-order scenario stays as the panel's sandbox preview — it no
+  // longer gates the pass, but it should still show the same dynamics.
   it("FIFO delivers 8/12 on time", () => {
     expect(simulate(QUEUE_SCENARIO, { priority: null }).result.onTime).toBe(8);
   });
@@ -129,25 +172,13 @@ describe("修排队 order set", () => {
   it("urgent-first delivers 11/12 on time — one normal order starves", () => {
     const run = simulate(QUEUE_SCENARIO, { priority: tableFor((u) => (u ? 1 : 0)) }).result;
     expect(run.onTime).toBe(11);
-    const late = run.orders.filter((order) => !order.onTime).map((order) => order.id);
-    expect(late).toEqual(["Q07"]);
+    expect(run.orders.filter((order) => !order.onTime).map((order) => order.id)).toEqual(["Q07"]);
   });
 
   it("urgent + wait-boost reaches 12/12 for every threshold 8..16", () => {
     for (let t = 8; t <= 16; t++) {
       expect(simulate(QUEUE_SCENARIO, { priority: boost(t) }).result.onTime).toBe(12);
     }
-  });
-
-  it("the overwrite style (urgent→1, wait≥T→2) also reaches 12/12 for T 8..16", () => {
-    for (let t = 8; t <= 16; t++) {
-      expect(simulate(QUEUE_SCENARIO, { priority: overwrite(t) }).result.onTime).toBe(12);
-    }
-  });
-
-  it("boost outside the sweet range is not full marks (the curve is real)", () => {
-    expect(simulate(QUEUE_SCENARIO, { priority: boost(4) }).result.onTime).toBeLessThan(12);
-    expect(simulate(QUEUE_SCENARIO, { priority: boost(18) }).result.onTime).toBeLessThan(12);
   });
 });
 
