@@ -5,9 +5,11 @@
  * stay server-only.
  *
  * Order-set properties (locked by engine.test.ts):
- *  - INTAKE set: the AI model misses 2 of 12 outright at low margin —
- *    P06 「想快一点但不想加钱」 → 加急 (true 普通) and P10 「别加葱」 →
- *    少辣 (true 无备注) — so need_confirm has real work to do.
+ *  - INTAKE set: the AI model misses 2 of 12 outright —
+ *    P06 「想快一点但不想加钱」 → 加急 (true 普通, catchable by low
+ *    margin) and P10 「辣子照旧」 → 少辣 (true 无备注 — “照旧” asks for
+ *    no change, catchable by low similarity) — so need_confirm has
+ *    real work to do on both signals.
  *  - QUEUE set (小票已录对): FIFO 8/12 on-time, urgent-first 11/12, and
  *    urgent + wait-boost reaches 12/12 for every threshold T in 8..16.
  *  - RUSH set: an optional denser 20-order round for fast finishers.
@@ -75,10 +77,11 @@ export function trainingOrderFor(seed: string): TrainingOrder {
  * Stage 2 智能接单·练习 — 12 orders the local AI reads. The restaurant
  * sells a paid 加急 option, so urgency is phrased as paying for speed
  * (要加急 / 付费加急 / 走加急通道…). Two orders are designed model
- * misses at catchably-low margins: P06 wants speed without paying
- * (想快一点但不想加钱 → reads 急, margin ≈0.01) and P10 asks for a
- * topping we don't serve (别加葱 → reads 少辣, margin ≈0.06) — an
- * honest need_confirm must send both back to the customer.
+ * misses: P06 wants speed without paying (想快一点但不想加钱 → reads
+ * 急, margin ≈0.01 — the margin signal catches it) and P10 keeps the
+ * spice as usual (辣子照旧 → reads 少辣, similarity ≈0.57 — only the
+ * similarity signal flags it, and "照旧" makes 无备注 unambiguous) —
+ * an honest need_confirm must send both back to the customer.
  */
 export const INTAKE_FIXTURES: FixtureOrder[] = [
   {
@@ -136,7 +139,7 @@ export const INTAKE_FIXTURES: FixtureOrder[] = [
     arrivalTick: 11,
   },
   {
-    request: "6号桌牛肉面，别加葱，不用赶时间。",
+    request: "6号桌牛肉面，辣子照旧，不用赶时间。",
     expected: { item: "牛肉面", note: "无备注", table: "6", urgent: false },
     cookTicks: 3,
     arrivalTick: 12,

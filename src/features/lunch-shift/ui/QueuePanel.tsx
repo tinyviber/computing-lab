@@ -370,8 +370,8 @@ export function QueuePanel({
       <details className="lunch-reference">
         <summary>看判分用的 12 张情况卡</summary>
         <p className="lunch-note">
-          加急单等满 9 拍、普通单等满 18 拍就算超时。想一想：刚来的加急单该插队，还是等了
-          半天的普通单更急？
+          店里的排单规定：谁剩下的拍数最少谁先做（加急剩 9−wait、普通剩 18−wait），一样少就
+          先来先做。你的函数要把这条规定写对。
         </p>
         <div className="lunch-table-wrap">
           <table className="lunch-orders-table">

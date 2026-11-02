@@ -6,11 +6,19 @@
  * almost always saves it anyway. So the grade is instead a battery of
  * 12 crafted queue snapshots — each probe shows a queue state (the
  * candidates listed in arrival order) and asks "who should the kitchen
- * start next?". The answer follows the restaurant's own rule — 加急单
- * 等满 9 拍、普通单等满 18 拍就算超时, so the order with the smallest
- * remaining slack (deadline − wait) goes first, ties keep arrival
- * order — and contested probes keep a ≥1-tick slack margin so every
- * reasonable function family agrees.
+ * start next?".
+ *
+ * The right answer is the restaurant's own rule, stated verbatim in
+ * the stage task so nothing is hidden: smallest remaining slack
+ * (deadline − wait: 9 urgent, 18 normal) goes first, ties keep arrival
+ * order. Two guardrails keep every answer unambiguous:
+ *
+ *  - Every expected winner is still savable: slack > cook + delivery
+ *    (2 ticks), so "this order is already doomed, save the other one"
+ *    never beats the stated rule.
+ *  - Every probe's answer also agrees with the cook-aware version of
+ *    the same rule (deadline − wait − cook), so a student who reasons
+ *    about remaining work can't lose to a technicality.
  *
  * Calibration (locked by engine.test.ts): a single-axis naive table
  * only earns the layer matching it — urgent-first gets exactly the 3
@@ -64,57 +72,57 @@ export const QUEUE_PROBES: QueueProbe[] = [
   // —— 等得久的先救：快到期的普通单比刚到的加急单更等不起 ——
   {
     id: "K4",
-    title: "普通单已经等了 16 拍，加急单刚到",
-    candidates: [N(16), U(0, 1)],
-    answer: 0, // 2 vs 9
+    title: "普通单等了 12 拍做 3 拍的菜，加急单刚到",
+    candidates: [N(12), U(0, 1)],
+    answer: 0, // 6 vs 9
   },
   {
     id: "K5",
-    title: "普通单等了 15 拍，加急单刚到",
-    candidates: [N(15, 1), U(1)],
-    answer: 0, // 3 vs 8
+    title: "普通单等了 14 拍，加急单刚到",
+    candidates: [N(14, 1), U(1)],
+    answer: 0, // 4 vs 8
   },
   {
     id: "K6",
-    title: "普通单就差 1 拍超时，加急单等了 4 拍",
-    candidates: [N(17), U(4, 1)],
-    answer: 0, // 1 vs 5
+    title: "普通单等了 14 拍，加急单也等了 4 拍",
+    candidates: [N(14, 1), U(4, 1)],
+    answer: 0, // 4 vs 5 — the near-tie
   },
   {
     id: "K7",
-    title: "普通单等了 14 拍，加急单刚到",
-    candidates: [N(14), U(0, 1)],
-    answer: 0, // 4 vs 9
+    title: "普通单等了 12 拍，加急单刚到，又一张普通单",
+    candidates: [N(12, 1), U(0, 1), N(2)],
+    answer: 0, // 6 vs 9 vs 16
   },
   {
     id: "K8",
-    title: "普通单等了 15 拍，加急单等了 2 拍，又来一张普通单",
-    candidates: [N(15, 1), U(2), N(4, 1)],
-    answer: 0, // 3 vs 7 vs 14
+    title: "普通单等了 13 拍，加急单等了 2 拍，又来一张普通单",
+    candidates: [N(13, 1), U(2), N(4, 1)],
+    answer: 0, // 5 vs 7 vs 14
   },
   {
     id: "K9",
-    title: "普通单等了 16 拍，加急单也等了 6 拍",
-    candidates: [N(16, 1), U(6)],
-    answer: 0, // 2 vs 3
+    title: "普通单等了 13 拍，加急单也等了 3 拍",
+    candidates: [N(13, 1), U(3, 1)],
+    answer: 0, // 5 vs 6
   },
   {
     id: "K10",
-    title: "普通单等了 15 拍，加急单刚到，还有张普通单在等",
-    candidates: [N(15, 1), U(0), N(7)],
-    answer: 0, // 3 vs 9 vs 11
+    title: "普通单等了 14 拍，加急单刚到，还有张普通单在等",
+    candidates: [N(14, 1), U(0), N(8)],
+    answer: 0, // 4 vs 9 vs 10
   },
   {
     id: "K11",
-    title: "快超时的普通单、刚到的加急单、一张普通单",
-    candidates: [N(16), U(1, 1), N(10, 1)],
-    answer: 0, // 2 vs 8 vs 8
+    title: "等了 12 拍的普通单、刚到的加急单、一张普通单",
+    candidates: [N(12), U(1, 1), N(10, 1)],
+    answer: 0, // 6 vs 8 vs 8
   },
   {
     id: "K12",
     title: "普通单和加急单剩下的时间一样多",
-    candidates: [N(15), U(6)],
-    answer: 0, // 3 vs 3 — tie keeps the earlier arrival
+    candidates: [N(14, 1), U(5, 1)],
+    answer: 0, // 4 vs 4 — tie keeps the earlier arrival
   },
 ];
 

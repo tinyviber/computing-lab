@@ -59,18 +59,22 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
 
 - ② INTAKE_FIXTURES: 12 practice orders with paid-intent urgency
   phrasing (要加急/付费加急/加钱加急/走加急通道/付费加快/不用加急) and
-  two designed AI traps at low margin: P06 「想快一点但不想加钱」→
-  misjudged 加急 (margin ~0.001–0.014, true 普通) and P10 「别加葱」→
-  misjudged 少辣 (margin ~0.05, true 无备注). Direct AI correctness is
-  10/12 — both misses are catchable by need_confirm.
+  two designed AI traps: P06 「想快一点但不想加钱」→ misjudged 加急
+  (margin ~0.001–0.014, true 普通 — the margin signal catches it) and
+  P10 「辣子照旧」→ misjudged 少辣 (similarity ~0.57, true 无备注 —
+  「照旧」makes 无备注 unambiguous, only the similarity signal flags
+  it). Direct AI correctness is 10/12 — catching both needs both
+  signals.
 - ③ Grade = QUEUE_PROBES (domain/queueProbes.ts): 12 crafted queue
   snapshots asking "who first" — 3 urgent-jump probes + 9 min-slack
-  probes (slack = 9−wait urgent / 18−wait normal; ties FIFO). A single
-  simulated round can't fail naive urgent-first (18-tick window is too
-  forgiving), so the battery is the grade: urgent-first scores 3,
-  FIFO/wait-only 9, boost/overwrite families 12 for T 8..14 (T=15 → 11),
-  pass = QUEUE_PASS 11. QUEUE_FIXTURES' 12-order round stays as the
-  panel's preview only (FIFO 8/12, urgent-first 11/12 starving Q07).
+  probes (slack = 9−wait urgent / 18−wait normal; ties FIFO). The min-
+  slack rule is stated verbatim in the task (restaurant's own 排单规定,
+  not a hidden judge) and every expected winner is still savable
+  (slack > cook + delivery 2), with min-slack and min(slack−cook) rules
+  agreeing on all answers. Calibration: urgent-first 3, FIFO/wait-only
+  9, boost/overwrite 12 for T 8..12 (T=13 → 9, T≥15 → 3), pass = 11.
+  QUEUE_FIXTURES' 12-order round is the panel's preview only (FIFO
+  8/12, urgent-first 11/12 starving Q07).
 - ④ hiddenSet.ts FINAL_FIXTURES: same trap classes reworded into
   paid-express phrasing; F11 「平常速度，不要催」→少辣 is the designed
   miss (lowest margin ~0.057). Same arrival shape as ③ so the boost
@@ -132,9 +136,10 @@ AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   prototypes (不急着/不用加急/平常速度); urgent prototypes carry the
   paid-express family (我需要加急/付费加快/加钱走急单).
 - Measured calibration (practice set): weakest orders P06 0.720/0.001,
-  P10 0.685/0.052, P03 0.670/0.116 — NEED_CONFIRM_STARTER sim<0.85 OR
+  P10 0.573/0.156, P03 0.670/0.116 — NEED_CONFIRM_STARTER sim<0.85 OR
   margin<0.10 → 5 confirmations → over budget on purpose; sim<0.75
-  (3 confirms incl. both traps) or margin<0.06 (exactly the two) pass.
+  (3 confirms incl. both traps) passes; margin<0.06 catches only P06 →
+  fails at 11/12 (the P10 trap needs the similarity signal).
 - WASM↔WebGPU consistency measured: identical predictions and sims on
   the practice set; only a 0.005 margin wobble on a literal-resolved
   order (P09 0.123→0.118) — nothing near a decision boundary moves.

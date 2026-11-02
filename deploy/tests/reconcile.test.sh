@@ -437,11 +437,17 @@ pass 'production reconciler rejects subpath artifact without mutation'
 
 root_dist="$TMP/root-dist"
 subpath_dist="$TMP/subpath-dist"
-mkdir -p "$root_dist/assets" "$subpath_dist/assets"
+model_dir="vendor/models/Xenova/bge-small-zh-v1.5"
+mkdir -p "$root_dist/assets" "$subpath_dist/assets" "$root_dist/$model_dir/onnx" "$subpath_dist/$model_dir/onnx"
 printf '<div id="root"></div><script src="/assets/app.js"></script>\n' >"$root_dist/index.html"
 printf 'root\n' >"$root_dist/assets/app.js"
 printf '<div id="root"></div><script src="/computing-lab/assets/app.js"></script>\n' >"$subpath_dist/index.html"
 printf 'subpath\n' >"$subpath_dist/assets/app.js"
+# smoke.mjs now asserts the committed AI model files ship in dist.
+for file in config.json tokenizer.json onnx/model_quantized.onnx; do
+  printf 'mock\n' >"$root_dist/$model_dir/$file"
+  printf 'mock\n' >"$subpath_dist/$model_dir/$file"
+done
 "$REAL_BUN" "$ROOT/deploy/smoke.mjs" "$root_dist" / >/dev/null
 "$REAL_BUN" "$ROOT/deploy/smoke.mjs" "$subpath_dist" /computing-lab/ >/dev/null
 pass 'root and subpath artifact HTTP smoke matrices pass independently'

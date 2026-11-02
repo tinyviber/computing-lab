@@ -148,17 +148,30 @@ describe("修排队 probes — the layered grade", () => {
   });
 
   it("the taught families ace all 12 across a range of thresholds", () => {
-    for (let t = 8; t <= 14; t++) {
+    for (let t = 8; t <= 12; t++) {
       expect(probeScore(boost(t)), `boost(${t})`).toBe(12);
       expect(probeScore(overwrite(t)), `overwrite(${t})`).toBe(12);
     }
-    // The deadline-math form — smallest slack first — is full marks too.
+    // The deadline-math forms — min slack, and min slack minus cook —
+    // both agree with every probe's answer (no hidden-rule traps).
     expect(probeScore(tableFor((u, w) => w - (u ? 9 : 18)))).toBe(12);
+    expect(probeScore(tableFor((u, w, c) => w - c - (u ? 9 : 18)))).toBe(12);
   });
 
-  it("a threshold one tick too loose drops to 11 — passes, but no star", () => {
-    expect(probeScore(boost(15))).toBe(11);
-    expect(probeScore(overwrite(15))).toBe(11);
+  it("a wait threshold past the contested orders collapses like naive urgent-first", () => {
+    expect(probeScore(boost(13))).toBe(9);
+    expect(probeScore(boost(15))).toBe(3);
+    expect(probeScore(overwrite(15))).toBe(3);
+  });
+
+  // The rule's contract: every expected winner could still be delivered
+  // on time if the kitchen starts it now (wait + cook + delivery < deadline).
+  it("every expected winner is still savable", () => {
+    for (const probe of QUEUE_PROBES) {
+      const winner = probe.candidates[probe.answer];
+      const limit = winner.urgent ? 9 : 18;
+      expect(winner.wait + winner.cook + 2, probe.id).toBeLessThan(limit);
+    }
   });
 });
 
