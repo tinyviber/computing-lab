@@ -62,9 +62,9 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
   two designed AI traps: P06 「想快一点但不想加钱」→ misjudged 加急
   (margin ~0.001–0.014, true 普通 — the margin signal catches it) and
   P10 「辣子照旧」→ misjudged 少辣 (similarity ~0.57, true 无备注 —
-  「照旧」makes 无备注 unambiguous, only the similarity signal flags
-  it). Direct AI correctness is 10/12 — catching both needs both
-  signals.
+  「照旧」depends on customer history the AI lacks, so it should ask
+  rather than guess; only the similarity signal flags it). Direct AI
+  correctness is 10/12 — catching both needs both signals.
 - ③ Grade = QUEUE_PROBES (domain/queueProbes.ts): 12 crafted queue
   snapshots asking "who first" — 3 urgent-jump probes + 9 min-slack
   probes (slack = 9−wait urgent / 18−wait normal; ties FIFO). The min-

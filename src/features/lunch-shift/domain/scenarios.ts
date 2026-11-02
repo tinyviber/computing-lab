@@ -7,9 +7,10 @@
  * Order-set properties (locked by engine.test.ts):
  *  - INTAKE set: the AI model misses 2 of 12 outright —
  *    P06 「想快一点但不想加钱」 → 加急 (true 普通, catchable by low
- *    margin) and P10 「辣子照旧」 → 少辣 (true 无备注 — “照旧” asks for
- *    no change, catchable by low similarity) — so need_confirm has
- *    real work to do on both signals.
+ *    margin) and P10 「辣子照旧」 → 少辣 (true 无备注 — “照旧” refers
+ *    to the customer's usual, which the AI cannot know, so it should
+ *    ask rather than guess; catchable by low similarity) — so
+ *    need_confirm has real work to do on both signals.
  *  - QUEUE set (小票已录对): FIFO 8/12 on-time, urgent-first 11/12, and
  *    urgent + wait-boost reaches 12/12 for every threshold T in 8..16.
  *  - RUSH set: an optional denser 20-order round for fast finishers.
@@ -78,9 +79,10 @@ export function trainingOrderFor(seed: string): TrainingOrder {
  * sells a paid 加急 option, so urgency is phrased as paying for speed
  * (要加急 / 付费加急 / 走加急通道…). Two orders are designed model
  * misses: P06 wants speed without paying (想快一点但不想加钱 → reads
- * 急, margin ≈0.01 — the margin signal catches it) and P10 keeps the
- * spice as usual (辣子照旧 → reads 少辣, similarity ≈0.57 — only the
- * similarity signal flags it, and "照旧" makes 无备注 unambiguous) —
+ * 急, margin ≈0.01 — the margin signal catches it) and P10 orders the
+ * spice "as usual" (辣子照旧 → reads 少辣, similarity ≈0.57 — "usual"
+ * depends on history the AI doesn't have, so guessing is exactly what
+ * need_confirm exists for; only the similarity signal flags it) —
  * an honest need_confirm must send both back to the customer.
  */
 export const INTAKE_FIXTURES: FixtureOrder[] = [
