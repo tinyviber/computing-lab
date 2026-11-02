@@ -16,15 +16,17 @@ import {
 import { TABLES } from "../domain/contracts.ts";
 import { MAX_CODE_CHARS } from "../domain/priority.ts";
 import type {
+  AiDraft,
+  AiIntakeDraft,
   CompensateDraft,
-  FinalDraft,
-  IntakeDraft,
   LunchDraft,
   LunchJudgeResult,
   LunchProjectExtras,
+  LunchTestSummary,
   QueueDraft,
   TrainingDraft,
 } from "../domain/protocol.ts";
+import { sanitizeAiResults } from "../domain/aiIntake.ts";
 import { TRAINING_REQUEST, TRAINING_TICKET } from "../domain/scenarios.ts";
 import {
   getLunchStage,
@@ -33,7 +35,6 @@ import {
   nextLunchStage,
   type LunchStageDef,
 } from "../domain/stages.ts";
-import { sanitizeIntakeTables } from "../domain/wordTables.ts";
 import { checkCompensateTable } from "../domain/compensate.ts";
 import { sanitizePriorityTable } from "../domain/priority.ts";
 
@@ -54,6 +55,8 @@ export type LunchLessonState = {
   runSummaries: LunchProjectExtras["runSummaries"];
   /** This student's training order, deterministic from their user id. */
   training: LunchProjectExtras["training"];
+  /** Stage-4 order wording for the browser's AI intake — null until unlocked. */
+  aiOrders: LunchProjectExtras["aiOrders"];
   saveStatusByStage: SaveStatusByStage;
   unresolvedSyncConflicts: SyncConflictByStage;
   message: string | null;
@@ -68,12 +71,13 @@ export type LunchLessonAction =
       draftRevisions?: Record<number, number>;
       runSummaries?: LunchProjectExtras["runSummaries"];
       training?: LunchProjectExtras["training"];
+      aiOrders?: LunchProjectExtras["aiOrders"];
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "update-training"; draft: TrainingDraft }
-  | { type: "update-intake"; draft: IntakeDraft }
+  | { type: "update-intake"; draft: AiIntakeDraft }
   | { type: "update-queue"; draft: QueueDraft }
-  | { type: "update-final"; draft: FinalDraft }
+  | { type: "update-final"; draft: AiDraft }
   | { type: "update-compensate"; draft: CompensateDraft }
   | { type: "judge-result"; outcome: LunchJudgeResult }
   | { type: "mark-saving"; stageIndex: number }
@@ -98,12 +102,16 @@ export function emptyTrainingDraft(): TrainingDraft {
   return { step: "record", ticket: null, kitchenChoice: null, deliveredTable: null };
 }
 
-export function emptyIntakeDraft(): IntakeDraft {
-  return { code: "", tables: null };
+export function emptyAiIntakeDraft(): AiIntakeDraft {
+  return { confirmCode: "", results: null };
 }
 
 export function emptyQueueDraft(): QueueDraft {
   return { code: "", priority: null };
+}
+
+export function emptyAiDraft(): AiDraft {
+  return { confirmCode: "", results: null, queueCode: "", priority: null };
 }
 
 function codeOf(raw: unknown): string {
@@ -111,25 +119,26 @@ function codeOf(raw: unknown): string {
 }
 
 /**
- * The draft for a stage: the stored copy, or a fresh default. The final
- * stage seeds its artefacts from the stage-2 and stage-3 drafts so the
- * student's work carries over.
+ * The draft for a stage: the stored copy, or a fresh default. The
+ * dinner-rush stage seeds its confirm code from the stage-2 intake draft
+ * and its queue artefact from the stage-3 draft, so both pieces of
+ * student work carry into the final run.
  */
 export function draftOf(state: LunchLessonState, stageIndex = state.stageIndex): LunchDraft {
   const stored = state.drafts[stageIndex];
   if (stored !== undefined) return stored;
   if (stageIndex === 1) return emptyTrainingDraft();
-  if (stageIndex === 2) return emptyIntakeDraft();
+  if (stageIndex === 2) return emptyAiIntakeDraft();
   if (stageIndex === 3) return emptyQueueDraft();
   if (stageIndex === 5) return emptyCompensateDraft();
-  const intake = sanitizeLunchDraft(2, state.drafts[2] ?? {}) as IntakeDraft;
+  const intake = sanitizeLunchDraft(2, state.drafts[2] ?? {}) as AiIntakeDraft;
   const queue = sanitizeLunchDraft(3, state.drafts[3] ?? {}) as QueueDraft;
   return {
-    intakeCode: intake.code,
-    tables: intake.tables,
+    ...emptyAiDraft(),
+    confirmCode: intake.confirmCode,
     queueCode: queue.code,
     priority: queue.priority,
-  } satisfies FinalDraft;
+  };
 }
 
 function isTicketShape(value: unknown): value is TrainingDraft["ticket"] {
@@ -168,12 +177,12 @@ export function sanitizeTrainingDraft(raw: unknown): TrainingDraft {
   return draft;
 }
 
-export function sanitizeIntakeDraft(raw: unknown): IntakeDraft {
-  const draft = emptyIntakeDraft();
+export function sanitizeAiIntakeDraft(raw: unknown): AiIntakeDraft {
+  const draft = emptyAiIntakeDraft();
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return draft;
   const record = raw as Record<string, unknown>;
-  draft.code = codeOf(record.code);
-  draft.tables = sanitizeIntakeTables(record.tables);
+  draft.confirmCode = codeOf(record.confirmCode);
+  draft.results = sanitizeAiResults(record.results);
   return draft;
 }
 
@@ -186,17 +195,12 @@ export function sanitizeQueueDraft(raw: unknown): QueueDraft {
   return draft;
 }
 
-export function sanitizeFinalDraft(raw: unknown): FinalDraft {
-  const draft: FinalDraft = {
-    intakeCode: "",
-    tables: null,
-    queueCode: "",
-    priority: null,
-  };
+export function sanitizeAiDraft(raw: unknown): AiDraft {
+  const draft = emptyAiDraft();
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return draft;
   const record = raw as Record<string, unknown>;
-  draft.intakeCode = codeOf(record.intakeCode);
-  draft.tables = sanitizeIntakeTables(record.tables);
+  draft.confirmCode = codeOf(record.confirmCode);
+  draft.results = sanitizeAiResults(record.results);
   draft.queueCode = codeOf(record.queueCode);
   draft.priority = sanitizePriorityTable(record.priority);
   return draft;
@@ -218,10 +222,10 @@ export function sanitizeCompensateDraft(raw: unknown): CompensateDraft {
 /** Bound a restored draft at the domain edge, dispatched by stage. */
 export function sanitizeLunchDraft(stageIndex: number, raw: unknown): LunchDraft {
   if (stageIndex === 1) return sanitizeTrainingDraft(raw);
-  if (stageIndex === 2) return sanitizeIntakeDraft(raw);
+  if (stageIndex === 2) return sanitizeAiIntakeDraft(raw);
   if (stageIndex === 3) return sanitizeQueueDraft(raw);
   if (stageIndex === 5) return sanitizeCompensateDraft(raw);
-  return sanitizeFinalDraft(raw);
+  return sanitizeAiDraft(raw);
 }
 
 function withDraft(state: LunchLessonState, draft: LunchDraft): LunchLessonState {
@@ -247,11 +251,23 @@ export function createLunchLessonState(stageIndex = 1): LunchLessonState {
     judgeOutcome: null,
     runSummaries: { intake: null, queue: null, final: null, compensate: null },
     training: { request: TRAINING_REQUEST, ticket: TRAINING_TICKET },
+    aiOrders: null,
     saveStatusByStage: {},
     unresolvedSyncConflicts: {},
     message: null,
   };
 }
+
+// Freshly-judged summaries slot back into runSummaries so navigating
+// away and back still shows the latest result (not just page-load data).
+const SUMMARY_KEY_BY_KIND: Partial<
+  Record<LunchTestSummary["kind"], keyof LunchProjectExtras["runSummaries"]>
+> = {
+  "ai-intake": "intake",
+  queue: "queue",
+  final: "final",
+  compensate: "compensate",
+};
 
 export function transitionLunchLesson(
   state: LunchLessonState,
@@ -294,6 +310,7 @@ export function transitionLunchLesson(
           compensate: null,
         },
         training: action.training ?? { request: TRAINING_REQUEST, ticket: TRAINING_TICKET },
+        aiOrders: action.aiOrders ?? null,
       };
     }
 
@@ -320,13 +337,20 @@ export function transitionLunchLesson(
         judgeOutcome: null,
       };
 
-    case "judge-result":
+    case "judge-result": {
+      const summaryKey = SUMMARY_KEY_BY_KIND[action.outcome.testSummary.kind];
       return {
         ...state,
         judgeOutcome: action.outcome,
         passedStages: action.outcome.passedStages,
         currentStage: nextLunchStage(action.outcome.passedStages),
+        // A stage-3 pass ships the stage-4 order wording with the result.
+        aiOrders: action.outcome.aiOrders ?? state.aiOrders,
+        runSummaries: summaryKey
+          ? { ...state.runSummaries, [summaryKey]: action.outcome.testSummary }
+          : state.runSummaries,
       };
+    }
 
     case "mark-saving":
       return {

@@ -10,6 +10,10 @@
   `local/deploy/` for the production deployment scripts (`api-deploy.sh`, the
   systemd unit) before any deploy work; see `docs/deployment.md` and
   `local/README.md`.
+- The AI-intake model ships with the repo: `public/vendor/models/` holds
+  the pinned BGE weights (verified by `bun run sync:embed`, sha256-locked;
+  `--force` re-downloads) and the ONNX runtime pair is bundled via `?url`
+  imports — a clean `git archive` deploy needs no extra fetch.
 
 ## Boundaries
 

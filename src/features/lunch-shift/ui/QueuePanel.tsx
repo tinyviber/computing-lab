@@ -9,6 +9,7 @@ import type { OrderResult, QueuePick, RunSummary } from "../domain/contracts.ts"
 import { checkPriorityTable } from "../domain/priority.ts";
 import type { LunchTestSummary, QueueDraft } from "../domain/protocol.ts";
 import { describeFullWidthPunctuation, friendlyRunError } from "../domain/runErrors.ts";
+import { pickProbe, QUEUE_PROBES } from "../domain/queueProbes.ts";
 import { EXPERIMENTS, QUEUE_SCENARIO, RUSH_SCENARIO } from "../domain/scenarios.ts";
 import { simulate } from "../domain/simulator.ts";
 import { CodeEditor } from "./CodeEditor.tsx";
@@ -27,6 +28,60 @@ export const QUEUE_STARTER = `def priority(urgent, wait, cook):
 `;
 
 const STAGE_LABEL = { kitchen: "厨房", delivery: "出餐" } as const;
+
+type ProbeRow = { id: string; title: string; passed: boolean; picked: number; answer: number };
+
+/** The 12 grading probes: each is one queue snapshot asking "who first?". */
+function ProbeResults({ probes }: { probes: ProbeRow[] }) {
+  return (
+    <section className="lunch-result" role="status">
+      <p className="eyebrow">
+        判定点 · 答对 {probes.filter((row) => row.passed).length} / {probes.length}
+      </p>
+      <p className="lunch-note">
+        每张卡列出按先来后到排好的在等订单。该先做哪张？算算谁剩下的拍数最少（加急 9 拍、普通 18
+        拍，减掉已经等的），一样少就先来先做。
+      </p>
+      <div className="lunch-table-wrap">
+        <table className="lunch-orders-table">
+          <thead>
+            <tr>
+              <th>情况</th>
+              <th>在等的单（先来后到）</th>
+              <th>你的函数选</th>
+              <th>该先做</th>
+              <th>判定点</th>
+            </tr>
+          </thead>
+          <tbody>
+            {probes.map((row) => {
+              const probe = QUEUE_PROBES.find((item) => item.id === row.id);
+              const label = (index: number) => {
+                const c = probe?.candidates[index];
+                return c
+                  ? `${index + 1} 号（${c.urgent ? "加急" : "普通"}·等${c.wait}拍·${c.cook}拍菜）`
+                  : `${index + 1} 号`;
+              };
+              return (
+                <tr key={row.id}>
+                  <td>{row.title}</td>
+                  <td>
+                    {probe?.candidates
+                      .map((c, i) => `${i + 1} 号${c.urgent ? "加急" : "普通"}(等${c.wait})`)
+                      .join("、")}
+                  </td>
+                  <td>{label(row.picked)}</td>
+                  <td>{label(row.answer)}</td>
+                  <td>{row.passed ? "✓" : "✗"}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 function waitLimit(order: OrderResult): number {
   return order.expected?.urgent ? 9 : 18;
@@ -227,13 +282,16 @@ export function QueuePanel({
   const [running, setRunning] = useState(false);
   const [experiments, setExperiments] = useState<Record<string, RunSummary>>({});
   const [rushRun, setRushRun] = useState<RunSummary | null>(null);
+  const [localProbes, setLocalProbes] = useState<ProbeRow[] | null>(null);
 
   const source = draft.code.trim() ? draft.code : QUEUE_STARTER;
   const judgedRun = result?.kind === "queue" ? (result.run ?? null) : null;
   const judgedErrors = result?.kind === "queue" ? (result.errors ?? []) : [];
+  const judgedProbes = result?.kind === "queue" ? (result.probes ?? null) : null;
   // The newest local preview wins; the recorded grade shows only until a
   // fresh run replaces it.
   const shownRun = localRun ?? judgedRun;
+  const shownProbes = localProbes ?? judgedProbes;
 
   const priority = draft.priority;
 
@@ -251,6 +309,18 @@ export function QueuePanel({
         return;
       }
       onChange({ code: source, priority: table });
+      setLocalProbes(
+        QUEUE_PROBES.map((probe) => {
+          const picked = pickProbe(table, probe);
+          return {
+            id: probe.id,
+            title: probe.title,
+            passed: picked === probe.answer,
+            picked,
+            answer: probe.answer,
+          };
+        }),
+      );
       setLocalRun(simulate(QUEUE_SCENARIO, { priority: table }).result);
     } catch (err) {
       setError(friendlyRunError(err instanceof Error ? err.message : String(err)));
@@ -281,7 +351,7 @@ export function QueuePanel({
     <section className="lunch-challenge">
       <p>
         厨房和出餐两站每拍都调用同一个 <code>priority(urgent, wait, cook)</code>
-        ，哪张单的返回值最大，就先做哪张。
+        ，哪张单的返回值最大，就先做哪张。服务器拿它判下面的 12 张情况卡，答对 11 张过关。
       </p>
       <div className="lunch-params">
         <ul>
@@ -298,7 +368,40 @@ export function QueuePanel({
         </ul>
       </div>
       <details className="lunch-reference">
-        <summary>看这 12 张订单</summary>
+        <summary>看判分用的 12 张情况卡</summary>
+        <p className="lunch-note">
+          店里的排单规定：谁剩下的拍数最少谁先做（加急剩 9−wait、普通剩 18−wait），一样少就
+          先来先做。制作需时这一关不参与排单，列出来只是帮你想象场景。你的函数要把这条规定写
+          对。
+        </p>
+        <div className="lunch-table-wrap">
+          <table className="lunch-orders-table">
+            <thead>
+              <tr>
+                <th>情况卡</th>
+                <th>在等的单（先来后到）</th>
+              </tr>
+            </thead>
+            <tbody>
+              {QUEUE_PROBES.map((probe) => (
+                <tr key={probe.id}>
+                  <td>{probe.title}</td>
+                  <td>
+                    {probe.candidates
+                      .map(
+                        (c, i) =>
+                          `${i + 1} 号${c.urgent ? "加急" : "普通"}(等${c.wait}拍·${c.cook}拍菜)`,
+                      )
+                      .join("、")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <details className="lunch-reference">
+        <summary>整轮预览的 12 张订单（不计分）</summary>
         <p className="lunch-note">
           到达拍：这张单在系统第几拍进来（拍就是第 1 关那种时间步）。准时 = 加急单等满 9
           拍、普通单等满 18 拍之前送到。
@@ -336,6 +439,7 @@ export function QueuePanel({
         disabled={running}
         onChange={(code) => {
           setLocalRun(null);
+          setLocalProbes(null);
           setTableErrors([]);
           onChange({ code, priority: null });
         }}
@@ -372,7 +476,8 @@ export function QueuePanel({
           ))}
         </ul>
       ) : null}
-      {shownRun ? <QueueResultView run={shownRun} title="这一轮的成绩" /> : null}
+      {shownProbes ? <ProbeResults probes={shownProbes} /> : null}
+      {shownRun ? <QueueResultView run={shownRun} title="整轮预览（不计分）" /> : null}
 
       {extraArea ? (
         <div className="lunch-experiment-box">

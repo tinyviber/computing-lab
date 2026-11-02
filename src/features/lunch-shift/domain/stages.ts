@@ -1,8 +1,10 @@
 /**
  * Stage table for the lunch-shift lab. Four stages for one class period:
- * walk one order by hand → fix intake by editing word tables → fix
- * queueing by writing priority() → graded run on hidden orders.
- * Stage 5 is an optional bonus that rides the stage-3 slot in the rail.
+ * walk one order by hand → AI semantic intake on practice orders, where
+ * need_confirm() learns to price uncertainty → fix queueing by writing
+ * priority() (a function) → run the whole restaurant: AI intake plus
+ * queueing on hidden orders, under a confirmation budget and a service
+ * deadline. Stage 5 is an optional bonus that rides the stage-3 slot.
  *
  * Each stage keeps one task sentence. The judging method and the takeaway
  * are only shown after the stage is passed; `hints` are the three
@@ -31,37 +33,46 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 2,
-    id: "fix-intake",
-    title: "修接单",
-    task: "有 12 句顾客原话。根据下面的内容设计各种信号词，让 12 张小票全部记对。",
-    judgeNote: "服务器拿你算出的四张词表重新读这 12 张原话，小票全对才过关。",
-    takeaway: "认得全比背得多重要，通用词才盖得住没见过的说法。",
+    id: "ai-intake",
+    title: "智能接单",
+    task: "店里装了 AI 接单台：顾客说一句原话，本地模型直接记出小票，还给两个把握度分数 similarity 和 margin。可它也会听错：有 12 张练习订单带正确答案，写 need_confirm(similarity, margin) 挑出拿不准的单让顾客再确认一遍，确认的单一定记对。记对 12 张、确认不超过 4 次过关。",
+    judgeNote:
+      "服务器把你标记确认的单按正确答案记，没确认的单用 AI 的结果重新核对这 12 张订单：12 张全对且确认 ≤4 次才过关。",
+    takeaway:
+      "AI 能听懂没见过的说法，但它会拿不准。现代信息系统靠的不是 AI 永远对，而是知道什么时候该再问一遍。",
+    hints: [
+      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多，先找出最没把握的那几单。",
+      "第一行可以这样开头：if similarity < 0.75: return True。",
+      "确认有预算：哪两单的分数最低？把确认留给他们，别浪费在 AI 本来就有把握的单上。",
+    ],
   },
   {
     index: 3,
     id: "fix-queue",
     title: "修排队",
-    task: "这一关小票都录对了。写 priority(urgent, wait, cook)，返回值越大越先做；加急单等满 9 拍、普通单等满 18 拍还没送到就算超时，至少 10 张准时过关。",
-    judgeNote: "服务器拿你的结果表重排每一拍的选择：准时 10 张过关，12 张加星。",
-    takeaway: "只认加急会饿死普通单，等太久的也该优先。",
+    task: "这一关小票都录对了。复习函数：写 priority(urgent, wait, cook)，返回值越大越先做。店里的排单规定：算算每张单还剩几拍就超时（加急单 9 拍、普通单 18 拍，减掉已经等的），剩下最少的先做；一样少就先来先做。这次先按剩余等待时间排单，制作时间 cook 这一关不参与计算。服务器拿 12 张排队情况卡判你的函数有没有把这条规定写对：每张卡给几张在等的单，答对 11 张过关，12 张全对加星。",
+    judgeNote:
+      "服务器把你的结果表带进 12 张情况卡逐张判：只看加急会饿死普通单，只认等待会饿死加急，两边都用上才够 11 张。",
+    takeaway: "只认加急会饿死普通单，只认等待会饿死加急，最等不起的先做。",
     hints: [
       "加急的单，返回一个更大的数。",
       "第一行可以这样开头：if urgent: score = 1。",
-      "超时的是加急单还是普通单？它等了几拍？加急给几分、等太久给几分，谁该更大？",
+      "店里的规定是谁剩得最少谁先做：加急剩 9−wait 拍，普通剩 18−wait 拍，一样多就先到先做。",
     ],
   },
   {
     index: 4,
-    id: "final-run",
-    title: "正式挑战",
-    task: "词表沿用第二关，这里只编辑 priority 函数。换了一批写法不同的订单，合计至少 18 分过关，没过可以改了再交。",
+    id: "dinner-rush",
+    title: "晚餐高峰",
+    task: "正式营业：12 张陌生订单进来，接单和排队要一起扛。同一台 AI 接单（你的 need_confirm 直接沿用），光一个付费加急就有「要加急」「付费加快」「加钱走急单」好几种说法。确认的单一律记对但停 1 拍，记错或迟到都算事故：小票 12 张全对、确认不超过 4 次、记对且准时至少 11 张才过关。",
     judgeNote:
-      "服务器用同一套判法跑 12 张隐藏订单：成绩 = 小票正确数 + 记对且准时数（加急等满 9 拍、普通等满 18 拍算超时），满分 24，至少 18 分过关。",
-    takeaway: "选通用词的词表，才扛得住换说法。",
+      "服务器把你标记确认的单按顾客复述记对（确认必对），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：12 张全对、确认 ≤4 次且记对且准时 ≥11 张才过关。",
+    takeaway:
+      "真实系统里准确率、成本和速度是连在一起的：多问一句要花钱，记错一张要出事，排队函数也要兜住接单台停下来的拍子。",
     hints: [
-      "练习里照抄原话加的词，正式订单换个说法就可能认不出。",
-      "又长又具体的练习原话，正式订单换个说法就认不出，换成更短的通用词。",
-      "哪张表里还有只在练习原话里出现过的长词？换成更通用的。",
+      "先让 AI 跑一遍，找出 similarity 或 margin 最低的那几单，确认预算留给他们。",
+      "确认停 1 拍可能把本来准时的单拖晚：哪些单确认得起，哪些确认不起？",
+      "准时差一点就调第三关的 priority：等太久的单优先，确认停过的单别让它饿死。",
     ],
   },
   {
@@ -85,12 +96,27 @@ export function getLunchStage(index: number): LunchStageDef | undefined {
 }
 
 /**
- * Stage-4 pass line, shared by the judge and the result view. On the hidden
- * set, generalizing word tables score ≥ 20 even under FIFO while literal
- * practice-only tables cap at 16 — 18 splits "words carried over" from
- * "didn't generalize" without re-testing stage-3 queueing skill.
+ * AI-intake pass lines, shared by the judge and the result views.
+ * Confirmed orders always record correctly (the customer restated) but
+ * cost one intake tick each. Measured on both order sets, the
+ * clause-level model flags its misses at low similarity/margin, so an
+ * honest need_confirm passes with 2–4 confirmations while always-confirm
+ * (12) and never-confirm both fail. Stage 2 grades intake alone; stage
+ * 4 additionally requires the queue run to serve ≥11 tickets both
+ * correctly and on time — confirmations stall intake and can cost a
+ * delivery.
  */
-export const FINAL_PASS_SCORE = 18;
+export const AI_PASS_CORRECT = 12;
+export const AI_CONFIRM_BUDGET = 4;
+export const AI_SERVED_MIN = 11;
+
+/**
+ * Stage-3 pass line: probes passed out of QUEUE_PROBES. One miss of
+ * slack is allowed; single-axis tables can't reach it — urgent-first
+ * wins only the 3 加急要快 probes, FIFO/wait-only win the 9 wait probes
+ * but lose all 3 urgent ones (queueProbes.ts, locked by engine.test.ts).
+ */
+export const QUEUE_PASS = 11;
 
 /** Linear unlock: a stage opens once the previous one passed. */
 export function lunchStageUnlocked(passedStages: readonly number[], index: number): boolean {

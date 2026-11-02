@@ -4,9 +4,10 @@
  * per-order correctness counts.
  *
  * Trap layout (mirrored in engine.test.ts): a tables set built by adding
- * the practice misses literally (不放香菜 / 别太辣 / 能快点吗 / 不用赶 /
- * 炒饭) still misses F02 (别放香菜), F04 (麻烦快点), F07 (少放点辣) and
- * F08 (麻烦快些) — generic words (放香菜 / 快 / 辣) catch every one.
+ * the practice misses literally (不放香菜 / 别太辣 / 付费 / 不用加急 /
+ * 炒饭) still misses F02 (别放香菜), F07 (少放点辣) and F08 (加钱走急单 —
+ * the paid-express idea in words the tables never listed) — generic words
+ * (放香菜 / 辣 / 急单) catch every one.
  * Queue shape: BOTH stage-3 scoring styles reach 12/12 for T in 8..16,
  * while plain FIFO only delivers 8 — a full-marks function stays full.
  */
@@ -24,7 +25,7 @@ export const FINAL_FIXTURES: FixtureOrder[] = [
     arrivalTick: 3,
   },
   {
-    request: "2号桌鸡腿饭，别放香菜，我赶时间。",
+    request: "2号桌鸡腿饭，别放香菜，这单我加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 3,
@@ -36,7 +37,7 @@ export const FINAL_FIXTURES: FixtureOrder[] = [
     arrivalTick: 4,
   },
   {
-    request: "3号桌蛋炒饭，加蛋，麻烦快点，我等不及了。",
+    request: "3号桌蛋炒饭，加蛋，急着走，付费加急。",
     expected: { item: "蛋炒饭", note: "加蛋", table: "3", urgent: true },
     cookTicks: 3,
     arrivalTick: 1,
@@ -54,25 +55,25 @@ export const FINAL_FIXTURES: FixtureOrder[] = [
     arrivalTick: 12,
   },
   {
-    request: "7号桌牛肉面，少放点辣，不用赶时间。",
+    request: "7号桌牛肉面，少放点辣，不用加急。",
     expected: { item: "牛肉面", note: "少辣", table: "7", urgent: false },
     cookTicks: 3,
     arrivalTick: 1,
   },
   {
-    request: "5号桌鸡腿饭，加蛋，麻烦快些。",
+    request: "5号桌鸡腿饭，加蛋，加钱走急单。",
     expected: { item: "鸡腿饭", note: "加蛋", table: "5", urgent: true },
     cookTicks: 1,
     arrivalTick: 11,
   },
   {
-    request: "6号桌牛肉面，少辣，尽快送来，我赶时间。",
+    request: "6号桌牛肉面，少辣，走加急通道，我赶时间。",
     expected: { item: "牛肉面", note: "少辣", table: "6", urgent: true },
     cookTicks: 3,
     arrivalTick: 13,
   },
   {
-    request: "给2号桌做牛肉面加蛋，尽快，我赶时间。",
+    request: "给2号桌做牛肉面加蛋，要加急，我赶时间。",
     expected: { item: "牛肉面", note: "加蛋", table: "2", urgent: true },
     cookTicks: 1,
     arrivalTick: 1,
@@ -84,7 +85,7 @@ export const FINAL_FIXTURES: FixtureOrder[] = [
     arrivalTick: 15,
   },
   {
-    request: "8号桌鸡腿饭，不要香菜，赶时间。",
+    request: "8号桌鸡腿饭，不要香菜，我要加急。",
     expected: { item: "鸡腿饭", note: "不要香菜", table: "8", urgent: true },
     cookTicks: 1,
     arrivalTick: 16,
@@ -92,3 +93,16 @@ export const FINAL_FIXTURES: FixtureOrder[] = [
 ];
 
 export const FINAL_SCENARIO = buildScenario("F", FINAL_FIXTURES);
+
+/**
+ * The stage-4 intake view of the final set: ids and customer wording
+ * only — the browser's AI needs the raw sentences to predict tickets,
+ * but expected tickets, arrival/cook shape and everything else stays
+ * server-side. Shipped only once the stage is unlocked (see
+ * projectExtras), and even then the student's Python only ever sees
+ * (similarity, margin) numbers.
+ */
+export const FINAL_PUBLIC_ORDERS = FINAL_SCENARIO.orders.map((order) => ({
+  id: order.id,
+  request: order.request,
+}));

@@ -38,7 +38,7 @@ export const labMetadata = {
   "lunch-shift": {
     title: "设计餐馆系统",
     description:
-      "送对一张订单，再改词表教程序听懂顾客的各种说法、写函数排出先做哪张——12 张订单全对全准时才算真本事。",
+      "送对一张订单，教 AI 听懂顾客的各种说法、写函数排出先做哪张——12 张订单全对全准时才算真本事。",
     entryPath: "/labs/lunch-shift",
     category: "information-systems",
   },
