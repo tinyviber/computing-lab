@@ -174,3 +174,12 @@ AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   `asyncify.mjs` has it and serves wasm+webgpu alike. The runtime pair
   is imported from node_modules via `?url` (no vendored copy), which
   also prevents version drift.
+- transformers.js session creation is serialized through a module-level
+  `webInitChain` — a failed session leaves it REJECTED forever, so every
+  later createInferenceSession in that realm replays the first error
+  (a null-adapter WebGPU attempt poisoned the wasm fallback with the
+  webgpu message). Mitigations in place: worker preflights
+  `navigator.gpu.requestAdapter()` before any webgpu session, and the
+  runner respawns the worker (fresh realm = fresh chain) before the
+  wasm fallback. Machines with `navigator.gpu` but no adapter: headless
+  Chromium, blocked GPUs — this is the classroom-risk environment.

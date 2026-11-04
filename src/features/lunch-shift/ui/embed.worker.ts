@@ -62,6 +62,15 @@ async function handle(request: EmbedWorkerRequest): Promise<object> {
     ) {
       return { already: true, device: loadedWith.device, dtype: loadedWith.dtype, ms: 0 };
     }
+    if (request.device === "webgpu") {
+      // Preflight: machines exposing navigator.gpu but no usable adapter
+      // (headless Chrome, blocked GPUs) would fail inside session creation
+      // — which permanently poisons transformers.js's webInitChain in this
+      // realm, taking the wasm fallback down with the same error.
+      const gpu = (navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
+      const adapter = gpu ? await gpu.requestAdapter().catch(() => null) : null;
+      if (!adapter) throw new Error("这台机器没有可用的 WebGPU 适配器");
+    }
     const started = performance.now();
     const task = pipeline("feature-extraction", request.model, {
       device: request.device,

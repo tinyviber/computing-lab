@@ -82,6 +82,19 @@ async function tryLoad(device: EmbedDevice, dtype: EmbedDtype): Promise<EmbedInf
 }
 
 /**
+ * A failed session creation poisons transformers.js's module-level
+ * webInitChain for the life of the worker realm — a retry inside the same
+ * worker inherits the first error verbatim. Terminate and respawn so the
+ * wasm fallback starts with a fresh module graph.
+ */
+function respawnWorker(): void {
+  worker?.terminate();
+  worker = null;
+  for (const entry of pending.values()) entry.reject(new Error("模型 worker 重启了"));
+  pending.clear();
+}
+
+/**
  * Load the model once: WebGPU first (integrated GPUs included), wasm as
  * the every-machine fallback. Progress callbacks fire while weights
  * download; a successful load is memoized for the session.
@@ -93,6 +106,7 @@ export function loadEmbedder(progress?: (progress: EmbedProgress) => void): Prom
     try {
       return await tryLoad("webgpu", "q8");
     } catch {
+      respawnWorker();
       return await tryLoad("wasm", "q8");
     }
   })().then(
