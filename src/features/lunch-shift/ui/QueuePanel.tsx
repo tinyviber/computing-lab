@@ -371,8 +371,7 @@ export function QueuePanel({
         <summary>看判分用的 12 张情况卡</summary>
         <p className="lunch-note">
           店里的排单规定：谁剩下的拍数最少谁先做（加急剩 9−wait、普通剩 18−wait），一样少就
-          先来先做。制作需时这一关不参与排单，列出来只是帮你想象场景。你的函数要把这条规定写
-          对。
+          先来先做。制作需时这一关不参与排单，列出来只是帮你想象场景。你的函数要把这条规定写 对。
         </p>
         <div className="lunch-table-wrap">
           <table className="lunch-orders-table">
