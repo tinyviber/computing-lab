@@ -105,6 +105,12 @@
   font-size: 13px;
   color: var(--secondary);
 }
+.lunch-practice {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-panel);
+}
 .lunch-reference summary {
   cursor: pointer;
   color: var(--accent);

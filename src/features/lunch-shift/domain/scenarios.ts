@@ -11,6 +11,9 @@
  *    to the customer's usual, which the AI cannot know, so it should
  *    ask rather than guess; catchable by low similarity) — so
  *    need_confirm has real work to do on both signals.
+ *  - WORD_TABLE set lives in domain/wordTables.ts: 6 public orders for
+ *    stage 2's hand-written dict/list exercise — every starter blank is
+ *    needed by at least one order.
  *  - QUEUE set (小票已录对): FIFO 8/12 on-time, urgent-first 11/12, and
  *    urgent + wait-boost reaches 12/12 for every threshold T in 8..16.
  *  - RUSH set: an optional denser 20-order round for fast finishers.
@@ -75,8 +78,9 @@ export function trainingOrderFor(seed: string): TrainingOrder {
 }
 
 /**
- * Stage 2 智能接单·练习 — 12 orders the local AI reads. The restaurant
- * sells a paid 加急 option, so urgency is phrased as paying for speed
+ * Stage 4 智能接单·练习 — 12 public orders the local AI reads for the
+ * in-stage practice step (expected tickets shown). The restaurant sells
+ * a paid 加急 option, so urgency is phrased as paying for speed
  * (要加急 / 付费加急 / 走加急通道…). Two orders are designed model
  * misses: P06 wants speed without paying (想快一点但不想加钱 → reads
  * 急, margin ≈0.01 — the margin signal catches it) and P10 orders the

@@ -1,6 +1,6 @@
 /**
  * Lunch-shift lab page: stage rail plus four stage panels — 订单旅程,
- * 智能接单, 修排队, 晚餐高峰. Same wiring as the other labs: project load →
+ * 修接单, 修排队, 智能接单. Same wiring as the other labs: project load →
  * autosaved drafts → server judge. The Pyodide worker is warmed as soon as
  * the project loads so the stage-2 run doesn't wait on the download.
  */
@@ -22,7 +22,7 @@ import { DismissibleAlert } from "../../../shared/ui/DismissibleAlert";
 import { HintDisclosure } from "../../../shared/ui/HintDisclosure";
 import type {
   AiDraft,
-  AiIntakeDraft,
+  IntakeDraft,
   LunchDraft,
   LunchJudgeResult,
   LunchProjectExtras,
@@ -31,7 +31,6 @@ import type {
   QueueDraft,
   TrainingDraft,
 } from "../domain/protocol.ts";
-import { INTAKE_SCENARIO } from "../domain/scenarios.ts";
 import { LUNCH_STAGES, lunchStageUnlocked, type LunchStageDef } from "../domain/stages.ts";
 import {
   createLunchLessonState,
@@ -42,6 +41,7 @@ import {
 } from "../lesson/state.ts";
 import { AiIntakePanel } from "./AiIntakePanel.tsx";
 import { CompensatePanel } from "./CompensatePanel.tsx";
+import { IntakePanel } from "./IntakePanel.tsx";
 import { QueuePanel } from "./QueuePanel.tsx";
 import { TrainingPanel } from "./TrainingPanel.tsx";
 import { warmPyodide } from "./pyodideRunner.ts";
@@ -290,10 +290,8 @@ export function LunchShiftLabPage() {
             ) : null}
 
             {projectLoaded && stage?.index === 2 ? (
-              <AiIntakePanel
-                variant="practice"
-                draft={draftOf(state, 2) as AiIntakeDraft}
-                orders={INTAKE_SCENARIO.orders}
+              <IntakePanel
+                draft={draftOf(state, 2) as IntakeDraft}
                 onChange={(draft) => dispatch({ type: "update-intake", draft })}
                 onSubmit={() => void submitJudge(2, draftOf(state, 2))}
                 result={summaryFor(2, "intake")}
@@ -314,7 +312,6 @@ export function LunchShiftLabPage() {
 
             {projectLoaded && stage?.index === 4 ? (
               <AiIntakePanel
-                variant="final"
                 draft={draftOf(state, 4) as AiDraft}
                 orders={state.aiOrders ?? []}
                 onChange={(draft) => dispatch({ type: "update-final", draft })}

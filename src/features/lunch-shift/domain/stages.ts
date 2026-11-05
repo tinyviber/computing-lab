@@ -1,10 +1,11 @@
 /**
  * Stage table for the lunch-shift lab. Four stages for one class period:
- * walk one order by hand → AI semantic intake on practice orders, where
- * need_confirm() learns to price uncertainty → fix queueing by writing
- * priority() (a function) → run the whole restaurant: AI intake plus
- * queueing on hidden orders, under a confirmation budget and a service
- * deadline. Stage 5 is an optional bonus that rides the stage-3 slot.
+ * walk one order by hand → organize intake with hand-written dict/list
+ * word tables → fix queueing by writing priority() (a function) → run
+ * the whole restaurant with AI intake: need_confirm() learns to price
+ * uncertainty on practice orders, then intake plus queueing run hidden
+ * orders under a confirmation budget and a service deadline. Stage 5 is
+ * an optional bonus that rides the stage-3 slot.
  *
  * Each stage keeps one task sentence. The judging method and the takeaway
  * are only shown after the stage is passed; `hints` are the three
@@ -33,17 +34,17 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 2,
-    id: "ai-intake",
-    title: "智能接单",
-    task: "店里装了 AI 接单台：顾客说一句原话，本地模型直接记出小票，还给两个把握度分数 similarity 和 margin。可它也会听错：有 12 张练习订单带正确答案，写 need_confirm(similarity, margin) 挑出拿不准的单让顾客再确认一遍，确认的单一定记对。记对 12 张、确认不超过 4 次过关。",
+    id: "fix-intake",
+    title: "修接单",
+    task: "接单台靠四张词表把顾客的原话记成小票：dish_words 和 note_words 是字典（原话里的词 → 要记的值），calm_words 和 rush_words 是列表（原话命中列表里的词，时效就有答案）。下面 6 张订单的应记小票都印出来了，代码里留了 6 个 ____ 空——照着填上，6 张小票全对过关。",
     judgeNote:
-      "服务器把你标记确认的单按正确答案记，没确认的单用 AI 的结果重新核对这 12 张订单：12 张全对且确认 ≤4 次才过关。",
+      "服务器用同一套固定程序读你的四张词表，把 6 句原话重新记成小票：6 张全对才过关，每张错在哪个字段会直接标出来。",
     takeaway:
-      "AI 能听懂没见过的说法，但它会拿不准。现代信息系统靠的不是 AI 永远对，而是知道什么时候该再问一遍。",
+      "字典和列表让计算机按规则组织信息：词表认得出的记对，认不出的就记错——所以写死的词表只认写过的词，第四关会换成能听陌生说法的 AI。",
     hints: [
-      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多，先找出最没把握的那几单。",
-      "第一行可以这样开头：if similarity < 0.75: return True。",
-      "确认有预算：哪两单的分数最低？把确认留给他们，别浪费在 AI 本来就有把握的单上。",
+      "每个 ____ 是要换掉的占位符：字典右边填菜单上的菜名或备注，列表里填原话里出现的词。",
+      '对着订单表填：W3 的「炒饭」在菜单上叫「蛋炒饭」，所以 dish_words 里 "炒饭" 要对应 "蛋炒饭"。',
+      "W4 说「不急着吃」：只在 rush_words 补「急着」会把它误记成加急——calm_words 先查，得同时有「不急着」把它挡回普通单。",
     ],
   },
   {
@@ -62,17 +63,17 @@ export const LUNCH_STAGES: LunchStageDef[] = [
   },
   {
     index: 4,
-    id: "dinner-rush",
-    title: "晚餐高峰",
-    task: "正式营业：12 张陌生订单进来，接单和排队要一起扛。同一台 AI 接单（你的 need_confirm 直接沿用），光一个付费加急就有「要加急」「付费加快」「加钱走急单」好几种说法。确认的单一律记对但停 1 拍，记错或迟到都算事故：小票 12 张全对、确认不超过 4 次、记对且准时至少 11 张才过关。",
+    id: "ai-intake",
+    title: "智能接单",
+    task: "第二关的词表只认写过的词——「加钱走急单」这种说法它就跟不上。这一关换上 AI 接单台：浏览器里的本地模型直接听顾客的话记小票，还给两个把握度分数 similarity 和 margin。写 need_confirm(similarity, margin) 挑出拿不准的单让顾客再确认一遍：确认的单一定记对，但每单让接单台停 1 拍。先在带标准答案的练习订单上调好函数，再上 12 张正式订单：小票全对、确认不超过 4 次、记对且准时至少 11 张才过关。",
     judgeNote:
-      "服务器把你标记确认的单按顾客复述记对（确认必对），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：12 张全对、确认 ≤4 次且记对且准时 ≥11 张才过关。",
+      "服务器把你标记确认的单按顾客复述记对（确认必对但停 1 拍），没确认的单用 AI 的结果，再把所有小票放进第三关的队列模拟：12 张全对、确认 ≤4 次且记对且准时 ≥11 张才过关。",
     takeaway:
-      "真实系统里准确率、成本和速度是连在一起的：多问一句要花钱，记错一张要出事，排队函数也要兜住接单台停下来的拍子。",
+      "词表只能认写过的词，AI 能听懂没见过的说法但会拿不准——现代信息系统靠把握度决定什么时候该再问一遍：多问一句要花钱，记错一张要出事。",
     hints: [
-      "先让 AI 跑一遍，找出 similarity 或 margin 最低的那几单，确认预算留给他们。",
-      "确认停 1 拍可能把本来准时的单拖晚：哪些单确认得起，哪些确认不起？",
-      "准时差一点就调第三关的 priority：等太久的单优先，确认停过的单别让它饿死。",
+      "similarity 低说明 AI 拿不准，margin 小说明前两名差不多——先在练习订单上找出分数最低的那几单。",
+      "第一行可以这样开头：if similarity < 0.75: return True。",
+      "确认有预算：哪几单的分数最低？把确认留给它们，别浪费在 AI 本来就有把握的单上。",
     ],
   },
   {
@@ -96,15 +97,14 @@ export function getLunchStage(index: number): LunchStageDef | undefined {
 }
 
 /**
- * AI-intake pass lines, shared by the judge and the result views.
- * Confirmed orders always record correctly (the customer restated) but
- * cost one intake tick each. Measured on both order sets, the
- * clause-level model flags its misses at low similarity/margin, so an
- * honest need_confirm passes with 2–4 confirmations while always-confirm
- * (12) and never-confirm both fail. Stage 2 grades intake alone; stage
- * 4 additionally requires the queue run to serve ≥11 tickets both
- * correctly and on time — confirmations stall intake and can cost a
- * delivery.
+ * AI-intake pass lines for stage 4, shared by the judge and the result
+ * views. Confirmed orders always record correctly (the customer
+ * restated) but cost one intake tick each. Measured on both order sets,
+ * the clause-level model flags its misses at low similarity/margin, so
+ * an honest need_confirm passes with 2–4 confirmations while
+ * always-confirm (12) and never-confirm both fail. The pass additionally
+ * requires the queue run to serve ≥11 tickets both correctly and on
+ * time — confirmations stall intake and can cost a delivery.
  */
 export const AI_PASS_CORRECT = 12;
 export const AI_CONFIRM_BUDGET = 4;
