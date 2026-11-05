@@ -461,7 +461,7 @@ export function normalizedResults(
 }
 
 /* ---- Practice set ------------------------------------------------------
- * The stage-2 practice orders — the only set with public expected
+ * The stage-4 practice orders — the only set with public expected
  * tickets. Each order's predicted ticket carries the order-level
  * [similarity, margin] pair handed to the student's need_confirm.
  */

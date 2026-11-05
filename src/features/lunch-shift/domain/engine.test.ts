@@ -3,6 +3,8 @@
  * numbers are the lesson's difficulty curve — change them deliberately,
  * never silently.
  *
+ *  - 修接单 set: 6 public orders where every starter blank is needed —
+ *    unfilled scores W1 only; the printed answers reach 6/6.
  *  - 修排队 set: FIFO 8/12, urgent-first 10/12, urgent + wait-boost
  *    reaches 12/12 for every threshold in 8..16 (not one magic number).
  *  - 正式集 (mirrored below): the full-marks queue formulas stay full
@@ -19,6 +21,13 @@ import { priorityIndex, PRIORITY_TABLE_SIZE, checkPriorityTable } from "./priori
 import { pickProbe, probeSlack, QUEUE_PROBES } from "./queueProbes.ts";
 import { findFullWidthPunctuation } from "./runErrors.ts";
 import { buildScenario, QUEUE_SCENARIO } from "./scenarios.ts";
+import {
+  checkIntakeTables,
+  defaultIntakeTables,
+  evaluateIntake,
+  WORD_TABLE_ORDERS,
+  type IntakeTables,
+} from "./wordTables.ts";
 import {
   bestCompensation,
   checkCompensateTable,
@@ -121,6 +130,69 @@ const FINAL_FIXTURES = [
 ];
 
 const FINAL = buildScenario("F", FINAL_FIXTURES);
+
+describe("修接单 word tables — the 6-order exercise", () => {
+  /** The starter code with every ____ filled as the printed tickets direct. */
+  const SOLVED_TABLES: IntakeTables = {
+    dish: [
+      ["鸡腿饭", "鸡腿饭"],
+      ["炒饭", "蛋炒饭"],
+      ["牛肉面", "牛肉面"],
+    ],
+    note: [
+      ["不要香菜", "不要香菜"],
+      ["少辣", "少辣"],
+      ["不放香菜", "不要香菜"],
+      ["加蛋", "加蛋"],
+    ],
+    calm: ["不赶时间", "不急着"],
+    rush: ["加急", "赶时间", "急着"],
+  };
+  const correctOf = (tables: IntakeTables) =>
+    evaluateIntake(WORD_TABLE_ORDERS, tables).filter((order) => order.correct);
+
+  it("____ placeholders drop silently — the unfilled starter only scores W1", () => {
+    const { tables, errors } = checkIntakeTables(defaultIntakeTables());
+    expect(errors).toEqual([]);
+    // Every blank is needed by at least one order: W2/W5/W6 dish, W3
+    // dish+note+urgent, W4 note. W4's urgency lands right by accident
+    // until rush「急着」is added — the calm counterweight then matters.
+    expect(correctOf(tables).map((order) => order.id)).toEqual(["W1"]);
+  });
+
+  it("the printed answers fill all six — solved tables reach 6/6", () => {
+    const { tables, errors } = checkIntakeTables({
+      dish: SOLVED_TABLES.dish,
+      note: SOLVED_TABLES.note,
+      calm: SOLVED_TABLES.calm,
+      rush: SOLVED_TABLES.rush,
+    });
+    expect(errors).toEqual([]);
+    expect(correctOf(tables)).toHaveLength(6);
+  });
+
+  it("filling rush「急着」without calm「不急着」breaks W4 on urgency", () => {
+    const rows = evaluateIntake(WORD_TABLE_ORDERS, {
+      ...SOLVED_TABLES,
+      calm: ["不赶时间"],
+    });
+    const w4 = rows.find((order) => order.id === "W4")!;
+    expect(w4.correct).toBe(false);
+    expect(w4.urgentVia).toBe("rush");
+    expect(rows.filter((order) => order.correct)).toHaveLength(5);
+  });
+
+  it("malformed tables name the offending variable", () => {
+    const { errors } = checkIntakeTables({
+      dish: "不是表",
+      note: [["词", "菜单上没有的"]],
+      calm: [],
+      rush: [],
+    });
+    expect(errors.some((text) => text.includes("dish_words"))).toBe(true);
+    expect(errors.some((text) => text.includes("note_words"))).toBe(true);
+  });
+});
 
 describe("修排队 probes — the layered grade", () => {
   const probeScore = (table: number[] | null) =>

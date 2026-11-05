@@ -7,7 +7,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const schemaSql = readFileSync(resolve(here, "schema.sql"), "utf8");
 
 /** Current schema version; bump alongside every migration step below. */
-export const SCHEMA_VERSION = 16;
+export const SCHEMA_VERSION = 17;
 
 export const dbPath = resolve(process.env.LAB_DB_PATH ?? resolve(here, "../../data/lab.db"));
 
@@ -318,6 +318,24 @@ export function migrate(db: DatabaseSync): void {
           "current_stage=(SELECT COALESCE(MIN(j.value), 6) FROM json_each('[1,2,3,4,5]') j " +
           "WHERE j.value NOT IN " +
           "(SELECT value FROM json_each(passed_stages) WHERE value != 3)) " +
+          "WHERE lab_id='lunch-shift'",
+      );
+    }
+    // v16 -> v17: stage 2 is once more the guided word-table exercise —
+    // the AI-intake submissions/drafts/passes stored under slot 2 map to
+    // nothing there, so only that stage resets. Stage 4 keeps the same
+    // need_confirm + queue artefact shape, so its progress survives.
+    if (version < 17) {
+      db.exec("DELETE FROM submissions WHERE lab_id='lunch-shift' AND stage_index = 2");
+      db.exec(
+        "UPDATE student_projects SET " +
+          "passed_stages=(SELECT json_group_array(value) FROM json_each(passed_stages) " +
+          "WHERE value != 2), " +
+          "draft_graph=json_remove(draft_graph, '$.\"2\"'), " +
+          "draft_revisions=json_remove(draft_revisions, '$.\"2\"'), " +
+          "current_stage=(SELECT COALESCE(MIN(j.value), 6) FROM json_each('[1,2,3,4,5]') j " +
+          "WHERE j.value NOT IN " +
+          "(SELECT value FROM json_each(passed_stages) WHERE value != 2)) " +
           "WHERE lab_id='lunch-shift'",
       );
     }

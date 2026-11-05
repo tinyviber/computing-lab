@@ -1,8 +1,8 @@
 # Lunch-shift Lab (设计餐馆系统 — 4 mainline stages + bonus, 45 分钟)
 
 Layout: `domain/` (contracts, priority, scenarios, simulator, stages,
-compensate, protocol, runErrors, aiIntake), `lesson/state.ts` (per-stage
-drafts + save machinery), `ui/` (panels + `pyodide.worker.ts`/
+compensate, protocol, runErrors, wordTables, aiIntake), `lesson/state.ts`
+(per-stage drafts + save machinery), `ui/` (panels + `pyodide.worker.ts`/
 `pyodideRunner.ts` built on `shared/worker/createWorkerClient` +
 `shared/lab/pyodideRuntime`, plus `embed.worker.ts`/`embedRunner.ts` for
 the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
@@ -11,29 +11,32 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
 ## Teaching model
 
 - Stages: 1 订单旅程 (guided walkthrough — intro establishes the paid
-  「加急」 option customers buy) → 2 智能接单 (AI semantic intake on the
-  12 practice orders: the vendored BGE model proposes tickets in-browser;
-  the student writes `need_confirm(similarity, margin)` to pick which
-  orders the simulated customer restates — expected tickets are public
-  here so tuning is debuggable) → 3 修排队 (write
-  `priority(urgent, wait, cook)` — 函数复习) → 4 晚餐高峰 (the combined
-  challenge: same need_confirm against hidden orders + the stage-3
-  priority, judged on accuracy AND confirmation budget AND on-time
-  service). Paid express is the hook: 加钱走急单 is the phrasing no
-  literal rule lists but the model still catches.
+  「加急」 option customers buy) → 2 修接单 (hand-written dict/list word
+  tables on 6 public orders — the starter code ships `____` blanks the
+  student fills from the printed expected tickets) → 3 修排队 (write
+  `priority(urgent, wait, cook)` — 函数复习) → 4 智能接单 (the combined
+  challenge, self-contained: it introduces `need_confirm(similarity,
+margin)` itself — NEED_CONFIRM_STARTER is the default impl — with a
+  compact practice step on the public INTAKE set before the same
+  function runs the hidden orders + the stage-3 priority, judged on
+  accuracy AND confirmation budget AND on-time service). Paid express is
+  the hook: 加钱走急单 is the phrasing no literal rule lists but the
+  model still catches. The Stage-2-vs-4 contrast (rule tables vs
+  semantic model) is the point of the lesson.
   Stage 5 附加挑战 (compensate) is optional: unlocked by passing stage 3,
   lives as a collapsed "附加挑战（选做）" toggle under stage 3 in the rail,
   autosaves under draft slot 5.
 - Server NEVER executes student code — and never runs the model either.
-  Browser Pyodide worker turns code into JSON: stage 2 → per-order
-  `{id, ticket, confirmed}` rows on the practice set; stage 3 → a
+  Browser Pyodide worker turns code into JSON: stage 2 → the four word
+  tables (dicts as [key,value] pairs); stage 3 → a
   124-cell table of `priority()` over urgent×wait(0–30)×cook(1|3);
-  stage 4 → the same result rows on hidden orders plus the priority
-  table; stage 5 → a 3844-cell table of `compensate()`. The server
-  re-validates shapes (checkAiResults / checkPriorityTable /
-  checkCompensateTable, Chinese errors) and replays fixed parsers in
-  `domain/`. Code snapshots (≤8000 chars) are kept for teacher review
-  only.
+  stage 4 → per-order `{id, ticket, confirmed}` rows on hidden orders
+  plus the priority table; stage 5 → a 3844-cell table of
+  `compensate()`. The server
+  re-validates shapes (checkIntakeTables / checkAiResults /
+  checkPriorityTable / checkCompensateTable, Chinese errors) and replays
+  fixed parsers in `domain/`. Code snapshots (≤8000 chars) are kept for
+  teacher review only.
 - Queue pick = max table value, ties → FIFO (fifoQueue: arrivalTick then
   id). onTime uses EXPECTED urgency for the deadline (urgent <9, normal
   <18 of 30 ticks) while the priority input uses the PARSED flag.
@@ -57,7 +60,15 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
 
 ## Order sets (locked by engine.test.ts / judge.test.ts)
 
-- ② INTAKE_FIXTURES: 12 practice orders with paid-intent urgency
+- ② WORD_TABLE_ORDERS (domain/wordTables.ts): 6 public orders for the
+  dict/list exercise — every `____` blank in the starter is needed by
+  ≥1 order (unfilled starter scores exactly W1). The designed interplay:
+  rush「急着」is needed for W3 but misfires W4「不急着吃」unless
+  calm「不急着」is also filled (calm checked FIRST). Blank entries drop
+  silently in `checkIntakeTables` — partial runs still show per-field
+  misses (itemKey/noteKey/urgentVia attribution in the summary).
+- ④ INTAKE_FIXTURES: 12 public practice orders (stage 4's in-stage
+  practice step) with paid-intent urgency
   phrasing (要加急/付费加急/加钱加急/走加急通道/付费加快/不用加急) and
   two designed AI traps: P06 「想快一点但不想加钱」→ misjudged 加急
   (margin ~0.001–0.014, true 普通 — the margin signal catches it) and
@@ -85,11 +96,10 @@ the vendored embedding model), `server/judge/lunch-shift/{judge,hiddenSet}.ts`,
 ## Judging contract
 
 - Stage 2/3/5 malformed submissions → recorded failed submission carrying
-  `errors` (retry allowed); stage 2/4 missing results → `missing-run`
+  `errors` (retry allowed); stage 4 missing results → `missing-run`
   400 BEFORE grading (a client-protocol fault, not an attempt).
-- Stage 2 pass: `correct == 12` AND `confirmed <= AI_CONFIRM_BUDGET(4)`
-  on the practice set — confirming a right order can't fix a miss, so a
-  pass must find the orders the model actually got wrong.
+- Stage 2 pass: `correct == 6` on WORD_TABLE_ORDERS — deterministic
+  `parseTicket` replay, no AI anywhere.
 - Stage 3 pass: `passedProbes >= QUEUE_PASS(11)` of 12 — the summary's
   `onTime` field carries the probe count for compat; the per-probe rows
   ride in `probes` (picked + answer indices, no slack math leaked).
@@ -108,18 +118,21 @@ AI_SERVED_MIN(11)` (记对且准时) — accuracy, confirmation cost and
   correct/confirmed/onTime only — no request text. Stage 5 is pass/fail.
 - Any code edit immediately nulls the derived results/priority in the
   draft — submit stays disabled until a fresh run.
-- Draft shapes: AiIntakeDraft{confirmCode,results} (stage 2),
-  QueueDraft{code,priority}, AiDraft = AiIntakeDraft & {queueCode,
-  priority} (stage 4 seeds confirmCode from draft 2 and queue artefact
-  from draft 3 in `draftOf`); CompensateDraft{code,compensate}.
+- Draft shapes: IntakeDraft{code,tables} (stage 2),
+  QueueDraft{code,priority}, AiDraft{confirmCode,results,queueCode,
+  priority} (stage 4 seeds ONLY the queue artefact from draft 3 in
+  `draftOf` — need_confirm starts empty → panel falls back to
+  NEED_CONFIRM_STARTER); CompensateDraft{code,compensate}.
   `runSummaries` extras keyed intake/queue/final/compensate; `aiOrders`
   extras = `FINAL_PUBLIC_ORDERS` (id+request only) and ships ONLY once
   stage 4 is unlocked.
 - DB migration v15 drops lunch-shift stage-2 and stage-4 submissions/
   drafts/passed flags (both redesigned) while keeping 1/3/5; v16 drops
-  stage-3 leftovers for the probe-battery rescoring.
+  stage-3 leftovers for the probe-battery rescoring; v17 drops stage-2
+  AI-intake leftovers (word-table exercise restored) while keeping
+  1/3/4/5.
 
-## AI intake — browser-local embedding (stages 2+4 share it)
+## AI intake — browser-local embedding (stage 4 owns it)
 
 - `domain/aiIntake.ts` holds the pure extraction logic: `splitClauses`
   (CJK punctuation), `predictField` (per-candidate best clause×prototype

@@ -19,6 +19,20 @@ const client = createWorkerClient(
 export const warmPyodide = client.warm;
 
 /**
+ * Run the stage-2 word-table code and read back the four variables
+ * (dish_words / note_words / calm_words / rush_words) — dicts arrive as
+ * [key, value] pairs in insertion order, lists as word lists. Validated
+ * by the caller (checkIntakeTables).
+ */
+export async function runIntakeTables(
+  code: string,
+  timeoutMs = WORKER_RUN_TIMEOUT_MS,
+): Promise<unknown> {
+  const payload = await client.run<{ result: unknown }>({ kind: "tables", code }, timeoutMs);
+  return payload.result;
+}
+
+/**
  * Evaluate priority(urgent, wait, cook) for all 124 input combinations.
  * Returns the raw result list — validated by the caller
  * (checkPriorityTable).

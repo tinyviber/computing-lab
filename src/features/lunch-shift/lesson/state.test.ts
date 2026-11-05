@@ -1,8 +1,9 @@
 /**
- * Reducer checks for the cross-stage wiring: stage 4's draft seeds from
- * the stage-2/3 work, and a judge result refreshes aiOrders plus the
- * per-stage run summaries (a stage-3 pass must unlock stage 4 without a
- * page reload).
+ * Reducer checks for the cross-stage wiring: stage 4's draft seeds the
+ * stage-3 queue artefact (need_confirm is introduced by stage 4 itself,
+ * so nothing carries from stage 2), and a judge result refreshes
+ * aiOrders plus the per-stage run summaries (a stage-3 pass must unlock
+ * stage 4 without a page reload).
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,7 +22,7 @@ function stateWithDrafts(overrides: Partial<LunchLessonState> = {}): LunchLesson
     ...createLunchLessonState(3),
     passedStages: [1, 2],
     drafts: {
-      2: { confirmCode: "return similarity < 0.75", results: [] },
+      2: { code: 'dish_words = {"鸡腿饭": "鸡腿饭"}', tables: null },
       3: { code: "def priority(u, w, c): return u", priority: PRIORITY_TABLE },
     },
     ...overrides,
@@ -44,10 +45,10 @@ function outcome(partial: Partial<LunchJudgeResult>): LunchJudgeResult {
 }
 
 describe("draftOf stage-4 seeding", () => {
-  it("carries confirmCode from stage 2 and queue code+table from stage 3", () => {
+  it("carries queue code+table from stage 3, with its own need_confirm to write", () => {
     const draft = draftOf(stateWithDrafts(), 4);
     expect(draft).toEqual({
-      confirmCode: "return similarity < 0.75",
+      confirmCode: "",
       results: null,
       queueCode: "def priority(u, w, c): return u",
       priority: PRIORITY_TABLE,

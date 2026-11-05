@@ -1,0 +1,252 @@
+/**
+ * Stage 2 · 修接单: the word-table editor. The student edits the four
+ * variables — two dicts ({词: 值}) and two lists — runs the code in the
+ * Pyodide worker, and the derived tables are what get saved and judged;
+ * the server replays the same fixed parser on the six public orders.
+ */
+
+import { useState } from "react";
+import type { IntakeDraft, IntakeOrderResult, LunchTestSummary } from "../domain/protocol.ts";
+import { describeFullWidthPunctuation, friendlyRunError } from "../domain/runErrors.ts";
+import { checkIntakeTables, evaluateIntake, WORD_TABLE_ORDERS } from "../domain/wordTables.ts";
+import { CodeEditor } from "./CodeEditor.tsx";
+import { runIntakeTables } from "./pyodideRunner.ts";
+
+export const INTAKE_STARTER = `dish_words = {
+    "鸡腿饭": "鸡腿饭",
+    "炒饭": "____",      # W3、W6 说的「炒饭」要记成哪道菜？
+    "牛肉面": "____",
+}
+
+note_words = {
+    "不要香菜": "不要香菜",
+    "少辣": "少辣",
+    "不放香菜": "____",  # W4 的「不放香菜」要记成哪个备注？
+    "加蛋": "____",
+}
+
+calm_words = ["不赶时间", "____"]      # W4 的「不急着吃」
+rush_words = ["加急", "赶时间", "____"]  # W3 的「急着走」
+`;
+
+function ticketText(ticket: {
+  item: string;
+  note: string;
+  table: string;
+  urgent: boolean;
+}): string {
+  return `${ticket.item || "没认出菜品"} · 「${ticket.note}」 · ${ticket.table || "没认出桌号"} 号桌 · ${ticket.urgent ? "加急" : "普通"}`;
+}
+
+/** Which table and word decided each field — or that nothing hit. */
+function fieldReasons(order: IntakeOrderResult): string[] {
+  const reasons: string[] = [];
+  if (order.produced.item !== order.expected.item) {
+    reasons.push(
+      order.itemKey
+        ? `菜品认成了「${order.produced.item}」（dish_words 里「${order.itemKey}」先命中）`
+        : "菜品空着，dish_words 里没有词命中",
+    );
+  }
+  if (order.produced.note !== order.expected.note) {
+    reasons.push(
+      order.noteKey
+        ? `备注写成了「${order.produced.note}」（note_words 里「${order.noteKey}」先命中）`
+        : `备注写成了「无备注」，note_words 里没有词命中，应为「${order.expected.note}」`,
+    );
+  }
+  if (order.produced.urgent !== order.expected.urgent) {
+    const via =
+      order.urgentVia === "calm"
+        ? `calm_words 里「${order.urgentKey}」命中 → 普通`
+        : order.urgentVia === "rush"
+          ? `rush_words 里「${order.urgentKey}」命中 → 加急`
+          : "两张表都没命中 → 普通";
+    reasons.push(`应为${order.expected.urgent ? "加急" : "普通"}单，${via}`);
+  }
+  return reasons;
+}
+
+export function IntakeResultList({ orders }: { orders: IntakeOrderResult[] }) {
+  const wrong = orders.filter((order) => !order.correct);
+  return (
+    <div className="lunch-intake-results" role="status">
+      <p className="eyebrow">
+        小票正确 {orders.length - wrong.length} / {orders.length}
+      </p>
+      {wrong.length === 0 ? (
+        <>
+          <p className="lunch-feedback success">{orders.length} 张原话全部记对了。</p>
+          {orders.map((order) => (
+            <details className="lunch-order-item" key={order.id}>
+              <summary>
+                <b>{order.id}</b> · {order.request}
+              </summary>
+              <ul>
+                <li>小票：{ticketText(order.produced)}</li>
+              </ul>
+            </details>
+          ))}
+        </>
+      ) : (
+        wrong.map((order) => (
+          <article className="lunch-order-fix" key={order.id}>
+            <p>
+              <b>{order.id}</b> · 顾客说：{order.request}
+            </p>
+            <ul>
+              <li>你的小票：{ticketText(order.produced)}</li>
+              <li>应该是：{ticketText(order.expected)}</li>
+              {fieldReasons(order).map((reason) => (
+                <li key={reason}>{reason}</li>
+              ))}
+            </ul>
+          </article>
+        ))
+      )}
+    </div>
+  );
+}
+
+export function IntakePanel({
+  draft,
+  submitting,
+  result,
+  onChange,
+  onSubmit,
+}: {
+  draft: IntakeDraft;
+  submitting: boolean;
+  /** Latest recorded judge summary — also drives the shown results. */
+  result: LunchTestSummary | null;
+  onChange: (draft: IntakeDraft) => void;
+  onSubmit: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [tableErrors, setTableErrors] = useState<string[]>([]);
+  const [localResults, setLocalResults] = useState<IntakeOrderResult[] | null>(null);
+  const [running, setRunning] = useState(false);
+
+  const source = draft.code.trim() ? draft.code : INTAKE_STARTER;
+  const judgedOrders = result?.kind === "intake" ? (result.orders ?? null) : null;
+  const judgedErrors = result?.kind === "intake" ? (result.errors ?? []) : [];
+  // The newest local preview wins; the recorded grade shows only until a
+  // fresh run replaces it.
+  const shownOrders = localResults ?? judgedOrders;
+
+  const run = async () => {
+    setRunning(true);
+    setError(null);
+    setTableErrors([]);
+    try {
+      const punct = describeFullWidthPunctuation(source);
+      if (punct) throw new Error(punct);
+      const raw = await runIntakeTables(source);
+      const parts = Array.isArray(raw) ? raw : [];
+      const { tables, errors } = checkIntakeTables({
+        dish: parts[0],
+        note: parts[1],
+        calm: parts[2],
+        rush: parts[3],
+      });
+      if (errors.length > 0) {
+        setTableErrors(errors);
+        return;
+      }
+      onChange({ code: source, tables });
+      setLocalResults(evaluateIntake(WORD_TABLE_ORDERS, tables));
+    } catch (err) {
+      setError(friendlyRunError(err instanceof Error ? err.message : String(err)));
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <section className="lunch-challenge">
+      <p>
+        词表就是接单台的规则：<code>dish_words</code> / <code>note_words</code> 是字典，写成{" "}
+        <code>{'{"原话里的词": "要记的值"}'}</code>；<code>calm_words</code> /{" "}
+        <code>rush_words</code> 是列表，写成 <code>{'["词1", "词2"]'}</code>
+        。原话里命中哪个词就记哪个，词表没有的词，电脑就认不出来。
+      </p>
+      <div className="lunch-table-wrap">
+        <table className="lunch-orders-table">
+          <thead>
+            <tr>
+              <th>订单</th>
+              <th>顾客说</th>
+              <th>应记的小票</th>
+            </tr>
+          </thead>
+          <tbody>
+            {WORD_TABLE_ORDERS.map((order) => (
+              <tr key={order.id}>
+                <td>
+                  <b>{order.id}</b>
+                </td>
+                <td>{order.request}</td>
+                <td>{ticketText(order.expected)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="lunch-params">
+        <ul>
+          <li>
+            字典按写的顺序查，原话里第一个命中的词算数；右边的值必须是菜单上的菜名或备注（可选：
+            菜品 鸡腿饭、蛋炒饭、牛肉面；备注 不要香菜、少辣、加蛋、无备注）。
+          </li>
+          <li>
+            备注一个都没中记「无备注」；时效先查 <code>calm_words</code>（普通），没中再查{" "}
+            <code>rush_words</code>（加急），都没中算普通。
+          </li>
+          <li>桌号由程序自己认，不用写词表；每张表最多 20 项，一个词 1～10 个字。</li>
+        </ul>
+      </div>
+      <CodeEditor
+        ariaLabel="词表代码"
+        disabled={running}
+        onChange={(code) => {
+          setLocalResults(null);
+          setTableErrors([]);
+          onChange({ code, tables: null });
+        }}
+        value={source}
+      />
+      <div className="submit-row">
+        <button
+          className="button button-secondary"
+          disabled={running}
+          onClick={() => void run()}
+          type="button"
+        >
+          {running ? "运行中…" : "运行，检查 6 张小票"}
+        </button>
+        <button
+          className="button button-primary"
+          disabled={submitting || draft.tables === null}
+          onClick={onSubmit}
+          type="button"
+        >
+          {submitting ? "判定中…" : "交服务器判分"}
+        </button>
+        {draft.tables === null ? <span className="submit-note">还没有算出的词表。</span> : null}
+      </div>
+      {error ? (
+        <p className="test-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {tableErrors.length > 0 || judgedErrors.length > 0 ? (
+        <ul className="lunch-order-fix" role="alert">
+          {[...judgedErrors, ...tableErrors].map((text) => (
+            <li key={text}>{text}</li>
+          ))}
+        </ul>
+      ) : null}
+      {shownOrders ? <IntakeResultList orders={shownOrders} /> : null}
+    </section>
+  );
+}

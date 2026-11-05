@@ -10,7 +10,10 @@ import {
   COMPENSATE_TABLE_SIZE,
   compensateIndex,
 } from "../../../src/features/lunch-shift/domain/compensate.ts";
-import { INTAKE_SCENARIO } from "../../../src/features/lunch-shift/domain/scenarios.ts";
+import {
+  defaultIntakeTables,
+  type IntakeTables,
+} from "../../../src/features/lunch-shift/domain/wordTables.ts";
 import { FINAL_PUBLIC_ORDERS, FINAL_SCENARIO } from "./hiddenSet.ts";
 
 const LAB_ID = "lunch-shift";
@@ -46,99 +49,96 @@ function tableFor(fn: (urgent: boolean, wait: number, cook: number) => number): 
 
 const BOOST10 = tableFor((u, w) => (u ? 1 : 0) + (w >= 10 ? 1 : 0));
 
+/** The starter code with every ____ filled as the order table directs. */
+const SOLVED_TABLES: IntakeTables = {
+  dish: [
+    ["鸡腿饭", "鸡腿饭"],
+    ["炒饭", "蛋炒饭"],
+    ["牛肉面", "牛肉面"],
+  ],
+  note: [
+    ["不要香菜", "不要香菜"],
+    ["少辣", "少辣"],
+    ["不放香菜", "不要香菜"],
+    ["加蛋", "加蛋"],
+  ],
+  calm: ["不赶时间", "不急着"],
+  rush: ["加急", "赶时间", "急着"],
+};
+
 describe("lunch-shift judge", () => {
-  /** AI-intake rows over the practice set: `wrong` rows model an AI miss
-   *  the function didn't flag; `confirmIds` get confirmed. */
-  function practiceResults(wrongIds: string[] = [], confirmIds: string[] = []) {
-    return INTAKE_SCENARIO.orders.map((order) => ({
-      id: order.id,
-      ticket: wrongIds.includes(order.id)
-        ? { ...order.expected!, item: order.expected!.item === "鸡腿饭" ? "蛋炒饭" : "鸡腿饭" }
-        : { ...order.expected! },
-      confirmed: confirmIds.includes(order.id),
-    }));
-  }
-  const intakeDraft = (results: unknown) => ({ confirmCode: "x", results });
-
-  it("stage 2 passes only when the confirmed misses cover every AI error", () => {
+  it("stage 2 passes only at 6/6 tickets", () => {
     const { db, project } = setupProject([1]);
-    // AI missed P06 and P10; the function confirmed only P10 — P06 fails.
-    const partial = judgeLunchShiftSubmission(
-      db,
-      project,
-      2,
-      intakeDraft(practiceResults(["P06", "P10"], ["P10"])),
-    );
-    expect("error" in partial).toBe(false);
-    if ("error" in partial) return;
-    expect(partial.passed).toBe(false);
-    expect(partial.score).toBe(11);
-    if (partial.testSummary.kind !== "ai-intake") return;
-    expect(partial.testSummary.correct).toBe(11);
-    expect(partial.testSummary.confirmed).toBe(1);
+    // The unfilled starter drops its ____ entries: only W1 records right.
+    const bad = judgeLunchShiftSubmission(db, project, 2, {
+      code: "x",
+      tables: defaultIntakeTables(),
+    });
+    expect("error" in bad).toBe(false);
+    if ("error" in bad) return;
+    expect(bad.passed).toBe(false);
+    expect(bad.score).toBe(1);
+    if (bad.testSummary.kind !== "intake") return;
+    expect(bad.testSummary.correct).toBe(1);
 
-    // Confirming both misses (plus two borderline-but-right ones) passes.
-    const good = judgeLunchShiftSubmission(
-      db,
-      project,
-      2,
-      intakeDraft(practiceResults(["P06", "P10"], ["P06", "P10", "P03", "P05"])),
-    );
+    const good = judgeLunchShiftSubmission(db, project, 2, {
+      code: "x",
+      tables: SOLVED_TABLES,
+    });
     expect("error" in good).toBe(false);
     if ("error" in good) return;
     expect(good.passed).toBe(true);
     expect(good.passedStages).toEqual([1, 2]);
     // Stage 4 stays locked — no order wording leaks with the result.
     expect(good.aiOrders).toBeNull();
-    if (good.testSummary.kind !== "ai-intake") return;
-    expect(good.testSummary.correct).toBe(12);
-    expect(good.testSummary.confirmed).toBe(4);
+    if (good.testSummary.kind !== "intake") return;
+    expect(good.testSummary.correct).toBe(6);
+    expect(good.testSummary.orders).toHaveLength(6);
   });
 
-  it("stage 2 fails when a stray confirmation leaves the real miss wrong", () => {
+  it("stage 2 needs the calm counterweight — rush「急着」alone misfires W4", () => {
     const { db, project } = setupProject([1]);
-    // The reviewer's case: confirming an already-right order does NOT
-    // fix the miss — 11/12 stays 11/12 and cannot pass.
-    const outcome = judgeLunchShiftSubmission(
-      db,
-      project,
-      2,
-      intakeDraft(practiceResults(["P10"], ["P05"])),
-    );
+    // Filled rush「急着」but not calm「不急着」: W3 lands right while
+    // W4 「不急着吃」 hits the rush word and misfires as urgent.
+    const tables: IntakeTables = { ...SOLVED_TABLES, calm: ["不赶时间"] };
+    const outcome = judgeLunchShiftSubmission(db, project, 2, { code: "x", tables });
     expect("error" in outcome).toBe(false);
     if ("error" in outcome) return;
     expect(outcome.passed).toBe(false);
-    if (outcome.testSummary.kind !== "ai-intake") return;
-    expect(outcome.testSummary.correct).toBe(11);
-    expect(outcome.testSummary.confirmed).toBe(1);
+    expect(outcome.score).toBe(5);
+    if (outcome.testSummary.kind !== "intake") return;
+    const w4 = outcome.testSummary.orders?.find((order) => order.id === "W4");
+    expect(w4?.correct).toBe(false);
+    expect(w4?.urgentVia).toBe("rush");
+    expect(w4?.urgentKey).toBe("急着");
   });
 
-  it("stage 2 fails over the confirmation budget even when all tickets land right", () => {
+  it("stage 2 records a failed submission with Chinese errors on malformed tables", () => {
     const { db, project } = setupProject([1]);
-    const outcome = judgeLunchShiftSubmission(
-      db,
-      project,
-      2,
-      intakeDraft(practiceResults([], ["P01", "P02", "P03", "P04", "P05"])),
-    );
+    const outcome = judgeLunchShiftSubmission(db, project, 2, {
+      code: "x",
+      tables: { dish: "不是表", note: [], calm: [], rush: [] },
+    });
     expect("error" in outcome).toBe(false);
     if ("error" in outcome) return;
     expect(outcome.passed).toBe(false);
-    if (outcome.testSummary.kind !== "ai-intake") return;
-    expect(outcome.testSummary.correct).toBe(12);
-    expect(outcome.testSummary.confirmed).toBe(5);
-  });
-
-  it("stage 2 refuses missing results without recording a submission", () => {
-    const { db, project } = setupProject([1]);
-    const outcome = judgeLunchShiftSubmission(db, project, 2, intakeDraft(null));
-    expect("error" in outcome).toBe(true);
-    if (!("error" in outcome)) return;
-    expect(outcome.error).toBe("missing-run");
+    if (outcome.testSummary.kind !== "intake") return;
+    expect(outcome.testSummary.errors?.some((text) => text.includes("dish_words"))).toBe(true);
+    // recorded as a submission row, not a silent rejection
     const rows = db
       .prepare("SELECT COUNT(*) AS n FROM submissions WHERE lab_id='lunch-shift' AND stage_index=2")
       .get() as { n: number };
-    expect(rows.n).toBe(0);
+    expect(rows.n).toBe(1);
+  });
+
+  it("stage 2 records a failed submission when no tables were ever run", () => {
+    const { db, project } = setupProject([1]);
+    const outcome = judgeLunchShiftSubmission(db, project, 2, { code: "x", tables: null });
+    expect("error" in outcome).toBe(false);
+    if ("error" in outcome) return;
+    expect(outcome.passed).toBe(false);
+    if (outcome.testSummary.kind !== "intake") return;
+    expect(outcome.testSummary.errors?.[0]).toContain("还没有可用的词表");
   });
 
   it("stage 3 grades the probes — naive single-axis tables cannot pass", () => {

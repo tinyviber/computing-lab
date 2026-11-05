@@ -17,8 +17,8 @@ import { TABLES } from "../domain/contracts.ts";
 import { MAX_CODE_CHARS } from "../domain/priority.ts";
 import type {
   AiDraft,
-  AiIntakeDraft,
   CompensateDraft,
+  IntakeDraft,
   LunchDraft,
   LunchJudgeResult,
   LunchProjectExtras,
@@ -27,6 +27,7 @@ import type {
   TrainingDraft,
 } from "../domain/protocol.ts";
 import { sanitizeAiResults } from "../domain/aiIntake.ts";
+import { sanitizeIntakeTables } from "../domain/wordTables.ts";
 import { TRAINING_REQUEST, TRAINING_TICKET } from "../domain/scenarios.ts";
 import {
   getLunchStage,
@@ -75,7 +76,7 @@ export type LunchLessonAction =
     }
   | { type: "select-stage"; stageIndex: number }
   | { type: "update-training"; draft: TrainingDraft }
-  | { type: "update-intake"; draft: AiIntakeDraft }
+  | { type: "update-intake"; draft: IntakeDraft }
   | { type: "update-queue"; draft: QueueDraft }
   | { type: "update-final"; draft: AiDraft }
   | { type: "update-compensate"; draft: CompensateDraft }
@@ -102,8 +103,8 @@ export function emptyTrainingDraft(): TrainingDraft {
   return { step: "record", ticket: null, kitchenChoice: null, deliveredTable: null };
 }
 
-export function emptyAiIntakeDraft(): AiIntakeDraft {
-  return { confirmCode: "", results: null };
+export function emptyIntakeDraft(): IntakeDraft {
+  return { code: "", tables: null };
 }
 
 export function emptyQueueDraft(): QueueDraft {
@@ -119,26 +120,20 @@ function codeOf(raw: unknown): string {
 }
 
 /**
- * The draft for a stage: the stored copy, or a fresh default. The
- * dinner-rush stage seeds its confirm code from the stage-2 intake draft
- * and its queue artefact from the stage-3 draft, so both pieces of
- * student work carry into the final run.
+ * The draft for a stage: the stored copy, or a fresh default. Stage 4
+ * seeds its queue artefact from the stage-3 draft so the student's
+ * priority work carries into the final run; need_confirm is introduced
+ * by stage 4 itself, so there is nothing to carry from stage 2.
  */
 export function draftOf(state: LunchLessonState, stageIndex = state.stageIndex): LunchDraft {
   const stored = state.drafts[stageIndex];
   if (stored !== undefined) return stored;
   if (stageIndex === 1) return emptyTrainingDraft();
-  if (stageIndex === 2) return emptyAiIntakeDraft();
+  if (stageIndex === 2) return emptyIntakeDraft();
   if (stageIndex === 3) return emptyQueueDraft();
   if (stageIndex === 5) return emptyCompensateDraft();
-  const intake = sanitizeLunchDraft(2, state.drafts[2] ?? {}) as AiIntakeDraft;
   const queue = sanitizeLunchDraft(3, state.drafts[3] ?? {}) as QueueDraft;
-  return {
-    ...emptyAiDraft(),
-    confirmCode: intake.confirmCode,
-    queueCode: queue.code,
-    priority: queue.priority,
-  };
+  return { ...emptyAiDraft(), queueCode: queue.code, priority: queue.priority };
 }
 
 function isTicketShape(value: unknown): value is TrainingDraft["ticket"] {
@@ -177,12 +172,12 @@ export function sanitizeTrainingDraft(raw: unknown): TrainingDraft {
   return draft;
 }
 
-export function sanitizeAiIntakeDraft(raw: unknown): AiIntakeDraft {
-  const draft = emptyAiIntakeDraft();
+export function sanitizeIntakeDraft(raw: unknown): IntakeDraft {
+  const draft = emptyIntakeDraft();
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return draft;
   const record = raw as Record<string, unknown>;
-  draft.confirmCode = codeOf(record.confirmCode);
-  draft.results = sanitizeAiResults(record.results);
+  draft.code = codeOf(record.code);
+  draft.tables = sanitizeIntakeTables(record.tables);
   return draft;
 }
 
@@ -222,7 +217,7 @@ export function sanitizeCompensateDraft(raw: unknown): CompensateDraft {
 /** Bound a restored draft at the domain edge, dispatched by stage. */
 export function sanitizeLunchDraft(stageIndex: number, raw: unknown): LunchDraft {
   if (stageIndex === 1) return sanitizeTrainingDraft(raw);
-  if (stageIndex === 2) return sanitizeAiIntakeDraft(raw);
+  if (stageIndex === 2) return sanitizeIntakeDraft(raw);
   if (stageIndex === 3) return sanitizeQueueDraft(raw);
   if (stageIndex === 5) return sanitizeCompensateDraft(raw);
   return sanitizeAiDraft(raw);
@@ -263,7 +258,7 @@ export function createLunchLessonState(stageIndex = 1): LunchLessonState {
 const SUMMARY_KEY_BY_KIND: Partial<
   Record<LunchTestSummary["kind"], keyof LunchProjectExtras["runSummaries"]>
 > = {
-  "ai-intake": "intake",
+  intake: "intake",
   queue: "queue",
   final: "final",
   compensate: "compensate",
